@@ -49,8 +49,7 @@ commands in [`AGENTS.md` → Verify](AGENTS.md#verify-run-the-checks-test-by-han
 
 ## Branches
 
-`main` is the only long-lived branch and every push to it deploys to the VPS, so nothing is pushed
-to it directly. Branch from `main` as `<type>/<issue>-<slug>` and open the PR back into `main`. The
+`main` is the only long-lived branch, so nothing is pushed to it directly. Branch from `main` as `<type>/<issue>-<slug>` and open the PR back into `main`. The
 upstream Git Flow (`development`, `release/*`) is not used here (ADR 0001). Releases are tags on
 `main`: [`docs/agents/project-guide.md` → Release process](docs/agents/project-guide.md#release-process).
 
@@ -152,7 +151,7 @@ on every turn.
 
 | Check | Blocks? | What it checks |
 |---|---|---|
-| CI/CD Pipeline → CI (Build) (`deploy.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), `npm run build`, `php artisan test` on SQLite; a push to `main` then deploys to the VPS |
+| CI/CD Pipeline → CI (Build) (`deploy.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), `npm run build`, `php artisan test` on SQLite. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001) |
 | PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution |
 | Issue checklist | comments | Required sections and lines on new issues |
 | PR size / File length | above the fail limit | Counted changed lines; code files growing past the limit |
