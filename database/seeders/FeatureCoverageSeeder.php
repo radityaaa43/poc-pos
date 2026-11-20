@@ -20,6 +20,7 @@ use App\Models\SupplierReturn;
 use App\Models\SupplierReturnItem;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\GoodsReceivingService;
 use App\Services\PurchaseOrderService;
@@ -163,10 +164,29 @@ class FeatureCoverageSeeder extends Seeder
             'store_email' => ['value' => 'halo@majubersama.test', 'description' => 'Email toko'],
             'store_website' => ['value' => 'https://majubersama.test', 'description' => 'Website atau sosial media'],
             'store_city' => ['value' => 'Bandung', 'description' => 'Kota/Kabupaten toko'],
+            'store_npwp' => ['value' => '01.234.567.8-901.000', 'description' => 'NPWP toko'],
+            'store_nib' => ['value' => '1234567890123', 'description' => 'NIB toko'],
+            'tax_default_rate' => ['value' => '11.00', 'description' => 'Tarif PPN default (%)'],
+            'printer_auto_print' => ['value' => '1', 'description' => 'Cetak struk otomatis setelah transaksi'],
+            'printer_paper_size' => ['value' => '80mm', 'description' => 'Ukuran kertas printer (58/80mm)'],
+            'wa_service_url' => ['value' => 'http://localhost:3001', 'description' => 'URL layanan WhatsApp'],
+            'wa_enabled' => ['value' => '0', 'description' => 'Aktifkan integrasi WhatsApp'],
+            'wa_auto_reminder' => ['value' => '1', 'description' => 'Kirim pengingat otomatis via WhatsApp'],
+            'wa_auto_invoice' => ['value' => '1', 'description' => 'Kirim invoice otomatis via WhatsApp'],
+            'discount_approval_threshold' => ['value' => '50000', 'description' => 'Nominal diskon yang butuh persetujuan'],
+            'discount_approval_percent_threshold' => ['value' => '10', 'description' => 'Persentase diskon yang butuh persetujuan'],
+            'loyalty_enable_earn' => ['value' => '1', 'description' => 'Aktifkan perolehan poin loyalitas'],
+            'loyalty_enable_redeem' => ['value' => '1', 'description' => 'Aktifkan penukaran poin loyalitas'],
+            'loyalty_earn_rate_amount' => ['value' => '10000', 'description' => 'Nominal belanja untuk 1 poin'],
+            'loyalty_redeem_point_value' => ['value' => '100', 'description' => 'Nilai rupiah per 1 poin saat ditukar'],
+            'loyalty_tier_regular_threshold' => ['value' => '0', 'description' => 'Ambang total belanja tier Regular'],
+            'loyalty_tier_silver_threshold' => ['value' => '500000', 'description' => 'Ambang total belanja tier Silver'],
+            'loyalty_tier_gold_threshold' => ['value' => '1500000', 'description' => 'Ambang total belanja tier Gold'],
+            'loyalty_tier_platinum_threshold' => ['value' => '3000000', 'description' => 'Ambang total belanja tier Platinum'],
         ];
 
         foreach ($settings as $key => $payload) {
-            Setting::updateOrCreate(
+            Setting::firstOrCreate(
                 ['key' => $key],
                 [
                     'value' => $payload['value'],
@@ -211,8 +231,6 @@ class FeatureCoverageSeeder extends Seeder
     {
         PaymentSetting::firstOrCreate([], [
             'default_gateway' => 'cash',
-        ])->update([
-            'default_gateway' => 'cash',
             'bank_transfer_enabled' => true,
             'midtrans_enabled' => false,
             'xendit_enabled' => false,
@@ -253,10 +271,12 @@ class FeatureCoverageSeeder extends Seeder
         $purchaseOrderService = app(PurchaseOrderService::class);
         $goodsReceivingService = app(GoodsReceivingService::class);
         $supplierReturnService = app(SupplierReturnService::class);
+        $warehouseId = Warehouse::where('code', 'WH-MAL')->value('id');
 
         $draftOrder = $purchaseOrderService->createOrder(
             [
                 'supplier_id' => $suppliers->get('CV Makmur Jaya Distribusi')?->id,
+                'warehouse_id' => $warehouseId,
                 'notes' => 'Draft pengadaan perlengkapan rumah tangga akhir minggu.',
             ],
             [
@@ -282,6 +302,7 @@ class FeatureCoverageSeeder extends Seeder
         $cancelledOrder = $purchaseOrderService->createOrder(
             [
                 'supplier_id' => $suppliers->get('UD Berkah Retail Grosir')?->id,
+                'warehouse_id' => $warehouseId,
                 'notes' => 'PO dibatalkan karena harga supplier berubah.',
             ],
             [
@@ -310,6 +331,7 @@ class FeatureCoverageSeeder extends Seeder
         $partialOrder = $purchaseOrderService->createOrder(
             [
                 'supplier_id' => $suppliers->get('PT Sumber Pangan Nusantara')?->id,
+                'warehouse_id' => $warehouseId,
                 'notes' => 'PO barang cepat laku untuk restock mingguan.',
             ],
             [
@@ -366,6 +388,7 @@ class FeatureCoverageSeeder extends Seeder
         $completedOrder = $purchaseOrderService->createOrder(
             [
                 'supplier_id' => $suppliers->get('PT Segar Sentosa Abadi')?->id,
+                'warehouse_id' => $warehouseId,
                 'notes' => 'PO lengkap untuk frozen food dan produk susu.',
             ],
             [
@@ -488,7 +511,7 @@ class FeatureCoverageSeeder extends Seeder
             ],
             $admin->id,
         );
-        $supplierReturnService->complete($completedReturn);
+        $supplierReturnService->complete($completedReturn, $admin->id);
 
         $completedReturn->update([
             'returned_at' => now()->subHours(6),
@@ -501,9 +524,11 @@ class FeatureCoverageSeeder extends Seeder
     {
         $stockMutationService = app(StockMutationService::class);
         $auditLogService = app(AuditLogService::class);
+        $warehouseId = Warehouse::where('code', 'WH-MAL')->value('id');
 
         $draftOpname = StockOpname::create([
             'code' => 'SO-DRAFT-001',
+            'warehouse_id' => $warehouseId,
             'status' => 'draft',
             'notes' => 'Sesi stock opname rak depan, belum semua item dihitung.',
             'created_by' => $admin->id,
@@ -529,6 +554,7 @@ class FeatureCoverageSeeder extends Seeder
         $finalizedAt = now()->subHours(2);
         $finalizedOpname = StockOpname::create([
             'code' => 'SO-FINAL-001',
+            'warehouse_id' => $warehouseId,
             'status' => 'draft',
             'notes' => 'Opname gudang pendingin untuk batch awal pekan.',
             'created_by' => $admin->id,

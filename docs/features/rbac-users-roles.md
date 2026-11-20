@@ -30,11 +30,24 @@ Setiap modul memakai permission sendiri, contohnya:
 - `cashier-shifts-*`
 - `audit-logs-access`
 
+## Role Bawaan
+
+`RoleSeeder` menyiapkan role berikut:
+
+- **`super-admin`** — bypass seluruh permission, akses semua outlet.
+- **`manager`** — akses operasional penuh lintas outlet yang ditugaskan (produk, stok, purchasing,
+  transaksi, laporan, CRM, diskon), **tanpa** administrasi `users`/`roles`/`permissions`/`outlets`
+  dan tanpa update kredensial payment gateway. Dibuat oleh `RoleSeeder::createManagerRole()`.
+- **`cashier`** — transaksi POS, buka/tutup shift, tambah pelanggan, bayar piutang/hutang, dan
+  memproses pesanan dine-in.
+- Role per modul lain (mis. `products-access`, `transactions-access`) dibuat otomatis dari pola
+  permission.
+
 ## Alur Otorisasi
 
 1. permission diseed di `PermissionSeeder`
 2. role disusun di `RoleSeeder`
-3. user default disusun di `UserSeeder`
+3. user admin dibuat melalui first-install setup wizard di `/setup`
 4. route memakai middleware `permission:*`
 5. frontend membaca map permission dari `HandleInertiaRequests`
 
@@ -42,7 +55,7 @@ Setiap modul memakai permission sendiri, contohnya:
 
 - user `super-admin` mendapat role `super-admin`
 - backend memperlakukan role `super-admin` sebagai bypass permission yang konsisten untuk `can`, `canAny`, dan middleware Spatie
-- seeder juga menyinkronkan permission ke user admin default
+- `UserSeeder` hanya digunakan untuk data demo/test, bukan oleh `DatabaseSeeder`
 - cache permission Spatie harus di-reset saat seeding agar permission baru terbaca konsisten
 - role lama `permission-access` dinormalisasi ke `permissions-access` saat seeding agar naming RBAC tidak ambigu
 

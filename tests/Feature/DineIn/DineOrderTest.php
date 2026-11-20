@@ -3,10 +3,14 @@
 namespace Tests\Feature\DineIn;
 
 use App\Models\Category;
+use App\Models\DineArea;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
+use App\Models\Transaction;
+use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
@@ -158,6 +162,91 @@ class DineOrderTest extends TestCase
         $this->assertEquals('accepted', $order->fresh()->status);
     }
 
+    public function test_accept_records_transaction_profit_and_stock_mutation(): void
+    {
+        $product = $this->createProduct(50);
+        $this->actingAs($this->cashier);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
+
+        $this->post(route('dine-order.store', $this->table->token), $this->orderPayload([
+            ['product_id' => $product->id, 'qty' => 3],
+        ]));
+
+        $order = DineOrder::firstOrFail();
+        $this->actingAs($this->cashier);
+        $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        $order = $order->fresh();
+        $this->assertNotNull($order->transaction_id);
+
+        $transaction = Transaction::findOrFail($order->transaction_id);
+        $this->assertEquals(30000, $transaction->grand_total);
+        $this->assertEquals('unpaid', $transaction->payment_status);
+        $this->assertEquals('in_store', $transaction->order_type);
+        $this->assertEquals($this->warehouse->id, $transaction->warehouse_id);
+
+        $this->assertDatabaseHas('transaction_details', [
+            'transaction_id' => $transaction->id,
+            'product_id' => $product->id,
+            'qty' => 3,
+            'conversion_factor' => 1,
+        ]);
+        $this->assertEquals(15000, (int) $transaction->profits()->sum('total'));
+
+        $this->assertDatabaseHas('stock_mutations', [
+            'product_id' => $product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'reference_type' => 'dine_order',
+            'reference_id' => $order->id,
+            'mutation_type' => 'out',
+            'qty' => 3,
+            'stock_before' => 50,
+            'stock_after' => 47,
+        ]);
+    }
+
+    public function test_accept_decrements_base_units_for_multi_unit_product(): void
+    {
+        $product = $this->createProduct(50);
+        $dozen = Unit::create(['code' => 'DUS-DINE', 'name' => 'Dus', 'symbol' => 'dus']);
+        $product->units()->attach($dozen->id, [
+            'is_base' => false,
+            'conversion_factor' => 12,
+            'buy_price' => 60000,
+            'sell_price' => 120000,
+        ]);
+
+        $this->actingAs($this->cashier);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
+
+        $this->post(route('dine-order.store', $this->table->token), $this->orderPayload([
+            ['product_id' => $product->id, 'unit_id' => $dozen->id, 'qty' => 1],
+        ]))->assertSessionHasNoErrors();
+
+        $order = DineOrder::firstOrFail();
+        $this->assertEquals(12, (float) $order->items()->first()->conversion_factor);
+
+        $this->actingAs($this->cashier);
+        $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        $this->assertEquals(38, $product->fresh()->stock);
+        $this->assertEquals(38, ProductWarehouse::where('product_id', $product->id)
+            ->where('warehouse_id', $this->warehouse->id)
+            ->first()->stock);
+
+        $this->assertDatabaseHas('stock_mutations', [
+            'product_id' => $product->id,
+            'reference_type' => 'dine_order',
+            'reference_id' => $order->id,
+            'qty' => 12,
+            'stock_before' => 50,
+            'stock_after' => 38,
+        ]);
+
+        $transaction = Transaction::findOrFail($order->fresh()->transaction_id);
+        $this->assertEquals(12, (int) $transaction->details()->first()->conversion_factor);
+    }
+
     public function test_accept_rejects_insufficient_stock_atomically(): void
     {
         $product = $this->createProduct(50);
@@ -206,6 +295,50 @@ class DineOrderTest extends TestCase
 
         $this->assertEquals('submitted', $order->fresh()->status);
         $this->assertEquals(50, $product->fresh()->stock);
+    }
+
+    public function test_accept_rejects_shift_from_another_outlet(): void
+    {
+        $outletA = Outlet::create(['code' => 'OUT-A', 'name' => 'Outlet A', 'is_active' => true, 'is_sales_enabled' => true]);
+        $outletB = Outlet::create(['code' => 'OUT-B', 'name' => 'Outlet B', 'is_active' => true, 'is_sales_enabled' => true]);
+        $shiftWarehouse = Warehouse::create([
+            'outlet_id' => $outletA->id,
+            'code' => 'WH-A',
+            'name' => 'Gudang A',
+            'type' => 'branch',
+            'is_active' => true,
+        ]);
+        $orderWarehouse = Warehouse::create([
+            'outlet_id' => $outletB->id,
+            'code' => 'WH-B',
+            'name' => 'Gudang B',
+            'type' => 'branch',
+            'is_active' => true,
+        ]);
+        $area = DineArea::create(['outlet_id' => $outletB->id, 'name' => 'Area B', 'is_active' => true]);
+        $table = DiningTable::create([
+            'dine_area_id' => $area->id,
+            'name' => 'Meja B',
+            'is_active' => true,
+            'capacity' => 4,
+        ]);
+        $product = $this->createProduct(10);
+        $product->warehouses()->attach($orderWarehouse->id, ['stock' => 10]);
+
+        $this->post(route('dine-order.store', $table->token), $this->orderPayload([
+            ['product_id' => $product->id, 'qty' => 1],
+        ]));
+        $order = DineOrder::firstOrFail();
+
+        $this->actingAs($this->cashier);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $shiftWarehouse->id);
+
+        $this->post(route('dine-orders.accept', $order))
+            ->assertSessionHasErrors('shift');
+
+        $this->assertSame('submitted', $order->fresh()->status);
+        $this->assertSame(10, $product->fresh()->stock);
+        $this->assertSame(10, $orderWarehouse->products()->whereKey($product->id)->first()->pivot->stock);
     }
 
     public function test_status_page_renders_order(): void

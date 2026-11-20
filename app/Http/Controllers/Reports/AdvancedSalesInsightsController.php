@@ -11,10 +11,12 @@ use App\Models\CustomerCampaignLog;
 use App\Models\CustomerSegment;
 use App\Models\CustomerVoucher;
 use App\Models\LoyaltyPointHistory;
+use App\Models\Outlet;
 use App\Models\PricingRule;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\OutletAccessService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -23,14 +25,35 @@ use Inertia\Inertia;
 
 class AdvancedSalesInsightsController extends Controller
 {
+    public function __construct(
+        private readonly OutletAccessService $outletAccessService
+    ) {}
+
     public function index(Request $request)
     {
+        return Inertia::render('Dashboard/Reports/Insights', $this->reportData($request));
+    }
+
+    /**
+     * Compute the insights report data.
+     */
+    public function reportData(Request $request): array
+    {
+        $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
+        $activeOutlet = $this->outletAccessService->activeOutlet($request);
+        if ($activeOutlet) {
+            $warehouseIds = $this->outletAccessService->warehousesFor($request->user())
+                ->where('outlet_id', $activeOutlet->id)
+                ->pluck('id');
+        }
         $filters = [
             'start_date' => $request->input('start_date'),
             'end_date' => $request->input('end_date'),
             'cashier_id' => $request->input('cashier_id'),
             'customer_id' => $request->input('customer_id'),
             'category_id' => $request->input('category_id'),
+            'warehouse_ids' => $warehouseIds,
+            'include_legacy' => Outlet::active()->count() <= 1,
         ];
 
         $transactionQuery = $this->applyTransactionFilters(
@@ -66,11 +89,11 @@ class AdvancedSalesInsightsController extends Controller
         $cashierPerformance = $this->cashierPerformance($filters);
         $repeatCustomerMetrics = $this->repeatCustomerMetrics($filters);
         $stockCoverage = $this->stockCoverageAnalysis($filters);
-        $promoMonitor = $this->promoMonitor();
-        $loyaltyPerformance = $this->loyaltyPerformance($filters);
-        $crmOperations = $this->crmOperations($filters);
+        $promoMonitor = $this->promoMonitor($activeOutlet?->id);
+        $loyaltyPerformance = $this->loyaltyPerformance($filters, $activeOutlet?->id);
+        $crmOperations = $this->crmOperations($filters, $activeOutlet?->id);
 
-        return Inertia::render('Dashboard/Reports/Insights', [
+        return [
             'filters' => $filters,
             'cashiers' => User::select('id', 'name')->orderBy('name')->get(),
             'customers' => Customer::select('id', 'name')->orderBy('name')->get(),
@@ -97,7 +120,7 @@ class AdvancedSalesInsightsController extends Controller
             'promoMonitor' => $promoMonitor,
             'loyaltyPerformance' => $loyaltyPerformance,
             'crmOperations' => $crmOperations,
-        ]);
+        ];
     }
 
     protected function applyTransactionFilters(Builder $query, array $filters): Builder
@@ -109,6 +132,12 @@ class AdvancedSalesInsightsController extends Controller
             ->when($filters['end_date'] ?? null, fn (Builder $q, $endDate) => $q->whereDate('transactions.created_at', '<=', $endDate))
             ->when($filters['category_id'] ?? null, function (Builder $q, $categoryId) {
                 $q->whereHas('details.product', fn (Builder $productQuery) => $productQuery->where('category_id', $categoryId));
+            })
+            ->where(function ($q) use ($filters) {
+                $q->whereIn('transactions.warehouse_id', $filters['warehouse_ids']);
+                if ($filters['include_legacy']) {
+                    $q->orWhereNull('transactions.warehouse_id');
+                }
             });
     }
 
@@ -122,18 +151,33 @@ class AdvancedSalesInsightsController extends Controller
             ->when($filters['customer_id'] ?? null, fn ($q, $customerId) => $q->where('t.customer_id', $customerId))
             ->when($filters['start_date'] ?? null, fn ($q, $startDate) => $q->whereDate('t.created_at', '>=', $startDate))
             ->when($filters['end_date'] ?? null, fn ($q, $endDate) => $q->whereDate('t.created_at', '<=', $endDate))
-            ->when($filters['category_id'] ?? null, fn ($q, $categoryId) => $q->where('p.category_id', $categoryId));
+            ->when($filters['category_id'] ?? null, fn ($q, $categoryId) => $q->where('p.category_id', $categoryId))
+            ->where(function ($q) use ($filters) {
+                $q->whereIn('t.warehouse_id', $filters['warehouse_ids']);
+                if ($filters['include_legacy']) {
+                    $q->orWhereNull('t.warehouse_id');
+                }
+            });
+    }
+
+    private function warehouseStockSubquery($warehouseIds)
+    {
+        return DB::table('product_warehouse')
+            ->select('product_id', DB::raw('SUM(stock) as current_stock'))
+            ->whereIn('warehouse_id', $warehouseIds)
+            ->groupBy('product_id');
     }
 
     protected function topSellingProducts(array $filters): array
     {
         return $this->detailMetricsQuery($filters)
+            ->leftJoinSub($this->warehouseStockSubquery($filters['warehouse_ids']), 'ws', fn ($join) => $join->on('ws.product_id', '=', 'td.product_id'))
             ->selectRaw('
                 td.product_id,
                 p.title as product_title,
                 p.sku as product_sku,
                 c.name as category_name,
-                p.stock as current_stock,
+                COALESCE(ws.current_stock, p.stock) as current_stock,
                 SUM(td.qty) as qty_sold,
                 SUM(td.price) as revenue_total,
                 SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - (p.buy_price * td.qty)) as profit_total,
@@ -146,7 +190,7 @@ class AdvancedSalesInsightsController extends Controller
                 'tx',
                 fn ($join) => $join->on('tx.transaction_id', '=', 'td.transaction_id')
             )
-            ->groupBy('td.product_id', 'p.title', 'p.sku', 'c.name', 'p.stock')
+            ->groupBy('td.product_id', 'p.title', 'p.sku', 'c.name', 'ws.current_stock')
             ->orderByDesc('qty_sold')
             ->orderByDesc('revenue_total')
             ->limit(10)
@@ -185,16 +229,24 @@ class AdvancedSalesInsightsController extends Controller
             ->groupBy('td.product_id');
 
         return Product::query()
+            ->leftJoinSub($this->warehouseStockSubquery($filters['warehouse_ids']), 'ws', fn ($join) => $join->on('ws.product_id', '=', 'products.id'))
             ->leftJoinSub($salesSubquery, 'sales', fn ($join) => $join->on('sales.product_id', '=', 'products.id'))
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->when($filters['category_id'] ?? null, fn ($q, $categoryId) => $q->where('products.category_id', $categoryId))
-            ->where('products.stock', '>', 0)
+            ->where(function ($q) use ($filters) {
+                $q->where('ws.current_stock', '>', 0);
+                if ($filters['include_legacy']) {
+                    $q->orWhere(function ($legacy) {
+                        $legacy->whereNull('ws.current_stock')->where('products.stock', '>', 0);
+                    });
+                }
+            })
             ->selectRaw('
                 products.id as product_id,
                 products.title as product_title,
                 products.sku as product_sku,
                 categories.name as category_name,
-                products.stock as current_stock,
+                COALESCE(ws.current_stock, products.stock) as current_stock,
                 COALESCE(sales.qty_sold, 0) as qty_sold,
                 COALESCE(sales.revenue_total, 0) as revenue_total,
                 COALESCE(sales.profit_total, 0) as profit_total,
@@ -202,7 +254,7 @@ class AdvancedSalesInsightsController extends Controller
             ')
             ->orderBy('qty_sold')
             ->orderBy('revenue_total')
-            ->orderByDesc('products.stock')
+            ->orderByDesc('current_stock')
             ->limit(10)
             ->get()
             ->map(fn ($row) => [
@@ -454,16 +506,24 @@ class AdvancedSalesInsightsController extends Controller
             ->groupBy('td.product_id');
 
         $rows = Product::query()
+            ->leftJoinSub($this->warehouseStockSubquery($filters['warehouse_ids']), 'ws', fn ($join) => $join->on('ws.product_id', '=', 'products.id'))
             ->leftJoinSub($salesSubquery, 'sales', fn ($join) => $join->on('sales.product_id', '=', 'products.id'))
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->when($filters['category_id'] ?? null, fn ($q, $categoryId) => $q->where('products.category_id', $categoryId))
-            ->where('products.stock', '>', 0)
+            ->where(function ($q) use ($filters) {
+                $q->where('ws.current_stock', '>', 0);
+                if ($filters['include_legacy']) {
+                    $q->orWhere(function ($legacy) {
+                        $legacy->whereNull('ws.current_stock')->where('products.stock', '>', 0);
+                    });
+                }
+            })
             ->selectRaw('
                 products.id as product_id,
                 products.title as product_title,
                 products.sku as product_sku,
                 categories.name as category_name,
-                products.stock as current_stock,
+                COALESCE(ws.current_stock, products.stock) as current_stock,
                 COALESCE(sales.qty_sold, 0) as qty_sold,
                 COALESCE(sales.revenue_total, 0) as revenue_total,
                 sales.last_sold_at as last_sold_at
@@ -575,9 +635,12 @@ class AdvancedSalesInsightsController extends Controller
         return 'healthy';
     }
 
-    protected function promoMonitor(): array
+    protected function promoMonitor(?int $outletId = null): array
     {
         $rules = PricingRule::query()
+            ->when($outletId, fn ($query) => $query->where(function ($scope) use ($outletId) {
+                $scope->whereNull('outlet_id')->orWhere('outlet_id', $outletId);
+            }))
             ->with(['product:id,title', 'category:id,name'])
             ->orderByDesc('priority')
             ->orderBy('name')
@@ -624,7 +687,7 @@ class AdvancedSalesInsightsController extends Controller
         ];
     }
 
-    protected function loyaltyPerformance(array $filters): array
+    protected function loyaltyPerformance(array $filters, ?int $outletId = null): array
     {
         $members = Customer::query()
             ->where('is_loyalty_member', true)
@@ -633,7 +696,11 @@ class AdvancedSalesInsightsController extends Controller
         $historyQuery = LoyaltyPointHistory::query();
         $this->applyDateRangeFilter($historyQuery, 'created_at', $filters);
 
-        $vouchers = CustomerVoucher::query()->get();
+        $vouchers = CustomerVoucher::query()
+            ->when($outletId, fn ($query) => $query->where(function ($scope) use ($outletId) {
+                $scope->whereNull('outlet_id')->orWhere('outlet_id', $outletId);
+            }))
+            ->get();
 
         return [
             'summary' => [
@@ -680,15 +747,21 @@ class AdvancedSalesInsightsController extends Controller
         ];
     }
 
-    protected function crmOperations(array $filters): array
+    protected function crmOperations(array $filters, ?int $outletId = null): array
     {
         $segments = CustomerSegment::query()->withCount('memberships')->get();
 
         $campaignsQuery = CustomerCampaign::query()->withCount('logs');
+        $campaignsQuery->when($outletId, fn ($query) => $query->where(function ($scope) use ($outletId) {
+            $scope->whereNull('outlet_id')->orWhere('outlet_id', $outletId);
+        }));
         $this->applyDateRangeFilter($campaignsQuery, 'created_at', $filters);
         $campaigns = $campaignsQuery->get();
 
         $logsQuery = CustomerCampaignLog::query();
+        $logsQuery->when($outletId, fn ($query) => $query->whereHas('campaign', function ($campaign) use ($outletId) {
+            $campaign->whereNull('outlet_id')->orWhere('outlet_id', $outletId);
+        }));
         $this->applyDateRangeFilter($logsQuery, 'created_at', $filters);
         $logs = $logsQuery->get();
 
@@ -710,6 +783,9 @@ class AdvancedSalesInsightsController extends Controller
                 'queue_skipped' => $logs->where('status', CustomerCampaignLog::STATUS_SKIPPED)->count(),
             ],
             'recent_campaigns' => CustomerCampaign::query()
+                ->when($outletId, fn ($query) => $query->where(function ($scope) use ($outletId) {
+                    $scope->whereNull('outlet_id')->orWhere('outlet_id', $outletId);
+                }))
                 ->withCount('logs')
                 ->latest('id')
                 ->limit(5)

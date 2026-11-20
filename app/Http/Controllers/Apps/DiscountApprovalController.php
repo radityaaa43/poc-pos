@@ -4,20 +4,36 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\DiscountApprovalLog;
+use App\Models\Outlet;
 use App\Models\Transaction;
 use App\Services\AuditLogService;
+use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class DiscountApprovalController extends Controller
 {
     public function __construct(
-        private readonly AuditLogService $auditLogService
+        protected readonly AuditLogService $auditLogService,
+        protected readonly OutletAccessService $outletAccessService
     ) {}
 
     public function pending()
     {
+        $warehouseIds = $this->outletAccessService->warehousesFor(request()->user())->pluck('id');
+        $includeLegacy = Outlet::active()->count() <= 1;
+
         $pending = Transaction::where('discount_approval_status', 'pending')
+            ->where(function ($query) use ($warehouseIds, $includeLegacy) {
+                if ($warehouseIds->isEmpty()) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('warehouse_id', $warehouseIds);
+                    if ($includeLegacy) {
+                        $query->orWhereNull('warehouse_id');
+                    }
+                }
+            })
             ->with(['cashier:id,name', 'customer:id,name', 'cashierShift:id,opened_at'])
             ->orderByDesc('created_at')
             ->get()
@@ -39,6 +55,7 @@ class DiscountApprovalController extends Controller
     public function approve(Transaction $transaction)
     {
         abort_if($transaction->discount_approval_status !== 'pending', 404);
+        $this->ensureOutletAccess($transaction);
 
         $this->logAndUpdate($transaction, 'approved');
 
@@ -48,13 +65,22 @@ class DiscountApprovalController extends Controller
     public function deny(Request $request, Transaction $transaction)
     {
         abort_if($transaction->discount_approval_status !== 'pending', 404);
+        $this->ensureOutletAccess($transaction);
 
         $this->logAndUpdate($transaction, 'denied', $request->notes);
 
         return back()->with('success', 'Diskon ditolak.');
     }
 
-    private function logAndUpdate(Transaction $transaction, string $status, ?string $notes = null): void
+    protected function ensureOutletAccess(Transaction $transaction): void
+    {
+        abort_unless(
+            $this->outletAccessService->canUseWarehouse(request()->user(), $transaction->warehouse),
+            404
+        );
+    }
+
+    protected function logAndUpdate(Transaction $transaction, string $status, ?string $notes = null): void
     {
         \DB::transaction(function () use ($transaction, $status, $notes) {
             // ponytail: approval only settles the approval state — payment stays tied to the actual method.

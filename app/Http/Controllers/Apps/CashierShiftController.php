@@ -7,11 +7,13 @@ use App\Http\Requests\CloseCashierShiftRequest;
 use App\Http\Requests\ConfirmPasswordForForceCloseRequest;
 use App\Http\Requests\StoreCashierShiftRequest;
 use App\Models\CashierShift;
+use App\Models\Outlet;
 use App\Models\ShiftCashMovement;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
+use App\Services\OutletAccessService;
 use App\Services\ThermalPrintService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -22,8 +24,9 @@ use Inertia\Response;
 class CashierShiftController extends Controller
 {
     public function __construct(
-        private readonly CashierShiftService $cashierShiftService,
-        private readonly AuditLogService $auditLogService
+        protected readonly CashierShiftService $cashierShiftService,
+        protected readonly AuditLogService $auditLogService,
+        protected readonly OutletAccessService $outletAccessService
     ) {}
 
     public function index(Request $request): Response
@@ -49,11 +52,9 @@ class CashierShiftController extends Controller
         $shifts->through(fn (CashierShift $shift) => $this->transformShift($shift));
 
         $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $cashiers = $request->user()->isSuperAdmin() || $request->user()->can('cashier-shifts-force-close')
-            ? User::query()->orderBy('name')->get(['id', 'name'])
-            : collect([$request->user()->only(['id', 'name'])]);
+        $cashiers = $this->visibleCashiers($request);
 
-        $warehouses = Warehouse::active()->orderBy('sort_order')->orderBy('code')->get(['id', 'code', 'name']);
+        $warehouses = $this->outletAccessService->salesWarehousesFor($request->user());
 
         return Inertia::render('Dashboard/CashierShifts/Index', [
             'shifts' => $shifts,
@@ -77,12 +78,18 @@ class CashierShiftController extends Controller
 
     public function store(StoreCashierShiftRequest $request): RedirectResponse
     {
+        $warehouse = $request->validated('warehouse_id')
+            ? Warehouse::find($request->validated('warehouse_id'))
+            : $this->outletAccessService->salesWarehousesFor($request->user())->first();
+
+        abort_unless($this->outletAccessService->canSellAtWarehouse($request->user(), $warehouse), 403);
+
         $shift = $this->cashierShiftService->openShift(
             cashier: $request->user(),
             actor: $request->user(),
             openingCash: (int) $request->validated('opening_cash'),
             notes: $request->validated('notes'),
-            warehouseId: $request->validated('warehouse_id'),
+            warehouseId: $warehouse?->id,
         );
 
         $this->auditLogService->log(
@@ -198,7 +205,7 @@ class CashierShiftController extends Controller
         return response($html)->header('Content-Type', 'text/html; charset=utf-8');
     }
 
-    private function resolveVisibleShift(Request $request, CashierShift $cashierShift): CashierShift
+    protected function resolveVisibleShift(Request $request, CashierShift $cashierShift): CashierShift
     {
         $query = CashierShift::query()
             ->with(['user:id,name', 'openedBy:id,name', 'closedBy:id,name', 'warehouse:id,code,name'])
@@ -209,7 +216,36 @@ class CashierShiftController extends Controller
         return $query->firstOrFail();
     }
 
-    private function transformShift(CashierShift $shift): array
+    protected function visibleCashiers(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->isSuperAdmin()) {
+            return User::query()->orderBy('name')->get(['id', 'name']);
+        }
+
+        if (! $user->can('cashier-shifts-force-close')) {
+            return collect([$user->only(['id', 'name'])]);
+        }
+
+        if (Outlet::active()->count() <= 1) {
+            return User::query()->orderBy('name')->get(['id', 'name']);
+        }
+
+        $outletIds = $this->outletAccessService->accessibleOutlets($user)->pluck('id')->all();
+
+        return User::query()
+            ->where(function (Builder $query) use ($user, $outletIds) {
+                $query->whereKey($user->id);
+                if ($outletIds !== []) {
+                    $query->orWhereHas('outlets', fn (Builder $outlets) => $outlets->whereIn('outlets.id', $outletIds));
+                }
+            })
+            ->orderBy('name')
+            ->get(['id', 'name']);
+    }
+
+    protected function transformShift(CashierShift $shift): array
     {
         $summary = $this->cashierShiftService->calculateSummary($shift);
 
@@ -268,7 +304,7 @@ class CashierShiftController extends Controller
         ];
     }
 
-    private function shiftAuditPayload(CashierShift $shift): array
+    protected function shiftAuditPayload(CashierShift $shift): array
     {
         return [
             'status' => $shift->status,

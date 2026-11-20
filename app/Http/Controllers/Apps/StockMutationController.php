@@ -4,14 +4,19 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\Product;
+use App\Models\Outlet;
 use App\Models\StockMutation;
-use App\Models\Warehouse;
+use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class StockMutationController extends Controller
 {
+    public function __construct(
+        protected readonly OutletAccessService $outletAccessService
+    ) {}
+
     public function index(Request $request): Response
     {
         $filters = [
@@ -29,6 +34,17 @@ class StockMutationController extends Controller
             ->when($filters['date_from'], fn ($query, $date) => $query->whereDate('created_at', '>=', $date))
             ->when($filters['date_to'], fn ($query, $date) => $query->whereDate('created_at', '<=', $date))
             ->when($filters['warehouse_id'], fn ($query, $warehouseId) => $query->where('warehouse_id', $warehouseId))
+            ->where(function ($query) use ($request) {
+                $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
+                if ($warehouseIds->isEmpty()) {
+                    $query->whereRaw('1 = 0');
+                } else {
+                    $query->whereIn('warehouse_id', $warehouseIds);
+                    if (Outlet::active()->count() <= 1) {
+                        $query->orWhereNull('warehouse_id');
+                    }
+                }
+            })
             ->latest()
             ->paginate($this->perPage())->withQueryString()
             ->withQueryString();
@@ -36,7 +52,7 @@ class StockMutationController extends Controller
         return Inertia::render('Dashboard/StockMutations/Index', [
             'stockMutations' => $stockMutations,
             'products' => Product::query()->orderBy('title')->get(['id', 'title', 'barcode', 'sku']),
-            'warehouses' => Warehouse::active()->orderBy('code')->get(['id', 'code', 'name']),
+            'warehouses' => $this->outletAccessService->warehousesFor($request->user()),
             'filters' => $filters,
         ]);
     }

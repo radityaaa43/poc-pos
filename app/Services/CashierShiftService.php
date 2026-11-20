@@ -3,9 +3,11 @@
 namespace App\Services;
 
 use App\Models\CashierShift;
+use App\Models\Outlet;
 use App\Models\SalesReturn;
 use App\Models\ShiftCashMovement;
 use App\Models\Transaction;
+use App\Models\TransactionTender;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class CashierShiftService
 {
+    public function __construct(private readonly OutletAccessService $outletAccessService) {}
+
     public function getActiveShiftForUser(int $userId): ?CashierShift
     {
         return CashierShift::query()
@@ -84,9 +88,24 @@ class CashierShiftService
             ->where('payment_status', 'paid')
             ->sum('grand_total');
 
+        // Split payments: cash tender portions must count toward the drawer,
+        // the parent row's payment_method ('split') puts grand_total in the non-cash bucket.
+        $splitCashTenderTotal = (int) TransactionTender::query()
+            ->whereHas('transaction', fn ($q) => $q
+                ->where('cashier_shift_id', $shift->id)
+                ->where('payment_method', 'split')
+                ->where('payment_status', 'paid'))
+            ->where('method', TransactionTender::METHOD_CASH)
+            ->sum('cash_received');
+
+        $cashSalesTotal += $splitCashTenderTotal;
+
         $nonCashSalesTotal = (int) (clone $transactions)
             ->where('payment_method', '!=', 'cash')
             ->sum('grand_total');
+
+        // Split payments: non-cash portion = grand_total minus cash tenders.
+        $nonCashSalesTotal -= $splitCashTenderTotal;
 
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')
@@ -176,8 +195,14 @@ class CashierShiftService
             $cashDifference = $actualCash - $summary['expected_cash'];
 
             $lockedShift->update([
-                ...$summary,
                 'actual_cash' => $actualCash,
+                'expected_cash' => $summary['expected_cash'],
+                'cash_sales_total' => $summary['cash_sales_total'],
+                'non_cash_sales_total' => $summary['non_cash_sales_total'],
+                'cash_refund_total' => $summary['cash_refund_total'],
+                'non_cash_refund_total' => $summary['non_cash_refund_total'],
+                'transactions_count' => $summary['transactions_count'],
+                'sales_returns_count' => $summary['sales_returns_count'],
                 'cash_difference' => $cashDifference,
                 'closed_at' => now(),
                 'closed_by' => $actor->id,
@@ -220,8 +245,23 @@ class CashierShiftService
 
     public function visibleToUser(Builder $query, User $user): Builder
     {
-        if ($user->isSuperAdmin() || $user->can('cashier-shifts-force-close')) {
+        if ($user->isSuperAdmin()) {
             return $query;
+        }
+
+        if ($user->can('cashier-shifts-force-close')) {
+            if (Outlet::active()->count() <= 1) {
+                return $query;
+            }
+
+            $warehouseIds = $this->outletAccessService->warehousesFor($user)->pluck('id')->all();
+
+            return $query->where(function (Builder $query) use ($user, $warehouseIds) {
+                $query->where('user_id', $user->id);
+                if ($warehouseIds !== []) {
+                    $query->orWhereIn('warehouse_id', $warehouseIds);
+                }
+            });
         }
 
         return $query->where('user_id', $user->id);

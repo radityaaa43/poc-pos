@@ -11,9 +11,10 @@ class ThermalPrintService
 {
     public function generateReceiptText(Transaction $transaction, string $paperSize = '80mm'): string
     {
-        $storeName = Setting::get('store_name', 'Toko Anda');
-        $storeAddress = Setting::get('store_address', '');
-        $storePhone = Setting::get('store_phone', '');
+        $outlet = $transaction->warehouse?->outlet;
+        $storeName = Setting::getForOutlet('store_name', $outlet, 'Toko Anda');
+        $storeAddress = Setting::getForOutlet('store_address', $outlet, '');
+        $storePhone = Setting::getForOutlet('store_phone', $outlet, '');
         $maxWidth = $paperSize === '58mm' ? 32 : 48;
 
         $lines = [];
@@ -59,7 +60,26 @@ class ThermalPrintService
         $lines[] = $this->line($maxWidth);
         $lines[] = $this->leftRight('TOTAL', number_format((int) $transaction->grand_total, 0, ',', '.'), $maxWidth);
 
-        if ($transaction->payment_method === 'cash' && $transaction->cash > 0) {
+        $tenders = $transaction->relationLoaded('tenders')
+            ? $transaction->tenders
+            : $transaction->tenders()->get();
+
+        if ($tenders->isNotEmpty()) {
+            foreach ($tenders as $tender) {
+                $label = match ($tender->method) {
+                    'cash' => 'Tunai',
+                    'bank_transfer' => 'Transfer Bank',
+                    'midtrans' => 'Midtrans',
+                    'xendit' => 'Xendit',
+                    'qris' => 'QRIS',
+                    default => ucfirst(str_replace('_', ' ', $tender->method)),
+                };
+                $lines[] = $this->leftRight($label, number_format((int) $tender->amount, 0, ',', '.'), $maxWidth);
+                if ($tender->method === 'cash' && $tender->change > 0) {
+                    $lines[] = $this->leftRight('Kembali', number_format((int) $tender->change, 0, ',', '.'), $maxWidth);
+                }
+            }
+        } elseif ($transaction->payment_method === 'cash' && $transaction->cash > 0) {
             $lines[] = $this->leftRight('Tunai', number_format((int) $transaction->cash, 0, ',', '.'), $maxWidth);
             if (($transaction->change ?? 0) > 0) {
                 $lines[] = $this->leftRight('Kembali', number_format((int) $transaction->change, 0, ',', '.'), $maxWidth);
@@ -90,8 +110,9 @@ class ThermalPrintService
 
     public function generateShiftReportText(CashierShift $shift, string $paperSize = '80mm', string $reportType = 'X'): string
     {
-        $storeName = Setting::get('store_name', 'Toko Anda');
-        $storeAddress = Setting::get('store_address', '');
+        $outlet = $shift->warehouse?->outlet;
+        $storeName = Setting::getForOutlet('store_name', $outlet, 'Toko Anda');
+        $storeAddress = Setting::getForOutlet('store_address', $outlet, '');
         $maxWidth = $paperSize === '58mm' ? 32 : 48;
         $isX = $reportType === 'X';
 

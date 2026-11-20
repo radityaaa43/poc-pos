@@ -77,6 +77,9 @@ class PermissionSeeder extends Seeder
         $create('transactions-access');
         $create('transactions-confirm-payment');
 
+        // mobile POS API access (Sanctum ability for /api/v1/pos/*)
+        $create('pos-access');
+
         // permission receivables & payables
         $create('receivables-access');
         $create('receivables-pay');
@@ -154,6 +157,12 @@ class PermissionSeeder extends Seeder
         $create('warehouses-create');
         $create('warehouses-update');
         $create('warehouses-delete');
+
+        // outlets
+        $create('outlets-access');
+        $create('outlets-create');
+        $create('outlets-update');
+        $create('outlets-delete');
 
         // units
         $create('units-access');

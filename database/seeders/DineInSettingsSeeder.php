@@ -9,7 +9,7 @@ class DineInSettingsSeeder extends Seeder
 {
     public function run(): void
     {
-        Setting::setMany([
+        foreach ([
             'dine_in_enabled' => [
                 'value' => '1',
                 'description' => 'Aktifkan fitur dine-in QR menu',
@@ -19,9 +19,11 @@ class DineInSettingsSeeder extends Seeder
                 'description' => 'Izinkan pelanggan memesan langsung dari QR menu',
             ],
             'dine_in_pay_online_enabled' => [
-                'value' => '1',
+                'value' => '0',
                 'description' => 'Izinkan pembayaran online via QR menu',
             ],
-        ]);
+        ] as $key => $attributes) {
+            Setting::firstOrCreate(['key' => $key], $attributes);
+        }
     }
 }

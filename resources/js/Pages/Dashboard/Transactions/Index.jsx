@@ -11,7 +11,6 @@ import toast from "react-hot-toast";
 import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
 import CartPanel from "@/Components/POS/CartPanel";
-import PaymentPanel from "@/Components/POS/PaymentPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
@@ -20,7 +19,13 @@ import HeldTransactions, {
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
-import { queueTransaction, getPendingTransactions, getPendingCount, removePendingTransaction } from "@/Utils/offlineDb";
+import {
+    queueTransaction,
+    getPendingTransactions,
+    getPendingCount,
+    updatePendingTransaction,
+    removePendingTransaction,
+} from "@/Utils/offlineDb";
 import {
     IconUser,
     IconShoppingCart,
@@ -42,6 +47,9 @@ const formatPrice = (value = 0) =>
         minimumFractionDigits: 0,
     });
 
+const roundUpToNearest = (value, step) =>
+    Math.ceil(value / step) * step;
+
 export default function Index({
     carts = [],
     carts_total = 0,
@@ -53,6 +61,7 @@ export default function Index({
     paymentGateways = [],
     defaultPaymentGateway = "cash",
     bankAccounts = [],
+    warehouses = [],
     loyaltyTierOptions = [],
 }) {
     const {
@@ -62,6 +71,7 @@ export default function Index({
         lowStockNotifications = [],
         activeCashierShift,
     } = usePage().props;
+    const offlineScopeKey = `${auth?.user?.id ?? "guest"}:${activeCashierShift?.warehouse_id ?? "none"}`;
     const { can } = useAuthorization();
     const canOpenShift = can("cashier-shifts-open");
 
@@ -90,10 +100,17 @@ export default function Index({
     const [numpadOpen, setNumpadOpen] = useState(false);
     const [showShortcuts, setShowShortcuts] = useState(false);
     const [selectedBankAccount, setSelectedBankAccount] = useState(null);
+    const [splitMode, setSplitMode] = useState(false);
+    const emptyTender = { method: "", amount: "", cash_received: "", bank_account_id: null };
+    const [splitTenders, setSplitTenders] = useState([{ ...emptyTender }, { ...emptyTender }]);
     const [selectedVoucherId, setSelectedVoucherId] = useState("");
     const [openingCashInput, setOpeningCashInput] = useState("");
     const [shiftNotesInput, setShiftNotesInput] = useState("");
+    const [shiftWarehouseId, setShiftWarehouseId] = useState(
+        warehouses.length > 0 ? warehouses[0].id : ""
+    );
     const [pendingSyncCount, setPendingSyncCount] = useState(0);
+    const flushPromiseRef = useRef(null);
     const normalizedSelectedCategory =
         selectedCategory === null ? null : Number(selectedCategory);
     const pricingItemsByCartId = useMemo(() => {
@@ -189,7 +206,20 @@ export default function Index({
         () => Number(pricingPreview?.summary?.grand_total ?? 0),
         [pricingPreview]
     );
-    const isCashPayment = !payLater && paymentMethod === "cash";
+    const quickCashAmounts = useMemo(() => {
+        if (payable <= 0) return [];
+
+        return [...new Set([
+            payable,
+            roundUpToNearest(payable, 10000),
+            roundUpToNearest(payable, 50000),
+            roundUpToNearest(payable, 100000),
+        ])]
+            .filter((amount) => amount >= payable)
+            .slice(0, 4);
+    }, [payable]);
+    const isCashPayment = !payLater && !splitMode && paymentMethod === "cash";
+    const isDelivery = orderType === "delivery";
     const cash = useMemo(
         () => (isCashPayment ? Math.max(0, Number(cashInput) || 0) : payable),
         [cashInput, isCashPayment, payable]
@@ -307,10 +337,32 @@ export default function Index({
         }
     }, [isCashPayment, payable]);
 
+    // Split payment helpers
+    const activeSplitTenders = useMemo(
+        () => splitTenders.filter((t) => t.method && Number(t.amount) > 0),
+        [splitTenders]
+    );
+    const splitTotal = useMemo(
+        () => activeSplitTenders.reduce((sum, t) => sum + Number(t.amount || 0), 0),
+        [activeSplitTenders]
+    );
+    const splitRemaining = payable - splitTotal;
+    const updateSplitTender = (index, patch) =>
+        setSplitTenders((prev) =>
+            prev.map((tender, i) =>
+                i === index ? { ...tender, ...patch } : tender
+            )
+        );
+    const resetSplitTenders = () => {
+        setSplitMode(false);
+        setSplitTenders([{ ...emptyTender }, { ...emptyTender }]);
+    };
+
     const handleOpenShift = () => {
         router.post(route("cashier-shifts.store"), {
             opening_cash: Number(openingCashInput || 0),
             notes: shiftNotesInput,
+            warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
         });
     };
@@ -371,6 +423,14 @@ export default function Index({
         setCashInput(String(value));
     }, []);
 
+    const handleOrderTypeChange = (value) => {
+        setOrderType(value);
+
+        if (value !== "delivery") {
+            setShippingInput("");
+        }
+    };
+
     // Handle hold transaction
     const [isHolding, setIsHolding] = useState(false);
 
@@ -402,62 +462,121 @@ export default function Index({
     // Pending offline transactions
     const refreshPendingCount = useCallback(async () => {
         try {
-            setPendingSyncCount(await getPendingCount());
+            setPendingSyncCount(await getPendingCount(offlineScopeKey));
         } catch {
             // IndexedDB unavailable
         }
-    }, []);
+    }, [offlineScopeKey]);
 
     const flushPendingTransactions = useCallback(async () => {
         if (!navigator.onLine) return;
+        if (flushPromiseRef.current) return flushPromiseRef.current;
 
-        const pending = await getPendingTransactions();
-        if (pending.length === 0) return;
-
-        const { data } = await axios.post(
-            "/api/v1/pos/transactions/sync",
-            {
-                transactions: pending.map((row) => ({
-                    ...row.data,
-                    queue_id: row.id,
-                })),
-            },
-            { headers: { Accept: "application/json" } }
-        );
-
-        const results = data?.data?.results || [];
-        let synced = 0;
-        let failed = 0;
-
-        for (let i = 0; i < results.length; i++) {
-            const result = results[i];
-            const row = pending[i];
-
-            if (
-                ["synced", "pending_approval", "duplicate"].includes(
-                    result.status
-                )
-            ) {
-                await removePendingTransaction(row.id);
-                synced++;
-            } else {
-                failed++;
-                toast.error(
-                    `Sync gagal: ${result.reason || "kesalahan tidak diketahui"}`
-                );
-            }
-        }
-
-        if (synced > 0) {
-            toast.success(
-                `${synced} transaksi offline tersinkronisasi. Page akan dimuat ulang.`,
-                { duration: 2500 }
+        flushPromiseRef.current = (async () => {
+            const pending = await getPendingTransactions(offlineScopeKey);
+            // Conflicts require user intervention and must not be retried
+            // automatically. Failed rows are retryable; the API remains the
+            // source of truth for duplicate detection.
+            const sendable = pending.filter((row) =>
+                ["pending", "failed"].includes(row.status)
             );
-            router.reload({ only: ["carts", "carts_total"] });
-        }
+            if (sendable.length === 0) return;
 
-        await refreshPendingCount();
-    }, [refreshPendingCount]);
+            const attemptAt = new Date().toISOString();
+            await Promise.all(
+                sendable.map((row) =>
+                    updatePendingTransaction(row.id, {
+                        status: "syncing",
+                        attempts: (row.attempts ?? 0) + 1,
+                        last_attempt_at: attemptAt,
+                    })
+                )
+            );
+
+            let data;
+            try {
+                ({ data } = await axios.post(
+                    "/api/v1/pos/transactions/sync",
+                    {
+                        transactions: sendable.map((row) => ({
+                            ...row.data,
+                            queue_id: row.id,
+                        })),
+                    },
+                    { headers: { Accept: "application/json" } }
+                ));
+            } catch (error) {
+                const reason =
+                    error?.response?.data?.message ||
+                    "Server tidak tersedia. Transaksi akan dicoba lagi.";
+                await Promise.all(
+                    sendable.map((row) =>
+                        updatePendingTransaction(row.id, {
+                            status: "failed",
+                            last_error: reason,
+                            last_attempt_at: new Date().toISOString(),
+                        })
+                    )
+                );
+                await refreshPendingCount();
+                return;
+            }
+
+            const results = data?.data?.results || [];
+            let synced = 0;
+            let failed = 0;
+
+            for (let i = 0; i < sendable.length; i++) {
+                const result = results[i];
+                const row = sendable[i];
+
+                if (!result) {
+                    failed++;
+                    await updatePendingTransaction(row.id, {
+                        status: "failed",
+                        last_error: "Server mengembalikan hasil sync yang tidak lengkap.",
+                        last_attempt_at: new Date().toISOString(),
+                    });
+                    continue;
+                }
+
+                if (["synced", "pending_approval", "duplicate"].includes(result.status)) {
+                    await updatePendingTransaction(row.id, {
+                        status: result.status === "pending_approval" ? "synced" : result.status,
+                        synced_at: new Date().toISOString(),
+                        last_attempt_at: new Date().toISOString(),
+                        last_error: null,
+                    });
+                    await removePendingTransaction(row.id);
+                    synced++;
+                } else {
+                    failed++;
+                    await updatePendingTransaction(row.id, {
+                        status: result.status === "conflict" ? "conflict" : "failed",
+                        last_error: result.reason || "kesalahan tidak diketahui",
+                        last_attempt_at: new Date().toISOString(),
+                    });
+                    toast.error(
+                        `Sync gagal: ${result.reason || "kesalahan tidak diketahui"}`
+                    );
+                }
+            }
+
+            if (synced > 0) {
+                toast.success(
+                    `${synced} transaksi offline tersinkronisasi. Page akan dimuat ulang.`,
+                    { duration: 2500 }
+                );
+                router.reload({ only: ["carts", "carts_total"] });
+            }
+
+            await refreshPendingCount();
+        })().finally(() => {
+            flushPromiseRef.current = null;
+        });
+
+        return flushPromiseRef.current;
+    }, [offlineScopeKey, refreshPendingCount]);
 
     // Flush pending transactions on mount (if online)
     useEffect(() => {
@@ -567,12 +686,55 @@ export default function Index({
 
         // Validate bank transfer requires bank selection
         const isBankTransfer = paymentMethod === "bank_transfer";
-        if (isBankTransfer && !selectedBankAccount) {
+        if (!splitMode && isBankTransfer && !selectedBankAccount) {
             toast.error("Pilih rekening bank tujuan");
             return;
         }
 
+        // Split payment validation
+        if (splitMode) {
+            if (payLater) {
+                toast.error("Pembayaran split tidak berlaku untuk nota barang");
+                return;
+            }
+            if (activeSplitTenders.length < 2) {
+                toast.error("Split pembayaran memerlukan 2 metode");
+                return;
+            }
+            if (splitRemaining !== 0) {
+                toast.error(
+                    splitRemaining > 0
+                        ? `Kurang ${formatPrice(splitRemaining)} untuk melengkapi pembayaran`
+                        : `Kelebihan ${formatPrice(-splitRemaining)} dari total`
+                );
+                return;
+            }
+            const bankTender = activeSplitTenders.find(
+                (t) => t.method === "bank_transfer"
+            );
+            if (bankTender && !bankTender.bank_account_id) {
+                toast.error("Pilih rekening bank tujuan untuk tender transfer");
+                return;
+            }
+            const cashTender = activeSplitTenders.find(
+                (t) => t.method === "cash"
+            );
+            if (
+                cashTender &&
+                Number(cashTender.cash_received || 0) < Number(cashTender.amount)
+            ) {
+                toast.error("Uang tunai split kurang dari nominal tender");
+                return;
+            }
+        }
+
         setIsSubmitting(true);
+
+        if (!navigator.onLine && splitMode) {
+            toast.error("Split pembayaran tidak tersedia saat offline");
+            setIsSubmitting(false);
+            return;
+        }
 
         if (!navigator.onLine) {
             const payload = {
@@ -584,7 +746,14 @@ export default function Index({
                 shipping_cost: shipping,
                 grand_total: payable,
                 cash: isCashPayment ? cash : payable,
-                payment_gateway: payLater ? null : isCashPayment ? null : paymentMethod,
+                payment_method: payLater
+                    ? "pay_later"
+                    : isCashPayment
+                      ? "cash"
+                      : isBankTransfer
+                        ? "bank_transfer"
+                        : paymentMethod,
+                payment_gateway: null,
                 pay_later: payLater,
                 due_date: payLater ? dueDate : null,
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
@@ -596,7 +765,7 @@ export default function Index({
                     qty: Number(item.qty),
                 })),
             };
-            queueTransaction(payload).then(() => {
+            queueTransaction(payload, offlineScopeKey).then(() => {
                 refreshPendingCount();
                 setCarts([]);
                 setPricingPreview(initialPricingPreview);
@@ -617,7 +786,28 @@ export default function Index({
                 grand_total: payable,
                 cash: isCashPayment ? cash : payable,
                 change: isCashPayment ? Math.max(cash - payable, 0) : 0,
-                payment_gateway: payLater ? null : isCashPayment ? null : paymentMethod,
+                // ponytail: tenders[] only when split active — legacy single-method path otherwise
+                tenders: splitMode
+                    ? activeSplitTenders.map((tender) => ({
+                          method: tender.method,
+                          amount: Number(tender.amount),
+                          cash_received:
+                              tender.method === "cash"
+                                  ? Number(tender.cash_received || tender.amount)
+                                  : null,
+                          bank_account_id:
+                              tender.method === "bank_transfer"
+                                  ? tender.bank_account_id
+                                  : null,
+                      }))
+                    : null,
+                payment_gateway: splitMode
+                    ? null
+                    : payLater
+                      ? null
+                      : isCashPayment
+                        ? null
+                        : paymentMethod,
                 bank_account_id: isBankTransfer
                     ? selectedBankAccount?.id
                     : null,
@@ -634,6 +824,7 @@ export default function Index({
                     setShippingInput("");
                     setSelectedCustomer(null);
                     setSelectedBankAccount(null);
+                    resetSplitTenders();
                     setSelectedVoucherId("");
                     setPaymentMethod(defaultPaymentGateway ?? "cash");
                     setPayLater(false);
@@ -716,6 +907,32 @@ export default function Index({
                                 />
                             </div>
                         </div>
+
+                        {warehouses.length > 1 && (
+                            <div className="mt-4">
+                                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    Gudang
+                                </label>
+                                <select
+                                    value={shiftWarehouseId}
+                                    onChange={(event) =>
+                                        setShiftWarehouseId(event.target.value)
+                                    }
+                                    className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                >
+                                    {warehouses.map((warehouse) => (
+                                        <option key={warehouse.id} value={warehouse.id}>
+                                            {warehouse.code} — {warehouse.name}
+                                        </option>
+                                    ))}
+                                </select>
+                                {errors?.warehouse_id && (
+                                    <p className="mt-2 text-xs text-rose-500">
+                                        {errors.warehouse_id}
+                                    </p>
+                                )}
+                            </div>
+                        )}
 
                         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                             {canOpenShift && (
@@ -809,7 +1026,7 @@ export default function Index({
 
                 {/* Right Panel - Cart & Payment */}
                 <div
-                    className={`w-full lg:w-[420px] xl:w-[480px] flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 min-h-0 overflow-hidden ${
+                        className={`w-full min-w-0 lg:w-[420px] xl:w-[480px] flex flex-col bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 min-h-0 overflow-hidden ${
                         mobileView !== "cart" ? "hidden lg:flex" : "flex"
                     }`}
                     style={{ height: "calc(100vh - 4rem)" }}
@@ -817,7 +1034,7 @@ export default function Index({
                     {/* Customer Select - Fixed */}
                     <div
                         data-tour="pos-customer"
-                        className="p-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0"
+                        className="min-w-0 p-3 border-b border-slate-200 dark:border-slate-800 flex-shrink-0"
                     >
                         <CustomerSelect
                             customers={customers}
@@ -1064,6 +1281,113 @@ export default function Index({
                                 </div>
                             )}
 
+                            {/* Order details */}
+                            <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
+                                <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                    Detail Pesanan
+                                </p>
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        Tipe Pesanan
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[
+                                            { value: "in_store", label: "Di Tempat" },
+                                            { value: "takeaway", label: "Bawa Pulang" },
+                                            { value: "delivery", label: "Diantar" },
+                                        ].map((type) => (
+                                            <button
+                                                key={type.value}
+                                                type="button"
+                                                onClick={() => handleOrderTypeChange(type.value)}
+                                                className={`min-h-10 rounded-lg px-1 py-2 text-xs font-semibold transition-all ${
+                                                    orderType === type.value
+                                                        ? "bg-primary-500 text-white"
+                                                        : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                                                }`}
+                                            >
+                                                {type.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {isDelivery && (
+                                    <div>
+                                        <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                            Ongkos Kirim
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                                Rp
+                                            </span>
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={shippingInput}
+                                                onChange={(e) =>
+                                                    setShippingInput(e.target.value.replace(/[^\d]/g, ""))
+                                                }
+                                                placeholder="0"
+                                                className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                            />
+                                        </div>
+                                        <div className="mt-2 grid grid-cols-4 gap-2">
+                                            {[10000, 15000, 20000, 25000].map((amt) => (
+                                                <button
+                                                    key={amt}
+                                                    type="button"
+                                                    onClick={() => setShippingInput(String(amt))}
+                                                    className={`min-h-9 rounded-lg px-1 py-1.5 text-[11px] font-medium transition-all ${
+                                                        Number(shippingInput) === amt
+                                                            ? "bg-primary-500 text-white"
+                                                            : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
+                                                    }`}
+                                                >
+                                                    {formatPrice(amt)}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        Diskon Manual (Rp)
+                                    </label>
+                                    <div className="relative">
+                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                            Rp
+                                        </span>
+                                        <input
+                                            type="text"
+                                            inputMode="numeric"
+                                            value={discountInput}
+                                            onChange={(e) =>
+                                                setDiscountInput(e.target.value.replace(/[^\d]/g, ""))
+                                            }
+                                            placeholder="0"
+                                            className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                        Catatan
+                                    </label>
+                                    <textarea
+                                        value={orderNote}
+                                        onChange={(e) => setOrderNote(e.target.value)}
+                                        rows={2}
+                                        maxLength={1000}
+                                        placeholder="Catatan pesanan (opsional)"
+                                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                    />
+                                </div>
+                            </div>
+
                             {/* Payment Method Selection */}
                             <div>
                                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
@@ -1119,7 +1443,164 @@ export default function Index({
                                         </button>
                                     ))}
                                 </div>
+                                {!payLater && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (splitMode) {
+                                                resetSplitTenders();
+                                            } else {
+                                                setSplitMode(true);
+                                                setSplitTenders([
+                                                    { ...emptyTender, method: "cash" },
+                                                    { ...emptyTender },
+                                                ]);
+                                            }
+                                        }}
+                                        className={`mt-2 w-full rounded-xl border-2 border-dashed p-2 text-xs font-semibold transition-colors ${
+                                            splitMode
+                                                ? "border-primary-400 bg-primary-50 text-primary-700 dark:border-primary-700 dark:bg-primary-950/30 dark:text-primary-300"
+                                                : "border-slate-300 text-slate-500 hover:border-primary-300 hover:text-primary-600 dark:border-slate-700 dark:text-slate-400"
+                                        }`}
+                                    >
+                                        {splitMode
+                                            ? "Batalkan Split Pembayaran"
+                                            : "Split Pembayaran (2 metode)"}
+                                    </button>
+                                )}
                             </div>
+
+                            {/* Split tender rows */}
+                            {splitMode && !payLater && (
+                                <div className="space-y-3 rounded-2xl border border-primary-100 bg-primary-50/50 p-3 dark:border-primary-900/50 dark:bg-primary-950/20">
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                            Split Pembayaran
+                                        </p>
+                                        <span
+                                            className={`text-xs font-semibold ${
+                                                splitRemaining === 0
+                                                    ? "text-success-600 dark:text-success-400"
+                                                    : "text-amber-600 dark:text-amber-400"
+                                            }`}
+                                        >
+                                            {splitRemaining === 0
+                                                ? "Lengkap"
+                                                : `Sisa ${formatPrice(splitRemaining)}`}
+                                        </span>
+                                    </div>
+                                    {splitTenders.map((tender, index) => (
+                                        <div
+                                            key={index}
+                                            className="space-y-2 rounded-xl bg-white p-3 dark:bg-slate-900"
+                                        >
+                                            <select
+                                                value={tender.method}
+                                                onChange={(e) =>
+                                                    updateSplitTender(index, {
+                                                        method: e.target.value,
+                                                        bank_account_id: null,
+                                                    })
+                                                }
+                                                className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                            >
+                                                <option value="">
+                                                    Pilih metode...
+                                                </option>
+                                                {paymentOptions.map((option) => (
+                                                    <option
+                                                        key={option.value}
+                                                        value={option.value}
+                                                    >
+                                                        {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {tender.method && (
+                                                <div className="relative">
+                                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
+                                                        Rp
+                                                    </span>
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        value={tender.amount}
+                                                        onChange={(e) =>
+                                                            updateSplitTender(
+                                                                index,
+                                                                {
+                                                                    amount:
+                                                                        e.target.value.replace(
+                                                                            /[^\d]/g,
+                                                                            ""
+                                                                        ) || "",
+                                                                }
+                                                            )
+                                                        }
+                                                        placeholder="Nominal"
+                                                        className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-8 pr-3 text-sm font-semibold text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                                    />
+                                                </div>
+                                            )}
+                                            {tender.method === "cash" && (
+                                                <input
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={tender.cash_received}
+                                                    onChange={(e) =>
+                                                        updateSplitTender(index, {
+                                                            cash_received:
+                                                                e.target.value.replace(
+                                                                    /[^\d]/g,
+                                                                    ""
+                                                                ) || "",
+                                                        })
+                                                    }
+                                                    placeholder="Uang diterima (opsional)"
+                                                    className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                                />
+                                            )}
+                                            {tender.method === "bank_transfer" &&
+                                                bankAccounts.length > 0 && (
+                                                    <select
+                                                        value={
+                                                            tender.bank_account_id ?? ""
+                                                        }
+                                                        onChange={(e) =>
+                                                            updateSplitTender(index, {
+                                                                bank_account_id:
+                                                                    Number(
+                                                                        e.target.value
+                                                                    ) || null,
+                                                            })
+                                                        }
+                                                        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                                                    >
+                                                        <option value="">
+                                                            Pilih rekening...
+                                                        </option>
+                                                        {bankAccounts.map(
+                                                            (bank) => (
+                                                                <option
+                                                                    key={bank.id}
+                                                                    value={bank.id}
+                                                                >
+                                                                    {
+                                                                        bank.bank_name
+                                                                    }{" "}
+                                                                    -{" "}
+                                                                    {
+                                                                        bank.account_number
+                                                                    }
+                                                                </option>
+                                                            )
+                                                        )}
+                                                    </select>
+                                                )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
 
                             {/* Bank Selector - Only for bank_transfer */}
                             {paymentMethod === "bank_transfer" &&
@@ -1196,33 +1677,92 @@ export default function Index({
                                     </div>
                                 )}
 
-                            {/* Quick Amounts - Only for cash */}
-                            {paymentMethod === "cash" && (
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                        Nominal Cepat
-                                    </label>
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {[10000, 20000, 50000, 100000].map(
-                                            (amt) => (
+                            {/* Cash payment stays next to its quick amount actions. */}
+                            {isCashPayment && (
+                                <div className="space-y-3 rounded-2xl border border-primary-100 bg-primary-50/50 p-3 dark:border-primary-900/50 dark:bg-primary-950/20">
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div>
+                                            <p className="text-sm font-semibold text-slate-800 dark:text-white">
+                                                Pembayaran Tunai
+                                            </p>
+                                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                                Total tagihan {formatPrice(payable)}
+                                            </p>
+                                        </div>
+                                        {cash < payable && payable > 0 && (
+                                            <span className="text-right text-xs font-semibold text-amber-600 dark:text-amber-400">
+                                                Kurang {formatPrice(payable - cash)}
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                            Jumlah Bayar
+                                        </label>
+                                        <div className="relative">
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">
+                                                Rp
+                                            </span>
+                                            <input
+                                                type="text"
+                                                inputMode="numeric"
+                                                value={cashInput}
+                                                onChange={(e) =>
+                                                    setCashInput(e.target.value.replace(/[^\d]/g, ""))
+                                                }
+                                                placeholder="0"
+                                                className="h-12 w-full rounded-xl border border-primary-200 bg-white pl-10 pr-4 text-lg font-semibold text-slate-800 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-primary-800 dark:bg-slate-900 dark:text-slate-200"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <div className="mb-2 flex items-center justify-between">
+                                            <label className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                                                Nominal Cepat
+                                            </label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCashInput(String(payable))}
+                                                className="text-xs font-semibold text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                                            >
+                                                Uang pas
+                                            </button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                            {quickCashAmounts.map((amount) => (
                                                 <button
-                                                    key={amt}
-                                                    onClick={() =>
-                                                        setCashInput(
-                                                            String(amt)
-                                                        )
-                                                    }
-                                                    className={`py-2 px-1 rounded-lg text-xs font-semibold transition-all ${
-                                                        Number(cashInput) ===
-                                                        amt
+                                                    key={amount}
+                                                    type="button"
+                                                    onClick={() => setCashInput(String(amount))}
+                                                    className={`min-h-10 rounded-lg px-1 py-2 text-xs font-semibold transition-all ${
+                                                        Number(cashInput) === amount
                                                             ? "bg-primary-500 text-white"
-                                                            : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
+                                                            : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
                                                     }`}
                                                 >
-                                                    {formatPrice(amt)}
+                                                    {formatPrice(amount)}
                                                 </button>
-                                            )
-                                        )}
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className={`flex items-center justify-between rounded-xl p-3 ${
+                                        cash >= payable && payable > 0
+                                            ? "bg-success-100/70 dark:bg-success-950/30"
+                                            : "bg-white/70 dark:bg-slate-900/50"
+                                    }`}>
+                                        <span className="text-sm text-slate-600 dark:text-slate-400">
+                                            Kembalian
+                                        </span>
+                                        <span className={`text-lg font-bold ${
+                                            cash >= payable && payable > 0
+                                                ? "text-success-600 dark:text-success-400"
+                                                : "text-slate-400"
+                                        }`}>
+                                            {formatPrice(Math.max(cash - payable, 0))}
+                                        </span>
                                     </div>
                                 </div>
                             )}
@@ -1326,148 +1866,6 @@ export default function Index({
                                     </div>
                                 )}
 
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Diskon Manual (Rp)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                                        Rp
-                                    </span>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={discountInput}
-                                        onChange={(e) =>
-                                            setDiscountInput(
-                                                e.target.value.replace(
-                                                    /[^\d]/g,
-                                                    ""
-                                                )
-                                            )
-                                        }
-                                        placeholder="0"
-                                        className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Order Type */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Tipe Pesanan
-                                </label>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {[
-                                        { value: "in_store", label: "Di Tempat" },
-                                        { value: "takeaway", label: "Bawa Pulang" },
-                                        { value: "delivery", label: "Diantar" },
-                                    ].map((type) => (
-                                        <button
-                                            key={type.value}
-                                            type="button"
-                                            onClick={() => setOrderType(type.value)}
-                                            className={`py-2 px-1 rounded-lg text-xs font-semibold transition-all ${
-                                                orderType === type.value
-                                                    ? "bg-primary-500 text-white"
-                                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
-                                            }`}
-                                        >
-                                            {type.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Order Note */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Catatan
-                                </label>
-                                <textarea
-                                    value={orderNote}
-                                    onChange={(e) => setOrderNote(e.target.value)}
-                                    rows={2}
-                                    maxLength={1000}
-                                    placeholder="Catatan pesanan (opsional)"
-                                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                />
-                            </div>
-
-                            {/* Shipping Cost Input */}
-                            <div>
-                                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                    Ongkos Kirim (Rp)
-                                </label>
-                                <div className="relative">
-                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                                        Rp
-                                    </span>
-                                    <input
-                                        type="text"
-                                        inputMode="numeric"
-                                        value={shippingInput}
-                                        onChange={(e) =>
-                                            setShippingInput(
-                                                e.target.value.replace(
-                                                    /[^\d]/g,
-                                                    ""
-                                                )
-                                            )
-                                        }
-                                        placeholder="0"
-                                        className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                    />
-                                </div>
-                                {/* Quick Shipping Amounts */}
-                                <div className="grid grid-cols-4 gap-2 mt-2">
-                                    {[10000, 15000, 20000, 25000].map((amt) => (
-                                        <button
-                                            key={amt}
-                                            type="button"
-                                            onClick={() =>
-                                                setShippingInput(String(amt))
-                                            }
-                                            className={`py-1.5 px-1 rounded-lg text-xs font-medium transition-all ${
-                                                Number(shippingInput) === amt
-                                                    ? "bg-primary-500 text-white"
-                                                    : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200"
-                                            }`}
-                                        >
-                                            {formatPrice(amt)}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Cash Input - Only for cash */}
-                            {paymentMethod === "cash" && (
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                        Jumlah Bayar (Rp)
-                                    </label>
-                                    <div className="relative">
-                                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                                            Rp
-                                        </span>
-                                        <input
-                                            type="text"
-                                            inputMode="numeric"
-                                            value={cashInput}
-                                            onChange={(e) =>
-                                                setCashInput(
-                                                    e.target.value.replace(
-                                                        /[^\d]/g,
-                                                        ""
-                                                    )
-                                                )
-                                            }
-                                            placeholder="0"
-                                            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-base font-semibold focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                        />
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
 

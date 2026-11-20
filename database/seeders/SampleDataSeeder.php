@@ -2,30 +2,22 @@
 
 namespace Database\Seeders;
 
-use App\Models\Cart;
-use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Customer;
-use App\Models\CustomerCredit;
 use App\Models\CustomerVoucher;
-use App\Models\LoyaltyPointHistory;
 use App\Models\Payable;
 use App\Models\PayablePayment;
 use App\Models\Product;
-use App\Models\Profit;
+use App\Models\ProductWarehouse;
 use App\Models\Receivable;
 use App\Models\ReceivablePayment;
-use App\Models\SalesReturn;
-use App\Models\SalesReturnItem;
-use App\Models\StockMutation;
 use App\Models\Supplier;
 use App\Models\Transaction;
-use App\Models\TransactionDetail;
 use App\Models\User;
+use App\Models\Warehouse;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -36,31 +28,6 @@ class SampleDataSeeder extends Seeder
      */
     public function run(): void
     {
-        Schema::disableForeignKeyConstraints();
-
-        Cart::truncate();
-        LoyaltyPointHistory::truncate();
-        CustomerVoucher::truncate();
-        CustomerCredit::truncate();
-        SalesReturnItem::truncate();
-        SalesReturn::truncate();
-        CashierShift::truncate();
-        StockMutation::truncate();
-        ReceivablePayment::truncate();
-        PayablePayment::truncate();
-        Receivable::truncate();
-        Payable::truncate();
-        TransactionDetail::truncate();
-        Profit::truncate();
-        Transaction::truncate();
-        Product::truncate();
-        Category::truncate();
-        Customer::truncate();
-        Supplier::truncate();
-
-        Schema::enableForeignKeyConstraints();
-
-        // Ensure storage directories exist
         Storage::disk('public')->makeDirectory('category');
         Storage::disk('public')->makeDirectory('products');
 
@@ -75,6 +42,7 @@ class SampleDataSeeder extends Seeder
 
         $this->command->info('Seeding products with images...');
         $products = $this->seedProducts($categories);
+        $this->seedWarehouseStock($products);
 
         $this->command->info('Seeding transactions...');
         $this->seedTransactions($customers, $products);
@@ -89,6 +57,19 @@ class SampleDataSeeder extends Seeder
         $this->seedPayables($suppliers);
 
         $this->command->info('Sample data seeding completed!');
+    }
+
+    private function seedWarehouseStock(Collection $products): void
+    {
+        $warehouses = Warehouse::whereIn('code', ['PUSAT', 'WH-MAL', 'WH-TKB', 'WH-PUT'])->get();
+        foreach ($warehouses as $warehouse) {
+            foreach ($products as $product) {
+                $product->warehouses()->syncWithoutDetaching([
+                    $warehouse->id => ['stock' => $warehouse->code === 'PUSAT' ? (int) $product->stock : 25],
+                ]);
+            }
+        }
+        $products->each(fn ($product) => $product->update(['stock' => (int) $product->warehouses()->sum('product_warehouse.stock')]));
     }
 
     /**
@@ -267,7 +248,7 @@ class SampleDataSeeder extends Seeder
             return Category::create([
                 'name' => $category['name'],
                 'description' => $category['description'],
-                'image' => $image ?? 'default.jpg',
+                'image' => $image,
             ]);
         })->keyBy('name');
     }
@@ -335,7 +316,7 @@ class SampleDataSeeder extends Seeder
 
             return Product::create([
                 'category_id' => $category?->id,
-                'image' => $image ?? 'default.jpg',
+                'image' => $image,
                 'barcode' => $product['barcode'],
                 'title' => $product['title'],
                 'description' => $product['description'],
@@ -352,8 +333,9 @@ class SampleDataSeeder extends Seeder
     private function seedTransactions(Collection $customers, Collection $products): void
     {
         $cashier = User::where('email', 'cashier@gmail.com')->first() ?? User::first();
+        $warehouse = Warehouse::where('code', 'WH-MAL')->first();
 
-        if (! $cashier) {
+        if (! $cashier || ! $warehouse) {
             return;
         }
 
@@ -462,6 +444,9 @@ class SampleDataSeeder extends Seeder
                 'change' => $change,
                 'discount' => $discount,
                 'grand_total' => $grandTotal,
+                'payment_method' => 'cash',
+                'payment_status' => 'paid',
+                'warehouse_id' => $warehouse->id,
             ]);
 
             foreach ($items as $item) {
@@ -475,7 +460,13 @@ class SampleDataSeeder extends Seeder
                     'total' => $item['profit'],
                 ]);
 
-                $item['product']->decrement('stock', $item['qty']);
+                ProductWarehouse::query()
+                    ->where('product_id', $item['product']->id)
+                    ->where('warehouse_id', $warehouse->id)
+                    ->decrement('stock', $item['qty']);
+                $item['product']->update([
+                    'stock' => (int) $item['product']->warehouses()->sum('product_warehouse.stock'),
+                ]);
             }
         }
     }

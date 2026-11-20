@@ -47,16 +47,16 @@ class PublicPortalController extends Controller
                 ] : null,
             ],
             'token' => $request->token,
-        ]);
+        ])->toResponse($request)->header('Cache-Control', 'no-store, max-age=0');
     }
 
     public function payReceivable(Request $request, Receivable $receivable)
     {
-        $transaction = $receivable->transaction;
+        $transaction = $receivable->transaction()->with('warehouse.outlet')->firstOrFail();
         abort_if($transaction->access_token !== $request->token, 403);
 
         $paymentGateway = app(PaymentGatewayManager::class);
-        $paymentSetting = PaymentSetting::first();
+        $paymentSetting = PaymentSetting::forOutlet($transaction->warehouse?->outlet);
         $gateway = $paymentSetting?->default_gateway ?? 'midtrans';
 
         if (! $paymentSetting || ! $paymentSetting->isGatewayReady($gateway)) {

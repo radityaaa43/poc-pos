@@ -1,96 +1,59 @@
-# AGENTS.md — Point of Sales
+# Point of Sales — Agent Guide
 
-Open-source POS system (200+ stars). Laravel 13 + Inertia 3.0 + React 19.
+Laravel POS with an Inertia/React frontend, multi-warehouse inventory, and a separate optional WhatsApp service.
 
-## Important: This Repo
+## Hard constraints
+- Treat `product_warehouse.stock` as operational stock; keep `products.stock` aggregate in sync in the same transaction. Lock affected inventory rows before mutation.
+- Never run the demo seeder against production; it truncates/rebuilds demo data.
+- Use npm and the committed `package-lock.json`; do not add alternative lockfiles.
+- Do not assume MySQL behavior in tests: PHPUnit uses in-memory SQLite.
+- Preserve Sanctum abilities and Spatie permissions when changing API authorization; API tests need explicit token abilities.
 
-**Remote:** `git@github.com:aryadwiputra/point-of-sales.git`
-
-**Branch structure:**
-- `main` — production. Protected. PR only from `development`.
-- `development` — integration branch. Feature branches merge here via PR.
-- `release/*` — release candidates. Created from `development`, merged to `main` + tagged.
-- `revamp-frontend` — legacy UI overhaul branch (inactive).
-- `feature/*` — individual feature work. Branch from `development`, PR to `development`.
-- `fix/*` — hotfixes. Branch from `main`, PR to `main` + `development`.
-
-**Tags follow semver:** `v1.0.0`, `v2.1.0`, etc.
-
-## Stack
-
-- **Backend**: Laravel 13 (composer.json requires PHP ^8.3; CI tests on PHP 8.4)
-- **Frontend**: Inertia.js 3.0 + React 19, Vite 5
-- **CI**: `.github/workflows/deploy.yml` uses PHP 8.4 + Node 22 for build, Node 24.15 on deploy VPS
-- **Styling**: Tailwind CSS 3 (custom theme in `tailwind.config.js`)
-- **Auth/RBAC**: Spatie Laravel Permission + Laravel Breeze
-- **REST API**: Sanctum token-based at `/api/v1`; Scramble docs at `/docs/api`, spec at `/docs/api.json`; protect with `SCRAMBLE_DOCS_TOKEN`
-- **DB**: MySQL (default); SQLite in-memory for tests
-- **i18n**: react-i18next; locales in `resources/js/i18n/locales`; `SetLocale` middleware on web group
-- **Payment gateways**: Midtrans, Xendit (webhooks in `routes/api.php`)
-- **WhatsApp**: whatsapp-web.js via separate Node service (`whatsapp-service/`, port 3001)
-
-## Developer Commands
+## Quick start
 
 ```bash
-# Initial setup
+composer install
+PUPPETEER_SKIP_DOWNLOAD=true npm install
 cp .env.example .env
-composer install && npm install
 php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
-
-# Dev — runs server, queue, logs (pail), and vite in one command
-composer run dev     # equivalent to `php artisan dev` (Laravel 13 DevCommand)
-
-# Testing
-php artisan test                     # all
-php artisan test --filter=FooTest    # one class
-php artisan test --filter=test_name  # one method
-
-# WhatsApp Service (separate terminal)
-cd whatsapp-service
-npm install && npm start             # port 3001
-
-# PM2 for production
-pm2 start whatsapp-service/server.js --name wa-service
-
-# Artisan commands
-php artisan inventory:reconcile           # report global vs pivot stock mismatch
-php artisan inventory:reconcile --fix     # align global stock to pivot sum
-php artisan reorder:generate              # generate draft PO from low-stock products (daily 02:00)
-php artisan crm:sync-segments             # refresh auto segment memberships (daily 01:00)
-php artisan crm:generate-reminders       # queue campaign reminder messages (daily 01:15)
-php artisan scramble:cache               # warm Scramble OpenAPI cache
-php artisan scramble:clear               # invalidate Scramble OpenAPI cache
-
-# Formatting
-vendor/bin/pint
-
-# Production build
-npm run build
+composer run dev
 ```
 
-## Architecture
+First run redirects to `/setup` to create the admin and store profile; there are no default accounts. `composer run dev` starts the Laravel dev stack (server, queue, logs, and Vite). The optional WhatsApp gateway runs separately: `cd whatsapp-service && npm install && npm start`.
 
-- **Controllers**: `app/Http/Controllers/Apps/` — per-module web controllers (~34)
-- **API Controllers**: `app/Http/Controllers/Api/` — REST API (Sanctum token auth)
-- **Services**: `app/Services/` — ~22 services: AuditLog, BatchService, CashierShiftService, DineOrderService, GoodsReceivingService, LoyaltyService, PaymentGatewayManager, PricingService, PriceListService, PurchaseOrderService, ReorderService, StockMutationService, StockTransferService, UnitConversionService, WhatsAppService, etc.
-- **Layouts**: `POSLayout.jsx` (POS), `DashboardLayout.jsx` (admin), `AuthenticatedLayout.jsx` (profile), `GuestLayout.jsx` (auth), `PublicLayout.jsx` (public dine-in)
-- **Routes**: `routes/web.php` (~50+ dashboard routes), `routes/api.php` (webhooks + REST API), `routes/auth.php` (Breeze)
-- **Inertia shared props**: `HandleInertiaRequests.php` — auth, permissions, notifications (low stock, receivables, payables aging), active shift, store profile, appVersion
+## Verify changes
 
-## Middleware
+```bash
+php artisan test
+php artisan test --filter=TestName
+vendor/bin/pint
+PUPPETEER_SKIP_DOWNLOAD=true npm run build
+```
 
-| Alias | Class | Applied to |
-|-------|-------|------------|
-| `permission` | Spatie PermissionMiddleware | Every dashboard route |
-| `step_up` | EnsureRecentPasswordConfirmation | Sensitive create/update/delete: roles, users, payment settings, bank accounts, payment confirm |
-| `active_shift` | EnsureActiveCashierShift | All POS transaction actions (cart CRUD, hold/resume, checkout) |
-| `bot.guard` | EnsureBotGuard | Login/register/forgot-password (honeypot + timer) |
-| `registration.enabled` | EnsurePublicRegistrationEnabled | Register route (default: off) |
-| `abilities` | CheckAbilities (Sanctum) | API master-data resources only; `/pos/*` and `/auth/*` are auth-only |
+There is no frontend lint or typecheck script in the root `package.json`. Run focused tests with PHPUnit's `--filter`; tests use SQLite in-memory and array/sync drivers. Set `tax_rate=0` on test products when tax is not under test.
 
-## Seeder Chain & First-Install Setup
+## Structure and references
+
+- `app/Http/Controllers/Apps/`: dashboard modules; `Api/` and `Reports/` contain API and report controllers.
+- `app/Services/`: domain operations, including checkout, stock, purchasing, and payment workflows.
+- `resources/js/`: Inertia React app; Vite entry is `resources/js/app.jsx`.
+- `routes/web.php`, `routes/api.php`, `routes/console.php`: web, REST, and scheduled command routes.
+- `whatsapp-service/`: separate Node.js WhatsApp gateway.
+- Module and operational detail: `docs/architecture-overview.md`, `docs/feature-index.md`, `docs/features/`, `docs/configuration.md`, `docs/testing-manual.md`.
+
+## Non-obvious behavior
+
+- Root `DatabaseSeeder` seeds essential system configuration, not users or the full demo dataset. First-install setup creates the initial admin; demo data is opt-in via `php artisan seed:demo --force`.
+- `php artisan test` uses SQLite `:memory:`; avoid database-specific assumptions. For API tests use `Sanctum::actingAs($user, ['*'])` or a real token with the needed abilities.
+- `composer run dev` is the root development command. The WhatsApp service is not included and requires its own `npm start` process when used.
+- Laravel's scheduler is defined in `routes/console.php`: CRM segment sync (01:00), CRM reminders (01:15), reorder generation (02:00), and pending-transaction expiry (hourly). Production must invoke `php artisan schedule:run` every minute.
+- Midtrans/Xendit webhooks require a publicly reachable `APP_URL`; product images require `php artisan storage:link`.
+- Dine-in online payment is currently rejected; only `pay_at_counter` is supported.
+- After permission seeding, an existing session may retain stale permissions; log out and back in.
+
+## Workflow
 
 `DatabaseSeeder` runs only system-essential seeders with permission cache reset before & after:
 
@@ -100,9 +63,11 @@ PermissionSeeder → RoleSeeder → PaymentSettingSeeder → DineInSettingsSeede
 
 After seeding, a default `PUSAT` warehouse is created and existing product stock is migrated to the `product_warehouse` pivot.
 
-**No default users.** Admin account, store profile, business type, categories, and main warehouse are created via the first-install setup wizard at `/setup` (gated by `setup.notinstalled` middleware checking `Setting::app_setup_completed`; redirects to login once done).
+**No default users.** Admin account, store profile, business type, categories, and main warehouse are created via the first-install setup wizard at `/setup`. Open the root URL after migration; it automatically redirects to `/setup` while `Setting::app_setup_completed` is false. The `setup.notinstalled` middleware redirects to login once setup is done.
 
-**Demo seeders are opt-in, not part of `DatabaseSeeder`:** `php artisan db:seed --class=SampleDataSeeder` (needs UserSeeder first: `--class=UserSeeder`), plus `OperationalCoreSeeder`, `FeatureCoverageSeeder`, `FeatureDemoSeeder` for full demo data.
+**Demo data is opt-in, not part of `DatabaseSeeder`:** run `php artisan db:seed --class=DemoSeeder --force` (or `php artisan seed:demo --force`) for the complete demo dataset. It creates demo outlets `MAL`, `TKB`, and `PUT`; `PUSAT` remains a central non-sales warehouse. Demo accounts (password `password`): `arya@gmail.com` (super-admin, all outlets), `manager@gmail.com` (manager role, MAL+TKB), `cashier@gmail.com` (cashier, MAL). Never run the demo seeder on production. Full dataset details: `docs/demo-data.md`.
+
+**Email verification is disabled** — `User` no longer implements `MustVerifyEmail`, dashboard routes carry no `verified` middleware, and the verification routes/controllers/pages are removed. `markEmailAsVerified()` is still available via the retained trait (used by seeders and tests).
 
 ## Inventory Model
 
@@ -136,6 +101,8 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 - **Alerts/confirm**: `react-hot-toast` + `sweetalert2`
 - **Charts**: `chart.js`
 - **Routing**: Ziggy `route()` helper available
+- **Offline mode**: `resources/js/Utils/offlineDb.js` (IndexedDB via `idb`) queues transactions when offline, flushes on reconnect; idempotent via `client_uuid` — server price wins
+- **ESC/POS printing**: `resources/js/Utils/escpos.js` (WebUSB, Chromium-only; fallback `window.print()`)
 - **Tailwind tokens**: `primary` (indigo), `accent` (cyan), `success` (emerald), `warning` (amber), `danger` (rose)
 - **i18n**: Indonesian (`id.json`) and English (`en.json`) in `resources/js/i18n/locales`
 
@@ -145,13 +112,14 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 - Architecture: `docs/architecture-overview.md`
 - Config: `docs/configuration.md`
 - Feature index: `docs/feature-index.md`
+- Manual QA checklist (QRIS, ESC/POS, offline sync): `docs/testing-manual.md`
 
 ## Test Conventions
 
 - Use `RefreshDatabase` trait on every test class
 - Seed: `PermissionSeeder → RoleSeeder → UserSeeder` before every test
-- Admin: `arya@gmail.com` (super-admin, all permissions); cashier: `cashier@gmail.com`
-- **Always call `markEmailAsVerified()`** before `actingAs()` for HTTP controller tests
+- Admin: `arya@gmail.com` (super-admin, all permissions); manager: `manager@gmail.com`; cashier: `cashier@gmail.com`
+- **Always call `markEmailAsVerified()`** before `actingAs()` for HTTP controller tests (email verification is disabled, but the trait method remains available)
 - `PUSAT` warehouse: `type='main'`, `is_active=true`, `sort_order=0`
 - Product needs: `image`, `barcode`, `sku`, `title`, `description`, `category_id`, `buy_price`, `sell_price`, `stock`, `tax_rate=0`
 - Attach warehouse stock: `$warehouse->products()->attach($product->id, ['stock' => N])` or `$product->warehouses()->attach($warehouse->id, ['stock' => N])`
@@ -170,13 +138,30 @@ Master-data API routes (`/api/v1/products`, `/customers`, `/categories`, `/wareh
 | update | `{module}-edit` (products/customers/categories) or `{module}-update` (warehouses) |
 | destroy | `{module}-delete` |
 | suppliers (all verbs) | `suppliers-access` |
+| `/api/v1/pos/*` (all verbs) | `pos-access` |
 
-`/api/v1/auth/*` and `/api/v1/pos/*` are auth-only (no abilities). Token abilities are stamped at login from Spatie permissions + `'user:read'`. Public registration creates a token with only `'user:read'`.
+`/api/v1/auth/*` is auth-only (no abilities). Token abilities are stamped at login from Spatie permissions + `'user:read'`. Public registration creates a token with only `'user:read'` (so it cannot reach `/pos/*`). The `pos-access` permission is granted to `cashier`, `manager`, and `super-admin` roles by the seeders. Existing mobile tokens must re-login after this change to receive `pos-access`.
 
 API tests must use `Sanctum::actingAs($user, ['*'])` or real tokens via `$user->createToken('test', $abilities)->plainTextToken`.
+
+## Skills Integration
+
+**LOAD SKILL BEFORE EXECUTING** — do not skip skill loading:
+
+| Trigger | Skill | Action |
+|---------|-------|--------|
+| Before creating features, components, adding functionality | `skill:brainstorming` | Classify request → present design → get approval |
+| Multi-step task after approved design | `skill:writing-plans` | Create implementation plan → execute via `skill:executing-plans` |
+| Code review for over-engineering | `skill:ponytail-review` | Check diff for unnecessary complexity, unused abstractions |
+| E2E browser testing | `skill:webapp-testing` | Use Playwright with `scripts/with_server.py` |
+
+**Default Mode: Ponytail** (`skill:ponytail` active) — stdlib first, YAGNI ruthless, native features before libraries.
+
+**Session Tracking:** After session ends, invoke `skill:obsidian-cli` to export session note to Obsidian vault.
 
 ## Route Naming Gotchas
 
 - Price list sidebar link: `price-lists.index` (NOT `settings.price-lists.index`)
 - Profile URL: `/dashboard/profile` (NOT `/apps/profile`)
 - Public invoice: `/share/transactions/{invoice}?token={access_token}`
+- README contribution flow: branch features from `development` and target PRs to `development`; releases go to `main` through a release branch. Run `php artisan test` before submitting. Do not infer CI/deploy behavior from this checkout; no workflow files are present here.

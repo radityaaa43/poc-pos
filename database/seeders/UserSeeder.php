@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Outlet;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -34,6 +35,37 @@ class UserSeeder extends Seeder
         }
 
         $admin->syncPermissions($permissions);
+        $admin->markEmailAsVerified();
+
+        $outlets = Outlet::whereIn('code', ['MAL', 'TKB', 'PUT'])->get();
+        if ($outlets->isNotEmpty()) {
+            $admin->outlets()->sync($outlets->mapWithKeys(fn (Outlet $outlet) => [
+                $outlet->id => ['is_default' => $outlet->code === 'MAL'],
+            ])->all());
+        }
+
+        $manager = User::updateOrCreate(
+            ['email' => 'manager@gmail.com'],
+            [
+                'name' => 'Manager Cabang',
+                'password' => Hash::make('password'),
+            ]
+        );
+
+        $managerRole = Role::where('name', 'manager')->first();
+        $manager->markEmailAsVerified();
+
+        $managerOutlets = $outlets->whereIn('code', ['MAL', 'TKB'])->values();
+        if ($managerOutlets->isNotEmpty()) {
+            $manager->outlets()->sync($managerOutlets->mapWithKeys(fn (Outlet $outlet) => [
+                $outlet->id => ['is_default' => $outlet->code === 'MAL'],
+            ])->all());
+        }
+
+        if ($managerRole) {
+            $manager->syncRoles([$managerRole->name]);
+            $manager->syncPermissions([]);
+        }
 
         $cashier = User::updateOrCreate(
             ['email' => 'cashier@gmail.com'],
@@ -44,6 +76,12 @@ class UserSeeder extends Seeder
         );
 
         $cashierRole = Role::where('name', 'cashier')->first();
+        $cashier->markEmailAsVerified();
+
+        $mal = $outlets->firstWhere('code', 'MAL');
+        if ($mal) {
+            $cashier->outlets()->sync([$mal->id => ['is_default' => true]]);
+        }
 
         if ($cashierRole) {
             $cashier->syncRoles([$cashierRole->name]);

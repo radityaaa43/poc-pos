@@ -2,7 +2,7 @@
 
 Sistem kasir berbasis Laravel + Inertia + React untuk transaksi penjualan, inventory audit, purchasing, finance, CRM, loyalty, dan observability operasional — dengan dukungan multi-warehouse, PPN, dan offline mode.
 
-> 200+ GitHub stars • Open-source • MIT License
+> 200+ GitHub stars • Open-source • GNU AGPL-3.0 License
 
 ---
 
@@ -90,25 +90,31 @@ Sistem kasir berbasis Laravel + Inertia + React untuk transaksi penjualan, inven
 ```bash
 cd point-of-sales
 cp .env.example .env
-composer install && npm install
+composer install && PUPPETEER_SKIP_DOWNLOAD=true npm install
 php artisan key:generate
 php artisan migrate --seed
 php artisan storage:link
 
-# Dev servers — jalankan semua di terminal terpisah
-npm run dev          # Vite HMR
-php artisan serve    # Laravel
+# Dev — server, queue, logs, dan Vite
+composer run dev
+
+# Setelah server berjalan, buka http://localhost:8000.
+# Pada instalasi pertama, aplikasi otomatis mengarahkan ke /setup.
 
 # WhatsApp Gateway (opsional) — untuk kirim WA otomatis
 cd whatsapp-service
 npm install && npm start
 ```
 
+Tidak ada akun default. Setelah `migrate --seed`, buka root aplikasi (`http://localhost:8000`); pada instalasi pertama aplikasi otomatis mengarahkan ke `/setup` untuk membuat akun admin dan profil toko.
+Ingin langsung mencoba dengan data contoh? Jalankan `php artisan seed:demo --force`. Seeder ini membuat dataset demo lengkap (outlet `MAL`/`TKB`/`PUT`, produk, transaksi, purchasing, CRM, dine-in) beserta tiga akun siap pakai — lihat `docs/demo-data.md`.
+
 ## Dokumentasi Detail
 
 | Dokumen | Isi |
 |---------|-----|
 | `docs/getting-started.md` | Setup lengkap |
+| `docs/demo-data.md` | Seeder demo lengkap + akun demo |
 | `docs/configuration.md` | Konfigurasi environment, payment, pajak, printer, WhatsApp |
 | `docs/architecture-overview.md` | Arsitektur, middleware, service layer, Node service |
 | `docs/feature-index.md` | Indeks semua modul (44 fitur) |
@@ -166,7 +172,7 @@ Base URL: `https://dikasir.web.id/api/v1` (dev: `http://localhost:8000/api/v1`)
 3. **Gambar produk tidak tampil** — jalankan `php artisan storage:link`
 4. **Route error 500** — jalankan `php artisan migrate` untuk modul baru
 5. **Test gagal karena PPN** — pastikan `tax_rate=0` di test Product::create
-6. **Vite tidak jalan** — pastikan `npm run dev` berjalan, jangan hanya `php artisan serve`
+6. **Vite tidak jalan** — pastikan `composer run dev` berjalan; command tersebut juga menjalankan Vite
 7. **WhatsApp QR tidak muncul** — pastikan `whatsapp-service/` sudah jalan (`npm start`)
 8. **WhatsApp terputus** — klik "Hubungkan Ulang" di Settings > WhatsApp, scan ulang QR
 
@@ -180,4 +186,4 @@ Pastikan `php artisan test` lulus sebelum PR.
 
 ## Lisensi
 
-MIT License
+GNU Affero General Public License v3.0 (AGPL-3.0)

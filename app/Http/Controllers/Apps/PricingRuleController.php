@@ -14,6 +14,7 @@ use App\Models\PricingRuleQtyBreak;
 use App\Models\Product;
 use App\Services\AuditLogService;
 use App\Services\LoyaltyService;
+use App\Services\OutletAccessService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -23,9 +24,9 @@ use Inertia\Inertia;
 class PricingRuleController extends Controller
 {
     public function __construct(
-        private readonly AuditLogService $auditLogService,
-        private readonly LoyaltyService $loyaltyService,
-        private readonly PricingService $pricingService
+        protected readonly AuditLogService $auditLogService,
+        protected readonly LoyaltyService $loyaltyService,
+        protected readonly PricingService $pricingService, protected readonly OutletAccessService $outletAccess
     ) {}
 
     public function index(Request $request)
@@ -37,7 +38,14 @@ class PricingRuleController extends Controller
             'kind' => $request->input('kind'),
         ];
 
+        $outlet = $this->outletAccess->activeOutlet($request);
         $rules = PricingRule::query()
+            ->where(function ($query) use ($outlet) {
+                $query->whereNull('outlet_id');
+                if ($outlet) {
+                    $query->orWhere('outlet_id', $outlet->id);
+                }
+            })
             ->with(['product:id,title', 'category:id,name', 'creator:id,name', 'qtyBreaks', 'bundleItems', 'buyGetItems'])
             ->when($filters['search'], function ($query, $search) {
                 $query->where('name', 'like', '%'.$search.'%');
@@ -88,7 +96,13 @@ class PricingRuleController extends Controller
                 'buy_get_items_count' => $rule->buyGetItems->count(),
             ]);
 
-        $summaryBase = PricingRule::query()->get();
+        $summaryBase = PricingRule::query()
+            ->where(function ($query) use ($outlet) {
+                $query->whereNull('outlet_id');
+                if ($outlet) {
+                    $query->orWhere('outlet_id', $outlet->id);
+                }
+            })->get();
 
         return Inertia::render('Dashboard/PricingRules/Index', [
             'rules' => $rules,
@@ -115,6 +129,7 @@ class PricingRuleController extends Controller
     public function store(Request $request)
     {
         $validated = $this->validateRule($request);
+        $validated['rule']['outlet_id'] = $this->outletAccess->activeOutlet($request)?->id;
 
         $rule = PricingRule::create([
             ...$validated['rule'],
@@ -138,6 +153,7 @@ class PricingRuleController extends Controller
 
     public function edit(PricingRule $pricingRule)
     {
+        abort_unless($this->canUseRule($pricingRule), 404);
         $pricingRule->load(['qtyBreaks', 'bundleItems', 'buyGetItems']);
 
         return Inertia::render('Dashboard/PricingRules/Edit', [
@@ -170,6 +186,7 @@ class PricingRuleController extends Controller
 
     public function update(Request $request, PricingRule $pricingRule)
     {
+        abort_unless($this->canUseRule($pricingRule), 404);
         $before = $this->auditPayload($pricingRule->load(['qtyBreaks', 'bundleItems', 'buyGetItems']));
         $validated = $this->validateRule($request);
 
@@ -190,8 +207,16 @@ class PricingRuleController extends Controller
             ->with('success', 'Rule promo berhasil diperbarui.');
     }
 
+    protected function canUseRule(PricingRule $rule): bool
+    {
+        $outlet = $this->outletAccess->activeOutlet(request());
+
+        return $rule->outlet_id === null || ($outlet && (int) $rule->outlet_id === (int) $outlet->id);
+    }
+
     public function destroy(PricingRule $pricingRule)
     {
+        abort_unless($this->canUseRule($pricingRule), 404);
         $before = $this->auditPayload($pricingRule->load(['qtyBreaks', 'bundleItems', 'buyGetItems']));
         $pricingRule->delete();
 
@@ -221,11 +246,11 @@ class PricingRuleController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $this->pricingService->previewCartWithRules($sampleCarts, $customer, collect([$rule])),
+            'data' => $this->pricingService->previewCartWithRules($sampleCarts, $customer, collect([$rule]), $this->outletAccess->activeOutlet($request)),
         ]);
     }
 
-    private function formPayload(): array
+    protected function formPayload(): array
     {
         return [
             'products' => Product::orderBy('title')->get(['id', 'title', 'sell_price', 'category_id']),
@@ -240,7 +265,7 @@ class PricingRuleController extends Controller
         ];
     }
 
-    private function validateRule(Request $request): array
+    protected function validateRule(Request $request): array
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -414,7 +439,7 @@ class PricingRuleController extends Controller
         ];
     }
 
-    private function syncRuleRelations(PricingRule $rule, array $relations): void
+    protected function syncRuleRelations(PricingRule $rule, array $relations): void
     {
         $rule->qtyBreaks()->delete();
         foreach ($relations['qty_breaks'] as $payload) {
@@ -432,7 +457,7 @@ class PricingRuleController extends Controller
         }
     }
 
-    private function auditPayload(PricingRule $rule): array
+    protected function auditPayload(PricingRule $rule): array
     {
         return [
             'name' => $rule->name,
@@ -456,7 +481,7 @@ class PricingRuleController extends Controller
         ];
     }
 
-    private function buildPreviewCarts(PricingRule $rule): Collection
+    protected function buildPreviewCarts(PricingRule $rule): Collection
     {
         $products = match ($rule->kind) {
             PricingRule::KIND_BUNDLE_PRICE => Product::query()
@@ -492,7 +517,7 @@ class PricingRuleController extends Controller
             });
     }
 
-    private function previewQuantityForRule(PricingRule $rule, Product $product): int
+    protected function previewQuantityForRule(PricingRule $rule, Product $product): int
     {
         if ($rule->kind === PricingRule::KIND_QTY_BREAK) {
             return max(1, (int) ($rule->preview_quantity_multiplier ?: $rule->qtyBreaks->max('min_qty') ?: 1));

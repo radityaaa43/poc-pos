@@ -15,7 +15,23 @@ Kembali ke indeks dokumentasi: `docs/README.md`
 | `XENDIT_PUBLIC_KEY` | Public key Xendit |
 | `XENDIT_CALLBACK_TOKEN` | Callback token verifikasi webhook Xendit |
 | `AUTH_PUBLIC_REGISTRATION` | Aktifkan registrasi publik (`true`/`false`, default: `false`) |
-| `WA_SERVICE_URL` | Alamat Node.js WhatsApp service (default: `http://localhost:3001`) |
+| `SANCTUM_STATEFUL_DOMAINS` | Domain yang diizinkan untuk autentikasi cookie Sanctum. **Wajib diisi domain produksi** (jangan biarkan `localhost` di produksi) |
+| `SANCTUM_TOKEN_EXPIRATION` | Masa berlaku token API dalam menit (default `1440` = 24 jam) |
+| `SESSION_SECURE_COOKIE` | Set `true` di produksi (HTTPS) agar cookie sesi hanya dikirim via HTTPS |
+ | `WA_SERVICE_URL` | Alamat Node.js WhatsApp service (default: `http://localhost:3001`) |
+ | `WA_SERVICE_TOKEN` | Token bersama untuk autentikasi request ke WhatsApp service (produksi wajib) |
+
+ Versi runtime yang ditampilkan aplikasi berasal dari `APP_VERSION`. Nilainya harus disamakan
+ dengan Git tag rilis, misalnya `v2.10.4`.
+
+## Autentikasi
+
+- **Email verification dinonaktifkan.** `User` tidak lagi mengimplementasikan `MustVerifyEmail`,
+  route dashboard tidak memakai middleware `verified`, dan route/controller/halaman verifikasi
+  sudah dihapus. Setup wizard dan registrasi publik langsung mengarahkan user ke dashboard.
+- `AUTH_PUBLIC_REGISTRATION` mengatur apakah registrasi publik diizinkan (default `false`).
+  Saat nonaktif, akun dibuat lewat setup wizard atau menu Users oleh admin.
+- `markEmailAsVerified()` tetap tersedia (dipakai seeder dan test).
 
 ## APP_URL
 
@@ -87,6 +103,8 @@ Konfigurasi di `dashboard/settings/whatsapp`:
 - **Koneksi** — scan QR untuk menghubungkan (session tersimpan otomatis)
 
 Detail setup: `docs/features/whatsapp-gateway.md`
+
+ Campaign dan reminder terjadwal membutuhkan Laravel scheduler dan queue worker aktif.
 
 ## Multi-Warehouse
 

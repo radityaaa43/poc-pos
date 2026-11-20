@@ -98,6 +98,7 @@
             "store": "Store Profile",
             "businessType": "Business Type",
             "categories": "Product Categories",
+            "branches": "Branches",
             "account": "Admin Account & Warehouse"
         },
         "store": {
@@ -116,10 +117,63 @@
             "pharmacy": "Pharmacy",
             "services": "Services"
         },
+        "categoryOptions": {
+            "food": {
+                "food": "Food",
+                "beverages": "Beverages",
+                "snacks": "Snacks",
+                "coffeeTea": "Coffee & Tea"
+            },
+            "retail": {
+                "general": "General",
+                "electronics": "Electronics",
+                "homeSupplies": "Home Supplies",
+                "beauty": "Beauty"
+            },
+            "grocery": {
+                "staples": "Staples",
+                "produce": "Produce",
+                "meatSeafood": "Meat & Seafood",
+                "snacks": "Snacks"
+            },
+            "fashion": {
+                "clothing": "Clothing",
+                "shoes": "Shoes",
+                "bags": "Bags",
+                "accessories": "Accessories"
+            },
+            "pharmacy": {
+                "otcMedicine": "Over-the-counter Medicine",
+                "prescriptionMedicine": "Prescription Medicine",
+                "vitamins": "Vitamins",
+                "medicalSupplies": "Medical Supplies"
+            },
+            "services": {
+                "services": "Services",
+                "products": "Products",
+                "packages": "Packages"
+            }
+        },
         "categories": {
             "hint": "Select the categories that fit, or add your own",
             "placeholder": "Add another category...",
             "add": "Add"
+        },
+        "branches": {
+            "hint": "Add your store branches — each branch gets its own warehouse and can open cashier shifts",
+            "label": "Branch #{{index}}",
+            "add": "Add Branch",
+            "remove": "Remove branch",
+            "outletCode": "Outlet Code",
+            "outletCodePlaceholder": "e.g. MAL",
+            "outletName": "Outlet Name",
+            "outletNamePlaceholder": "e.g. Malabar Cafe",
+            "warehouseCode": "Branch Warehouse Code",
+            "warehouseCodePlaceholder": "e.g. WH-MAL",
+            "warehouseName": "Branch Warehouse Name",
+            "warehouseNamePlaceholder": "e.g. Malabar Warehouse",
+            "address": "Address (optional)",
+            "phone": "Phone (optional)"
         },
         "account": {
             "name": "Full Name",
@@ -134,7 +188,8 @@
         "next": "Next",
         "finish": "Finish Setup",
         "completed": "Setup complete! Sign in with the account you created.",
-        "required": "This section is required"
+        "required": "This section is required",
+        "duplicateCode": "Code already used"
     },
     "auth": {
         "login": {
@@ -303,6 +358,7 @@
             "loyalty": "Loyalty",
             "salesTarget": "Sales Target",
             "warehouses": "Warehouses",
+            "outlets": "Outlets",
             "whatsapp": "WhatsApp",
             "printers": "Printers",
             "taxSettings": "Tax"

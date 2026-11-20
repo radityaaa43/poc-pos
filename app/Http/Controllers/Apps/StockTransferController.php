@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\StockTransfer;
-use App\Models\Warehouse;
+use App\Services\OutletAccessService;
 use App\Services\StockTransferService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,16 +15,22 @@ use Inertia\Response;
 class StockTransferController extends Controller
 {
     public function __construct(
-        private readonly StockTransferService $stockTransferService
+        protected readonly StockTransferService $stockTransferService,
+        protected readonly OutletAccessService $outletAccessService
     ) {}
 
     public function index(): Response
     {
+        $warehouses = $this->outletAccessService->warehousesFor(request()->user());
+        $warehouseIds = $warehouses->pluck('id');
         $transfers = StockTransfer::with([
             'sourceWarehouse:id,code,name',
             'destinationWarehouse:id,code,name',
             'creator:id,name',
-        ])->withCount('items')
+        ])->where(function ($query) use ($warehouseIds) {
+            $query->whereIn('source_warehouse_id', $warehouseIds)
+                ->orWhereIn('destination_warehouse_id', $warehouseIds);
+        })->withCount('items')
             ->latest()
             ->paginate($this->perPage())
             ->withQueryString();
@@ -36,7 +42,7 @@ class StockTransferController extends Controller
 
     public function create(): Response
     {
-        $warehouses = Warehouse::active()->orderBy('sort_order')->orderBy('code')->get(['id', 'code', 'name']);
+        $warehouses = $this->outletAccessService->warehousesFor(request()->user());
         $products = Product::orderBy('title')->get(['id', 'title', 'sku', 'stock']);
 
         return Inertia::render('Dashboard/StockTransfers/Create', [
@@ -64,8 +70,13 @@ class StockTransferController extends Controller
             ->with('success', 'Transfer stok berhasil dibuat.');
     }
 
-    public function show(StockTransfer $stockTransfer): Response
+    public function show(Request $request, StockTransfer $stockTransfer): Response
     {
+        abort_unless(
+            $this->outletAccessService->canUseWarehouse($request->user(), $stockTransfer->sourceWarehouse)
+            && $this->outletAccessService->canUseWarehouse($request->user(), $stockTransfer->destinationWarehouse),
+            404
+        );
         $stockTransfer->load([
             'sourceWarehouse:id,code,name',
             'destinationWarehouse:id,code,name',

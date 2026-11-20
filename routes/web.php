@@ -16,6 +16,7 @@ use App\Http\Controllers\Apps\DiscountApprovalController;
 use App\Http\Controllers\Apps\GoodsReceivingController;
 use App\Http\Controllers\Apps\ImportExportController;
 use App\Http\Controllers\Apps\MemberController;
+use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PayableController;
 use App\Http\Controllers\Apps\PaymentSettingController;
 use App\Http\Controllers\Apps\PriceListController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\DineOrderController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OutletContextController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicPortalController;
@@ -50,11 +52,16 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SetupController;
 use App\Http\Controllers\TourController;
 use App\Http\Controllers\UserController;
+use App\Models\Setting;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
+    if (! Setting::getBool('app_setup_completed', false)) {
+        return redirect()->route('setup.index');
+    }
+
     return Inertia::render('Welcome', [
         'canLogin' => Route::has('login'),
         'canRegister' => config('security.auth.public_registration'),
@@ -77,7 +84,7 @@ Route::get('/kontribusi', fn () => Inertia::render('Public/Contributing'))->name
 
 Route::get('/dashboard/access', function () {
     return Inertia::render('Dashboard/Access');
-})->middleware(['auth', 'verified'])->name('dashboard.access');
+})->middleware(['auth'])->name('dashboard.access');
 
 // Public share routes (no login, but require the transaction access token)
 Route::get('/share/transactions/{invoice}', [DocumentController::class, 'publicInvoice'])
@@ -85,16 +92,21 @@ Route::get('/share/transactions/{invoice}', [DocumentController::class, 'publicI
     ->name('transactions.public');
 
 // Customer portal routes (no login, token-based)
-Route::get('/portal/transactions/{invoice}', [PublicPortalController::class, 'showTransaction'])->name('portal.transaction');
-Route::post('/portal/receivables/{receivable}/pay', [PublicPortalController::class, 'payReceivable'])->name('portal.receivable.pay');
+Route::get('/portal/transactions/{invoice}', [PublicPortalController::class, 'showTransaction'])
+    ->middleware('throttle:10,1')
+    ->name('portal.transaction');
+Route::post('/portal/receivables/{receivable}/pay', [PublicPortalController::class, 'payReceivable'])
+    ->middleware('throttle:5,1')
+    ->name('portal.receivable.pay');
 
 // Language switch
 Route::post('/language/switch', [LanguageController::class, 'switch'])->name('language.switch');
 
-Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'verified']], function () {
+Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
+    Route::post('/outlet', [OutletContextController::class, 'switch'])->name('outlet.switch');
     Route::post('/tours/{tour}/complete', [TourController::class, 'complete'])->name('tours.complete');
     Route::post('/tours/reset', [TourController::class, 'reset'])->name('tours.reset');
-    Route::get('/', [DashboardController::class, 'index'])->middleware(['auth', 'verified', 'permission:dashboard-access'])->name('dashboard');
+    Route::get('/', [DashboardController::class, 'index'])->middleware(['permission:dashboard-access'])->name('dashboard');
     Route::get('/permissions', [PermissionController::class, 'index'])->middleware('permission:permissions-access')->name('permissions.index');
     // roles route
     Route::resource('/roles', RoleController::class)
@@ -363,6 +375,19 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth', 'verified']], fu
         ->middlewareFor('store', 'permission:warehouses-create')
         ->middlewareFor('update', 'permission:warehouses-update')
         ->middlewareFor('destroy', 'permission:warehouses-delete');
+
+    Route::get('/settings/outlets', [OutletController::class, 'index'])
+        ->middleware('permission:outlets-access')
+        ->name('settings.outlets.index');
+    Route::post('/settings/outlets', [OutletController::class, 'store'])
+        ->middleware(['permission:outlets-create', 'step_up'])
+        ->name('settings.outlets.store');
+    Route::put('/settings/outlets/{outlet}', [OutletController::class, 'update'])
+        ->middleware(['permission:outlets-update', 'step_up'])
+        ->name('settings.outlets.update');
+    Route::delete('/settings/outlets/{outlet}', [OutletController::class, 'destroy'])
+        ->middleware(['permission:outlets-delete', 'step_up'])
+        ->name('settings.outlets.destroy');
 
     // settings units
     Route::resource('/settings/units', UnitController::class)

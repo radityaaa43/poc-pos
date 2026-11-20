@@ -7,6 +7,7 @@ use App\Http\Resources\ProductResource;
 use App\Http\Traits\ApiResponder;
 use App\Models\Product;
 use App\Models\Warehouse;
+use App\Services\OutletAccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -15,14 +16,22 @@ class ProductController extends Controller
 {
     use ApiResponder;
 
+    public function __construct(
+        private readonly OutletAccessService $outletAccessService
+    ) {}
+
     /**
      * GET /api/v1/products
      * List products with optional search, category filter, pagination (per_page).
      */
     public function index(Request $request): JsonResponse
     {
+        $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
         $products = Product::query()
-            ->with('category')
+            ->with([
+                'category',
+                'warehouses' => fn ($query) => $query->whereIn('warehouses.id', $warehouseIds),
+            ])
             ->when($request->string('search')->toString(), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('title', 'like', "%{$search}%")
@@ -59,6 +68,7 @@ class ProductController extends Controller
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'image' => ['nullable', 'string', 'max:255'],
             'is_composite' => ['nullable', 'boolean'],
+            'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
         ]);
 
         $product = Product::create([
@@ -76,11 +86,16 @@ class ProductController extends Controller
         // Attach to default warehouse (or first) if none given
         $warehouseId = $request->integer('warehouse_id');
         if ($warehouseId) {
+            $warehouse = Warehouse::findOrFail($warehouseId);
+            abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 403);
             $product->warehouses()->syncWithoutDetaching([
                 $warehouseId => ['stock' => $validated['stock'] ?? 0],
             ]);
         } else {
             $default = Warehouse::active()->orderBy('code')->first();
+            if ($default && ! $this->outletAccessService->canUseWarehouse($request->user(), $default)) {
+                $default = $this->outletAccessService->warehousesFor($request->user())->first();
+            }
             if ($default) {
                 $product->warehouses()->syncWithoutDetaching([
                     $default->id => ['stock' => $validated['stock'] ?? 0],
@@ -96,7 +111,11 @@ class ProductController extends Controller
      */
     public function show(Request $request, Product $product): JsonResponse
     {
-        $product->load('category', 'warehouses');
+        $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
+        $product->load([
+            'category',
+            'warehouses' => fn ($query) => $query->whereIn('warehouses.id', $warehouseIds),
+        ]);
 
         return $this->ok(new ProductResource($product));
     }

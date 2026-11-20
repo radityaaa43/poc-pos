@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Product;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
-use App\Models\Warehouse;
+use App\Services\OutletAccessService;
 use App\Services\PurchaseOrderService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,7 +14,8 @@ use Inertia\Inertia;
 class PurchaseOrderController extends Controller
 {
     public function __construct(
-        private readonly PurchaseOrderService $purchaseOrderService
+        protected readonly PurchaseOrderService $purchaseOrderService,
+        protected readonly OutletAccessService $outletAccessService
     ) {}
 
     public function index(Request $request)
@@ -25,11 +26,14 @@ class PurchaseOrderController extends Controller
             'search' => $request->input('search'),
         ];
 
+        $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
         $query = PurchaseOrder::with([
             'supplier:id,name',
             'items',
             'creator:id,name',
-        ])->withCount('items as items_count')
+        ])->where(function ($query) use ($warehouseIds) {
+            $query->whereIn('warehouse_id', $warehouseIds)->orWhereNull('warehouse_id');
+        })->withCount('items as items_count')
             ->orderByDesc('created_at');
 
         $query->when($filters['status'], fn ($q, $s) => $q->where('status', $s))
@@ -50,7 +54,7 @@ class PurchaseOrderController extends Controller
     {
         $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
         $products = Product::orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock']);
-        $warehouses = Warehouse::active()->orderBy('sort_order')->orderBy('code')->get(['id', 'code', 'name']);
+        $warehouses = $this->outletAccessService->warehousesFor(request()->user());
 
         return Inertia::render('Dashboard/PurchaseOrders/Create', [
             'suppliers' => $suppliers,
@@ -79,8 +83,9 @@ class PurchaseOrderController extends Controller
             ->with('success', 'Purchase order berhasil dibuat.');
     }
 
-    public function show(PurchaseOrder $purchaseOrder)
+    public function show(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->ensureOrderAccess($request, $purchaseOrder);
         $purchaseOrder->load([
             'supplier:id,name,phone,email,address',
             'warehouse:id,code,name',
@@ -99,6 +104,7 @@ class PurchaseOrderController extends Controller
 
     public function placeOrder(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->ensureOrderAccess($request, $purchaseOrder);
         if ($purchaseOrder->status !== 'draft') {
             return back()->with('error', 'Hanya PO dengan status draft yang bisa dipesan.');
         }
@@ -112,6 +118,7 @@ class PurchaseOrderController extends Controller
 
     public function cancel(Request $request, PurchaseOrder $purchaseOrder)
     {
+        $this->ensureOrderAccess($request, $purchaseOrder);
         if (! in_array($purchaseOrder->status, ['draft', 'ordered', 'partial_received'])) {
             return back()->with('error', 'PO tidak dapat dibatalkan.');
         }
@@ -121,5 +128,11 @@ class PurchaseOrderController extends Controller
         return redirect()
             ->route('purchase-orders.index')
             ->with('success', 'Purchase order dibatalkan.');
+    }
+
+    protected function ensureOrderAccess(Request $request, PurchaseOrder $order): void
+    {
+        $warehouse = $order->warehouse_id ? $order->warehouse : null;
+        abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 404);
     }
 }

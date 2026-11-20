@@ -69,6 +69,7 @@ class RoleSeeder extends Seeder
         $cashierPermissions = Permission::whereIn('name', [
             'dashboard-access',
             'transactions-access',
+            'pos-access',
             'cashier-shifts-access',
             'cashier-shifts-open',
             'cashier-shifts-close',
@@ -84,7 +85,26 @@ class RoleSeeder extends Seeder
         ])->get();
         $cashierRole->syncPermissions($cashierPermissions);
 
+        $this->createManagerRole();
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
+    }
+
+    /**
+     * Manager: full operational scope across assigned outlets, but no
+     * user/role/permission/outlet administration or gateway secrets.
+     */
+    private function createManagerRole(): void
+    {
+        $managerRole = Role::firstOrCreate(['name' => 'manager']);
+
+        $excluded = Permission::where(function ($query) {
+            foreach (['users-%', 'roles-%', 'permissions-%', 'outlets-%', 'whatsapp-settings-%', 'payment-settings-update'] as $pattern) {
+                $query->orWhere('name', 'like', $pattern);
+            }
+        })->pluck('id');
+
+        $managerRole->syncPermissions(Permission::whereNotIn('id', $excluded)->get());
     }
 
     private function normalizeLegacyPermissionRole(): void
