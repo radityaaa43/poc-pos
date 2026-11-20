@@ -35,6 +35,7 @@ export default function Edit({ categories, product, products = [], units = [] })
         tax_type: product.tax_type ?? "exclusive",
         tax_rate: product.tax_rate ?? "11",
         is_composite: product.is_composite ?? false,
+        is_raw_material: product.is_raw_material ?? false,
         components: (product.components ?? []).map((c) => ({
             component_product_id: c.id,
             qty: c.pivot?.qty ?? 1,
@@ -157,6 +158,16 @@ export default function Edit({ categories, product, products = [], units = [] })
           }, 0)
         : data.sell_price;
 
+    // HPP per porsi dari bahan/komponen (harga beli × takaran)
+    const estimatedCost = data.components.reduce((total, c) => {
+        const product = products.find(
+            (p) => p.id === Number(c.component_product_id)
+        );
+        return product
+            ? total + (product.buy_price || 0) * (Number(c.qty) || 0)
+            : total;
+    }, 0);
+
     const handleImageChange = (e) => {
         const file = e.target.files[0];
         if (file) {
@@ -168,7 +179,8 @@ export default function Edit({ categories, product, products = [], units = [] })
     // ponytail: zero-out stock/sell_price for composite; collapse if Inertia ever accepts pre-send transforms
     const submitCompositeAware = (e) => {
         e.preventDefault();
-        if (data.is_composite) {
+        // harga jual kosong = pakai total harga komponen (paket)
+        if (data.is_composite && data.sell_price === "") {
             setData("sell_price", 0);
         }
         post(route("products.update", product.id), {
@@ -473,8 +485,23 @@ export default function Edit({ categories, product, products = [], units = [] })
                                 />
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1">
                                     <IconPackages size={16} />
-                                    Produk Komposit (bundling /
-                                    paket)
+                                    Produk Komposit (resep / paket)
+                                </span>
+                            </label>
+                            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={data.is_raw_material}
+                                    onChange={(e) =>
+                                        setData(
+                                            "is_raw_material",
+                                            e.target.checked
+                                        )
+                                    }
+                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    Bahan baku (tidak dijual di kasir)
                                 </span>
                             </label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -491,17 +518,14 @@ export default function Edit({ categories, product, products = [], units = [] })
                                 <Input
                                     type="number"
                                     label="Harga Jual"
-                                    value={
-                                        data.is_composite ? "" : data.sell_price
-                                    }
-                                    disabled={data.is_composite}
+                                    value={data.sell_price}
                                     onChange={(e) =>
                                         setData("sell_price", e.target.value)
                                     }
                                     errors={errors.sell_price}
                                     placeholder={
                                         data.is_composite
-                                            ? "Otomatis dari komponen"
+                                            ? "Kosong = total harga komponen"
                                             : "0"
                                     }
                                 />
@@ -673,8 +697,11 @@ export default function Edit({ categories, product, products = [], units = [] })
                                     )}
                                     {data.components.length === 0 && (
                                         <p className="text-sm text-slate-500">
-                                            Belum ada komponen. Stok dan harga jual
-                                            dihitung otomatis dari komponen.
+                                            Belum ada komponen. Untuk resep, pilih
+                                            bahan baku dan isi takaran dalam
+                                            satuan stoknya (bilangan bulat, mis.
+                                            gram atau ml). Stok dihitung dari
+                                            bahan.
                                         </p>
                                     )}
                                     <div className="space-y-3">
@@ -721,6 +748,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                         <Input
                                                             type="number"
                                                             min="1"
+                                                            step="1"
                                                             value={
                                                                 component.qty
                                                             }
@@ -754,10 +782,21 @@ export default function Edit({ categories, product, products = [], units = [] })
                                             )
                                         )}
                                     </div>
+                                    {estimatedCost > 0 && (
+                                        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+                                            Estimasi HPP per porsi:{" "}
+                                            <span className="font-semibold text-slate-700 dark:text-slate-200">
+                                                Rp{" "}
+                                                {estimatedCost.toLocaleString(
+                                                    "id-ID"
+                                                )}
+                                            </span>
+                                        </p>
+                                    )}
                                     {data.is_composite &&
                                         estimatedSellPrice > 0 && (
-                                            <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                                                Estimasi harga jual dari komponen:{" "}
+                                            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                                                Total harga jual komponen:{" "}
                                                 <span className="font-semibold text-slate-700 dark:text-slate-200">
                                                     Rp{" "}
                                                     {estimatedSellPrice.toLocaleString(

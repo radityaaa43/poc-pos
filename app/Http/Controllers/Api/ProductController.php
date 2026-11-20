@@ -68,6 +68,7 @@ class ProductController extends Controller
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'image' => ['nullable', 'string', 'max:255'],
             'is_composite' => ['nullable', 'boolean'],
+            'is_raw_material' => ['nullable', 'boolean'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
         ]);
 
@@ -81,6 +82,7 @@ class ProductController extends Controller
             'tax_type' => $validated['tax_type'] ?? 'exclusive',
             'tax_rate' => $validated['tax_rate'] ?? 0,
             'is_composite' => $validated['is_composite'] ?? false,
+            'is_raw_material' => $validated['is_raw_material'] ?? false,
         ]);
 
         // Attach to default warehouse (or first) if none given
@@ -140,6 +142,7 @@ class ProductController extends Controller
             'tax_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
             'image' => ['nullable', 'string', 'max:255'],
             'is_composite' => ['nullable', 'boolean'],
+            'is_raw_material' => ['nullable', 'boolean'],
         ]);
 
         $product->update($validated);

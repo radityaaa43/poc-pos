@@ -23,6 +23,7 @@ class Product extends Model
         'min_stock' => 'integer',
         'max_stock' => 'integer',
         'is_composite' => 'boolean',
+        'is_raw_material' => 'boolean',
     ];
 
     protected $fillable = [
@@ -40,6 +41,7 @@ class Product extends Model
         'min_stock',
         'max_stock',
         'is_composite',
+        'is_raw_material',
     ];
 
     public function category()
@@ -92,6 +94,65 @@ class Product extends Model
         }
 
         return $minStock ?? 0;
+    }
+
+    /**
+     * Selling price of a composite (recipe) product: its own sell_price when set,
+     * otherwise the sum of its components' prices (bundle/kit behaviour).
+     */
+    public function compositeSellPrice(): int
+    {
+        if ((int) $this->sell_price > 0) {
+            return (int) $this->sell_price;
+        }
+
+        return (int) $this->components->sum(fn (Product $c) => (int) $c->sell_price * (float) $c->pivot->qty);
+    }
+
+    /** Stock sellable from one warehouse; for composites, the portions its components allow. */
+    public function stockIn(?int $warehouseId): int
+    {
+        if (! $this->is_composite) {
+            return $this->pivotStockIn($warehouseId);
+        }
+
+        $components = $this->components;
+        if ($components->isEmpty()) {
+            return 0;
+        }
+
+        return (int) $components
+            ->map(fn (Product $c) => (int) floor($c->pivotStockIn($warehouseId) / max(0.0001, (float) $c->pivot->qty)))
+            ->min();
+    }
+
+    private function pivotStockIn(?int $warehouseId): int
+    {
+        if (! $warehouseId) {
+            return (int) $this->stock;
+        }
+
+        $warehouse = $this->relationLoaded('warehouses')
+            ? $this->warehouses->firstWhere('id', $warehouseId)
+            : $this->warehouses()->where('warehouse_id', $warehouseId)->first();
+
+        return (int) ($warehouse?->pivot->stock ?? 0);
+    }
+
+    /**
+     * Products the POS may offer: never raw materials; stocked items in the
+     * warehouse, plus composites (callers drop those whose components ran out).
+     */
+    public function scopeForPos($query, ?int $warehouseId)
+    {
+        return $query->where('is_raw_material', false)
+            ->where(function ($q) use ($warehouseId) {
+                $q->where('is_composite', true)
+                    ->orWhere(fn ($q) => $warehouseId
+                        ? $q->whereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId)
+                            ->where('product_warehouse.stock', '>', 0))
+                        : $q->where('stock', '>', 0));
+            });
     }
 
     public function stockOpnameItems()

@@ -196,6 +196,12 @@ class CheckoutService
 
             $product = Product::find($cart->product_id);
 
+            if ($product->is_raw_material) {
+                throw ValidationException::withMessages([
+                    'stock' => "{$product->title} adalah bahan baku dan tidak dapat dijual.",
+                ]);
+            }
+
             // HPP follows base-unit cost: cart qty is in the selling unit, buy_price is per base unit.
             if ($product->is_composite) {
                 $totalBuyPrice = $product->components->sum(

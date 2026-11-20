@@ -38,6 +38,7 @@ class DineOrderController extends Controller
 
         $productModels = Product::with('components')
             ->whereIn('id', $productIds)
+            ->where('is_raw_material', false)
             ->get()
             ->keyBy('id');
 

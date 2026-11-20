@@ -56,7 +56,7 @@ class ProductController extends Controller
         // get non-composite products for composite component selection
         $products = Product::where('is_composite', false)
             ->orderBy('title')
-            ->get(['id', 'title', 'sell_price', 'is_composite']);
+            ->get(['id', 'title', 'buy_price', 'sell_price', 'is_composite']);
 
         // return inertia
         return Inertia::render('Dashboard/Products/Create', [
@@ -114,6 +114,7 @@ class ProductController extends Controller
             'tax_type' => $request->input('tax_type', 'exclusive'),
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
+            'is_raw_material' => $request->boolean('is_raw_material'),
         ]);
 
         if ($request->boolean('is_composite')) {
@@ -165,7 +166,7 @@ class ProductController extends Controller
         $products = Product::where('is_composite', false)
             ->where('id', '!=', $product->id)
             ->orderBy('title')
-            ->get(['id', 'title', 'sell_price', 'is_composite']);
+            ->get(['id', 'title', 'buy_price', 'sell_price', 'is_composite']);
 
         return Inertia::render('Dashboard/Products/Edit', [
             'product' => $product->load('components', 'units'),
@@ -237,6 +238,7 @@ class ProductController extends Controller
                 'tax_type' => $request->input('tax_type', 'exclusive'),
                 'tax_rate' => $request->input('tax_rate', 11.00),
                 'is_composite' => $request->boolean('is_composite'),
+                'is_raw_material' => $request->boolean('is_raw_material'),
             ]);
 
             if ($request->boolean('is_composite')) {
@@ -264,6 +266,7 @@ class ProductController extends Controller
             'tax_type' => $request->input('tax_type', 'exclusive'),
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
+            'is_raw_material' => $request->boolean('is_raw_material'),
         ]);
 
         if ($request->boolean('is_composite')) {
@@ -312,6 +315,7 @@ class ProductController extends Controller
     {
         return [
             'is_composite' => 'nullable|boolean',
+            'is_raw_material' => 'nullable|boolean',
             'components' => 'required_if:is_composite,1,true|array|min:1',
             'components.*.component_product_id' => 'required|integer|distinct|exists:products,id',
             'components.*.qty' => 'required|integer|min:1',
