@@ -1,0 +1,50 @@
+# Local development stack (no PHP/MySQL needed on host).
+# Vite runs on the host: `npm run dev`.
+#   docker compose up -d          -> app http://localhost:8000, MySQL localhost:3307
+#   docker compose exec app php artisan ...
+name: poc-pos
+
+x-php: &php
+  build: ./docker/php
+  image: poc-pos-php:8.4
+  working_dir: /var/www/html
+  volumes:
+    - .:/var/www/html
+    # vendor/ lives in a Docker volume: bind-mounted Windows fs is too slow for
+    # opcache stat() on thousands of vendor files. Run composer inside the container.
+    - vendor:/var/www/html/vendor
+  depends_on:
+    mysql:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *php
+    environment:
+      PHP_CLI_SERVER_WORKERS: 4
+    command: php artisan serve --host=0.0.0.0 --port=8000
+    ports:
+      - "8000:8000"
+
+  queue:
+    <<: *php
+    command: php artisan queue:work --tries=3 --sleep=3
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: point_of_sales
+      MYSQL_ROOT_PASSWORD: secret
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-psecret"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  mysql-data:
+  vendor:
