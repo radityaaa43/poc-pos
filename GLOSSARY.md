@@ -6,7 +6,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 
 | Term | Meaning | Not to be confused with | In code |
 |---|---|---|---|
-| Outlet | A branch of the business (e.g. a Kedai Akar Coffee shop) that can sell when sales are enabled | Warehouse: an outlet owns one or more warehouses | `Outlet` / `outlets` (`code`, `is_sales_enabled`) |
+| Outlet | A branch of the business (e.g. one coffee shop of a chain) that can sell when sales are enabled | Warehouse: an outlet owns one or more warehouses | `Outlet` / `outlets` (`code`, `is_sales_enabled`) |
 | Warehouse | A stock location. `PUSAT` is the central, non-sales warehouse (`type = main`) | Outlet: stock is held per warehouse, not per outlet | `Warehouse` / `warehouses` |
 | Warehouse stock | Operational stock of one product in one warehouse; the source of truth | Global stock | `ProductWarehouse` / `product_warehouse.stock` |
 | Global stock | Sum of a product's warehouse stock, kept in sync in the same transaction | Warehouse stock | `products.stock` |
@@ -24,4 +24,4 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dine order | A dine-in table order, paid at the counter | Transaction | `DineOrder` / `dine_orders` |
 | Cashier shift | A cashier's open-to-close session with opening and closing cash | | `CashierShift` |
 | HPP (cost of goods sold) | Cost of what was sold, from buy prices; sale minus HPP is profit | Buy price: the current price, not the cost at sale time | `profits` |
-| Backlog item | A requirement file `backlog/AKAR-<n>-<slug>.md` with `AC-<n>` acceptance criteria | Issue: the unit of work built from a backlog item | `backlog/` |
+| Backlog item | A requirement file `backlog/REQ-<n>-<slug>.md` with `AC-<n>` acceptance criteria | Issue: the unit of work built from a backlog item | `backlog/` |

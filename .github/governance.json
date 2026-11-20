@@ -249,9 +249,9 @@
   },
   "backlog": {
     "enabled": true,
-    "source": "the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria",
+    "source": "the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria",
     "rule_start": "2026-11-20",
-    "id_regex": "\\bAKAR-\\d+\\b",
+    "id_regex": "\\bREQ-\\d+\\b",
     "require_ac": true,
     "ac_regex": "\\bAC-\\d+\\b",
     "see": "CONTRIBUTING.md → Requirements and backlog"

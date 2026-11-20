@@ -16,7 +16,7 @@ Add this project's own examples (with issue links) as they happen.
 
 ## Requirements and backlog
 
-Requirements come from **the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria**. It may change, so read it fresh each time and
+Requirements come from **the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria**. It may change, so read it fresh each time and
 name the date you read it.
 
 1. **Read the item.** Take its ID, user story, notes and acceptance criteria (`AC-nn`).

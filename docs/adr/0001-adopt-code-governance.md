@@ -29,7 +29,7 @@ Adopt the code governance standard (tier `full`, version 1.0.0):
   upstream Git Flow (`development`, `release/*`) in the old `CONTRIBUTING.md` and `AGENTS.md` is
   dropped, and releases are tags on `main`. No exploratory branch.
 - **Requirements:** the `backlog/` folder in this repo, one file per requirement
-  (`AKAR-<n>-<slug>.md`), with required `AC-<n>` acceptance criteria. Backlog files may be in
+  (`REQ-<n>-<slug>.md`), with required `AC-<n>` acceptance criteria. Backlog files may be in
   Indonesian; everything else is in English.
 - **Workflow skills:** the mattpocock/skills workflow is the required path. The previous
   `AGENTS.md` rule to load `superpowers:brainstorming`, `superpowers:writing-plans` and

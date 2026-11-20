@@ -12,7 +12,7 @@ on its **Done when**; start the next step only once it holds.
    before claiming more. Then `gh issue view <n>`: it carries `ready-for-agent`, no other assignee,
    and filled *What good looks like* and *Done when*. A `?`, `needs-info` or missing section means
    the requirement is not settled: interview the requester with `/grill-with-docs` instead of
-   guessing. An issue with IDs on its `Backlog:` line is checked against the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria
+   guessing. An issue with IDs on its `Backlog:` line is checked against the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria
    first; a mismatch goes to your human to clarify, not into the code. Claim it:
    `gh issue edit <n> --add-assignee @me`. **Done when** the issue is ready and assigned.
 2. **Branch.** `git fetch origin main && git switch -c <type>/<n>-<slug> origin/main`.

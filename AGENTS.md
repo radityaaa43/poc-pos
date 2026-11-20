@@ -40,7 +40,7 @@ issue, stdlib and native features before new libraries.
 - Sections: Background, **What good looks like**, Scope (checklist), Done-when (checkable, incl. the
   tests that must pass). One issue = one independently reviewable change. Exactly one
   `module:*` label (modules and owners: [`CONTRIBUTING.md` → Ownership](CONTRIBUTING.md#ownership)).
-- Requirements come from the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria. Issues and PRs carry a `Backlog:` line (IDs and
+- Requirements come from the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria. Issues and PRs carry a `Backlog:` line (IDs and
   acceptance-criteria tags, or `none — <reason>`; CI checks the format). When the backlog
   disagrees with the code, the design or the issue, stop and ask the requester; never pick a side.
 - New issues start `needs-triage`; agents only pick up `ready-for-agent`. Only a module Owner or a
