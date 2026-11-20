@@ -1,0 +1,325 @@
+{
+  "version": "1.0.0",
+  "tier": "full",
+  "project": {
+    "name": "poc-pos",
+    "repo": "radityaaa43/poc-pos",
+    "host": "github",
+    "default_branch": "main",
+    "docs_language": "English"
+  },
+  "people": {
+    "standards_owners": [
+      "radityaaa43"
+    ]
+  },
+  "modules": [
+    {
+      "label": "module:platform",
+      "name": "Platform",
+      "scope": "Auth, users/roles/permissions, outlets, settings, setup wizard, audit log, reports, API, layouts, shared components, migrations and config",
+      "paths": [
+        "app/",
+        "resources/",
+        "routes/",
+        "database/",
+        "tests/",
+        "config/",
+        "bootstrap/",
+        "lang/",
+        "public/",
+        "docker/",
+        "docs/",
+        "backlog/"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:sales",
+      "name": "Sales / POS",
+      "scope": "Cashier POS, cart, checkout, transactions, sales returns, cashier shifts, tenders/payments, receipts, receivables",
+      "paths": [
+        "**/*Checkout*",
+        "**/*Transaction*",
+        "**/*Sale*",
+        "**/*CashierShift*",
+        "**/*Cart*",
+        "**/*ThermalPrint*",
+        "**/*Tender*",
+        "**/*Payments*",
+        "**/*PaymentSetting*",
+        "**/*BankAccount*",
+        "**/*Receivable*",
+        "**/*Aging*",
+        "**/*Pos*",
+        "**/*POS*",
+        "**/*Receipt*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:dine-in",
+      "name": "Dine-in",
+      "scope": "Dine menu, table orders, dine areas and tables",
+      "paths": [
+        "**/*Dine*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:inventory",
+      "name": "Inventory",
+      "scope": "Products, recipes/composite products, units and conversions, categories, warehouses, stock mutations/opname/transfers, batches, reorder",
+      "paths": [
+        "**/*Product*",
+        "**/*Stock*",
+        "**/*Batch*",
+        "**/*UnitConversion*",
+        "**/*UnitController*",
+        "**/Units/",
+        "**/*Categor*",
+        "**/*Warehouse*",
+        "**/*Recipe*",
+        "**/*Reorder*",
+        "**/*Barcode*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:purchasing",
+      "name": "Purchasing",
+      "scope": "Suppliers, purchase orders, goods receiving, supplier returns, payables",
+      "paths": [
+        "**/*Supplier*",
+        "**/*PurchaseOrder*",
+        "**/*GoodsReceiving*",
+        "**/*Payable*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:pricing-crm",
+      "name": "Pricing & CRM",
+      "scope": "Price lists, pricing rules, discounts and approvals, tax, customers, members, vouchers, loyalty, CRM campaigns/reminders/segments",
+      "paths": [
+        "**/*Pric*",
+        "**/*Crm*",
+        "**/*Customer*",
+        "**/*Loyalty*",
+        "**/*Member*",
+        "**/*Voucher*",
+        "**/*Discount*",
+        "**/*Tax*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    },
+    {
+      "label": "module:whatsapp-service",
+      "name": "WhatsApp service",
+      "scope": "Node WhatsApp gateway and the Laravel WhatsApp integration",
+      "paths": [
+        "whatsapp-service/",
+        "**/*WhatsApp*"
+      ],
+      "owner": "radityaaa43",
+      "backup": ""
+    }
+  ],
+  "protected": {
+    "deny_edit": [
+      {
+        "glob": "storage/",
+        "reason": "Runtime logs and uploads; may hold customer data. Never edit or commit by hand"
+      },
+      {
+        "glob": "public/build/",
+        "reason": "Vite build output; regenerate with npm run build, never edit"
+      }
+    ],
+    "migrations": [
+      "database/migrations/"
+    ],
+    "secret_files_present": [
+      ".env"
+    ],
+    "secret_globs": [
+      ".env",
+      ".env.*",
+      "*.env",
+      "*.env.local",
+      "*.pem",
+      "*.key",
+      "*.p12",
+      "*.pfx",
+      "*.keystore",
+      "*.jks",
+      "id_rsa*",
+      "id_ed25519*",
+      "**/secrets/**",
+      "**/.secrets/**",
+      "credentials.json",
+      "service-account*.json",
+      ".pypirc",
+      ".netrc",
+      "*.sql",
+      "*.sql.gz",
+      "*.dump"
+    ],
+    "destructive_commands": [
+      "\\bgit\\s+reset\\s+--hard\\b",
+      "\\bgit\\s+clean\\s+-[a-z]*f",
+      "\\brm\\s+-[a-z]*r[a-z]*f?\\s+(?:/|~|\\*|\\.)(?:\\s|$)",
+      "\\bdocker[- ]compose\\b[^|;&]*\\bdown\\b[^|;&]*(?:\\s-v\\b|--volumes)",
+      "\\bdocker\\s+(?:volume\\s+(?:rm|prune)|system\\s+prune)\\b",
+      "\\b(?:DROP\\s+(?:DATABASE|SCHEMA|TABLE)|TRUNCATE\\s+TABLE)\\b",
+      "\\bterraform\\s+(?:destroy|apply\\s+[^|;&]*-auto-approve)\\b",
+      "\\bkubectl\\s+delete\\s+(?:ns|namespace|pvc|pv)\\b",
+      "\\bhelm\\s+uninstall\\b",
+      "\\bartisan\\s+(?:migrate:(?:fresh|reset|rollback|refresh)|db:wipe)\\b",
+      "\\bartisan\\s+(?:db:seed\\b|migrate\\b[^|;&]*--seed\\b)",
+      "\\bgit\\s+push\\b[^|;&]*(?:--force\\b|--force-with-lease\\b|\\s-f\\b)"
+    ]
+  },
+  "areas": [],
+  "hotspots": [
+    "routes/web.php",
+    "routes/api.php",
+    "resources/js/Utils/Menu.jsx",
+    "database/seeders/PermissionSeeder.php",
+    "database/seeders/RoleSeeder.php",
+    "resources/js/i18n/locales/en.json",
+    "resources/js/i18n/locales/id.json",
+    "lang/",
+    "ARCHITECTURE.md"
+  ],
+  "verify": {
+    "areas": [
+      {
+        "name": "laravel",
+        "path": ".",
+        "kind": "php",
+        "install": "docker compose up -d app mysql",
+        "commands": [
+          "docker compose exec -T app vendor/bin/pint --test --diff=main",
+          "docker compose exec -T app php artisan test --compact"
+        ],
+        "ci_commands": [
+          "vendor/bin/pint --test --diff=origin/main",
+          "php artisan test --compact"
+        ]
+      },
+      {
+        "name": "frontend",
+        "path": ".",
+        "kind": "node",
+        "package_manager": "npm",
+        "lockfile": "package-lock.json",
+        "install": "PUPPETEER_SKIP_DOWNLOAD=true npm install --no-audit --no-fund",
+        "commands": [
+          "npm run build"
+        ]
+      },
+      {
+        "name": "whatsapp-service",
+        "path": "whatsapp-service",
+        "kind": "node",
+        "package_manager": "npm",
+        "lockfile": "package-lock.json",
+        "install": "npm ci",
+        "commands": []
+      }
+    ],
+    "e2e": "",
+    "e2e_in_ci": false
+  },
+  "ui": {
+    "enabled": true,
+    "screenshots_dir": "",
+    "design_plugin": true
+  },
+  "ai_used": {
+    "required": true,
+    "rule_start": "2026-11-20"
+  },
+  "backlog": {
+    "enabled": true,
+    "source": "the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria",
+    "rule_start": "2026-11-20",
+    "id_regex": "\\bAKAR-\\d+\\b",
+    "require_ac": true,
+    "ac_regex": "\\bAC-\\d+\\b",
+    "see": "CONTRIBUTING.md → Requirements and backlog"
+  },
+  "branches": {
+    "types": [
+      "feat",
+      "fix",
+      "refactor",
+      "docs",
+      "test",
+      "chore"
+    ],
+    "exploratory": ""
+  },
+  "ci": {
+    "runner": "ubuntu-latest",
+    "python": "3.12",
+    "setup_python": true
+  },
+  "file_length": {
+    "max": 1000,
+    "extensions": [
+      ".py",
+      ".js",
+      ".jsx",
+      ".ts",
+      ".tsx",
+      ".vue",
+      ".svelte",
+      ".go",
+      ".rs",
+      ".java",
+      ".kt",
+      ".cs",
+      ".php",
+      ".rb",
+      ".swift",
+      ".scala",
+      ".dart"
+    ],
+    "exempt": [
+      "**/test_*",
+      "**/*_test.*",
+      "**/*.test.*",
+      "**/*.spec.*",
+      "**/tests/**",
+      "**/e2e/**",
+      "**/__tests__/**",
+      "*.gen.*",
+      "**/generated/**",
+      "**/migrations/**",
+      "resources/js/Pages/Dashboard/Transactions/Index.jsx",
+      "resources/js/Pages/Dashboard/Reports/Insights.jsx",
+      "resources/js/Pages/Dashboard/Transactions/Print.jsx"
+    ]
+  },
+  "pr_size": {
+    "target": 300,
+    "warn": 1000,
+    "fail": 2000
+  },
+  "merge": {
+    "self_merge_types": [
+      "chore",
+      "docs",
+      "ci",
+      "test"
+    ]
+  }
+}

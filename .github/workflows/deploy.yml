@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Pint --diff needs origin/main
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -31,6 +33,9 @@ jobs:
 
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Code style (Pint, changed files)
+        run: vendor/bin/pint --test --diff=origin/main
 
       - name: Install JS dependencies
         run: PUPPETEER_SKIP_DOWNLOAD=true npm install --no-audit --no-fund

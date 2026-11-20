@@ -1,0 +1,50 @@
+name: Issue checklist
+
+# Issues can't be blocked like PRs, so a missing section, AI used or Backlog line gets one comment
+# showing the format. Rules and their start dates come from .github/governance.json.
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: issue-checklist-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  issue-body:
+    name: Issue checklist
+    if: github.event.issue.user.type != 'Bot' && !github.event.issue.pull_request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the issue body
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          ISSUE_CREATED_AT: ${{ github.event.issue.created_at }}
+        run: |
+          set -uo pipefail
+          if message=$(python3 .github/scripts/check_issue_body.py); then
+            echo "$message"
+            exit 0
+          fi
+          echo "::error::$message"
+          python3 - "$message" <<'PY'
+          import os, sys
+          sys.path.insert(0, ".github/scripts")
+          import gh_api
+          gh_api.comment_once(os.environ["REPO"], os.environ["ISSUE"], "<!-- governance:issue-checklist -->",
+                              sys.argv[1] + "\n\nSee AGENTS.md → Issues and the issue template.")
+          PY
+          exit 1
