@@ -19,7 +19,8 @@
       "Bash(gh pr diff:*)",
       "Bash(docker compose exec -T app vendor/bin/pint --test --diff=main:*)",
       "Bash(docker compose exec -T app php artisan test --compact:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(npm test:*)"
     ],
     "deny": [
       "Read(**/*.key)",
