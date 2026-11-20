@@ -222,6 +222,7 @@
         "lockfile": "package-lock.json",
         "install": "PUPPETEER_SKIP_DOWNLOAD=true npm install --no-audit --no-fund",
         "commands": [
+          "npm test",
           "npm run build"
         ]
       },

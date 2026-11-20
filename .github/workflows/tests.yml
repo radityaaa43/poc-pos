@@ -1,0 +1,54 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: PUPPETEER_SKIP_DOWNLOAD=true npm ci --no-audit --no-fund
+
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Coverage summary
+        if: always()
+        run: |
+          if [ -f coverage/frontend/coverage-summary.json ]; then
+            node -e '
+              const t = require("./coverage/frontend/coverage-summary.json").total;
+              const row = (k) => `| ${k} | ${t[k].pct}% |`;
+              console.log(["### Frontend coverage", "", "| Metric | Covered |", "|---|---|",
+                row("lines"), row("statements"), row("branches"), row("functions")].join("\n"));
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: coverage/frontend
+          retention-days: 14

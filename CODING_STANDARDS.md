@@ -62,7 +62,8 @@ the tools, so they are not repeated here.
 - **Oversized files** (exempt from the length check until split; don't grow them further, extract
   components when you touch them): `Pages/Dashboard/Transactions/Index.jsx` (2,083 lines),
   `Pages/Dashboard/Reports/Insights.jsx` (1,300), `Pages/Dashboard/Transactions/Print.jsx` (1,045).
-- **Checks:** no frontend lint or tests; `npm run build` must pass and UI changes are tested by hand
+- **Checks:** no frontend lint; `npm test` (Vitest; tests sit next to the file as `*.test.js(x)`,
+  `npm run test:watch` while editing) and `npm run build` must pass, and UI changes are tested by hand
   with before/after screenshots in the PR.
 
 ### whatsapp-service (`whatsapp-service`, node)

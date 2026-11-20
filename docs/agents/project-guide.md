@@ -29,8 +29,9 @@ First run redirects to `/setup` to create the admin and store profile; there are
 accounts. The optional WhatsApp gateway runs separately: `cd whatsapp-service && npm install && npm start`.
 
 Run focused tests with PHPUnit's `--filter`
-(`docker compose exec -T app php artisan test --filter=TestName`). There is no frontend lint or
-typecheck script in the root `package.json`.
+(`docker compose exec -T app php artisan test --filter=TestName`). Frontend tests run with Vitest: `npm test`
+(`npm run test:watch` while editing; tests sit next to the file as `*.test.js(x)`). There is no
+frontend lint or typecheck script in the root `package.json`.
 
 ## Structure and references
 

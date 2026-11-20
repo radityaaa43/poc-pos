@@ -19,6 +19,7 @@ export default defineConfig({
             reporter: ["text-summary", "html", "json-summary"],
             reportsDirectory: "coverage/frontend",
             include: ["resources/js/**/*.{js,jsx}"],
+            exclude: ["resources/js/**/*.test.{js,jsx}", "resources/js/test/**"],
         },
     },
 });

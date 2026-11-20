@@ -99,6 +99,7 @@ issue, stdlib and native features before new libraries.
 docker compose exec -T app vendor/bin/pint --test --diff=main
 docker compose exec -T app php artisan test --compact
 # frontend
+npm test
 npm run build
 ```
 
