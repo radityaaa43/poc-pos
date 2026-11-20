@@ -5,6 +5,12 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Node 25+ enables a global localStorage that warns when touched (i18next's detector does);
+// turn it off in the workers so jsdom's localStorage is used. Older Nodes lack the flag.
+const execArgv = process.allowedNodeEnvironmentFlags.has("--experimental-webstorage")
+    ? ["--no-experimental-webstorage"]
+    : [];
+
 export default defineConfig({
     plugins: [react()],
     resolve: {
@@ -14,6 +20,7 @@ export default defineConfig({
         environment: "jsdom",
         setupFiles: ["resources/js/test/setup.js"],
         include: ["resources/js/**/*.test.{js,jsx}"],
+        poolOptions: { forks: { execArgv } },
         coverage: {
             provider: "v8",
             reporter: ["text-summary", "html", "json-summary"],

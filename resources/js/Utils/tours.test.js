@@ -32,7 +32,7 @@ const jsxFiles = (dir) =>
   readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return jsxFiles(path);
-    return path.endsWith(".jsx") ? [path] : [];
+    return path.endsWith(".jsx") && !path.endsWith(".test.jsx") ? [path] : [];
   });
 
 describe("tour selectors", () => {
