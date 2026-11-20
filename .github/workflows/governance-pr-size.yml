@@ -1,0 +1,50 @@
+name: PR size
+
+# Signals first: above pr_size.warn counted lines the PR gets a comment and needs a second person's
+# approval (the Claude Code guard refuses `gh pr merge` until then); above pr_size.fail this fails
+# unless an Owner adds the large-PR label. Labels re-run it. Limits: .github/governance.json.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: pr-size-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  size:
+    name: PR size
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Count changed lines
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: python3 .github/scripts/pr_size.py size
+
+  file-length:
+    name: File length
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Hand-written files that grew past the limit
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 .github/scripts/pr_size.py length

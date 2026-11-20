@@ -1,0 +1,39 @@
+name: Dependency check
+
+# Warn-only: lists new direct dependencies for the reviewer to confirm; never fails the PR.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '**/package.json'
+      - '**/go.mod'
+      - '**/requirements*.txt'
+      - '**/pyproject.toml'
+      - '**/Cargo.toml'
+      - '**/composer.json'
+      - '**/Gemfile'
+      - '**/pom.xml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  new-dependencies:
+    name: New dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: List new direct dependencies
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/check_new_dependencies.py "$BASE_SHA" "$HEAD_SHA"

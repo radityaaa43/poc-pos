@@ -1,167 +1,181 @@
-# Point of Sales — Agent Guide
+# AGENTS.md
 
-Laravel POS with an Inertia/React frontend, multi-warehouse inventory, and a separate optional WhatsApp service.
+Rules for everyone changing this repo: developers and AI agents (Claude Code, Codex, Cursor, ...).
+Where an agent's defaults conflict with this file, this file wins. Kept to about one page: the why,
+the ownership table and the full parallel-work rules are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Hard constraints
-- Treat `product_warehouse.stock` as operational stock; keep `products.stock` aggregate in sync in the same transaction. Lock affected inventory rows before mutation.
-- Never run the demo seeder against production; it truncates/rebuilds demo data.
-- Use npm and the committed `package-lock.json`; do not add alternative lockfiles.
-- Do not assume MySQL behavior in tests: PHPUnit uses in-memory SQLite.
-- Preserve Sanctum abilities and Spatie permissions when changing API authorization; API tests need explicit token abilities.
+These gates are firm: issue → branch → PR, CI green, a manual test, and docs that match the code.
+Everything else is a default. When a change redesigns a flow, rewrite or delete the tests, glossary
+terms and docs it makes obsolete in the same PR.
 
-## Quick start
+- Run the app and set up the environment: [`README.md`](README.md) · project detail (inventory
+  model, gotchas, test conventions, API abilities): [`docs/agents/project-guide.md`](docs/agents/project-guide.md)
+- How code is written: [`CODING_STANDARDS.md`](CODING_STANDARDS.md) · how PRs are reviewed: [`REVIEW.md`](REVIEW.md)
+- Domain vocabulary: [`GLOSSARY.md`](GLOSSARY.md) · decisions: [`docs/adr/`](docs/adr/)
+
+## Workflow: issue → branch → test → review → PR
+
+Nothing goes directly to `main`. Workflow skills come from
+[mattpocock/skills](https://github.com/mattpocock/skills) (setup: `README.md` → Agent setup).
+
+| Step | Do | Skill |
+|---|---|---|
+| 1. Align | Get the requirement unambiguous before writing anything | `/grill-with-docs` |
+| 2. Issue | Publish the spec as an issue; split large work into tickets | `/to-spec`, `/to-tickets` |
+| 3. Branch | `git switch main && git pull && git switch -c <type>/<issue>-<slug>` | — |
+| 4. Build | Test-first, in thin vertical slices | `/implement` → `/tdd` |
+| 5. Verify | Static checks and tests locally, then test the change by hand | — |
+| 6. Review | Review the diff against the issue, the standards and `REVIEW.md` | `/code-review` |
+| 7. PR | A PR that closes the issue, with manual test, docs, and green CI | `/pr` |
+
+For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
+
+Optional helpers inside a step (they never replace one): `superpowers:brainstorming` in step 1 for
+large features, `superpowers:writing-plans` in step 4 for multi-step issues, `ponytail-review` in
+step 6 after `/code-review`. Default style is `ponytail`: the smallest change that solves the
+issue, stdlib and native features before new libraries.
+
+### Issues
+
+- Sections: Background, **What good looks like**, Scope (checklist), Done-when (checkable, incl. the
+  tests that must pass). One issue = one independently reviewable change. Exactly one
+  `module:*` label (modules and owners: [`CONTRIBUTING.md` → Ownership](CONTRIBUTING.md#ownership)).
+- Requirements come from the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria. Issues and PRs carry a `Backlog:` line (IDs and
+  acceptance-criteria tags, or `none — <reason>`; CI checks the format). When the backlog
+  disagrees with the code, the design or the issue, stop and ask the requester; never pick a side.
+- New issues start `needs-triage`; agents only pick up `ready-for-agent`. Only a module Owner or a
+  Standards owner moves an issue to `ready-for-*`; an agent never does it on its own.
+- **Humans steer, agents ask.** An agent never fills in *What good looks like* itself: it interviews
+  the requester (`/grill-with-docs`, one question at a time) and records the answers to: (1) who uses
+  it, and when; (2) what they do and see when it works; (3) the source of truth and who agreed it;
+  (4) unusual cases and errors, and what the user sees; (5) where the data comes from. Anything
+  unanswered stays `?` and the issue gets `needs-info`. Done-when is derived from the answers.
+
+### Branches, commits, PRs
+
+- Branch `<type>/<issue>-<slug>`, `<type>` ∈ `feat fix refactor docs test chore`. One branch per issue.
+- **Bugs**: reproduce first with a failing test (`/diagnosing-bugs`), then fix. The fix must not
+  edit or weaken that test; if the test itself is wrong, say why in the PR.
+- **UI work**: after the manual test, take before/after screenshots (dummy data, as the affected
+  role) and attach them to the PR (`gh pr create --attach`, skill `github-upload-image-to-pr`).
+  Never commit them.
+- **Commits**: [Conventional Commits](https://www.conventionalcommits.org/) (`feat(scope): ...`),
+  body explains *why*, ends with `Refs #<issue>`. No AI attribution: no `Co-Authored-By` trailer for
+  an agent, no "Generated with ..." footer. Instead, issues and PRs say on their **AI used** line
+  which agent, model and effort level did the work: `<agent>, <model>, effort <level>` per agent,
+  joined by `;` (level `low`…`max`, or `unknown`), or `none`. CI checks the format.
+- **PRs** follow `.github/pull_request_template.md`: `Closes #<n>` per finished issue, one per line
+  (`Refs` closes nothing), the manual test, and the docs updated. CI's *PR checklist* enforces it.
+  Request review from the module Owner, who reviews and merges. An Owner may merge their own
+  `chore`, `docs`, `ci`, `test` PR once CI is green; every other PR needs another reviewer's approval.
+  Never push to `main` or force-push a reviewed branch. After any
+  post-review change, wait for green CI again.
+- **Standards files** (`AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `REVIEW.md`,
+  `CONTRIBUTING.md`, `.agents/skills/`, `.claude/`, `.github/`) need a Standards owner's
+  (`@radityaaa43`) approval on the latest commit; CI's *Standards approval* enforces it.
+  Change a standard in its own issue, never inside an unrelated PR.
+
+### Working in parallel
+
+- Finish or hand back your assigned issues before claiming more (`gh issue list --assignee @me`;
+  agents check their human's). Claim before starting (`gh issue edit <n> --add-assignee @me`); never
+  start on someone else's issue.
+- Small, short-lived PRs: aim under 300 counted lines; over 1000 needs
+  another person's approval, over 2000 fails CI unless an Owner adds
+  `large-pr`. Code files stay under 1000 lines. No drive-by
+  refactors, renames or reformatting outside the issue.
+- Sync with `main` daily and before the PR: `git fetch && git rebase origin/main`
+  on your own unreviewed branch (`--force-with-lease` is fine); after review, merge it in instead.
+- Hotspot files (`routes/web.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): append rather than reorder, and name them in the PR.
+- Migrations: if `main` has a newer one than yours, rename yours to a fresh
+  timestamp before merging. Never rename or edit a merged migration.
+- Lockfiles: never hand-edit conflicts; take the default branch's, re-run the package manager.
+- Needs an unmerged PR? Write `Blocked by #<n>` in the issue and branch after it merges.
+
+## Verify: run the checks, test by hand
 
 ```bash
-composer install
-PUPPETEER_SKIP_DOWNLOAD=true npm install
-cp .env.example .env
-php artisan key:generate
-php artisan migrate --seed
-php artisan storage:link
-composer run dev
+# laravel
+docker compose exec -T app vendor/bin/pint --test --diff=main
+docker compose exec -T app php artisan test --compact
+# frontend
+npm run build
 ```
 
-First run redirects to `/setup` to create the admin and store profile; there are no default accounts. `composer run dev` starts the Laravel dev stack (server, queue, logs, and Vite). The optional WhatsApp gateway runs separately: `cd whatsapp-service && npm install && npm start`.
+- **CI is the gate.** Merge only with CI green; link the run in the PR.
+- **Test it by hand** as the affected role(s) before the PR, and write what you tried and saw under
+  *Manual test*.
+- **Tests for what the change touches**, derived from Done-when: add tests for new behavior, update
+  them for changed behavior, delete them for removed behavior. No behavior change → no new tests,
+  and the PR says so.
+- **Unrelated failure**: open the log, re-run once; if it fails again, check the default branch. If it
+  fails there too, link or open an issue and note it in the PR. Never a quiet skip; every skip
+  needs a reason.
+- Stop any servers you started for testing.
 
-## Verify changes
+## Documentation: leave the repo workable for the next person
 
-```bash
-php artisan test
-php artisan test --filter=TestName
-vendor/bin/pint
-PUPPETEER_SKIP_DOWNLOAD=true npm run build
-```
+Anyone must be able to pick up any area from the repo alone, without a chat log or agent memory.
 
-There is no frontend lint or typecheck script in the root `package.json`. Run focused tests with PHPUnit's `--filter`; tests use SQLite in-memory and array/sync drivers. Set `tax_rate=0` on test products when tax is not under test.
+- Update in the **same PR** every doc the change makes stale (`README.md`, `GLOSSARY.md`,
+  `docs/adr/`, the Standards files, ...). The PR's **Docs** line names them, or `n/a — <reason>`.
+- New env var, script, service or dependency → document setup where the next person looks
+  (usually `README.md`) and add it to the `*.example` env file.
+- Non-obvious code (a workaround, an external constraint) gets a short *why* comment.
+- **Same mistake twice → write it down.** When an agent repeats a mistake or a review finding keeps
+  coming back, add the rule here, to `CODING_STANDARDS.md`, or to `REVIEW.md` (a Standards change).
 
-## Structure and references
+## Never
 
-- `app/Http/Controllers/Apps/`: dashboard modules; `Api/` and `Reports/` contain API and report controllers.
-- `app/Services/`: domain operations, including checkout, stock, purchasing, and payment workflows.
-- `resources/js/`: Inertia React app; Vite entry is `resources/js/app.jsx`.
-- `routes/web.php`, `routes/api.php`, `routes/console.php`: web, REST, and scheduled command routes.
-- `whatsapp-service/`: separate Node.js WhatsApp gateway.
-- Module and operational detail: `docs/architecture-overview.md`, `docs/feature-index.md`, `docs/features/`, `docs/configuration.md`, `docs/testing-manual.md`.
+In Claude Code, `.claude/hooks/guard.py` enforces these (it blocks the edit or command, or asks
+first) and `.claude/settings.json` denies reads of secret files. Other agents and humans aren't
+covered by the hook; review and CI still apply.
 
-## Non-obvious behavior
+- Commit secrets: `.env*` (except `*.example`), keys and certificates (`*.pem`, `*.key`), credentials files,
+  database dumps (`*.sql`, `*.sql.gz`, `*.dump`).
+- Edit `storage/`: Runtime logs and uploads; may hold customer data. Never edit or commit by hand.
+- Edit `public/build/`: Vite build output; regenerate with npm run build, never edit.
+- Edit a migration that is already on the default branch (add a new one instead): `database/migrations/`.
+- Put secrets or personal data in issues, PRs, commits, logs, test fixtures, or prompts to
+  external services.
+- Run destructive operations (database resets, deleting volumes or cloud resources) anywhere but
+  your own local environment.
+- Add dependencies or change infrastructure outside the issue's scope without approval.
 
-- Root `DatabaseSeeder` seeds essential system configuration, not users or the full demo dataset. First-install setup creates the initial admin; demo data is opt-in via `php artisan seed:demo --force`.
-- `php artisan test` uses SQLite `:memory:`; avoid database-specific assumptions. For API tests use `Sanctum::actingAs($user, ['*'])` or a real token with the needed abilities.
-- `composer run dev` is the root development command. The WhatsApp service is not included and requires its own `npm start` process when used.
-- Laravel's scheduler is defined in `routes/console.php`: CRM segment sync (01:00), CRM reminders (01:15), reorder generation (02:00), and pending-transaction expiry (hourly). Production must invoke `php artisan schedule:run` every minute.
-- Midtrans/Xendit webhooks require a publicly reachable `APP_URL`; product images require `php artisan storage:link`.
-- Dine-in online payment is currently rejected; only `pay_at_counter` is supported.
-- After permission seeding, an existing session may retain stale permissions; log out and back in.
+## Project rules
 
-## Workflow
+Detail and the reasons: [`docs/agents/project-guide.md`](docs/agents/project-guide.md).
 
-`DatabaseSeeder` runs only system-essential seeders with permission cache reset before & after:
+- Local PHP and MySQL run in Docker: prefix `php`/`composer` with `docker compose exec -T app`.
+- Stock: `product_warehouse.stock` is operational; update `products.stock` in the same
+  `DB::transaction`, with `lockForUpdate()` on the affected rows.
+- Never run the demo seeder (`DemoSeeder`, `seed:demo`) against production; it rebuilds demo data.
+- npm only, with the committed `package-lock.json`; no other lockfiles.
+- Tests run on in-memory SQLite: no MySQL-only features; set `tax_rate=0` on test products.
+- Keep Sanctum abilities and Spatie permissions aligned when changing API authorization; API tests
+  need explicit token abilities (`Sanctum::actingAs($user, ['*'])`).
 
-```
-PermissionSeeder → RoleSeeder → PaymentSettingSeeder → DineInSettingsSeeder
-```
+## Language
 
-After seeding, a default `PUSAT` warehouse is created and existing product stock is migrated to the `product_warehouse` pivot.
+Everything in the repo or on the issue tracker (code, comments, docs, issues, PRs, commits) is in
+English, except requirement files in `backlog/`, which may be in Indonesian. Domain terms stay as
+defined in `GLOSSARY.md`.
 
-**No default users.** Admin account, store profile, business type, categories, and main warehouse are created via the first-install setup wizard at `/setup`. Open the root URL after migration; it automatically redirects to `/setup` while `Setting::app_setup_completed` is false. The `setup.notinstalled` middleware redirects to login once setup is done.
+## Agent skills
 
-**Demo data is opt-in, not part of `DatabaseSeeder`:** run `php artisan db:seed --class=DemoSeeder --force` (or `php artisan seed:demo --force`) for the complete demo dataset. It creates demo outlets `MAL`, `TKB`, and `PUT`; `PUSAT` remains a central non-sales warehouse. Demo accounts (password `password`): `arya@gmail.com` (super-admin, all outlets), `manager@gmail.com` (manager role, MAL+TKB), `cashier@gmail.com` (cashier, MAL). Never run the demo seeder on production. Full dataset details: `docs/demo-data.md`.
+### Issue tracker
 
-**Email verification is disabled** — `User` no longer implements `MustVerifyEmail`, dashboard routes carry no `verified` middleware, and the verification routes/controllers/pages are removed. `markEmailAsVerified()` is still available via the retained trait (used by seeders and tests).
+GitHub Issues on `radityaaa43/poc-pos` via `gh`. See `docs/agents/issue-tracker.md`.
 
-## Inventory Model
+### Triage labels
 
-`product_warehouse.stock` is the operational source of truth. `products.stock` is maintained as a global aggregate — both must be updated in the same DB transaction for every mutation. Always prefer locking `product_warehouse` rows with `lockForUpdate()` before decrementing. Use `inventory:reconcile --fix` to align global stock after data repairs.
+`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
 
-## Critical Gotchas
+### Domain docs
 
-1. **Permission cache stale after seed** — logout + login again. Seeder resets cache but session still holds old permissions.
-2. **Webhooks need public APP_URL** — Midtrans/Xendit won't work with localhost.
-3. **Product images need storage:link** — `php artisan storage:link` or images won't render.
-4. **Missing migrations cause 500 on new modules** — run `php artisan migrate` for newer modules (purchase orders, goods receiving, supplier returns, stock opname, dine-in, etc.).
-5. **Tests force SQLite in-memory** — `phpunit.xml` sets `DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`. Don't assume MySQL features. **Set `tax_rate=0` on test Product::create** to avoid PPN changing grand_total.
-6. **Dev servers unified** — `composer run dev` starts server + queue + pail + vite together (`php artisan dev`). WA service stays separate.
-7. **WhatsApp service separate** — `whatsapp-service/` needs `npm start` in another terminal + `WA_SERVICE_URL` in .env.
-8. **CRM campaign auto-send** — requires `wa_enabled=true` + connected device in Settings > WhatsApp.
-9. **Version bump on release** — update `APP_VERSION` in `.env` + `.env.example` when tagging.
-10. **Concurrency patterns** — all stock mutations (checkout, transfer, receiving, payment) are wrapped in `DB::transaction` with `lockForUpdate()` on affected rows. Never skip the transaction or lock.
-11. **Dine-in online payment is disabled** — `payment_option=pay_online` returns 422. Only `pay_at_counter` is accepted.
+Single context: `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
-## Release Process
+### Repo skills
 
-1. `development` accumulates features → branch `release/X.Y.Z`
-2. QA/fix on `release/X.Y.Z` → merge to `main`
-3. Tag: `git tag -a vX.Y.Z -m "vX.Y.Z"` on `main`
-4. Merge `release/X.Y.Z` back to `development`
-5. GitHub Release created from tag
-
-## Frontend
-
-- **Icons**: `@tabler/icons-react`
-- **Alerts/confirm**: `react-hot-toast` + `sweetalert2`
-- **Charts**: `chart.js`
-- **Routing**: Ziggy `route()` helper available
-- **Offline mode**: `resources/js/Utils/offlineDb.js` (IndexedDB via `idb`) queues transactions when offline, flushes on reconnect; idempotent via `client_uuid` — server price wins
-- **ESC/POS printing**: `resources/js/Utils/escpos.js` (WebUSB, Chromium-only; fallback `window.print()`)
-- **Tailwind tokens**: `primary` (indigo), `accent` (cyan), `success` (emerald), `warning` (amber), `danger` (rose)
-- **i18n**: Indonesian (`id.json`) and English (`en.json`) in `resources/js/i18n/locales`
-
-## Docs
-
-- Modules: `docs/features/`
-- Architecture: `docs/architecture-overview.md`
-- Config: `docs/configuration.md`
-- Feature index: `docs/feature-index.md`
-- Manual QA checklist (QRIS, ESC/POS, offline sync): `docs/testing-manual.md`
-
-## Test Conventions
-
-- Use `RefreshDatabase` trait on every test class
-- Seed: `PermissionSeeder → RoleSeeder → UserSeeder` before every test
-- Admin: `arya@gmail.com` (super-admin, all permissions); manager: `manager@gmail.com`; cashier: `cashier@gmail.com`
-- **Always call `markEmailAsVerified()`** before `actingAs()` for HTTP controller tests (email verification is disabled, but the trait method remains available)
-- `PUSAT` warehouse: `type='main'`, `is_active=true`, `sort_order=0`
-- Product needs: `image`, `barcode`, `sku`, `title`, `description`, `category_id`, `buy_price`, `sell_price`, `stock`, `tax_rate=0`
-- Attach warehouse stock: `$warehouse->products()->attach($product->id, ['stock' => N])` or `$product->warehouses()->attach($warehouse->id, ['stock' => N])`
-- Open shift: `app(CashierShiftService::class)->openShift($cashier, $cashier, $openingCash, null, $warehouse->id)`
-- **PHPUnit 12: no `$faker` property** — use `static int $seq = 0` counters or `uniqid()` for unique values
-- For API tests: `Sanctum::actingAs($user, ['*'])` — explicit abilities required; TransientToken does not bypass `abilities` middleware
-
-## API Ability System
-
-Master-data API routes (`/api/v1/products`, `/customers`, `/categories`, `/warehouses`, `/suppliers`) enforce Sanctum abilities matching Spatie permission names:
-
-| Route | Ability |
-|-------|---------|
-| index, show | `{module}-access` |
-| store | `{module}-create` |
-| update | `{module}-edit` (products/customers/categories) or `{module}-update` (warehouses) |
-| destroy | `{module}-delete` |
-| suppliers (all verbs) | `suppliers-access` |
-| `/api/v1/pos/*` (all verbs) | `pos-access` |
-
-`/api/v1/auth/*` is auth-only (no abilities). Token abilities are stamped at login from Spatie permissions + `'user:read'`. Public registration creates a token with only `'user:read'` (so it cannot reach `/pos/*`). The `pos-access` permission is granted to `cashier`, `manager`, and `super-admin` roles by the seeders. Existing mobile tokens must re-login after this change to receive `pos-access`.
-
-API tests must use `Sanctum::actingAs($user, ['*'])` or real tokens via `$user->createToken('test', $abilities)->plainTextToken`.
-
-## Skills Integration
-
-**LOAD SKILL BEFORE EXECUTING** — do not skip skill loading:
-
-| Trigger | Skill | Action |
-|---------|-------|--------|
-| Before creating features, components, adding functionality | `skill:brainstorming` | Classify request → present design → get approval |
-| Multi-step task after approved design | `skill:writing-plans` | Create implementation plan → execute via `skill:executing-plans` |
-| Code review for over-engineering | `skill:ponytail-review` | Check diff for unnecessary complexity, unused abstractions |
-| E2E browser testing | `skill:webapp-testing` | Use Playwright with `scripts/with_server.py` |
-
-**Default Mode: Ponytail** (`skill:ponytail` active) — stdlib first, YAGNI ruthless, native features before libraries.
-
-**Session Tracking:** After session ends, invoke `skill:obsidian-cli` to export session note to Obsidian vault.
-
-## Route Naming Gotchas
-
-- Price list sidebar link: `price-lists.index` (NOT `settings.price-lists.index`)
-- Profile URL: `/dashboard/profile` (NOT `/apps/profile`)
-- Public invoice: `/share/transactions/{invoice}?token={access_token}`
-- README contribution flow: branch features from `development` and target PRs to `development`; releases go to `main` through a release branch. Run `php artisan test` before submitting. Do not infer CI/deploy behavior from this checkout; no workflow files are present here.
+In-repo skills live in `.agents/skills/` (list: `.agents/skills/README.md`). They run inside a
+workflow step and never replace one.

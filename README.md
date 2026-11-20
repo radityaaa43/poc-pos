@@ -109,6 +109,32 @@ npm install && npm start
 Tidak ada akun default. Setelah `migrate --seed`, buka root aplikasi (`http://localhost:8000`); pada instalasi pertama aplikasi otomatis mengarahkan ke `/setup` untuk membuat akun admin dan profil toko.
 Ingin langsung mencoba dengan data contoh? Jalankan `php artisan seed:demo --force`. Seeder ini membuat dataset demo lengkap (outlet `MAL`/`TKB`/`PUT`, produk, transaksi, purchasing, CRM, dine-in) beserta tiga akun siap pakai — lihat `docs/demo-data.md`.
 
+## Agent setup
+
+We work with AI coding agents under the rules in [`AGENTS.md`](AGENTS.md). The workflow skills come
+from [mattpocock/skills](https://github.com/mattpocock/skills) (align → spec → TDD → review → PR).
+The repo is already configured for them (`AGENTS.md` → Agent skills, `docs/agents/`), so don't run
+`/setup-matt-pocock-skills` again.
+
+| Agent | Setup |
+|---|---|
+| Claude Code | Nothing: `.claude/settings.json` enables the plugin. Trust the folder and accept the install prompt when you first open the repo (or run `claude plugin install mattpocock-skills@claude-plugins-official`) |
+| Codex | Reads `AGENTS.md` automatically. Once: `codex plugin marketplace add mattpocock/skills && codex plugin add mattpocock-skills@mattpocock` |
+| GitHub Copilot | `copilot plugin marketplace add mattpocock/skills && copilot plugin install mattpocock-skills@mattpocock` |
+| Cursor, OpenCode, Windsurf, others | `npx skills@latest add mattpocock/skills -a <agent>` (don't commit the copied files) |
+
+Claude Code also loads a guard hook from `.claude/settings.json` (needs `python3` or `python` on
+your PATH). It blocks edits to secrets and protected files, pushes to the default branch and AI
+attribution lines, and asks before destructive commands. If it blocks something you really need,
+do that step yourself; don't disable the hook.
+
+Then follow [`AGENTS.md`](AGENTS.md): `/grill-with-docs` → `/to-spec` → `/implement` →
+`/code-review` → `/pr` (or `/ship-issue <n>` for a `ready-for-agent` issue). Use the plugin's
+`/code-review`; it checks the diff against `CODING_STANDARDS.md` and the issue, and follows
+[`REVIEW.md`](REVIEW.md).
+
+Prerequisites: `git`, [`gh`](https://cli.github.com/) (logged in: `gh auth login`), Python 3.9+.
+
 ## Dokumentasi Detail
 
 | Dokumen | Isi |

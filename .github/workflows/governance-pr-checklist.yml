@@ -1,0 +1,31 @@
+name: PR checklist
+
+# Separate from the build so editing the PR body re-runs only this check. The rules (Closes,
+# Manual test, Docs, AI used, Backlog, no AI attribution) come from .github/governance.json.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checklist-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pr-body:
+    name: PR checklist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check the PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+        run: python3 .github/scripts/check_pr_body.py

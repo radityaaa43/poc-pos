@@ -1,0 +1,28 @@
+name: Migration order
+
+# A migration added on a branch must sort after every migration already on the base branch.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'database/migrations/**'
+
+permissions:
+  contents: read
+
+jobs:
+  order:
+    name: Migration order
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: New migrations sort after the base branch's
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/check_migration_order.py "$BASE_SHA" "$HEAD_SHA"
