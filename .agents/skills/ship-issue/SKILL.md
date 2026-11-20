@@ -27,6 +27,7 @@ on its **Done when**; start the next step only once it holds.
    docker compose exec -T app vendor/bin/pint --test --diff=main
    docker compose exec -T app php artisan test --compact
    # frontend
+   npm test
    npm run build
    ```
 
