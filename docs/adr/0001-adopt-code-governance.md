@@ -43,6 +43,9 @@ Adopt the code governance standard (tier `full`, version 1.0.0):
   check until split (`CODING_STANDARDS.md`).
 - **Hosting:** public repository on GitHub Free. Branch rulesets can be enforced; until one is
   applied, the guard hook and these documents carry the rules.
+- **No automatic deploy:** the upstream `deploy.yml` deployed to a VPS on every push to `main`. The
+  deploy job is removed; CI only builds and tests. Deploying is a manual step, decided by the
+  maintainer.
 - **Project detail** from the old `AGENTS.md` moved unchanged to `docs/agents/project-guide.md`.
 
 ## Consequences

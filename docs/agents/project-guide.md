@@ -88,8 +88,8 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 
 ## Release process
 
-`main` is the only long-lived branch; every push to `main` deploys to the VPS
-(`.github/workflows/deploy.yml`).
+`main` is the only long-lived branch. CI/CD does not deploy; deploying to the VPS is done by hand
+(ADR 0001).
 
 1. Bump `APP_VERSION` in `.env.example` (and the server `.env`) in a `chore(release): vX.Y.Z` PR.
 2. After it merges: `git tag -a vX.Y.Z -m "vX.Y.Z"` on `main` and push the tag.
