@@ -98,13 +98,27 @@ While `@radityaaa43` is the only maintainer, the "another reviewer's approval" f
 final diff, resolve or answer every finding, and link or paste the result in the PR before merging.
 Add a human reviewer as soon as a second person joins.
 
+**A PR over 1000 counted lines is merged by the maintainer, by hand.** The Claude Code guard hook
+refuses `gh pr merge` on such a PR unless someone other than its author approved it, and an agent
+review does not count as that approval. So the agent prepares the PR (green checks, `large-pr`
+label, `/code-review` recorded) and the maintainer clicks *Squash and merge* or runs
+`gh pr merge <n> --squash --delete-branch` after reading the diff. Prefer splitting the work so this
+stays the exception.
+
 ### Enforcement on GitHub
 
-The repository is public on GitHub Free, so a branch ruleset on `main` can enforce what this file
-asks: PR required, required checks green, no force-push or deletion. It is created with
-`setup_github.py --apply-ruleset` (code-governance skill) after the maintainer agrees. Until the ruleset exists, nothing on the server stops a
-direct push to `main`: the Claude Code guard hook blocks it for agents, and for humans it rests on
-this file.
+The repository is public on GitHub Free and `main` is protected by the ruleset
+"governance: default branch": changes only through a pull request, no force-push, no deletion, and
+these checks must pass: **PR checklist**, **Standards approval**, **PR size**, **File length** and
+**CI (Build)**. No approving review is required, so the maintainer can merge their own PR once the
+checks are green.
+
+*Migration order* and *Script and hook tests* are not required checks because they only run when
+migrations or governance scripts change; a required check that never runs would block every other
+PR. Both still run and still count in review.
+
+The guard hook is a second layer for agents only; for example it does not catch
+`git push origin HEAD:main`, which the ruleset rejects on the server.
 
 ## Working in parallel
 
