@@ -1,9 +1,10 @@
-# AKAR-001: Produk resep dan penanda bahan baku
+# REQ-001: Produk resep dan penanda bahan baku
 
 - **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:inventory
 - **Updated:** 2026-11-20
+- **Renamed:** in #9 (the former ID is recorded there; closed issue #7 and PR #8 use it)
 
 ## User story
 

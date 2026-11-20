@@ -16,7 +16,7 @@ free; writing to GitHub waits for the user's go-ahead.
    - **Issue:** `Closes #<n>` is present, and the diff does what the issue's Done-when asks, nothing
      beyond it.
    - **Backlog:** the IDs on the `Backlog:` line match the issue, and each listed criterion is met
-     (re-read the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria; name the date).
+     (re-read the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria; name the date).
    - **Domain:** names and rules match `GLOSSARY.md` and the ADRs. Mark an assumption *Unconfirmed*
      and name who decides (the module Owner).
    - **Tests:** changed behavior has a test; a bug fix leaves its failing test untouched.

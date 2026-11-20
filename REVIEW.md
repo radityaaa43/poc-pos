@@ -8,7 +8,7 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 1. **The issue**: does the diff do what *What good looks like* and Done-when ask, no more and no
    less? Something requested but missing is a finding. So is unrequested scope.
 2. **The backlog**, when the PR's `Backlog:` line names IDs: re-read those items in
-   the backlog/ folder in this repo: one file per requirement, backlog/AKAR-<n>-<slug>.md, with AC-<n> acceptance criteria and name the date you read them. A criterion listed but not met is 🔴. A
+   the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria and name the date you read them. A criterion listed but not met is 🔴. A
    criterion that disagrees with the issue, the code or the design is not fixed in review: ask the
    requester to clarify.
 3. [`CODING_STANDARDS.md`](CODING_STANDARDS.md) and the skills it links.

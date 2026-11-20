@@ -1,4 +1,4 @@
-# AKAR-<n>: <short title>
+# REQ-<n>: <short title>
 
 - **Status:** draft
 - **Owner:** @radityaaa43
