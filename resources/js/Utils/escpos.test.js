@@ -7,7 +7,7 @@ import {
     printBytes,
     printReceipt,
     requestPrinter,
-} from "@/Utils/escpos";
+} from "./escpos";
 
 const baseData = (overrides = {}) => ({
     money: (n) => String(n),

@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Node 25+ enables a global localStorage that warns when touched (i18next's detector does);
-// turn it off in the workers so jsdom's localStorage is used. Older Nodes lack the flag.
+// Node 25+ enables --experimental-webstorage by default, so a global localStorage that warns
+// when touched (i18next's detector does); turn it off in the workers so jsdom's localStorage is
+// used. Node 22.4-24 have it off already (the negation is a no-op); older Nodes lack the flag.
 const execArgv = process.allowedNodeEnvironmentFlags.has("--experimental-webstorage")
     ? ["--no-experimental-webstorage"]
     : [];
