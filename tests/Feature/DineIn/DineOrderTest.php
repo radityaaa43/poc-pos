@@ -361,6 +361,8 @@ class DineOrderTest extends TestCase
         $componentA = $this->createProduct(10);
         $componentB = $this->createProduct(10);
         $composite = $this->createProduct(0, true);
+        // sell_price 0 = bundle priced from its components (an own sell_price would win)
+        $composite->update(['sell_price' => 0]);
         $composite->components()->attach([
             $componentA->id => ['qty' => 1],
             $componentB->id => ['qty' => 2],

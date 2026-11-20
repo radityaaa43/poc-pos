@@ -91,6 +91,11 @@ function ProductCard({
                             Komposit
                         </span>
                     )}
+                    {product.is_raw_material && (
+                        <span className="px-2 py-1 text-xs font-semibold bg-slate-600 text-white rounded-full">
+                            Bahan Baku
+                        </span>
+                    )}
                     {outOfStock ? (
                         <span className="px-2 py-1 text-xs font-semibold bg-danger-500 text-white rounded-full">
                             Habis

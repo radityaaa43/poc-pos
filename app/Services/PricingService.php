@@ -172,7 +172,7 @@ class PricingService
     private function buildPreview(Collection $carts, ?Customer $customer, Collection $rules, ?Outlet $outlet = null): array
     {
         $items = $carts->map(function (Cart $cart) use ($customer, $outlet) {
-            // ponytail: composite sell_price is 0; unit price = stored cart price / qty
+            // ponytail: composite unit price = stored cart price / qty (cart price comes from Product::compositeSellPrice())
             $baseUnitPrice = $cart->product->is_composite
                 ? (int) round($cart->price / max(1, (int) $cart->qty))
                 : $this->basePriceFor($cart->product, $customer, $outlet);
@@ -532,7 +532,7 @@ class PricingService
             return null;
         }
 
-        $baseUnitPrice = $product->is_composite ? (int) $product->sell_price : $this->basePriceFor($product, $customer, $outlet);
+        $baseUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
         $lineBaseTotal = $baseUnitPrice * $quantity;
 
         if ($rule->kind === PricingRule::KIND_QTY_BREAK) {

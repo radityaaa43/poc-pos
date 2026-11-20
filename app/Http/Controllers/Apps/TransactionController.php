@@ -96,23 +96,28 @@ class TransactionController extends Controller
         // get all customers
         $customers = Customer::latest()->get();
 
-        // get products with stock > 0 in active warehouse
-        $products = Product::with(['category:id,name', 'units'])
-            ->select('id', 'barcode', 'title', 'description', 'image', 'buy_price', 'sell_price', 'stock', 'category_id')
-            ->when($warehouseId, function ($q) use ($warehouseId) {
-                $q->whereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId)
-                    ->where('product_warehouse.stock', '>', 0));
-            }, function ($q) {
-                $q->where('stock', '>', 0);
-            })
+        // sellable products with stock > 0 in active warehouse (composites: enough component stock)
+        $inWarehouse = fn ($q) => $warehouseId ? $q->where('warehouses.id', $warehouseId) : $q;
+        $products = Product::with([
+            'category:id,name',
+            'units',
+            'warehouses' => $inWarehouse,
+            'components.warehouses' => $inWarehouse,
+        ])
+            ->select('id', 'barcode', 'title', 'description', 'image', 'buy_price', 'sell_price', 'stock', 'category_id', 'is_composite')
+            ->forPos($warehouseId)
             ->orderBy('title')
-            ->get();
+            ->get()
+            ->filter(fn (Product $product) => $product->stockIn($warehouseId) > 0)
+            ->values();
         $pricingBadges = $this->pricingService->previewProducts($products, null, null, $outlet);
-        $products = $products->map(function (Product $product) use ($pricingBadges) {
+        $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId) {
             $pricing = $pricingBadges->get($product->id);
 
             return [
-                ...$product->toArray(),
+                ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
+                'stock' => $product->stockIn($warehouseId),
+                'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
                 'units' => $product->units->map(fn ($u) => [
                     'unit_id' => $u->id,
                     'code' => $u->code,
@@ -184,17 +189,18 @@ class TransactionController extends Controller
         $warehouseId = $activeShift?->warehouse_id;
 
         $product = Product::where('barcode', $request->barcode)
-            ->whereHas('warehouses', fn ($q) => $q->where('product_warehouse.warehouse_id', $warehouseId))
+            ->where('is_raw_material', false)
+            ->where(fn ($q) => $q->where('is_composite', true)
+                ->orWhereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId)))
             ->first();
 
         if ($product) {
-            $pivotStock = $product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0;
-
             return response()->json([
                 'success' => true,
                 'data' => [
                     ...$product->toArray(),
-                    'stock' => $pivotStock,
+                    'stock' => $product->stockIn($warehouseId),
+                    'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
                 ],
             ]);
         }
@@ -266,6 +272,10 @@ class TransactionController extends Controller
             return redirect()->back()->with('error', 'Product not found.');
         }
 
+        if ($product->is_raw_material) {
+            return redirect()->back()->with('error', 'Bahan baku tidak dapat dijual.');
+        }
+
         // ponytail: composite branch skips unit logic; null unit_id is fine for composite carts
         $unitId = null;
 
@@ -280,8 +290,7 @@ class TransactionController extends Controller
                     return redirect()->back()->with('error', "Stok {$component->title} tidak mencukupi.");
                 }
             }
-            // Composite price = sum component prices
-            $sellPrice = (int) $product->components->sum(fn ($c) => $c->sell_price * (float) $c->pivot->qty);
+            $sellPrice = $product->compositeSellPrice();
         } else {
             $unitId = (int) (($validated['unit_id'] ?? null) ?: $product->baseUnit()?->id ?: 1);
 
@@ -405,9 +414,7 @@ class TransactionController extends Controller
             ? (int) $request->qty
             : $unitConversion->toBaseUnit($product, (int) $cart->unit_id, $request->qty);
 
-        $availableStock = $warehouseId
-            ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
-            : (int) $product->stock;
+        $availableStock = $product->stockIn($warehouseId);
 
         if ($availableStock < $baseQty) {
             return response()->json([
@@ -419,7 +426,7 @@ class TransactionController extends Controller
         // Update quantity and price (derive price from DB, not from request/global sell_price)
         $cart->qty = $request->qty;
         $cart->price = $product->is_composite
-            ? (int) $product->components->sum(fn ($c) => $c->sell_price * (float) $c->pivot->qty) * $request->qty
+            ? $product->compositeSellPrice() * $request->qty
             : $unitConversion->getSellPrice($product, (int) $cart->unit_id) * $request->qty;
         $cart->save();
 

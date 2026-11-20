@@ -52,9 +52,7 @@ class PriceListService
     public function getBasePrice(Product $product, ?Customer $customer, ?Outlet $outlet = null): int
     {
         if ($product->is_composite) {
-            return (int) $product->components->sum(
-                fn ($c) => (int) $c->sell_price * (float) $c->pivot->qty
-            );
+            return $product->compositeSellPrice();
         }
 
         $priceList = $this->getApplicablePriceList($customer, $outlet);

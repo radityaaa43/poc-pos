@@ -151,12 +151,7 @@ class PosApiController extends Controller
 
         $products = Product::query()
             ->with('category')
-            ->when($warehouseId, function ($q) use ($warehouseId) {
-                $q->whereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId)
-                    ->where('product_warehouse.stock', '>', 0));
-            }, function ($q) {
-                $q->where('stock', '>', 0);
-            })
+            ->forPos($warehouseId)
             ->when($request->string('search')->toString(), function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('title', 'like', "%{$search}%")
@@ -171,9 +166,10 @@ class PosApiController extends Controller
         // Attach warehouse stock if shift is active
         $products->through(function (Product $product) use ($warehouseId) {
             $data = (new ProductResource($product))->resolve();
-            $data['stock'] = $warehouseId
-                ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
-                : (int) $product->stock;
+            $data['stock'] = $product->stockIn($warehouseId);
+            if ($product->is_composite) {
+                $data['sell_price'] = $product->compositeSellPrice();
+            }
 
             return $data;
         });
@@ -195,19 +191,20 @@ class PosApiController extends Controller
         $warehouseId = $shift?->warehouse_id;
 
         $product = Product::whereRaw('LOWER(barcode) = ?', [strtolower($validated['barcode'])])
-            ->when($warehouseId, fn ($q) => $q->whereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId)))
+            ->where('is_raw_material', false)
+            ->when($warehouseId, fn ($q) => $q->where(fn ($q) => $q->where('is_composite', true)
+                ->orWhereHas('warehouses', fn ($w) => $w->where('product_warehouse.warehouse_id', $warehouseId))))
             ->first();
 
         if (! $product) {
             return $this->notFound('Produk dengan barcode tersebut tidak ditemukan.');
         }
 
-        $stock = $warehouseId
-            ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
-            : (int) $product->stock;
-
         $data = (new ProductResource($product->load('category')))->resolve();
-        $data['stock'] = $stock;
+        $data['stock'] = $product->stockIn($warehouseId);
+        if ($product->is_composite) {
+            $data['sell_price'] = $product->compositeSellPrice();
+        }
         $data['units'] = $product->units()->get()->map(fn ($u) => [
             'id' => $u->id,
             'name' => $u->name,
@@ -288,6 +285,10 @@ class PosApiController extends Controller
             return $this->notFound('Produk tidak ditemukan.');
         }
 
+        if ($product->is_raw_material) {
+            return $this->error('Bahan baku tidak dapat dijual.', 422);
+        }
+
         if ($product->is_composite) {
             $product->load('components');
             foreach ($product->components as $component) {
@@ -297,7 +298,7 @@ class PosApiController extends Controller
                     return $this->error("Stok {$component->title} tidak mencukupi.", 422);
                 }
             }
-            $sellPrice = (int) $product->components->sum(fn ($c) => $c->sell_price * (float) $c->pivot->qty);
+            $sellPrice = $product->compositeSellPrice();
             $unitId = null;
             $conversionFactor = 1;
         } else {
@@ -374,20 +375,18 @@ class PosApiController extends Controller
 
         $product = $cart->product;
 
-        if (! $product->is_composite) {
-            $baseQty = $this->unitConversionService->toBaseUnit($product, $cart->unit_id, $validated['qty']);
-            $availableStock = $warehouseId
-                ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
-                : (int) $product->stock;
+        $baseQty = $product->is_composite
+            ? (int) ceil($validated['qty'])
+            : $this->unitConversionService->toBaseUnit($product, $cart->unit_id, $validated['qty']);
+        $availableStock = $product->stockIn($warehouseId);
 
-            if ($availableStock < $baseQty) {
-                return $this->error("Stok tidak mencukupi. Tersedia: {$availableStock}", 422);
-            }
+        if ($availableStock < $baseQty) {
+            return $this->error("Stok tidak mencukupi. Tersedia: {$availableStock}", 422);
         }
 
         $cart->qty = $validated['qty'];
         $cart->price = $product->is_composite
-            ? (int) $product->components->sum(fn ($c) => $c->sell_price * (float) $c->pivot->qty) * $validated['qty']
+            ? $product->compositeSellPrice() * $validated['qty']
             : $this->unitConversionService->getSellPrice($product, $cart->unit_id) * $validated['qty'];
         $cart->save();
 
@@ -814,7 +813,7 @@ class PosApiController extends Controller
 
                 if ($product->is_composite) {
                     $product->load('components');
-                    $sellPrice = (int) $product->components->sum(fn ($c) => $c->sell_price * (float) $c->pivot->qty);
+                    $sellPrice = $product->compositeSellPrice();
                     $cart = Cart::create([
                         'cashier_id' => $user->id,
                         'warehouse_id' => $shift->warehouse_id,

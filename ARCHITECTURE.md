@@ -349,6 +349,16 @@ Reorder point / manual ─► Purchase Order (draft → ordered → partial → 
 
 `product_warehouse.stock` adalah **sumber kebenaran operasional**; `products.stock` adalah agregat global yang harus diubah dalam transaksi DB yang sama. Hampir semua tabel stok/transaksi punya `warehouse_id`. Transfer: draft → **send** (stok asal berkurang) → **receive** (stok tujuan bertambah) atau cancel. Jika agregat menyimpang: `php artisan inventory:reconcile [--fix]`.
 
+### 7.5a Resep (Produk Komposit) & Bahan Baku
+
+Untuk coffee shop/F&B: menu dibuat sebagai produk komposit (`is_composite`) dengan komponen di `composite_product_items` (takaran bilangan bulat, dalam satuan stok bahan, mis. gram/ml). Bahan baku ditandai `products.is_raw_material`.
+
+- **Harga jual**: `Product::compositeSellPrice()` memakai `sell_price` menu bila diisi. Jika 0, harga dihitung dari total harga komponen (perilaku paket/bundle).
+- **Stok tersedia**: `Product::stockIn($warehouseId)` menghitung porsi yang bisa dibuat dari bahan paling sedikit di gudang itu. POS hanya menampilkan menu dengan porsi > 0.
+- **Penjualan**: `CheckoutService` memotong stok tiap bahan (per gudang, dengan mutasi stok) dan menghitung HPP dari harga beli bahan × takaran.
+- **Bahan baku** tidak tampil di POS, scan barcode, API POS, maupun menu dine-in, dan ditolak saat masuk keranjang/checkout. Bahan tetap bisa dibeli lewat PO, di-opname, dan ditransfer seperti produk biasa.
+- Stok masih bilangan bulat, sehingga takaran desimal (mis. 18,5 g) tidak didukung. Gunakan satuan terkecil.
+
 ### 7.6 Stock Opname & Retur Penjualan
 
 - Opname: pilih gudang → input hitungan fisik per item → **finalize** → selisih dicatat sebagai mutasi penyesuaian.
@@ -478,7 +488,7 @@ Webhook gateway hanya bisa bekerja jika `APP_URL` dapat diakses publik.
 
 ## 12. Testing & CI/CD
 
-- 87 file test, 580 test (POS & checkout integrity, split payment, outlet scoping, cart authorization, FEFO, komposit, transfer, opname, loyalty concurrency, API V1, webhook, security hardening, setup wizard). Hasil lokal 2026-11-20: 580 lulus, 1 di-skip.
+- 88 file test, 591 test (POS & checkout integrity, split payment, outlet scoping, cart authorization, FEFO, komposit, transfer, opname, loyalty concurrency, API V1, webhook, security hardening, setup wizard). Hasil lokal 2026-11-20: 590 lulus, 1 di-skip.
 - `phpunit.xml` memaksa SQLite in-memory, queue `sync`, cache/session `array`. Jangan pakai fitur khusus MySQL di query.
 - Konvensi: `RefreshDatabase`, seed `PermissionSeeder → RoleSeeder → UserSeeder`, `tax_rate=0` di produk test.
 - CI ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)): push/PR ke `main` → PHP 8.4 + Node 22 → `composer install`, `npm install`, `npm run build`, `php artisan test` → deploy ke VPS via SSH (di VPS memakai `npm ci`).
@@ -533,3 +543,12 @@ Status per upstream `81a91b8`. Temuan dari review awal (snapshot 2026-09-10) yan
 - Penjualan tidak tercatat di `stock_mutations`: kini checkout, dine-in accept, dan expire transaksi gateway mencatat mutasi.
 - WhatsApp service tanpa autentikasi: kini wajib `X-Service-Token` dan default listen di `127.0.0.1`.
 - CI tidak menjalankan test: kini menjalankan `php artisan test`.
+
+### Diperbaiki di repo ini (2026-11-20)
+
+- Produk komposit dijual Rp 0 jika komponennya bahan baku, karena harga selalu dihitung dari total harga komponen. Kini `sell_price` menu dipakai bila diisi (§7.5a).
+- Menu komposit tidak tampil di grid POS dan tidak bisa di-scan, karena tidak punya stok pivot sendiri. Kini tampil dengan jumlah porsi dari stok bahan.
+- Mengubah qty menu komposit di keranjang selalu gagal ("stok tidak mencukupi"), karena stok dibaca dari produk komposit itu sendiri.
+- Grid POS menampilkan stok global semua gudang. Kini memakai stok gudang shift aktif.
+- Halaman menu QR dine-in (`/dine/{token}`) selalu error 500: query memakai kolom `is_active`/`sort_order` yang tidak ada di `categories`/`products`, dan eager-load `units.unit` ke relasi yang tidak ada.
+- Penanda bahan baku (`is_raw_material`) ditambahkan beserta form produk dan estimasi HPP per porsi. Test: `tests/Feature/Products/RecipeProductTest.php`.

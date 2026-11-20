@@ -25,18 +25,17 @@ class DineMenuController extends Controller
 
         $selfOrderEnabled = Setting::getBool('dine_in_self_order_enabled', true);
 
-        $categories = Category::where('is_active', true)
-            ->orderBy('sort_order')
-            ->get();
+        // categories/products have no is_active or sort_order columns
+        $categories = Category::orderBy('name')->get();
 
-        $products = Product::where('is_active', true)
+        $products = Product::where('is_raw_material', false)
             ->where(function ($query) use ($outlet) {
-                $query->where('stock', '>', 0);
+                $query->where('stock', '>', 0)->orWhere('is_composite', true);
                 if ($outlet) {
                     $query->orWhereHas('warehouses', fn ($warehouse) => $warehouse->where('outlet_id', $outlet->id)->where('stock', '>', 0));
                 }
             })
-            ->with(['category', 'units.unit'])
+            ->with('category')
             ->get();
 
         // ponytail: previewProducts() returns arrays keyed by product id (pricing fields only) — merge the effective price back onto model-shaped payloads the menu page expects (id/title/image/category_id/sell_price)

@@ -30,6 +30,7 @@ class ProductResource extends JsonResource
             'tax_type' => $this->tax_type,
             'tax_rate' => (float) $this->tax_rate,
             'is_composite' => (bool) $this->is_composite,
+            'is_raw_material' => (bool) $this->is_raw_material,
             'created_at' => optional($this->created_at)->toISOString(),
             'updated_at' => optional($this->updated_at)->toISOString(),
         ];
