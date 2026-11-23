@@ -109,8 +109,8 @@ stays the exception.
 
 The repository is public on GitHub Free and `main` is protected by the ruleset
 "governance: default branch": changes only through a pull request, no force-push, no deletion, and
-these checks must pass: **PR checklist**, **Standards approval**, **PR size**, **File length** and
-**CI (Build)**. No approving review is required, so the maintainer can merge their own PR once the
+these checks must pass: **PR checklist**, **Standards approval**, **PR size**, **File length**,
+**CI (Build)** and **Frontend**. No approving review is required, so the maintainer can merge their own PR once the
 checks are green.
 
 *Migration order* and *Script and hook tests* are not required checks because they only run when
@@ -166,7 +166,7 @@ on every turn.
 | Check | Blocks? | What it checks |
 |---|---|---|
 | CI/CD Pipeline → CI (Build) (`deploy.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), `npm run build`, `php artisan test` on SQLite. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001) |
-| Tests → Frontend (`tests.yml`) | not yet (required after its first green run, spec §8) | Vitest on the frontend utilities with a coverage summary and the `frontend-coverage` artifact |
+| Tests → Frontend (`tests.yml`) | yes | Vitest on the frontend utilities with a coverage summary and the `frontend-coverage` artifact |
 | PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution |
 | Issue checklist | comments | Required sections and lines on new issues |
 | PR size / File length | above the fail limit | Counted changed lines; code files growing past the limit |
