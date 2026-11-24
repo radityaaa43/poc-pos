@@ -1,9 +1,9 @@
 # REQ-002: Pembelian bahan baku dengan satuan beli dan HPP per gudang
 
-- **Status:** ready
+- **Status:** done
 - **Owner:** @radityaaa43
 - **Module:** module:purchasing
-- **Updated:** 2026-11-24
+- **Updated:** 2026-11-25
 
 ## User story
 
@@ -118,4 +118,4 @@ Contoh data dalam kriteria di bawah memakai sebuah kedai kopi sebagai ilustrasi.
 ## Delivered by
 
 - Issue: #24, #25, #26, #27, #28, #29, #30, #31, #32, #33, #34
-- PR: #36 (AC-01, AC-17), #41 (AC-18), #49 (AC-02, AC-03, AC-20, AC-21), #50 (AC-04, AC-05, AC-19)
+- PR: #36 (AC-01, AC-17), #41 (AC-18), #49 (AC-02, AC-03, AC-20, AC-21), #50 (AC-04, AC-05, AC-19), #54 (AC-08), #55 (AC-16), #57 (AC-06, AC-07, AC-20, AC-21), #59 (AC-12), #60 (AC-13, AC-14), #62 (AC-09, AC-10, AC-11), #64 (AC-14, AC-15)

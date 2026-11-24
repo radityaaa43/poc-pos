@@ -180,7 +180,7 @@ class AdvancedSalesInsightsController extends Controller
                 COALESCE(ws.current_stock, p.stock) as current_stock,
                 SUM(td.qty) as qty_sold,
                 SUM(td.price) as revenue_total,
-                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - (p.buy_price * td.qty)) as profit_total,
+                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - COALESCE(td.cost_total, p.buy_price * td.qty)) as profit_total,
                 MAX(t.created_at) as last_sold_at
             ')
             ->joinSub(
@@ -216,7 +216,7 @@ class AdvancedSalesInsightsController extends Controller
                 td.product_id,
                 SUM(td.qty) as qty_sold,
                 SUM(td.price) as revenue_total,
-                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - (p.buy_price * td.qty)) as profit_total,
+                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - COALESCE(td.cost_total, p.buy_price * td.qty)) as profit_total,
                 MAX(t.created_at) as last_sold_at
             ')
             ->joinSub(
@@ -280,7 +280,7 @@ class AdvancedSalesInsightsController extends Controller
                 c.name as category_name,
                 SUM(td.qty) as qty_sold,
                 SUM(td.price) as revenue_total,
-                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - (p.buy_price * td.qty)) as profit_total
+                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - COALESCE(td.cost_total, p.buy_price * td.qty)) as profit_total
             ')
             ->joinSub(
                 DB::table('transaction_details')
@@ -315,7 +315,7 @@ class AdvancedSalesInsightsController extends Controller
                 COALESCE(c.name, \'Tanpa Kategori\') as category_name,
                 SUM(td.qty) as qty_sold,
                 SUM(td.price) as revenue_total,
-                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - (p.buy_price * td.qty)) as profit_total
+                SUM((td.price - ROUND((COALESCE(t.discount, 0) * td.price) / NULLIF(tx.subtotal_after_promo, 0))) - COALESCE(td.cost_total, p.buy_price * td.qty)) as profit_total
             ')
             ->joinSub(
                 DB::table('transaction_details')

@@ -53,6 +53,21 @@ class TransactionDetail extends Model
         return (int) round($this->qty * (float) ($this->conversion_factor ?? 1));
     }
 
+    /**
+     * Profit to reverse when $qtyReturned units of this line come back:
+     * (unit sell price - cost_total / qty) x qty returned, rounded once.
+     */
+    public function returnMargin(int $qtyReturned): int
+    {
+        $qty = max(1, (int) $this->qty);
+
+        // Legacy lines have no frozen cost_total: use the product's current buy_price, as before.
+        $costTotal = $this->cost_total
+            ?? (int) round((int) ($this->product?->buy_price ?? 0) * (float) ($this->conversion_factor ?? 1)) * $qty;
+
+        return (int) round(((int) $this->price - $costTotal) * $qtyReturned / $qty);
+    }
+
     public function transaction()
     {
         return $this->belongsTo(Transaction::class);
