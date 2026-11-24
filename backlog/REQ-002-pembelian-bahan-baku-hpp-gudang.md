@@ -117,4 +117,5 @@ Contoh data dalam kriteria di bawah memakai sebuah kedai kopi sebagai ilustrasi.
 
 ## Delivered by
 
-- Issue dan PR: diisi saat PR dibuka.
+- Issue: #24, #25, #26, #27, #28, #29, #30, #31, #32, #33, #34
+- PR: #36 (AC-01, AC-17)

@@ -3,6 +3,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
+import UnitRow from "./Partials/UnitRow";
 import Textarea from "@/Components/Dashboard/TextArea";
 import InputSelect from "@/Components/Dashboard/InputSelect";
 import toast from "react-hot-toast";
@@ -65,7 +66,9 @@ export default function Create({ categories, products, units = [] }) {
                 unit_id: firstUnused.id,
                 is_base: data.units.length === 0,
                 conversion_factor: data.units.length === 0 ? 1 : "",
+                buy_price: "",
                 sell_price: "",
+                is_purchase_default: false,
                 barcode: "",
             },
         ]);
@@ -78,6 +81,11 @@ export default function Create({ categories, products, units = [] }) {
         if (field === "is_base" && value) {
             rows.forEach((r, i) => {
                 if (i !== index) r.is_base = false;
+            });
+        }
+        if (field === "is_purchase_default" && value) {
+            rows.forEach((r, i) => {
+                if (i !== index) r.is_purchase_default = false;
             });
         }
         setData("units", rows);
@@ -528,127 +536,19 @@ export default function Create({ categories, products, units = [] }) {
                                         dll) untuk penjualan multi-satuan.
                                     </p>
                                 )}
-                                <div className="space-y-3">
+                                <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                     {data.units.map((row, index) => (
-                                        <div
+                                        <UnitRow
                                             key={index}
-                                            className="flex items-end gap-3"
-                                        >
-                                            <div className="flex-1">
-                                                <InputSelect
-                                                    data={availableUnits(index)}
-                                                    selected={
-                                                        units.find(
-                                                            (u) =>
-                                                                u.id ===
-                                                                row.unit_id
-                                                        ) || null
-                                                    }
-                                                    setSelected={(value) =>
-                                                        updateUnitRow(
-                                                            index,
-                                                            "unit_id",
-                                                            value?.id ?? ""
-                                                        )
-                                                    }
-                                                    placeholder="Pilih satuan"
-                                                    errors={
-                                                        errors[
-                                                            `units.${index}.unit_id`
-                                                        ]
-                                                    }
-                                                    searchable={true}
-                                                    displayKey="code"
-                                                />
-                                            </div>
-                                            <div className="w-36">
-                                                <Input
-                                                    type="number"
-                                                    min="0.0001"
-                                                    step="0.0001"
-                                                    value={
-                                                        row.conversion_factor
-                                                    }
-                                                    onChange={(e) =>
-                                                        updateUnitRow(
-                                                            index,
-                                                            "conversion_factor",
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    errors={
-                                                        errors[
-                                                            `units.${index}.conversion_factor`
-                                                        ]
-                                                    }
-                                                    placeholder="Konversi"
-                                                    disabled={row.is_base}
-                                                />
-                                            </div>
-                                            <div className="w-40">
-                                                <Input
-                                                    type="number"
-                                                    min="0"
-                                                    value={row.sell_price}
-                                                    onChange={(e) =>
-                                                        updateUnitRow(
-                                                            index,
-                                                            "sell_price",
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    errors={
-                                                        errors[
-                                                            `units.${index}.sell_price`
-                                                        ]
-                                                    }
-                                                    placeholder="Harga jual"
-                                                />
-                                            </div>
-                                            <div className="w-44">
-                                                <Input
-                                                    type="text"
-                                                    value={row.barcode}
-                                                    onChange={(e) =>
-                                                        updateUnitRow(
-                                                            index,
-                                                            "barcode",
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                    errors={
-                                                        errors[
-                                                            `units.${index}.barcode`
-                                                        ]
-                                                    }
-                                                    placeholder="Barcode (opsional)"
-                                                />
-                                            </div>
-                                            <label className="flex items-center gap-1 pb-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={row.is_base}
-                                                    onChange={(e) =>
-                                                        updateUnitRow(
-                                                            index,
-                                                            "is_base",
-                                                            e.target.checked
-                                                        )
-                                                    }
-                                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                                                />
-                                                Dasar
-                                            </label>
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    removeUnitRow(index)
-                                                }
-                                                className="p-2.5 rounded-xl text-danger-600 hover:bg-danger-50 dark:hover:bg-danger-950/30 transition-colors"
-                                            >
-                                                <IconTrash size={18} />
-                                            </button>
-                                        </div>
+                                            row={row}
+                                            index={index}
+                                            options={availableUnits(index)}
+                                            errors={errors}
+                                            onChange={(field, value) =>
+                                                updateUnitRow(index, field, value)
+                                            }
+                                            onRemove={() => removeUnitRow(index)}
+                                        />
                                     ))}
                                 </div>
                             </div>
