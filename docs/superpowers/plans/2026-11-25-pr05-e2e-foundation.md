@@ -123,7 +123,7 @@ one comment line pointing to `tests/e2e/README.md`; ≤ 200 lines).
 
 - [ ] Job `e2e` named `E2E (shard ${{ matrix.shard }}/${{ strategy.job-total }})`, matrix
   `shard: [1, 2]`, `fail-fast: false`, `timeout-minutes: 30`, MySQL 8.4 service with DB
-  `point_of_sales_e2e`; steps: checkout, setup-php 8.4 (same extensions as deploy.yml), setup-node 22
+  `point_of_sales_e2e`; steps: checkout, setup-php 8.4 (same extensions as the retired deploy.yml), setup-node 22
   with npm cache, `composer install`, `PUPPETEER_SKIP_DOWNLOAD=true npm ci`, `npm run build`,
   `npx playwright install --with-deps chromium` (cache `~/.cache/ms-playwright` keyed on the
   Playwright version), `cp .env.example .env && php artisan key:generate --force`, start

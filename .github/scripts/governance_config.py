@@ -115,6 +115,8 @@ DEFAULTS: dict = {
         "ac_regex": r"\bAC-\d+\b",
         "see": "CONTRIBUTING.md → Requirements and backlog",
     },
+    # A PR whose title type is in `types` must change a file under `paths`, or say `E2E: none — <reason>`.
+    "e2e_rule": {"enabled": False, "types": ["feat"], "paths": [], "rule_start": "1970-01-01"},
     "dependencies": {
         "manifests": [
             "package.json", "go.mod", "requirements*.txt", "pyproject.toml", "Cargo.toml",

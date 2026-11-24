@@ -257,6 +257,12 @@
     "ac_regex": "\\bAC-\\d+\\b",
     "see": "CONTRIBUTING.md → Requirements and backlog"
   },
+  "e2e_rule": {
+    "enabled": true,
+    "types": ["feat"],
+    "paths": ["tests/e2e/features/"],
+    "rule_start": "2026-11-25"
+  },
   "branches": {
     "types": [
       "feat",

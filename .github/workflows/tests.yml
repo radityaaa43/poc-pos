@@ -97,6 +97,9 @@ jobs:
           extensions: mbstring, pdo, pdo_mysql, sqlite3, zip, gd, exif
           coverage: pcov
 
+      - name: Validate composer.json
+        run: composer validate --no-check-publish
+
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 

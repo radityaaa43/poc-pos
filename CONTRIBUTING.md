@@ -110,7 +110,7 @@ stays the exception.
 The repository is public on GitHub Free and `main` is protected by the ruleset
 "governance: default branch": changes only through a pull request, no force-push, no deletion, and
 these checks must pass: **PR checklist**, **Standards approval**, **PR size**, **File length**,
-**CI (Build)** and **Frontend**. No approving review is required, so the maintainer can merge their own PR once the
+**Backend**, **Frontend** and **E2E**. No approving review is required, so the maintainer can merge their own PR once the
 checks are green.
 
 *Migration order* and *Script and hook tests* are not required checks because they only run when
@@ -165,18 +165,24 @@ on every turn.
 
 | Check | Blocks? | What it checks |
 |---|---|---|
-| CI/CD Pipeline → CI (Build) (`deploy.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), `npm run build`, `php artisan test` on SQLite. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001) |
-| Tests → Frontend (`tests.yml`) | yes | Vitest coverage + production build (`npm run build`), with a coverage summary and the `frontend-coverage` artifact |
-| Tests → Backend (`tests.yml`) | not yet (required once ruleset switches, see #51) | Pint on changed PHP files, PHPUnit on MySQL 8.4 with pcov line coverage, summary and `backend-coverage` artifact |
-| Tests → E2E (shard i/N) (`tests.yml`) | not yet (required after its first green run) | Playwright features against the real app on MySQL, one job per shard (`tests/e2e/README.md`) |
-| Tests → E2E (`tests.yml`) | not yet (required after its first green run) | Merges the shard reports into the `playwright-report` artifact and fails if any shard failed |
-| PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution |
+| Tests → Frontend (`tests.yml`) | yes | Vitest coverage, the e2e scaffold test and the production build (`npm run build`), with a coverage summary and the `frontend-coverage` artifact |
+| Tests → Backend (`tests.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), PHPUnit on MySQL 8.4 with pcov line coverage, summary and `backend-coverage` artifact |
+| Tests → E2E (shard i/N) (`tests.yml`) | no (informational; `E2E` is the gate) | Playwright features against the real app on MySQL, one job per shard (`tests/e2e/README.md`) |
+| Tests → E2E (`tests.yml`) | yes | Merges the shard reports into the `playwright-report` artifact and fails if any shard failed |
+| PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution; a `feat` PR changes a file under `tests/e2e/features/` or says `E2E: none — <reason>` (see below) |
 | Issue checklist | comments | Required sections and lines on new issues |
 | PR size / File length | above the fail limit | Counted changed lines; code files growing past the limit |
 | Standards approval | yes | A Standards owner approved the latest commit when Standards files changed |
 | Dependency check | no (warns) | Lists new direct dependencies for the reviewer |
 | Migration order | yes | New migrations sort after the default branch's |
 | Script and hook tests | yes | The governance scripts and the guard hook still work |
+
+**Feature PRs bring their e2e.** A PR whose title starts with `feat` (`feat(pos): ...`) must change at
+least one file under `tests/e2e/features/` (scaffold a folder with `npm run e2e:new -- <NN-feature>`:
+one folder per feature, one file per step, see `tests/e2e/README.md`), or carry an `E2E: none — <reason>`
+line in the checklist. The *PR checklist* check enforces it from the PR's changed files; other PR types
+may leave the `E2E:` line out, and PRs opened before the rule's start date (`e2e_rule.rule_start`) are
+not failed. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001).
 
 All limits and lists live in `.github/governance.json` (a Standards file).
 

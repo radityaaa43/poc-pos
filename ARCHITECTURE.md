@@ -491,7 +491,7 @@ Webhook gateway hanya bisa bekerja jika `APP_URL` dapat diakses publik.
 - 88 file test, 591 test (POS & checkout integrity, split payment, outlet scoping, cart authorization, FEFO, komposit, transfer, opname, loyalty concurrency, API V1, webhook, security hardening, setup wizard). Hasil lokal 2026-11-20: 590 lulus, 1 di-skip.
 - `phpunit.xml` memaksa SQLite in-memory, queue `sync`, cache/session `array`. Jangan pakai fitur khusus MySQL di query.
 - Konvensi: `RefreshDatabase`, seed `PermissionSeeder → RoleSeeder → UserSeeder`, `tax_rate=0` di produk test.
-- CI ([.github/workflows/deploy.yml](.github/workflows/deploy.yml)): push/PR ke `main` → PHP 8.4 + Node 22 → `composer install`, `npm install`, `npm run build`, `php artisan test` → deploy ke VPS via SSH (di VPS memakai `npm ci`).
+- CI ([.github/workflows/tests.yml](.github/workflows/tests.yml)): push/PR ke `main` → tiga job wajib: Backend (`composer validate`, Pint, PHPUnit di MySQL 8.4), Frontend (Vitest + `npm run build`), E2E (Playwright per fitur di `tests/e2e/features/`). CI tidak men-deploy; deploy ke VPS dilakukan manual (ADR 0001).
 
 ---
 

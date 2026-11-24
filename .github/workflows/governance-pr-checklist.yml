@@ -1,13 +1,15 @@
 name: PR checklist
 
 # Separate from the build so editing the PR body re-runs only this check. The rules (Closes,
-# Manual test, Docs, AI used, Backlog, no AI attribution) come from .github/governance.json.
+# Manual test, Docs, AI used, Backlog, E2E for feat PRs, no AI attribution) come from
+# .github/governance.json.
 on:
   pull_request:
     types: [opened, edited, synchronize, reopened, ready_for_review]
 
 permissions:
   contents: read
+  pull-requests: read
 
 concurrency:
   group: pr-checklist-${{ github.event.pull_request.number }}
@@ -28,4 +30,8 @@ jobs:
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
           PR_CREATED_AT: ${{ github.event.pull_request.created_at }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: python3 .github/scripts/check_pr_body.py

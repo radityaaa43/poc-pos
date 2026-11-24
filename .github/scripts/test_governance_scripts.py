@@ -104,6 +104,25 @@ class PrBody(unittest.TestCase):
         self.assertEqual(check_pr_body.problems(GOOD_PR + "- Backlog: none — CI fix\n", cfg=c), [])
         self.assertIsNone(backlog.pr_problem("Backlog: PROJ-1", cfg(backlog__enabled=True)))
 
+    def test_e2e_rule(self):
+        c = cfg(e2e_rule__enabled=True, e2e_rule__paths=["tests/e2e/features/"])
+        feat, spec = "feat(pos): hold orders", "tests/e2e/features/03-hold/01-hold.spec.js"
+        self.assertEqual(check_pr_body.problems(GOOD_PR, cfg=c, title=feat, files=[spec]), [])
+        self.assertEqual(check_pr_body.problems(GOOD_PR + "- **E2E:** none — API only\n", cfg=c, title=feat), [])
+        found = check_pr_body.problems(GOOD_PR, cfg=c, title=feat, files=["app/Foo.php"])
+        self.assertEqual(len(found), 1)
+        self.assertIn("npm run e2e:new", found[0])
+        self.assertTrue(check_pr_body.problems(GOOD_PR, cfg=c, title="feat!: x"))
+        self.assertTrue(check_pr_body.problems(GOOD_PR + "- **E2E:** none\n", cfg=c, title=feat))
+        for title in ("fix(pos): x", "chore: x", "feature: x", ""):
+            self.assertEqual(check_pr_body.problems(GOOD_PR, cfg=c, title=title), [], title)
+
+    def test_e2e_rule_start_and_off(self):
+        on = cfg(e2e_rule__enabled=True, e2e_rule__rule_start="2030-01-01")
+        self.assertEqual(check_pr_body.problems(GOOD_PR, "2029-12-31T00:00:00Z", on, title="feat: x"), [])
+        self.assertTrue(check_pr_body.problems(GOOD_PR, "2030-01-02T00:00:00Z", on, title="feat: x"))
+        self.assertEqual(check_pr_body.problems(GOOD_PR, cfg=cfg(), title="feat: x"), [])
+
 
 class IssueBody(unittest.TestCase):
     def test_sections_and_ai_used(self):

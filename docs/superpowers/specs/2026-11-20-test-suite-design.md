@@ -53,7 +53,8 @@ shared script.
 - **PR size:** governance fails a PR over 2,000 counted lines and wants one under 1,000 to be
   split. This work ships as a sequence of PRs (§9), each with its own issue.
 - **Required checks:** `main` is protected by ruleset 27731300 (PR checklist, Standards approval,
-  PR size, File length, CI (Build)). New test jobs become required only after they have run green
+  PR size, File length, CI (Build)); since 2026-11-25 (#61) Backend, Frontend and E2E are required
+  instead of CI (Build). New test jobs become required only after they have run green
   at least once, and changing the ruleset needs the maintainer's go-ahead.
 - **No deploy:** CI/CD must never deploy to the VPS (ADR 0001). Test workflows have no secrets.
 - **Public repository:** GitHub Actions minutes are free on standard `ubuntu-latest` runners, which
@@ -274,8 +275,9 @@ MySQL only, with the issue link). This keeps each test PR bounded and each fix r
 
 ## 8. CI
 
-New workflow `.github/workflows/tests.yml` (designer's call: keep `deploy.yml` → `CI (Build)` as the
-build + SQLite backend run, so existing required checks don't change name).
+New workflow `.github/workflows/tests.yml`. (Originally `deploy.yml` → `CI (Build)` was kept as the
+build + SQLite backend run; #61 retired it once Backend and Frontend covered the same ground, so the
+tests run on MySQL only.)
 
 | Job | Runs | Notes |
 |---|---|---|
