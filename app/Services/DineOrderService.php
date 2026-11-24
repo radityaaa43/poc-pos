@@ -17,6 +17,7 @@ class DineOrderService
     public function __construct(
         private PricingService $pricingService,
         private StockMutationService $stockMutationService,
+        private InventoryCostService $inventoryCostService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -75,6 +76,9 @@ class DineOrderService
                 $product = $item->product;
                 $lineTotal = (int) $item->price * (int) $item->qty;
 
+                // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
+                $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, (int) $item->qty, (float) ($item->conversion_factor ?? 1));
+
                 $detail = $transaction->details()->create([
                     'transaction_id' => $transaction->id,
                     'product_id' => $product->id,
@@ -85,19 +89,12 @@ class DineOrderService
                     'unit_price' => (int) $item->price,
                     'price' => $lineTotal,
                     'discount_total' => 0,
+                    'cost_total' => $costTotal,
                 ]);
-
-                if ($product->is_composite) {
-                    $totalBuyPrice = $product->components->sum(
-                        fn ($component) => $component->buy_price * (float) $component->pivot->qty
-                    ) * (int) $item->qty;
-                } else {
-                    $totalBuyPrice = $product->buy_price * (int) $item->qty * (float) ($item->conversion_factor ?? 1);
-                }
 
                 $transaction->profits()->create([
                     'transaction_id' => $transaction->id,
-                    'total' => $lineTotal - (int) $totalBuyPrice,
+                    'total' => $lineTotal - $costTotal,
                 ]);
 
                 if ($product->is_composite) {

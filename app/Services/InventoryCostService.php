@@ -21,6 +21,21 @@ class InventoryCostService
     }
 
     /**
+     * HPP of a sale line, whole rupiah (REQ-002 §6.6): plain = unit cost x qty x factor;
+     * recipe = sum of component unit costs x recipe qty x qty. Read it before the stock decrement.
+     */
+    public function lineCost(Product $product, ?int $warehouseId, float $qty, float $factor = 1.0): int
+    {
+        if ($product->is_composite) {
+            return (int) round($product->components->sum(
+                fn ($component) => $this->unitCost($component, $warehouseId) * (float) $component->pivot->qty
+            ) * $qty);
+        }
+
+        return (int) round($this->unitCost($product, $warehouseId) * $qty * $factor);
+    }
+
+    /**
      * Adds $qty stock units bought at $cost each to the warehouse and merges the cost into its average.
      * Call inside a DB::transaction; the pivot row is created when missing and locked here.
      */
