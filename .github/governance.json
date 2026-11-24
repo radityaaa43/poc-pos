@@ -236,8 +236,8 @@
         "commands": []
       }
     ],
-    "e2e": "",
-    "e2e_in_ci": false
+    "e2e": "npm run test:e2e",
+    "e2e_in_ci": true
   },
   "ui": {
     "enabled": true,

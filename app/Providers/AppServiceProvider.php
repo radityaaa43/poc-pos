@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Support\ProductionSecurityBaseline;
+use App\Testing\E2e\E2eServiceProvider;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -17,7 +18,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // E2E-only fakes and destructive commands: never registered in any other environment.
+        if ($this->app->environment('e2e')) {
+            $this->app->register(E2eServiceProvider::class);
+        }
     }
 
     /**

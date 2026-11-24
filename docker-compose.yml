@@ -30,6 +30,38 @@ services:
     <<: *php
     command: php artisan queue:work --tries=3 --sleep=3
 
+  # End-to-end suite target (profile `e2e`, see tests/e2e/README.md):
+  #   docker compose --profile e2e up -d app-e2e   -> http://localhost:8010, DB point_of_sales_e2e
+  # Everything the app needs is set here: real env vars win over .env (Dotenv is immutable), and
+  # --no-reload is required, otherwise `artisan serve` drops them and falls back to .env (your dev DB).
+  # APP_KEY is a throwaway key that only protects the e2e database.
+  app-e2e:
+    <<: *php
+    profiles: ["e2e"]
+    environment:
+      APP_ENV: e2e
+      APP_DEBUG: "true"
+      APP_KEY: "base64:S5Ec61uZh+3hQWkUe50HADhsBp22LuPDyPcRES3QM5k="
+      APP_URL: http://localhost:8010
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: point_of_sales_e2e
+      DB_USERNAME: root
+      DB_PASSWORD: secret
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: log
+      BCRYPT_ROUNDS: 4
+      INERTIA_SSR_ENABLED: "false"
+      SECURITY_BOT_GUARD_MIN_SUBMIT_SECONDS: 0
+      AUTH_FORGOT_PASSWORD_THROTTLE: "1000,1"
+      PHP_CLI_SERVER_WORKERS: 4
+    command: php artisan serve --host=0.0.0.0 --port=8010 --no-reload
+    ports:
+      - "127.0.0.1:8010:8010"
+
   mysql:
     image: mysql:8.4
     environment:

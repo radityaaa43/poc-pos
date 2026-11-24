@@ -102,6 +102,8 @@ docker compose exec -T app php artisan test --compact
 # frontend
 npm test
 npm run build
+# e2e (Playwright; setup and adding a feature: tests/e2e/README.md)
+npm run e2e:up && npm run test:e2e
 ```
 
 - **CI is the gate.** Merge only with CI green; link the run in the PR.
