@@ -60,7 +60,7 @@ services:
       PHP_CLI_SERVER_WORKERS: 4
     command: php artisan serve --host=0.0.0.0 --port=8010 --no-reload
     ports:
-      - "8010:8010"
+      - "127.0.0.1:8010:8010"
 
   mysql:
     image: mysql:8.4

@@ -33,9 +33,11 @@ test('creates the step file from the template and appends a coverage row', () =>
 test('refuses bad slugs and an existing feature', () => {
     const dir = sandbox();
     try {
-        for (const bad of ['purchase-orders', '8-po', '08-Purchase', '08_po', '08-', '']) {
+        for (const bad of ['purchase-orders', '8-po', '08-Purchase', '08_po', '08-']) {
             assert.throws(() => scaffold(dir, bad), /NN-kebab-case/, bad);
         }
+        assert.throws(() => scaffold(dir), /Usage: npm run e2e:new/);
+        assert.throws(() => scaffold(dir, ''), /Usage: npm run e2e:new/);
         assert.throws(() => scaffold(dir, '08-po', 'Bad Step'), /Step slug/);
 
         scaffold(dir, '08-po');

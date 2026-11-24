@@ -4,8 +4,11 @@ A real browser drives the real app on MySQL. Test data comes from `E2eSeeder` pl
 `php artisan e2e:arrange`; payment gateways and WhatsApp are faked. Design:
 `docs/superpowers/specs/2026-11-20-test-suite-design.md` §7–§8. What is covered: [`COVERAGE.md`](COVERAGE.md).
 
-Everything e2e-only is gated to `APP_ENV=e2e` (`app/Testing/E2e/`) and refuses to run unless the
-database name ends in `_e2e`. It can never touch `point_of_sales` or a review app database.
+Everything e2e-only is gated to `APP_ENV=e2e` (`app/Testing/E2e/`): the reset and arrange commands
+and `E2eSeeder` refuse to run unless `APP_ENV` is `e2e` and the default connection's database name
+ends in `_e2e`. That guard checks names only: it stops a mis-set environment from wiping
+`point_of_sales` or a review app database, but not someone who deliberately names a real database
+`*_e2e`. (The PHPUnit suite is the one exception: it runs `E2eSeeder` on in-memory SQLite.)
 
 ## Run it locally
 
@@ -34,8 +37,8 @@ low bcrypt cost, no SSR. The bot-guard honeypot and token stay on.
 
 `.github/workflows/tests.yml`: `E2E (shard i/N)` jobs run the same suite against a MySQL service
 container (`--shard=i/N`, blob reporter); the `E2E` job merges the blob reports into one HTML report
-artifact and fails if any shard failed. To add a shard, extend the `shard` matrix and the `/2` in
-the test command together (up to 6).
+artifact and fails if any shard failed. There is one shard today; to add shards, extend the `shard`
+matrix only (the job names and `--shard` both follow it). Each shard job resets its own database.
 
 ## Adding e2e for a new feature
 

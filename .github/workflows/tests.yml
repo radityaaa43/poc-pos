@@ -33,6 +33,9 @@ jobs:
       - name: Run frontend tests with coverage
         run: npm run test:coverage
 
+      - name: Test the e2e scaffold
+        run: node --test tests/e2e/support/new-feature.test.mjs
+
       - name: Build frontend
         run: npm run build
 
@@ -148,7 +151,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1]
     services:
       mysql:
         image: mysql:8.4
@@ -264,7 +267,7 @@ jobs:
   e2e-report:
     name: E2E
     needs: e2e
-    if: always()
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

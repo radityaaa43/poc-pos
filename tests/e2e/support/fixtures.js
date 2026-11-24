@@ -5,7 +5,10 @@ import { authFile } from './roles.js';
 export { expect };
 
 // The UI picks its language from localStorage first, then the browser (Chromium is en-US).
-const forceIndonesian = (context) => context.addInitScript(() => localStorage.setItem('i18nextLng', 'id'));
+const forceIndonesian = (context) => context.addInitScript(() => {
+        // Only when absent, so a step can switch language and keep it across reloads.
+        if (!localStorage.getItem('i18nextLng')) localStorage.setItem('i18nextLng', 'id');
+    });
 
 export const test = base.extend({
     context: async ({ context }, use) => {

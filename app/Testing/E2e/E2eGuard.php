@@ -16,7 +16,7 @@ class E2eGuard
             return "Refusing: APP_ENV is '{$environment}', not 'e2e'.";
         }
 
-        if (! is_string($database) || ! preg_match('/^[A-Za-z0-9_]+_e2e$/', $database)) {
+        if (! is_string($database) || ! preg_match('/^[A-Za-z0-9_]+_e2e\z/', $database)) {
             return "Refusing: database '{$database}' does not end in '_e2e'.";
         }
 
@@ -31,5 +31,14 @@ class E2eGuard
         $connection = config('database.default');
 
         return self::refusal(app()->environment(), config("database.connections.{$connection}.database"));
+    }
+
+    /**
+     * Guard for E2eSeeder. The PHPUnit suite seeds it into in-memory SQLite under 'testing';
+     * every other environment (local, production, ...) needs the full e2e guard.
+     */
+    public static function checkSeeding(): ?string
+    {
+        return app()->environment('testing') ? null : self::check();
     }
 }

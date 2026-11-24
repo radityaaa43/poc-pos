@@ -9,6 +9,9 @@ const SLUG = /^\d{2}-[a-z0-9]+(-[a-z0-9]+)*$/;
 const STEP = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 export function scaffold(e2eDir, feature, step = 'happy-path') {
+    if (!feature) {
+        throw new Error('Usage: npm run e2e:new -- <NN-feature-slug> [first-step-slug], e.g. npm run e2e:new -- 08-purchase-orders create-order');
+    }
     if (!SLUG.test(feature)) {
         throw new Error(`Feature slug must look like 08-purchase-orders (NN-kebab-case), got '${feature}'.`);
     }

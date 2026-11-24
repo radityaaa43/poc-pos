@@ -22,9 +22,19 @@ class ResetCommand extends Command
 
         $this->createDatabaseIfMissing();
 
-        $this->callSilently('migrate:fresh', ['--force' => true]);
-        $this->callSilently('db:seed', ['--force' => true]);
-        $this->callSilently('db:seed', ['--class' => E2eSeeder::class, '--force' => true]);
+        $steps = [
+            ['migrate:fresh', ['--force' => true]],
+            ['db:seed', ['--force' => true]],
+            ['db:seed', ['--class' => E2eSeeder::class, '--force' => true]],
+        ];
+
+        foreach ($steps as [$command, $options]) {
+            if ($this->callSilently($command, $options) !== self::SUCCESS) {
+                $this->error("e2e:reset failed at: {$command} ".json_encode($options));
+
+                return self::FAILURE;
+            }
+        }
 
         $this->info('e2e database reset: '.config('database.connections.'.config('database.default').'.database'));
 

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\E2e;
 
+use App\Http\Controllers\TourController;
 use App\Models\CashierShift;
 use App\Models\Product;
 use App\Models\User;
@@ -12,6 +13,7 @@ use Database\Seeders\DatabaseSeeder;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
+use RuntimeException;
 use Tests\TestCase;
 
 class E2eGuardTest extends TestCase
@@ -35,8 +37,25 @@ class E2eGuardTest extends TestCase
         $this->assertNotNull(E2eGuard::refusal('e2e', ':memory:'));
         $this->assertNotNull(E2eGuard::refusal('e2e', null));
         $this->assertNotNull(E2eGuard::refusal('e2e', 'x`; DROP DATABASE y; --_e2e'));
+        $this->assertNotNull(E2eGuard::refusal('e2e', "point_of_sales_e2e\n"));
         $this->assertNull(E2eGuard::refusal('e2e', 'point_of_sales_e2e'));
         $this->assertNotNull(E2eGuard::check(), 'the testing environment must be refused');
+    }
+
+    public function test_seeder_refuses_outside_e2e_and_testing(): void
+    {
+        foreach (['local', 'production'] as $environment) {
+            $this->app['env'] = $environment;
+
+            try {
+                app(E2eSeeder::class)->run();
+                $this->fail("E2eSeeder ran in the '{$environment}' environment.");
+            } catch (RuntimeException $e) {
+                $this->assertStringContainsString("APP_ENV is '{$environment}'", $e->getMessage());
+            }
+        }
+
+        $this->assertSame(0, User::where('email', 'like', '%@e2e.test')->count());
     }
 
     public function test_seeder_builds_the_baseline(): void
@@ -49,7 +68,7 @@ class E2eGuardTest extends TestCase
 
         $cashier = User::where('email', 'cashier@e2e.test')->first();
         $this->assertTrue($cashier->hasRole('cashier'));
-        $this->assertSame(5, count($cashier->completed_tours));
+        $this->assertSame(count(TourController::TOURS), count($cashier->completed_tours));
         $this->assertSame(1, $cashier->outlets()->count());
         $this->assertTrue(User::where('email', 'superadmin@e2e.test')->first()->isSuperAdmin());
     }

@@ -6,9 +6,12 @@ export default defineConfig({
     // One worker: steps share one database. CI scales out with --shard instead.
     workers: 1,
     retries: process.env.CI ? 1 : 0,
-    reporter: process.env.CI ? [['blob'], ['github']] : 'list',
+    reporter: process.env.CI ? [['blob'], ['github'], ['list']] : 'list',
     outputDir: '../../test-results',
+    expect: { timeout: 15_000 },
     use: {
+        navigationTimeout: 30_000,
+        actionTimeout: 15_000,
         baseURL: process.env.E2E_BASE_URL ?? 'http://localhost:8010',
         locale: 'id-ID',
         serviceWorkers: 'block',
