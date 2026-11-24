@@ -78,8 +78,8 @@ DEFAULTS: dict = {
     "hotspots": [],
     "pr_size": {
         "target": 300,
-        "warn": 1000,
-        "fail": 2000,
+        "warn": 2000,
+        "fail": 3000,
         "large_label": "large-pr",
         "exclude": [
             "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock",

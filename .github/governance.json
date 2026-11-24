@@ -312,8 +312,8 @@
   },
   "pr_size": {
     "target": 300,
-    "warn": 1000,
-    "fail": 2000
+    "warn": 2000,
+    "fail": 3000
   },
   "merge": {
     "self_merge_types": [

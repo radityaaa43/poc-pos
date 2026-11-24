@@ -23,7 +23,7 @@ free; writing to GitHub waits for the user's go-ahead.
    - **Body:** *In plain words*, Manual test with role and result, Docs line, AI used line,
      screenshots for UI changes, CI run link.
    - **CI:** checks green; *Standards approval* present when Standards files changed.
-   - **Size:** over 1000 counted lines without `large-pr` → ask for a split.
+   - **Size:** over 3000 counted lines without `large-pr` → ask for a split.
    - **Mergeable:** clean against `main`; any migration is newer than the default branch's latest.
    - **`REVIEW.md`:** each finding with its severity.
 

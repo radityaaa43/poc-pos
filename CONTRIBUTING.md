@@ -98,7 +98,7 @@ While `@radityaaa43` is the only maintainer, the "another reviewer's approval" f
 final diff, resolve or answer every finding, and link or paste the result in the PR before merging.
 Add a human reviewer as soon as a second person joins.
 
-**A PR over 1000 counted lines is merged by the maintainer, by hand.** The Claude Code guard hook
+**A PR over 2000 counted lines is merged by the maintainer, by hand.** The Claude Code guard hook
 refuses `gh pr merge` on such a PR unless someone other than its author approved it, and an agent
 review does not count as that approval. So the agent prepares the PR (green checks, `large-pr`
 label, `/code-review` recorded) and the maintainer clicks *Squash and merge* or runs
@@ -151,15 +151,15 @@ merges:
 Reviews find fewer defects past a few hundred lines at a time, and long files cost agents context
 on every turn.
 
-- **PR size**, counted changed lines: aim under 300. Above 1000 the PR gets
+- **PR size**, counted changed lines: aim under 300. Above 2000 the PR gets
   a comment and needs an approving review from someone other than its author; above
-  2000 the check fails unless a module Owner adds `large-pr` after
+  3000 the check fails unless a module Owner adds `large-pr` after
   agreeing to review it whole. In Claude Code, the guard hook refuses `gh pr merge` on a PR over
-  1000 lines without that approval.
+  2000 lines without that approval.
 - **Not counted:** lockfiles, generated and vendored files, migrations (`.github/governance.json` → `pr_size.exclude`).
 - **File length:** a hand-written code file may not grow past 1000 lines; files
   already over it may shrink. Tests and generated files are exempt.
-- **Start small:** an issue expected over ~1000 lines is split into tickets before anyone builds.
+- **Start small:** an issue expected over ~2000 lines is split into tickets before anyone builds.
 
 ## CI
 

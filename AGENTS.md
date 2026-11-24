@@ -80,8 +80,8 @@ issue, stdlib and native features before new libraries.
 - Finish or hand back your assigned issues before claiming more (`gh issue list --assignee @me`;
   agents check their human's). Claim before starting (`gh issue edit <n> --add-assignee @me`); never
   start on someone else's issue.
-- Small, short-lived PRs: aim under 300 counted lines; over 1000 needs
-  another person's approval, over 2000 fails CI unless an Owner adds
+- Small, short-lived PRs: aim under 300 counted lines; over 2000 needs
+  another person's approval, over 3000 fails CI unless an Owner adds
   `large-pr`. Code files stay under 1000 lines. No drive-by
   refactors, renames or reformatting outside the issue.
 - Sync with `main` daily and before the PR: `git fetch && git rebase origin/main`

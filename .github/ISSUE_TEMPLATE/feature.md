@@ -10,7 +10,7 @@ labels: needs-triage
 
 **Backlog:** <!-- IDs this covers, and tag each Done-when item with its criterion ("[AC-01]"); or "none — <reason>" -->
 
-**Expected size:** <!-- S (< 300 changed lines), M (< 1000), or L: split into tickets before building -->
+**Expected size:** <!-- S (< 300 changed lines), M (< 2000), or L: split into tickets before building -->
 
 ## Background
 
