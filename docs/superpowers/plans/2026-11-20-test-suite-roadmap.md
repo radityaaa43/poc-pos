@@ -15,7 +15,7 @@ PR starts (so it is based on the code as it is then). Each PR stays under 1,000 
 | 5 | E2E foundation: Playwright, `support/`, `E2eSeeder`, `e2e:arrange`, `E2eServiceProvider`, `app-e2e` service, sharded `E2E` jobs, setup wizard and auth features, `governance.json` e2e fields | — | to write |
 | 6 | E2E role matrix with `role-matrix.expected.json` reviewed by the maintainer | 5 | to write |
 | 7a–j | E2E per feature group (spec §7.2): POS (2), dine-in, inventory, purchasing, pricing and CRM, platform administration and settings, reports and documents, public flows, offline and printer | 5 | to write |
-| 8 | Required checks in the ruleset (maintainer's go-ahead) and the Standards rule "a feature change adds or updates its e2e step and `COVERAGE.md`" | 1, 3, 5 | to write |
+| 8 | Required checks in the ruleset (maintainer's go-ahead) and the Standards rule "a feature change adds or updates its e2e step and `COVERAGE.md`" | 1, 3, 5 | #61 |
 
 Bugs found along the way follow spec §7.9: a `fix/` issue, the exposing test tagged or allow-listed
 with the issue link, and a separate fix PR.

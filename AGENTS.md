@@ -70,6 +70,9 @@ issue, stdlib and native features before new libraries.
   `chore`, `docs`, `ci`, `test` PR once CI is green; every other PR needs another reviewer's approval.
   Never push to `main` or force-push a reviewed branch. After any
   post-review change, wait for green CI again.
+- **E2E**: a `feat` PR adds or updates its feature's e2e folder (`npm run e2e:new -- <NN-feature>`;
+  one folder per feature, one file per step; see `tests/e2e/README.md`) or says
+  `E2E: none — <reason>`. CI's *PR checklist* enforces it.
 - **Standards files** (`AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `REVIEW.md`,
   `CONTRIBUTING.md`, `.agents/skills/`, `.claude/`, `.github/`) need a Standards owner's
   (`@radityaaa43`) approval on the latest commit; CI's *Standards approval* enforces it.

@@ -43,7 +43,8 @@ Adopt the code governance standard (tier `full`, version 1.0.0):
   check until split (`CODING_STANDARDS.md`).
 - **Hosting:** public repository on GitHub Free. A ruleset on `main` (PR required, no force-push,
   checks: PR checklist, Standards approval, PR size, File length, CI (Build), and Frontend since
-  2026-11-23) is active since 2026-11-20. Path-filtered checks are not required, so they cannot block unrelated PRs.
+  2026-11-23; since 2026-11-25 Backend and E2E replace CI (Build), whose workflow was retired) is
+  active since 2026-11-20. Path-filtered checks are not required, so they cannot block unrelated PRs.
 - **No automatic deploy:** the upstream `deploy.yml` deployed to a VPS on every push to `main`. The
   deploy job is removed; CI only builds and tests. Deploying is a manual step, decided by the
   maintainer.
