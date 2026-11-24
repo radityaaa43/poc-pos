@@ -7,6 +7,8 @@ import { IconTrash } from "@tabler/icons-react";
 export default function UnitRow({ row, index, options, errors, onChange, onRemove }) {
     const fieldError = (field) => errors[`units.${index}.${field}`];
     const selectId = `unit-${index}-unit_id`;
+    const errorId = `${selectId}-error`;
+    const code = options.find((unit) => unit.id === Number(row.unit_id))?.code ?? index + 1;
 
     return (
         <div className="grid grid-cols-2 gap-3 py-4 first:pt-0 last:pb-0 xl:grid-cols-4">
@@ -22,7 +24,9 @@ export default function UnitRow({ row, index, options, errors, onChange, onRemov
                         id={selectId}
                         value={row.unit_id}
                         onChange={(e) => onChange("unit_id", Number(e.target.value) || "")}
-                        className={`h-11 w-full min-w-0 rounded-xl border bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:bg-slate-800 dark:text-slate-200 ${
+                        aria-invalid={Boolean(fieldError("unit_id"))}
+                        aria-describedby={fieldError("unit_id") ? errorId : undefined}
+                        className={`h-11 w-full min-w-0 rounded-xl border bg-slate-50 px-4 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:bg-slate-800 dark:text-slate-200 ${
                             fieldError("unit_id")
                                 ? "border-danger-500"
                                 : "border-slate-200 dark:border-slate-700"
@@ -38,15 +42,14 @@ export default function UnitRow({ row, index, options, errors, onChange, onRemov
                     <button
                         type="button"
                         onClick={onRemove}
-                        aria-label="Hapus satuan"
-                        title="Hapus satuan"
-                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-danger-600 transition-colors hover:bg-danger-50 focus:outline-none focus:ring-2 focus:ring-danger-500/20 dark:hover:bg-danger-950/30"
+                        aria-label={`Hapus satuan ${code}`}
+                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-danger-600 transition-colors hover:bg-danger-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-danger-500 dark:hover:bg-danger-950/30"
                     >
                         <IconTrash size={18} />
                     </button>
                 </div>
                 {fieldError("unit_id") && (
-                    <small className="text-xs text-danger-500 dark:text-danger-400">
+                    <small id={errorId} className="text-xs text-danger-500 dark:text-danger-400">
                         {fieldError("unit_id")}
                     </small>
                 )}
