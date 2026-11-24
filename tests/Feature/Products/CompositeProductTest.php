@@ -139,6 +139,49 @@ class CompositeProductTest extends TestCase
             ->assertSessionHasErrors('components');
     }
 
+    // The product form always sends `components: []`, also for a plain product (#35).
+    public function test_store_accepts_plain_product_with_empty_components(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->validPayload([
+                'image' => null,
+                'title' => 'Produk Biasa',
+                'sell_price' => 15000,
+                'is_composite' => false,
+                'components' => [],
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertFalse(Product::where('title', 'Produk Biasa')->firstOrFail()->is_composite);
+    }
+
+    public function test_update_accepts_plain_product_with_empty_components(): void
+    {
+        $product = $this->createComponent('Produk Biasa');
+
+        $this->actingAs($this->admin)
+            ->put(route('products.update', $product), $this->validPayload([
+                'image' => null,
+                'barcode' => $product->barcode,
+                'sku' => $product->sku,
+                'title' => 'Produk Biasa Diubah',
+                'sell_price' => 15000,
+                'is_composite' => false,
+                'components' => [],
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('Produk Biasa Diubah', $product->fresh()->title);
+    }
+
+    public function test_store_rejects_composite_with_empty_components(): void
+    {
+        $this->actingAs($this->admin)
+            ->from(route('products.create'))
+            ->post(route('products.store'), $this->validPayload(['components' => []]))
+            ->assertSessionHasErrors('components');
+    }
+
     public function test_store_rejects_composite_component(): void
     {
         $composite = $this->createComposite([
