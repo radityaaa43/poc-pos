@@ -57,7 +57,12 @@ export default function RawMaterialForm({
     warehouses,
     isEdit = false,
 }) {
-    const { data, setData, processing } = form;
+    const { data, processing, clearErrors } = form;
+    // Editing a field drops its (now stale) server error.
+    const setData = (field, value) => {
+        form.setData(field, value);
+        clearErrors(field);
+    };
     const stockUnit = units.find((u) => u.id === Number(data.stock_unit_id));
     const purchaseUnits = data.units;
     const taken = (index) => purchaseUnits.filter((_, i) => i !== index).map((r) => r.unit_id);
@@ -70,7 +75,7 @@ export default function RawMaterialForm({
         (u) => u.id === Number(data.stock_unit_id) || purchaseUnits.some((r) => Number(r.unit_id) === u.id)
     );
 
-    const setRow = (index, field, value) =>
+    const setRow = (index, field, value) => {
         setData(
             "units",
             purchaseUnits.map((row, i) => {
@@ -79,6 +84,8 @@ export default function RawMaterialForm({
                 return field === "is_purchase_default" && value ? { ...row, is_purchase_default: false } : row;
             })
         );
+        clearErrors(`units.${index}.${field}`);
+    };
 
     const addRow = () => {
         const free = units.find(
@@ -165,7 +172,8 @@ export default function RawMaterialForm({
                 hint="Satuan saat membeli dari supplier, misalnya kg atau karung. Isi = berapa satuan stok dalam satu satuan beli."
             >
                 {errors.units && <p className="mb-3 text-xs text-danger-500 dark:text-danger-400">{errors.units}</p>}
-                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                <fieldset className="min-w-0 divide-y divide-slate-100 dark:divide-slate-800">
+                    <legend className="sr-only">Satuan beli default</legend>
                     {purchaseUnits.map((row, index) => {
                         const err = (field) => errors[`units.${index}.${field}`];
                         return (
@@ -223,7 +231,7 @@ export default function RawMaterialForm({
                                             name="default_purchase_unit"
                                             checked={Boolean(row.is_purchase_default)}
                                             onChange={() => setRow(index, "is_purchase_default", true)}
-                                            className="border-slate-300 text-primary-600 focus:ring-primary-500"
+                                            className="border-slate-300 text-primary-600 focus:ring-primary-500 dark:border-slate-600 dark:bg-slate-800 dark:checked:bg-primary-600"
                                         />
                                         <span className="truncate">Beli default</span>
                                     </label>
@@ -239,7 +247,7 @@ export default function RawMaterialForm({
                             </div>
                         );
                     })}
-                </div>
+                </fieldset>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                     <button
                         type="button"

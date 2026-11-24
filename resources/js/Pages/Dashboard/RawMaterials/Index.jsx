@@ -97,7 +97,7 @@ export default function Index({ materials, warehouses }) {
                                     </Table.Th>
                                 ))}
                                 {hasActions && (
-                                    <Table.Th>
+                                    <Table.Th className="relative">
                                         <span className="sr-only">Aksi</span>
                                     </Table.Th>
                                 )}

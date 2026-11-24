@@ -13,6 +13,7 @@ use App\Services\AuditLogService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
 use Closure;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -90,16 +91,21 @@ class RawMaterialController extends Controller
         $data = $request->validate([
             ...$this->rules(),
             'opening_warehouse_id' => 'nullable|required_with:opening_qty|exists:warehouses,id',
-            'opening_qty' => 'nullable|required_with:opening_warehouse_id|numeric|gt:0',
+            'opening_qty' => 'nullable|required_with:opening_warehouse_id|numeric|gt:0|max:1000000000',
             'opening_unit_id' => ['nullable', 'required_with:opening_qty', Rule::in([$request->input('stock_unit_id'), ...collect($request->input('units'))->pluck('unit_id')])],
         ]);
 
         $warehouse = isset($data['opening_warehouse_id']) ? Warehouse::findOrFail($data['opening_warehouse_id']) : null;
         abort_if($warehouse && ! $this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 403);
 
-        $product = DB::transaction(function () use ($request, $data, $warehouse) {
+        $rows = $this->unitRows($data);
+        $openingStock = $warehouse ? (int) round($data['opening_qty'] * $rows[$data['opening_unit_id']]['conversion_factor']) : 0;
+        if ($warehouse && $openingStock < 1) {
+            throw ValidationException::withMessages(['opening_qty' => 'Jumlah stok awal terlalu kecil: hasilnya kurang dari 1 satuan stok.']);
+        }
+
+        $product = DB::transaction(function () use ($request, $data, $warehouse, $rows, $openingStock) {
             $code = $this->newCode();
-            $rows = $this->unitRows($data);
 
             $product = Product::create([
                 'barcode' => $code,
@@ -118,7 +124,7 @@ class RawMaterialController extends Controller
             $product->units()->sync($rows);
 
             if ($warehouse) {
-                $product->stock = (int) round($data['opening_qty'] * $rows[$data['opening_unit_id']]['conversion_factor']);
+                $product->stock = $openingStock;
                 $product->save();
                 ProductWarehouse::updateOrCreate(
                     ['product_id' => $product->id, 'warehouse_id' => $warehouse->id],
@@ -207,16 +213,27 @@ class RawMaterialController extends Controller
     {
         abort_unless($product->is_raw_material, 404);
 
-        if ($product->compositeOf()->exists()) {
-            return back()->withErrors(['delete' => 'Bahan baku tidak bisa dihapus karena dipakai sebagai komponen resep.']);
+        try {
+            $blocked = DB::transaction(function () use ($product) {
+                if ($product->compositeOf()->exists()) {
+                    return 'Bahan baku tidak bisa dihapus karena dipakai sebagai komponen resep.';
+                }
+
+                // The opening stock is the only history a material can lose; its mutation goes with the product (cascade).
+                if (StockMutation::where('product_id', $product->id)->where('reference_type', '!=', 'product_create')->exists()) {
+                    return 'Bahan baku tidak bisa dihapus karena sudah punya riwayat stok (pembelian, penjualan, transfer, atau opname).';
+                }
+
+                $product->delete();
+            });
+        } catch (QueryException) {
+            // A draft PO, transfer or return line, or a batch, has no stock mutation but still restricts the delete.
+            $blocked = 'Bahan baku tidak bisa dihapus karena masih dipakai di dokumen lain (PO, transfer, retur, atau batch).';
         }
 
-        // The opening stock is the only history a material can lose; its mutation goes with the product (cascade).
-        if (StockMutation::where('product_id', $product->id)->where('reference_type', '!=', 'product_create')->exists()) {
-            return back()->withErrors(['delete' => 'Bahan baku tidak bisa dihapus karena sudah punya riwayat stok (pembelian, penjualan, transfer, atau opname).']);
+        if ($blocked) {
+            return back()->withErrors(['delete' => $blocked]);
         }
-
-        $product->delete();
 
         $this->auditLogService->log(
             event: 'product.deleted',

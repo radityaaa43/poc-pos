@@ -1,13 +1,11 @@
 import React from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import { Head, Link, useForm, usePage } from "@inertiajs/react";
+import { Head, Link, useForm } from "@inertiajs/react";
 import toast from "react-hot-toast";
 import { IconArrowLeft } from "@tabler/icons-react";
 import RawMaterialForm from "./Partials/RawMaterialForm";
 
 export default function Create({ categories, defaultCategoryId, units, warehouses }) {
-    const { errors } = usePage().props;
-
     const form = useForm({
         title: "",
         category_id: defaultCategoryId ?? "",
@@ -46,7 +44,7 @@ export default function Create({ categories, defaultCategoryId, units, warehouse
             </div>
             <RawMaterialForm
                 form={form}
-                errors={errors}
+                errors={form.errors}
                 onSubmit={submit}
                 categories={categories}
                 defaultCategoryId={defaultCategoryId}
