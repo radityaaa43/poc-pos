@@ -356,9 +356,9 @@ export default function Edit({ categories, product, products = [], units = [] })
                                     {data.units.map((row, index) => (
                                         <div
                                             key={index}
-                                            className="flex items-end gap-3"
+                                            className="flex flex-wrap items-end gap-3"
                                         >
-                                            <div className="flex-1">
+                                            <div className="flex-1 min-w-[8rem]">
                                                 <InputSelect
                                                     data={availableUnits(index)}
                                                     selected={
@@ -405,6 +405,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                             `units.${index}.conversion_factor`
                                                         ]
                                                     }
+                                                    label="Konversi"
                                                     placeholder="Konversi"
                                                     disabled={row.is_base}
                                                 />
@@ -426,6 +427,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                             `units.${index}.buy_price`
                                                         ]
                                                     }
+                                                    label="Harga Beli"
                                                     placeholder="Harga Beli"
                                                 />
                                             </div>
@@ -446,6 +448,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                             `units.${index}.sell_price`
                                                         ]
                                                     }
+                                                    label="Harga Jual"
                                                     placeholder="Harga jual"
                                                 />
                                             </div>
