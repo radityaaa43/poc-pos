@@ -91,7 +91,7 @@ class ProductController extends Controller
             $warehouse = Warehouse::findOrFail($warehouseId);
             abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 403);
             $product->warehouses()->syncWithoutDetaching([
-                $warehouseId => ['stock' => $validated['stock'] ?? 0],
+                $warehouseId => ['stock' => $validated['stock'] ?? 0, 'avg_cost' => $product->buy_price],
             ]);
         } else {
             $default = Warehouse::active()->orderBy('code')->first();
@@ -100,7 +100,7 @@ class ProductController extends Controller
             }
             if ($default) {
                 $product->warehouses()->syncWithoutDetaching([
-                    $default->id => ['stock' => $validated['stock'] ?? 0],
+                    $default->id => ['stock' => $validated['stock'] ?? 0, 'avg_cost' => $product->buy_price],
                 ]);
             }
         }

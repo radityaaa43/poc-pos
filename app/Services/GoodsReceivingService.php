@@ -6,7 +6,6 @@ use App\Models\GoodsReceiving;
 use App\Models\GoodsReceivingItem;
 use App\Models\Payable;
 use App\Models\ProductBatch;
-use App\Models\ProductWarehouse;
 use App\Models\PurchaseOrder;
 use App\Models\SupplierReturnItem;
 use App\Models\User;
@@ -21,7 +20,8 @@ class GoodsReceivingService
     public function __construct(
         private readonly StockMutationService $stockMutationService,
         private readonly AuditLogService $auditLogService,
-        private readonly OutletAccessService $outletAccessService
+        private readonly OutletAccessService $outletAccessService,
+        private readonly InventoryCostService $inventoryCostService
     ) {}
 
     public function generateDocumentNumber(): string
@@ -105,13 +105,16 @@ class GoodsReceivingService
                     $stockBefore = (int) $product->stock;
                     // Increment legacy stock
                     $product->increment('stock', $stockQty);
-                    // Increment warehouse pivot stock
+                    // Increment warehouse pivot stock and merge the price into that warehouse's average cost
                     if ($order->warehouse_id) {
-                        ProductWarehouse::firstOrCreate(
-                            ['product_id' => $product->id, 'warehouse_id' => $order->warehouse_id],
-                            ['stock' => 0]
-                        )->increment('stock', $stockQty);
+                        $this->inventoryCostService->receive($product, $order->warehouse_id, $stockQty, $poItem->unit_price / $poItem->conversion_factor);
                     }
+
+                    // The latest price becomes the purchase unit's price and the reference price per stock unit
+                    if ($poItem->unit_id) {
+                        $product->units()->updateExistingPivot($poItem->unit_id, ['buy_price' => (int) round($poItem->unit_price)]);
+                    }
+                    $product->update(['buy_price' => (int) round($poItem->unit_price / $poItem->conversion_factor)]);
 
                     // Create batch record
                     if (! empty($item['batch_number']) && $order->warehouse_id) {

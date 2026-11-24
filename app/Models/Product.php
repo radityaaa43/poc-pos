@@ -53,7 +53,7 @@ class Product extends Model
     public function warehouses(): BelongsToMany
     {
         return $this->belongsToMany(Warehouse::class)
-            ->withPivot('stock')
+            ->withPivot(['stock', 'avg_cost'])
             ->using(ProductWarehouse::class)
             ->withTimestamps();
     }
