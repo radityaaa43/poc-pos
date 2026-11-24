@@ -1,6 +1,6 @@
 # REQ-002: Pembelian bahan baku dengan satuan beli dan HPP per gudang
 
-- **Status:** draft
+- **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:purchasing
 - **Updated:** 2026-11-24
