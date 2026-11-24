@@ -4,6 +4,7 @@ import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
 import UnitRow from "./Partials/UnitRow";
+import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
 import InputSelect from "@/Components/Dashboard/InputSelect";
 import toast from "react-hot-toast";
@@ -75,20 +76,7 @@ export default function Create({ categories, products, units = [] }) {
     };
 
     const updateUnitRow = (index, field, value) => {
-        const rows = data.units.map((r, i) =>
-            i === index ? { ...r, [field]: value } : r
-        );
-        if (field === "is_base" && value) {
-            rows.forEach((r, i) => {
-                if (i !== index) r.is_base = false;
-            });
-        }
-        if (field === "is_purchase_default" && value) {
-            rows.forEach((r, i) => {
-                if (i !== index) r.is_purchase_default = false;
-            });
-        }
-        setData("units", rows);
+        setData("units", updateUnitRows(data.units, index, field, value));
     };
 
     const removeUnitRow = (index) => {
