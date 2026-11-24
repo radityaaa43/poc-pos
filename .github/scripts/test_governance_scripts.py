@@ -59,7 +59,7 @@ class Config(unittest.TestCase):
     def test_merge_keeps_defaults(self):
         merged = gc._merge(gc.DEFAULTS, {"pr_size": {"warn": 500}})
         self.assertEqual(merged["pr_size"]["warn"], 500)
-        self.assertEqual(merged["pr_size"]["fail"], 2000)
+        self.assertEqual(merged["pr_size"]["fail"], 3000)
 
     def test_attribution(self):
         self.assertTrue(gc.has_attribution("x\n\nCo-Authored-By: Claude <noreply@anthropic.com>"))
@@ -130,9 +130,9 @@ class PrSize(unittest.TestCase):
     def test_verdict(self):
         c = cfg()
         self.assertEqual(pr_size.verdict(100, [], c)[0], "ok")
-        self.assertEqual(pr_size.verdict(1500, [], c)[0], "warn")
-        self.assertEqual(pr_size.verdict(2500, [], c)[0], "fail")
-        self.assertEqual(pr_size.verdict(2500, ["large-pr"], c)[0], "warn")
+        self.assertEqual(pr_size.verdict(2500, [], c)[0], "warn")
+        self.assertEqual(pr_size.verdict(3500, [], c)[0], "fail")
+        self.assertEqual(pr_size.verdict(3500, ["large-pr"], c)[0], "warn")
 
 
 class Standards(unittest.TestCase):

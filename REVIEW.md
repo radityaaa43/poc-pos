@@ -18,7 +18,7 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 
 Also check:
 
-- **Size:** over 1000 counted lines, ask for a split instead of reviewing it, unless the
+- **Size:** over 3000 counted lines, ask for a split instead of reviewing it, unless the
   Owner agreed to review it whole and added `large-pr`.
 - **New dependencies** (CI's *Dependency check* lists them): each is real, maintained, the intended
   package (not a look-alike name) and needed by the issue.
