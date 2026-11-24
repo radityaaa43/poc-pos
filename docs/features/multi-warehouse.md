@@ -50,9 +50,9 @@ Memisahkan stok produk per lokasi fisik (gudang pusat, cabang toko, gudang penya
 ### Stock Transfer Antar Warehouse
 - Transfer antar warehouse (source → destination)
 - Status: draft → in_transit → completed / cancelled
-- Send: kurangi stok source + catat stock mutation
-- Receive: tambah stok destination + catat stock mutation
-- Cancel: jika in_transit, stok dikembalikan ke source
+- Send: kurangi stok source + catat stock mutation; HPP rata-rata source disimpan di `stock_transfer_items.unit_cost` (tanpa markup)
+- Receive: tambah stok destination (HPP rata-rata digabung dengan `unit_cost`) + catat stock mutation
+- Cancel: jika in_transit, stok dikembalikan ke source dengan HPP yang sama
 - Validasi stok cukup sebelum send
 
 ## Halaman dan Route

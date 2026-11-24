@@ -17,7 +17,8 @@ class StockTransferService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly OutletAccessService $outletAccessService,
-        private readonly StockMutationService $stockMutationService
+        private readonly StockMutationService $stockMutationService,
+        private readonly InventoryCostService $inventoryCostService
     ) {}
 
     public function generateDocumentNumber(): string
@@ -115,6 +116,9 @@ class StockTransferService
                     ]);
                 }
 
+                // Transfers carry the source's average cost, no markup (REQ-002 §6.5).
+                $item->update(['unit_cost' => $this->inventoryCostService->unitCost($item->product, $transfer->source_warehouse_id)]);
+
                 $stockAfter = $available - $item->qty;
                 if ($pw) {
                     $pw->decrement('stock', $item->qty);
@@ -172,11 +176,7 @@ class StockTransferService
                 $product = $item->product;
                 $stockBefore = (int) $product->stock;
 
-                // ponytail: firstOrCreate (NOT updateOrCreate with stock=0, which would reset an existing row)
-                ProductWarehouse::firstOrCreate(
-                    ['product_id' => $item->product_id, 'warehouse_id' => $transfer->destination_warehouse_id],
-                    ['stock' => 0]
-                )->increment('stock', $item->qty);
+                $this->inventoryCostService->receive($product, $transfer->destination_warehouse_id, $item->qty, $this->carriedCost($item, $transfer));
 
                 $product->increment('stock', $item->qty);
 
@@ -234,11 +234,7 @@ class StockTransferService
                 foreach ($transfer->items as $item) {
                     $product = $item->product;
 
-                    // ponytail: firstOrCreate (NOT updateOrCreate with stock=0, which would reset an existing row)
-                    ProductWarehouse::firstOrCreate(
-                        ['product_id' => $item->product_id, 'warehouse_id' => $transfer->source_warehouse_id],
-                        ['stock' => 0]
-                    )->increment('stock', $item->qty);
+                    $this->inventoryCostService->receive($product, $transfer->source_warehouse_id, $item->qty, $this->carriedCost($item, $transfer));
 
                     $product->increment('stock', $item->qty);
                 }
@@ -256,6 +252,12 @@ class StockTransferService
                 meta: ['stock_transfer_id' => $transfer->id],
             );
         });
+    }
+
+    // Transfers sent before unit_cost existed have none: use the source's current cost.
+    private function carriedCost(StockTransferItem $item, StockTransfer $transfer): float
+    {
+        return $item->unit_cost ?? $this->inventoryCostService->unitCost($item->product, $transfer->source_warehouse_id);
     }
 
     private function ensureWarehouseAccess(int $userId, int $warehouseId): void
