@@ -63,6 +63,20 @@ This creates `features/08-purchase-orders/01-create-order.spec.js` from `support
   `auth.failed` are English.
 - `npm run test:e2e:scaffold` checks the scaffolding command itself.
 
+## Tag tests with the acceptance criteria they prove
+
+A PR whose `Backlog:` line names criteria (`Backlog: REQ-002 AC-04, AC-05`) needs, for each one, a
+test under `features/` tagged `@<ID>-AC-<n>` (Playwright's built-in tags), or a per-criterion
+exception on the `E2E:` line. The test may come from an earlier PR; `test.fixme`/`test.skip` tests do
+not count. CI's *PR checklist* checks it; run one criterion with `npm run test:e2e -- --grep @REQ-002-AC-05`.
+
+```js
+test('receive 2 kg of a 5 kg order', { tag: ['@REQ-002-AC-05'] }, async ({ asRole }) => { ... });
+```
+
+A criterion no browser can prove (a data migration, an API-only rule, a scheduled job) is excused
+with a reason, several separated by `;`: `E2E: AC-07 none — data migration, tests/Feature/...`.
+
 ## Troubleshooting
 
 - **Port 8010 busy**: another `app-e2e`, or something else on 8010. Ports 8000–8004 belong to the dev app and review apps.

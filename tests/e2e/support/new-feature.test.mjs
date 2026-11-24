@@ -24,6 +24,7 @@ test('creates the step file from the template and appends a coverage row', () =>
         assert.equal(file, join(dir, 'features', '08-purchase-orders', '01-create-order.spec.js'));
         assert.match(readFileSync(file, 'utf8'), /test\.describe\('08-purchase-orders'/);
         assert.match(readFileSync(file, 'utf8'), /test\.fixme\('create-order:/);
+        assert.match(readFileSync(file, 'utf8'), /\{ tag: \[\] \}/);
         assert.match(readFileSync(join(dir, 'COVERAGE.md'), 'utf8'), /\| `08-purchase-orders` \| `01-create-order`/);
     } finally {
         rmSync(dir, { recursive: true });

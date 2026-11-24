@@ -261,6 +261,7 @@
     "enabled": true,
     "types": ["feat"],
     "paths": ["tests/e2e/features/"],
+    "ac_tags": true,
     "rule_start": "2026-11-25"
   },
   "branches": {

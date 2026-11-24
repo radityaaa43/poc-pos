@@ -23,5 +23,7 @@ agreed, issues may be filed) → `done` (every criterion shipped; link the PRs) 
 1. Item is `ready` → `/to-spec` files an issue with `Backlog: REQ-<n>` and tags each Done-when
    item with its criterion (`- [ ] [AC-01] ...`).
 2. Large items are split with `/to-tickets` into thin slices; each ticket names its criteria.
-3. Each PR says which criteria it covers: `Backlog: REQ-<n> AC-01, AC-02`.
+3. Each PR says which criteria it covers: `Backlog: REQ-<n> AC-01, AC-02`. Each criterion needs an
+   e2e test tagged `@REQ-<n>-AC-01` or an `E2E: AC-01 none — <reason>` exception
+   (`tests/e2e/README.md`).
 4. Work not from the backlog says `Backlog: none — <reason>`.

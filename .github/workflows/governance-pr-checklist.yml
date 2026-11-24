@@ -1,7 +1,7 @@
 name: PR checklist
 
 # Separate from the build so editing the PR body re-runs only this check. The rules (Closes,
-# Manual test, Docs, AI used, Backlog, E2E for feat PRs, no AI attribution) come from
+# Manual test, Docs, AI used, Backlog, E2E for feat PRs, e2e tags per acceptance criterion, no AI attribution) come from
 # .github/governance.json.
 on:
   pull_request:
@@ -22,7 +22,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          sparse-checkout: .github
+          # tests/e2e/features: the acceptance-criterion tags the e2e rule looks for.
+          sparse-checkout: |
+            .github
+            tests/e2e/features
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

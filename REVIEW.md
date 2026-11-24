@@ -10,7 +10,8 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 2. **The backlog**, when the PR's `Backlog:` line names IDs: re-read those items in
    the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria and name the date you read them. A criterion listed but not met is 🔴. A
    criterion that disagrees with the issue, the code or the design is not fixed in review: ask the
-   requester to clarify.
+   requester to clarify. Each criterion's `@REQ-<n>-AC-<n>` e2e test must really prove it (CI only
+   sees the tag); a per-criterion `E2E: ... none` exception needs a reason that holds.
 3. [`CODING_STANDARDS.md`](CODING_STANDARDS.md) and the skills it links.
 4. [`AGENTS.md`](AGENTS.md): tests for changed behavior, docs in the same PR, Never rules.
 5. [`GLOSSARY.md`](GLOSSARY.md) for names. Decisions already in `docs/adr/` or settled in the issue

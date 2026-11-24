@@ -169,7 +169,7 @@ on every turn.
 | Tests → Backend (`tests.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), PHPUnit on MySQL 8.4 with pcov line coverage, summary and `backend-coverage` artifact |
 | Tests → E2E (shard i/N) (`tests.yml`) | no (informational; `E2E` is the gate) | Playwright features against the real app on MySQL, one job per shard (`tests/e2e/README.md`) |
 | Tests → E2E (`tests.yml`) | yes | Merges the shard reports into the `playwright-report` artifact and fails if any shard failed |
-| PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution; a `feat` PR changes a file under `tests/e2e/features/` or says `E2E: none — <reason>` (see below) |
+| PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution; a `feat` PR changes a file under `tests/e2e/features/` or says `E2E: none — <reason>`; each Backlog criterion has a tagged e2e test or a per-criterion exception (see below) |
 | Issue checklist | comments | Required sections and lines on new issues |
 | PR size / File length | above the fail limit | Counted changed lines; code files growing past the limit |
 | Standards approval | yes | A Standards owner approved the latest commit when Standards files changed |
@@ -182,7 +182,14 @@ least one file under `tests/e2e/features/` (scaffold a folder with `npm run e2e:
 one folder per feature, one file per step, see `tests/e2e/README.md`), or carry an `E2E: none — <reason>`
 line in the checklist. The *PR checklist* check enforces it from the PR's changed files; other PR types
 may leave the `E2E:` line out, and PRs opened before the rule's start date (`e2e_rule.rule_start`) are
-not failed. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001).
+not failed.
+
+**Each acceptance criterion has its e2e test.** Any PR (whatever its type) whose `Backlog:` line names
+criteria needs, per criterion, a test under `tests/e2e/features/` tagged `@<ID>-AC-<n>`
+(`{ tag: '@REQ-002-AC-05' }`; it may come from an earlier PR, `fixme`/`skip` tests do not count) or an
+exception with a reason on the `E2E:` line (`E2E: AC-07 none — data migration`). The *PR checklist*
+reads the tags from the PR's checkout (`e2e_rule.ac_tags`); the `E2E` check runs them; the reviewer
+judges whether the test really proves the criterion. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001).
 
 All limits and lists live in `.github/governance.json` (a Standards file).
 

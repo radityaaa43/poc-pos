@@ -30,7 +30,9 @@ Adopt the code governance standard (tier `full`, version 1.0.0):
   dropped, and releases are tags on `main`. No exploratory branch.
 - **Requirements:** the `backlog/` folder in this repo, one file per requirement
   (`REQ-<n>-<slug>.md`), with required `AC-<n>` acceptance criteria. Backlog files may be in
-  Indonesian; everything else is in English.
+  Indonesian; everything else is in English. Since 2026-11-25 every criterion a PR claims has an
+  e2e test tagged `@REQ-<n>-AC-<n>` or a per-criterion exception with a reason, checked by the
+  PR checklist (#75).
 - **Workflow skills:** the mattpocock/skills workflow is the required path. The previous
   `AGENTS.md` rule to load `superpowers:brainstorming`, `superpowers:writing-plans` and
   `ponytail-review` is kept as optional helpers inside those steps; `ponytail` stays the default
