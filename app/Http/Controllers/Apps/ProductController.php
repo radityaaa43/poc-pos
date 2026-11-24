@@ -11,6 +11,7 @@ use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
@@ -351,10 +352,15 @@ class ProductController extends Controller
     private function unitRules(): array
     {
         return [
-            'units' => 'nullable|array',
+            'units' => ['nullable', 'array', function (string $attribute, mixed $value, Closure $fail) {
+                if (collect($value)->where('is_purchase_default', true)->count() > 1) {
+                    $fail('Hanya satu satuan beli default yang diperbolehkan.');
+                }
+            }],
             'units.*.unit_id' => 'required|integer|distinct|exists:units,id',
             'units.*.is_base' => 'required|boolean',
             'units.*.conversion_factor' => 'required|numeric|min:0.0001',
+            'units.*.is_purchase_default' => 'nullable|boolean',
             'units.*.buy_price' => 'nullable|integer|min:0',
             'units.*.sell_price' => 'nullable|integer|min:0',
             'units.*.barcode' => 'nullable|string|max:255',
@@ -367,6 +373,7 @@ class ProductController extends Controller
             ->keyBy('unit_id')
             ->map(fn (array $u) => [
                 'is_base' => $u['is_base'],
+                'is_purchase_default' => $u['is_purchase_default'] ?? false,
                 'conversion_factor' => $u['conversion_factor'],
                 'buy_price' => $u['buy_price'] ?? $product->buy_price,
                 'sell_price' => $u['sell_price'] ?? $product->sell_price,

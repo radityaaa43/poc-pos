@@ -104,7 +104,7 @@ entered per purchase and the system computes HPP). HPP is frozen on every sale l
 |---|---|---|
 | `units` | Insert `GRAM` / Gram / `g` and `ML` / Mililiter / `ml` when missing | Idempotent by `code` |
 | `product_units` | `is_purchase_default` boolean, default false | At most one per product, enforced in the app |
-| `product_units` (data) | Non-base rows whose `buy_price` equals the product's base `buy_price` become `buy_price × conversion_factor` | The form never exposed this field, so those rows hold a base price |
+| `product_units` (data) | Non-base rows with `conversion_factor > 1` and `buy_price` at or below the product's base `buy_price` become `round(base buy_price × conversion_factor)` | The form never exposed this field, so those rows hold a base price (equal or older and lower). Rows already priced per pack (e.g. the demo seeder's) stay unchanged |
 | `products` | `purchased_by` string nullable: `central` / `outlet` | Required for raw materials; null keeps today's reorder behaviour |
 | `product_warehouse` | `avg_cost` decimal(15,4) nullable | Rupiah per **stock unit** in that warehouse. Backfill from `products.buy_price` |
 | `purchase_order_items` | `unit_id` nullable FK, `conversion_factor` decimal(15,4) default 1 | `qty_ordered`, `qty_received` and `unit_price` are in this unit |

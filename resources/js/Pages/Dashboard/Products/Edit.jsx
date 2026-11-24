@@ -44,7 +44,9 @@ export default function Edit({ categories, product, products = [], units = [] })
             unit_id: u.id,
             is_base: !!u.pivot?.is_base,
             conversion_factor: u.pivot?.conversion_factor ?? 1,
+            buy_price: u.pivot?.buy_price ?? "",
             sell_price: u.pivot?.sell_price ?? "",
+            is_purchase_default: !!u.pivot?.is_purchase_default,
             barcode: u.pivot?.barcode ?? "",
         })),
         _method: "PUT",
@@ -84,7 +86,9 @@ export default function Edit({ categories, product, products = [], units = [] })
                 unit_id: firstUnused.id,
                 is_base: data.units.length === 0,
                 conversion_factor: data.units.length === 0 ? 1 : "",
+                buy_price: "",
                 sell_price: "",
+                is_purchase_default: false,
                 barcode: "",
             },
         ]);
@@ -97,6 +101,11 @@ export default function Edit({ categories, product, products = [], units = [] })
         if (field === "is_base" && value) {
             rows.forEach((r, i) => {
                 if (i !== index) r.is_base = false;
+            });
+        }
+        if (field === "is_purchase_default" && value) {
+            rows.forEach((r, i) => {
+                if (i !== index) r.is_purchase_default = false;
             });
         }
         setData("units", rows);
@@ -404,6 +413,26 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                 <Input
                                                     type="number"
                                                     min="0"
+                                                    value={row.buy_price}
+                                                    onChange={(e) =>
+                                                        updateUnitRow(
+                                                            index,
+                                                            "buy_price",
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    errors={
+                                                        errors[
+                                                            `units.${index}.buy_price`
+                                                        ]
+                                                    }
+                                                    placeholder="Harga Beli"
+                                                />
+                                            </div>
+                                            <div className="w-40">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
                                                     value={row.sell_price}
                                                     onChange={(e) =>
                                                         updateUnitRow(
@@ -453,6 +482,23 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                                 />
                                                 Dasar
+                                            </label>
+                                            <label className="flex items-center gap-1 pb-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={
+                                                        row.is_purchase_default
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateUnitRow(
+                                                            index,
+                                                            "is_purchase_default",
+                                                            e.target.checked
+                                                        )
+                                                    }
+                                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                Satuan beli default
                                             </label>
                                             <button
                                                 type="button"

@@ -26,7 +26,7 @@ Satu produk dalam multiple satuan — pcs, box, karton, kg — dengan konversi s
 ## Database
 
 - `units` table — master satuan (code, name, symbol)
-- `product_units` pivot — (product_id, unit_id, is_base, conversion_factor, buy_price, sell_price, barcode)
+- `product_units` pivot — (product_id, unit_id, is_base, is_purchase_default, conversion_factor, buy_price, sell_price, barcode)
 - `carts` — unit_id + conversion_factor
 - `transaction_details` — unit_id + conversion_factor
 

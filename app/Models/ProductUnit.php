@@ -14,6 +14,7 @@ class ProductUnit extends Pivot
     {
         return [
             'is_base' => 'boolean',
+            'is_purchase_default' => 'boolean',
             'conversion_factor' => 'decimal:4',
             'buy_price' => 'integer',
             'sell_price' => 'integer',

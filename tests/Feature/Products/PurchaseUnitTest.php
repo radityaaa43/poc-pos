@@ -1,0 +1,220 @@
+<?php
+
+namespace Tests\Feature\Products;
+
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\Unit;
+use App\Models\User;
+use App\Models\Warehouse;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
+use Database\Seeders\UserSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
+use Tests\TestCase;
+
+class PurchaseUnitTest extends TestCase
+{
+    use RefreshDatabase;
+
+    protected User $admin;
+
+    protected Category $category;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed([PermissionSeeder::class, RoleSeeder::class, UserSeeder::class]);
+        $this->admin = User::where('email', 'arya@gmail.com')->first();
+        $this->admin->markEmailAsVerified();
+
+        Warehouse::create([
+            'code' => 'PUSAT',
+            'name' => 'Gudang Pusat',
+            'type' => 'main',
+            'is_active' => true,
+            'sort_order' => 0,
+        ]);
+
+        $this->category = Category::create([
+            'name' => 'Bahan',
+            'description' => 'Kategori pengujian',
+            'image' => 'category.png',
+        ]);
+    }
+
+    private function createProduct(int $buyPrice = 5000): Product
+    {
+        return Product::create([
+            'category_id' => $this->category->id,
+            'image' => 'product.png',
+            'barcode' => 'BRCD-'.Str::upper(Str::random(10)),
+            'sku' => 'SKU-'.Str::upper(Str::random(10)),
+            'title' => 'Bahan Uji',
+            'description' => 'Deskripsi uji.',
+            'buy_price' => $buyPrice,
+            'sell_price' => 10000,
+            'stock' => 0,
+            'tax_rate' => 0,
+        ]);
+    }
+
+    private function unitRows(): array
+    {
+        $gram = Unit::where('code', 'GRAM')->firstOrFail();
+        $kg = Unit::where('code', 'KG')->firstOrFail();
+
+        return [
+            ['unit_id' => $gram->id, 'is_base' => true, 'conversion_factor' => 1, 'buy_price' => 5, 'sell_price' => 10, 'is_purchase_default' => false],
+            ['unit_id' => $kg->id, 'is_base' => false, 'conversion_factor' => 1000, 'buy_price' => 4800, 'sell_price' => 9500, 'is_purchase_default' => true],
+        ];
+    }
+
+    private function storePayload(array $units): array
+    {
+        return [
+            'image' => UploadedFile::fake()->image('product.png'),
+            'barcode' => 'BRCD-'.Str::upper(Str::random(10)),
+            'sku' => 'SKU-'.Str::upper(Str::random(10)),
+            'title' => 'Tepung',
+            'category_id' => $this->category->id,
+            'buy_price' => 5,
+            'sell_price' => 10,
+            'stock' => 0,
+            'tax_rate' => 0,
+            'units' => $units,
+        ];
+    }
+
+    private function migration(string $name): object
+    {
+        return require database_path("migrations/{$name}.php");
+    }
+
+    public function test_gram_and_ml_units_exist(): void
+    {
+        $this->assertDatabaseHas('units', ['code' => 'GRAM', 'name' => 'Gram', 'symbol' => 'g']);
+        $this->assertDatabaseHas('units', ['code' => 'ML', 'name' => 'Mililiter', 'symbol' => 'ml']);
+    }
+
+    public function test_unit_migration_is_idempotent(): void
+    {
+        $this->migration('2026_11_24_000001_add_gram_and_ml_units')->up();
+
+        $this->assertSame(1, Unit::where('code', 'GRAM')->count());
+        $this->assertSame(1, Unit::where('code', 'ML')->count());
+    }
+
+    public function test_unit_migration_down_keeps_units_in_use(): void
+    {
+        $product = $this->createProduct();
+        $product->units()->attach(Unit::where('code', 'GRAM')->first()->id, [
+            'is_base' => true, 'conversion_factor' => 1, 'buy_price' => 5, 'sell_price' => 10,
+        ]);
+
+        $this->migration('2026_11_24_000001_add_gram_and_ml_units')->down();
+
+        $this->assertDatabaseHas('units', ['code' => 'GRAM']);
+        $this->assertDatabaseMissing('units', ['code' => 'ML']);
+    }
+
+    public function test_data_fix_reprices_pack_rows_priced_per_piece(): void
+    {
+        $pcs = Unit::where('code', 'PCS')->firstOrFail();
+        $karton = Unit::where('code', 'KARTON')->firstOrFail();
+        $box = Unit::where('code', 'BOX')->firstOrFail();
+        $dus = Unit::where('code', 'DUS')->firstOrFail();
+
+        $product = $this->createProduct(5000);
+        $product->units()->attach($pcs->id, ['is_base' => true, 'conversion_factor' => 1, 'buy_price' => 5000, 'sell_price' => 10000]);
+        // copied the base price onto the pack
+        $product->units()->attach($karton->id, ['is_base' => false, 'conversion_factor' => 24, 'buy_price' => 5000, 'sell_price' => 240000]);
+        // copied an older, lower base price
+        $product->units()->attach($box->id, ['is_base' => false, 'conversion_factor' => 12, 'buy_price' => 4000, 'sell_price' => 120000]);
+        // already priced per pack: must stay
+        $product->units()->attach($dus->id, ['is_base' => false, 'conversion_factor' => 24, 'buy_price' => 115000, 'sell_price' => 240000]);
+
+        $this->migration('2026_11_24_000003_fix_per_pack_buy_price_in_product_units')->up();
+
+        $price = fn (Unit $unit) => $product->units()->whereKey($unit->id)->first()->pivot->buy_price;
+
+        $this->assertSame(5000, $price($pcs));
+        $this->assertSame(120000, $price($karton));
+        $this->assertSame(60000, $price($box));
+        $this->assertSame(115000, $price($dus));
+    }
+
+    public function test_store_persists_buy_price_and_purchase_default_per_unit(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($this->unitRows()))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+        $kg = Unit::where('code', 'KG')->firstOrFail();
+
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $kg->id, 'buy_price' => 4800, 'is_purchase_default' => true,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => Unit::where('code', 'GRAM')->first()->id, 'buy_price' => 5, 'is_purchase_default' => false,
+        ]);
+    }
+
+    public function test_store_rejects_two_purchase_defaults(): void
+    {
+        $units = $this->unitRows();
+        $units[0]['is_purchase_default'] = true;
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasErrors('units');
+
+        $this->assertDatabaseMissing('products', ['title' => 'Tepung']);
+    }
+
+    public function test_update_persists_purchase_default_and_rejects_two(): void
+    {
+        $product = $this->createProduct(5);
+        $update = fn (array $units) => $this->actingAs($this->admin)->put(route('products.update', $product), [
+            'barcode' => $product->barcode,
+            'sku' => $product->sku,
+            'title' => $product->title,
+            'category_id' => $this->category->id,
+            'buy_price' => 5,
+            'sell_price' => 10,
+            'tax_rate' => 0,
+            'units' => $units,
+        ]);
+
+        $units = $this->unitRows();
+        $units[0]['is_purchase_default'] = true;
+        $units[1]['is_purchase_default'] = false;
+        $update($units)->assertRedirect(route('products.index'));
+
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $units[0]['unit_id'], 'is_purchase_default' => true,
+        ]);
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $units[1]['unit_id'], 'buy_price' => 4800, 'is_purchase_default' => false,
+        ]);
+
+        $units[1]['is_purchase_default'] = true;
+        $update($units)->assertSessionHasErrors('units');
+    }
+
+    public function test_purchase_default_is_optional(): void
+    {
+        $units = array_map(fn ($u) => array_diff_key($u, ['is_purchase_default' => 1]), $this->unitRows());
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+        $this->assertDatabaseMissing('product_units', ['product_id' => $product->id, 'is_purchase_default' => true]);
+    }
+}

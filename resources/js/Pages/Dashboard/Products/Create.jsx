@@ -65,7 +65,9 @@ export default function Create({ categories, products, units = [] }) {
                 unit_id: firstUnused.id,
                 is_base: data.units.length === 0,
                 conversion_factor: data.units.length === 0 ? 1 : "",
+                buy_price: "",
                 sell_price: "",
+                is_purchase_default: false,
                 barcode: "",
             },
         ]);
@@ -78,6 +80,11 @@ export default function Create({ categories, products, units = [] }) {
         if (field === "is_base" && value) {
             rows.forEach((r, i) => {
                 if (i !== index) r.is_base = false;
+            });
+        }
+        if (field === "is_purchase_default" && value) {
+            rows.forEach((r, i) => {
+                if (i !== index) r.is_purchase_default = false;
             });
         }
         setData("units", rows);
@@ -589,6 +596,26 @@ export default function Create({ categories, products, units = [] }) {
                                                 <Input
                                                     type="number"
                                                     min="0"
+                                                    value={row.buy_price}
+                                                    onChange={(e) =>
+                                                        updateUnitRow(
+                                                            index,
+                                                            "buy_price",
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    errors={
+                                                        errors[
+                                                            `units.${index}.buy_price`
+                                                        ]
+                                                    }
+                                                    placeholder="Harga Beli"
+                                                />
+                                            </div>
+                                            <div className="w-40">
+                                                <Input
+                                                    type="number"
+                                                    min="0"
                                                     value={row.sell_price}
                                                     onChange={(e) =>
                                                         updateUnitRow(
@@ -638,6 +665,23 @@ export default function Create({ categories, products, units = [] }) {
                                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                                 />
                                                 Dasar
+                                            </label>
+                                            <label className="flex items-center gap-1 pb-3 text-xs text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={
+                                                        row.is_purchase_default
+                                                    }
+                                                    onChange={(e) =>
+                                                        updateUnitRow(
+                                                            index,
+                                                            "is_purchase_default",
+                                                            e.target.checked
+                                                        )
+                                                    }
+                                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                                />
+                                                Satuan beli default
                                             </label>
                                             <button
                                                 type="button"
