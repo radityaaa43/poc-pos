@@ -139,8 +139,11 @@ export default function Show({ return: ret }) {
                                                 </p>
                                                 <p className="text-xs text-slate-500">{item.product?.sku || "-"}</p>
                                             </Table.Td>
-                                            <Table.Td className="font-semibold">{item.qty_returned}</Table.Td>
-                                            <Table.Td>{formatCurrency(item.unit_price)}</Table.Td>
+                                            <Table.Td className="font-semibold">{item.unit ? `${item.qty_returned} ${item.unit.symbol}` : item.qty_returned}</Table.Td>
+                                            <Table.Td>
+                                                {formatCurrency(item.unit_price)}
+                                                {item.unit && <span className="text-xs text-slate-500"> / {item.unit.symbol}</span>}
+                                            </Table.Td>
                                             <Table.Td className="font-semibold">
                                                 {formatCurrency(item.qty_returned * item.unit_price)}
                                             </Table.Td>

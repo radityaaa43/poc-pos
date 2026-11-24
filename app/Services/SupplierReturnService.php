@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Models\GoodsReceiving;
 use App\Models\GoodsReceivingItem;
+use App\Models\Payable;
 use App\Models\ProductWarehouse;
 use App\Models\SupplierReturn;
-use App\Models\SupplierReturnItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +18,8 @@ class SupplierReturnService
     public function __construct(
         private readonly AuditLogService $auditLogService,
         private readonly StockMutationService $stockMutationService,
-        private readonly OutletAccessService $outletAccessService
+        private readonly OutletAccessService $outletAccessService,
+        private readonly PurchaseOrderService $purchaseOrderService
     ) {}
 
     public function generateDocumentNumber(): string
@@ -35,50 +36,80 @@ class SupplierReturnService
 
     public function createReturn(array $data, array $items, int $userId): SupplierReturn
     {
-        $warehouseId = $data['warehouse_id'] ?? null;
-        if (! $warehouseId && ! empty($data['goods_receiving_id'])) {
-            $warehouseId = GoodsReceiving::whereKey($data['goods_receiving_id'])->value('warehouse_id');
-            $data['warehouse_id'] = $warehouseId;
-        }
-        if ($warehouseId) {
-            $this->ensureWarehouseAccess($userId, $warehouseId);
-        }
-
-        // Returns count stock units and reduce the payable by qty x unit_price; receipts in a
-        // purchase unit (kg) would be misread. Proper support: #29.
-        $unitBased = GoodsReceivingItem::whereIn('id', array_filter(array_column($items, 'goods_receiving_item_id')))
-            ->where('conversion_factor', '!=', 1)->pluck('id')->all();
-        foreach ($items as $i => $item) {
-            if (in_array($item['goods_receiving_item_id'] ?? null, $unitBased)) {
-                throw ValidationException::withMessages([
-                    "items.{$i}.goods_receiving_item_id" => 'Retur untuk item penerimaan dengan satuan beli belum didukung (lihat #29).',
-                ]);
-            }
-        }
-
         return DB::transaction(function () use ($data, $items, $userId) {
+            // Lock the receiving lines before reading what is already returned, so two concurrent
+            // returns cannot both pass the over-return check.
+            $lines = GoodsReceivingItem::whereIn('id', array_filter(array_column($items, 'goods_receiving_item_id')))
+                ->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $lines->load('purchaseOrderItem')->loadSum('activeReturnItems as returned_qty', 'qty_returned');
+
+            // One return belongs to one receiving: the chosen one, else the one its lines come from.
+            $receivingId = $data['goods_receiving_id'] ?? $lines->first()?->goods_receiving_id;
+            $receiving = $receivingId ? GoodsReceiving::findOrFail($receivingId) : null;
+            foreach ($items as $i => $item) {
+                if ($receiving && isset($item['goods_receiving_item_id']) && (int) $lines[$item['goods_receiving_item_id']]->goods_receiving_id !== $receiving->id) {
+                    throw ValidationException::withMessages(["items.{$i}.goods_receiving_item_id" => 'Item bukan bagian dari penerimaan barang retur ini.']);
+                }
+            }
+
+            $data['warehouse_id'] ??= $receiving?->warehouse_id;
+            if ($receiving?->warehouse_id && (int) $receiving->warehouse_id !== (int) $data['warehouse_id']) {
+                throw ValidationException::withMessages(['warehouse_id' => 'Gudang retur harus sama dengan gudang penerimaan barang.']);
+            }
+            if ($data['warehouse_id']) {
+                $this->ensureWarehouseAccess($userId, $data['warehouse_id']);
+            }
+            // The receiving's payable wins over a client-sent one: the return must reduce what that PO owes.
+            $data['payable_id'] = $receiving
+                ? Payable::where('purchase_order_id', $receiving->purchase_order_id)->value('id')
+                : ($data['payable_id'] ?? null);
+
+            $rows = [];
+            $requested = [];
+            foreach ($items as $i => $item) {
+                $line = $lines[$item['goods_receiving_item_id'] ?? null] ?? null;
+                if ($line && (int) $line->product_id !== (int) $item['product_id']) {
+                    throw ValidationException::withMessages(["items.{$i}.product_id" => 'Produk tidak sesuai dengan item penerimaan barang.']);
+                }
+
+                // A receiving line keeps its own unit and price; a manual line picks a unit like a PO line.
+                $unit = $line
+                    ? ['unit_id' => $line->unit_id, 'conversion_factor' => $line->conversion_factor]
+                    : $this->purchaseOrderService->purchaseUnit($item['product_id'], $item['unit_id'] ?? null, $i);
+                $stockQty = round($item['qty_returned'] * $unit['conversion_factor'], 4);
+                if ($stockQty != floor($stockQty)) {
+                    throw ValidationException::withMessages(["items.{$i}.qty_returned" => 'Qty retur tidak menghasilkan stok bulat.']);
+                }
+
+                if ($line) {
+                    $requested[$line->id] = ($requested[$line->id] ?? 0) + $item['qty_returned'];
+                    $left = $line->qty_received - (int) $line->returned_qty;
+                    if ($requested[$line->id] > $left) {
+                        throw ValidationException::withMessages(["items.{$i}.qty_returned" => 'Qty retur melebihi sisa yang bisa diretur ('.max(0, $left).').']);
+                    }
+                }
+
+                $rows[] = $unit + [
+                    'goods_receiving_item_id' => $line?->id,
+                    'product_id' => $item['product_id'],
+                    'qty_returned' => $item['qty_returned'],
+                    'unit_price' => $line ? $line->purchaseOrderItem->unit_price : ($item['unit_price'] ?? 0),
+                    'reason' => $item['reason'] ?? null,
+                    'notes' => $item['notes'] ?? null,
+                ];
+            }
+
             $return = SupplierReturn::create([
                 'supplier_id' => $data['supplier_id'] ?? null,
-                'warehouse_id' => $data['warehouse_id'] ?? null,
-                'goods_receiving_id' => $data['goods_receiving_id'] ?? null,
-                'payable_id' => $data['payable_id'] ?? null,
+                'warehouse_id' => $data['warehouse_id'],
+                'goods_receiving_id' => $receiving?->id,
+                'payable_id' => $data['payable_id'],
                 'document_number' => $this->generateDocumentNumber(),
                 'status' => 'draft',
                 'notes' => $data['notes'] ?? null,
                 'created_by' => $userId,
             ]);
-
-            foreach ($items as $item) {
-                SupplierReturnItem::create([
-                    'supplier_return_id' => $return->id,
-                    'goods_receiving_item_id' => $item['goods_receiving_item_id'] ?? null,
-                    'product_id' => $item['product_id'],
-                    'qty_returned' => $item['qty_returned'],
-                    'unit_price' => $item['unit_price'] ?? 0,
-                    'reason' => $item['reason'] ?? null,
-                    'notes' => $item['notes'] ?? null,
-                ]);
-            }
+            $return->items()->createMany($rows);
 
             $this->auditLogService->log(
                 event: 'supplier_return.created',
@@ -114,7 +145,8 @@ class SupplierReturnService
                     continue;
                 }
 
-                $qtyReturned = (int) $item->qty_returned;
+                // Items are in the purchase unit; stock moves in stock units. Average cost is left alone on a return.
+                $qtyReturned = (int) round($item->qty_returned * $item->conversion_factor, 4);
 
                 if ((int) $product->stock < $qtyReturned) {
                     throw ValidationException::withMessages([

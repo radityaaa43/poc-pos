@@ -43,4 +43,11 @@ class GoodsReceivingItem extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    /** Lines of supplier returns that still count against this line (everything but cancelled). */
+    public function activeReturnItems()
+    {
+        return $this->hasMany(SupplierReturnItem::class)
+            ->whereHas('supplierReturn', fn ($q) => $q->where('status', '!=', 'cancelled'));
+    }
 }
