@@ -8,6 +8,7 @@ use App\Models\Payable;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\PurchaseOrder;
+use App\Models\SupplierReturnItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Database\QueryException;
@@ -179,24 +180,28 @@ class GoodsReceivingService
 
     private function createOrUpdatePayable(PurchaseOrder $order, GoodsReceiving $receiving, int $userId): void
     {
-        $total = $receiving->items()->sum(\DB::raw('qty_received * (SELECT unit_price FROM purchase_order_items WHERE id = goods_receiving_items.purchase_order_item_id)'));
+        // Locked so a concurrent payment cannot be lost under the recomputed row.
+        $payable = Payable::where('purchase_order_id', $order->id)->lockForUpdate()->first() ?? new Payable([
+            'purchase_order_id' => $order->id,
+            'supplier_id' => $order->supplier_id,
+            'document_number' => $receiving->document_number,
+            'due_date' => now()->addDays(30),
+            'note' => 'Otomatis dari penerimaan PO '.$order->document_number,
+        ]);
 
-        if ($total <= 0) {
-            $total = $order->items()->sum(\DB::raw('qty_ordered * unit_price'));
-        }
+        // Everything received on the PO so far (qty and price are both in the PO line unit), minus
+        // completed supplier returns on this payable. Mirrors SupplierReturnService::complete().
+        $received = GoodsReceivingItem::whereHas('goodsReceiving', fn ($q) => $q->where('purchase_order_id', $order->id))
+            ->sum(DB::raw('qty_received * (SELECT unit_price FROM purchase_order_items WHERE id = goods_receiving_items.purchase_order_item_id)'));
+        $returned = $payable->exists
+            ? SupplierReturnItem::whereHas('supplierReturn', fn ($q) => $q->where('payable_id', $payable->id)->where('status', 'completed'))
+                ->sum(DB::raw('qty_returned * unit_price'))
+            : 0;
 
-        $payable = Payable::updateOrCreate(
-            ['purchase_order_id' => $order->id],
-            [
-                'supplier_id' => $order->supplier_id,
-                'document_number' => $receiving->document_number,
-                'total' => $total,
-                'paid' => 0,
-                'due_date' => now()->addDays(30),
-                'status' => 'unpaid',
-                'note' => 'Otomatis dari penerimaan PO '.$order->document_number,
-            ]
-        );
+        $payable->total = max(0, $received - $returned);
+        $payable->paid ??= 0;
+        $payable->status = $payable->paid >= $payable->total ? 'paid' : ($payable->paid > 0 ? 'partial' : 'unpaid');
+        $payable->save();
 
         if ($payable->wasRecentlyCreated) {
             $this->auditLogService->log(
