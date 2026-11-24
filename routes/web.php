@@ -23,6 +23,7 @@ use App\Http\Controllers\Apps\PriceListController;
 use App\Http\Controllers\Apps\PricingRuleController;
 use App\Http\Controllers\Apps\ProductController;
 use App\Http\Controllers\Apps\PurchaseOrderController;
+use App\Http\Controllers\Apps\RawMaterialController;
 use App\Http\Controllers\Apps\ReceivableController;
 use App\Http\Controllers\Apps\SalesReturnController;
 use App\Http\Controllers\Apps\SettingController;
@@ -137,6 +138,13 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
         ->middlewareFor('destroy', 'permission:categories-delete');
     Route::resource('products', ProductController::class)
         ->middlewareFor(['index', 'show'], 'permission:products-access')
+        ->middlewareFor(['create', 'store'], 'permission:products-create')
+        ->middlewareFor(['edit', 'update'], 'permission:products-edit')
+        ->middlewareFor('destroy', 'permission:products-delete');
+    Route::resource('raw-materials', RawMaterialController::class)
+        ->except('show')
+        ->parameters(['raw-materials' => 'product'])
+        ->middlewareFor('index', 'permission:products-access')
         ->middlewareFor(['create', 'store'], 'permission:products-create')
         ->middlewareFor(['edit', 'update'], 'permission:products-edit')
         ->middlewareFor('destroy', 'permission:products-delete');

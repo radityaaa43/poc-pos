@@ -13,7 +13,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Product | Anything sold or stocked, with buy and sell price in whole rupiah | Unit: a product can be sold in several units | `Product` / `products` |
 | Composite product (recipe) | A product made of component products; selling it deducts its components' stock | Bundle pricing rule: a price, not a stock recipe | `products.is_composite`, `composite_product_items` |
 | Unit / conversion factor | A unit a product is stocked or sold in, and how many base units it equals | Unit of a raw material in a recipe | `Unit`, `ProductUnit` / `product_units.conversion_factor` |
-| Raw material | A product flagged `is_raw_material`: stocked and bought, never sold on the POS | Composite product: made of components and sold | `products.is_raw_material` |
+| Raw material | A product flagged `is_raw_material`: stocked and bought, never sold on the POS. Managed on Master Data → Bahan Baku, where "purchased by" says whether the central warehouse (`central`) or each outlet (`outlet`) buys it | Composite product: made of components and sold | `products.is_raw_material`, `products.purchased_by` |
 | Purchase unit | The unit a product is bought in. The default is the `product_units` row with `is_purchase_default`; its `buy_price` is the price per that unit | Base unit: the unit stock is kept in | `product_units.is_purchase_default`, `product_units.buy_price` |
 | Batch | A received lot of a product in a warehouse, with optional expiry; consumed first-expiry-first | Stock mutation | `ProductBatch` / `product_batches` |
 | Stock mutation | One logged stock change (sale, receiving, transfer, opname, return) with before/after quantities | Batch | `StockMutation` / `stock_mutations` |
