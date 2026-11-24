@@ -353,7 +353,11 @@ class ProductController extends Controller
     {
         return [
             'units' => ['nullable', 'array', function (string $attribute, mixed $value, Closure $fail) {
-                if (collect($value)->where('is_purchase_default', true)->count() > 1) {
+                $defaults = collect($value)->filter(
+                    fn ($u) => filter_var($u['is_purchase_default'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                );
+
+                if ($defaults->count() > 1) {
                     $fail('Hanya satu satuan beli default yang diperbolehkan.');
                 }
             }],
@@ -369,17 +373,23 @@ class ProductController extends Controller
 
     private function syncUnits(Product $product, ?array $units): void
     {
-        $rows = collect($units ?? [])
-            ->keyBy('unit_id')
-            ->map(fn (array $u) => [
-                'is_base' => $u['is_base'],
-                'is_purchase_default' => $u['is_purchase_default'] ?? false,
-                'conversion_factor' => $u['conversion_factor'],
-                // buy_price is per that unit, so a blank pack price is the base price × its content.
-                'buy_price' => $u['buy_price'] ?? (int) round($product->buy_price * (float) $u['conversion_factor']),
-                'sell_price' => $u['sell_price'] ?? $product->sell_price,
-                'barcode' => $u['barcode'] ?? null,
-            ]);
+        $units = collect($units ?? [])->keyBy('unit_id');
+
+        if ($units->isNotEmpty() && ! $units->contains(fn ($u) => $u['is_base'])) {
+            // ponytail: no explicit base unit sent — treat first row as base with factor 1
+            $first = $units->keys()->first();
+            $units[$first] = ['is_base' => true, 'conversion_factor' => 1] + $units[$first];
+        }
+
+        $rows = $units->map(fn (array $u) => [
+            'is_base' => $u['is_base'],
+            'is_purchase_default' => $u['is_purchase_default'] ?? false,
+            'conversion_factor' => $u['conversion_factor'],
+            // buy_price is per that unit, so a blank pack price is the base price × its content.
+            'buy_price' => $u['buy_price'] ?? (int) round($product->buy_price * (float) $u['conversion_factor']),
+            'sell_price' => $u['sell_price'] ?? $product->sell_price,
+            'barcode' => $u['barcode'] ?? null,
+        ]);
 
         if ($rows->isEmpty()) {
             // ponytail: no units sent — only seed default PCS base when product has none (matches docs/features/unit-conversion.md)
@@ -398,12 +408,6 @@ class ProductController extends Controller
             }
 
             return;
-        }
-
-        if (! $rows->contains(fn ($r) => $r['is_base'])) {
-            // ponytail: no explicit base unit sent — treat first row as base with factor 1
-            $first = $rows->keys()->first();
-            $rows[$first] = ['is_base' => true, 'conversion_factor' => 1] + $rows[$first];
         }
 
         $product->units()->sync($rows->all());

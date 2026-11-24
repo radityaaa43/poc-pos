@@ -137,14 +137,31 @@ class PurchaseUnitTest extends TestCase
         // already priced per pack: must stay
         $product->units()->attach($dus->id, ['is_base' => false, 'conversion_factor' => 24, 'buy_price' => 115000, 'sell_price' => 240000]);
 
-        $this->migration('2026_11_24_000003_fix_per_pack_buy_price_in_product_units')->up();
+        // a non-base row with factor 1 is not a pack: stays even at or below the base price
+        $gram = Unit::where('code', 'GRAM')->firstOrFail();
+        $product->units()->attach($gram->id, ['is_base' => false, 'conversion_factor' => 1, 'buy_price' => 4000, 'sell_price' => 10000]);
 
-        $price = fn (Unit $unit) => $product->units()->whereKey($unit->id)->first()->pivot->buy_price;
+        // a base row is never repriced, whatever its factor or price
+        $other = $this->createProduct(5000);
+        $other->units()->attach($pcs->id, ['is_base' => true, 'conversion_factor' => 12, 'buy_price' => 3000, 'sell_price' => 10000]);
 
-        $this->assertSame(5000, $price($pcs));
-        $this->assertSame(120000, $price($karton));
-        $this->assertSame(60000, $price($box));
-        $this->assertSame(115000, $price($dus));
+        $price = fn (Product $p, Unit $unit) => $p->units()->whereKey($unit->id)->first()->pivot->buy_price;
+        $assertFixed = function () use ($price, $product, $other, $pcs, $karton, $box, $dus, $gram) {
+            $this->assertSame(5000, $price($product, $pcs));
+            $this->assertSame(120000, $price($product, $karton));
+            $this->assertSame(60000, $price($product, $box));
+            $this->assertSame(115000, $price($product, $dus));
+            $this->assertSame(4000, $price($product, $gram));
+            $this->assertSame(3000, $price($other, $pcs));
+        };
+
+        $migration = $this->migration('2026_11_24_000003_fix_per_pack_buy_price_in_product_units');
+        $migration->up();
+        $assertFixed();
+
+        // running it again must not compound the repricing
+        $migration->up();
+        $assertFixed();
     }
 
     public function test_store_persists_buy_price_and_purchase_default_per_unit(): void
@@ -220,6 +237,52 @@ class PurchaseUnitTest extends TestCase
         // 1 kg = 1000 g at Rp 5/g → Rp 5.000 per kg, never the per-gram price.
         $this->assertDatabaseHas('product_units', [
             'product_id' => $product->id, 'unit_id' => $units[1]['unit_id'], 'buy_price' => 5000,
+        ]);
+    }
+
+    public function test_blank_buy_price_uses_the_base_fallback_factor_when_no_row_is_flagged_base(): void
+    {
+        $kg = Unit::where('code', 'KG')->firstOrFail();
+        $gram = Unit::where('code', 'GRAM')->firstOrFail();
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload([
+                ['unit_id' => $kg->id, 'is_base' => false, 'conversion_factor' => 1000, 'buy_price' => '', 'sell_price' => 9500],
+                ['unit_id' => $gram->id, 'is_base' => false, 'conversion_factor' => 1, 'buy_price' => 5, 'sell_price' => 10],
+            ]))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+
+        // the first row becomes the base (factor 1), so its blank price is the product's, not × 1000
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $kg->id, 'is_base' => true, 'conversion_factor' => 1, 'buy_price' => 5,
+        ]);
+    }
+
+    public function test_purchase_default_flags_sent_as_form_data_strings_are_counted_explicitly(): void
+    {
+        $units = array_map(
+            fn ($u) => ['is_base' => $u['is_base'] ? '1' : '0', 'is_purchase_default' => '0'] + $u,
+            $this->unitRows()
+        );
+
+        $units[0]['is_purchase_default'] = '1';
+        $units[1]['is_purchase_default'] = '1';
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasErrors('units');
+        $this->assertDatabaseMissing('products', ['title' => 'Tepung']);
+
+        $units[0]['is_purchase_default'] = '0';
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $units[1]['unit_id'], 'is_purchase_default' => true,
         ]);
     }
 
