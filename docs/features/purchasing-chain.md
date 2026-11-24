@@ -13,6 +13,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 - Qty dan harga beli per item
 - Satuan beli per item (default: satuan beli utama produk, else satuan dasar); qty dan harga per satuan itu. Faktor konversi dibaca server dari `product_units` dan disimpan di item (`unit_id`, `conversion_factor`); tampil ekuivalen satuan stok ("5 kg = 5.000 g")
 - Auto-generate nomor dokumen (`PO-YYYYmmdd-XXXX`)
+- Draft PO otomatis (`reorder:generate`): per gudang, bahan baku hanya yang `purchased_by`-nya cocok (gudang pusat = outlet `is_sales_enabled` false → `central`; lainnya → `outlet`); produk non-bahan baku tidak berubah. Kebutuhan (max - stok) dikonversi ke satuan beli default, dibulatkan ke atas, dengan harga satuan beli itu (kosong → `buy_price` produk × faktor); tanpa satuan beli tetap satuan stok
 - Status lifecycle: `draft` → `ordered` → `partial_received` / `completed` → `cancelled`
 - Filter by status, supplier, nomor dokumen
 
