@@ -223,7 +223,7 @@ class FrozenSaleLineCostTest extends TestCase
     {
         $transaction = $this->sellOnWeb();
 
-        $migration = require database_path('migrations/2026_11_25_700001_add_cost_total_to_transaction_details_table.php');
+        $migration = require database_path('migrations/2026_11_25_900001_add_cost_total_to_transaction_details_table.php');
         $migration->down();
         $migration->up();
 
