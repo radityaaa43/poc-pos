@@ -32,7 +32,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 - Memilih supplier di halaman buat retur memuat penerimaan barang supplier itu (Inertia partial reload `goodsReceivings`), lengkap dengan satuan dan sisa yang bisa diretur
 - Item dari GR memakai satuan, faktor, dan harga item GR (dari server, bukan request); item manual memilih satuan seperti PO
 - Gudang (cek akses outlet) diambil dari GR bila tidak dikirim; `payable_id` diambil dari payable PO milik GR
-- Stok turun sebesar qty x faktor (satuan stok) di warehouse retur saat `completed`; HPP rata-rata tidak berubah
+- Stok turun sebesar qty x faktor (satuan stok) di warehouse retur saat `completed`; biaya rata-rata tidak berubah
 - Payable berkurang qty x harga per satuan beli item
 - Qty retur per item GR tidak boleh melebihi qty diterima − retur yang belum `cancelled`
 - Alasan retur per item

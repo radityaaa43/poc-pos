@@ -94,7 +94,7 @@ export default function Index({ materials, warehouses }) {
                                 {warehouses.map((warehouse) => (
                                     <Table.Th key={warehouse.id}>
                                         <span title={warehouse.name}>{warehouse.code}</span>
-                                        <span className="block text-xs font-normal">Stok · HPP</span>
+                                        <span className="block text-xs font-normal">Stok · Harga pokok</span>
                                     </Table.Th>
                                 ))}
                                 {hasActions && (
