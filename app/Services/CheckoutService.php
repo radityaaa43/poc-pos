@@ -26,6 +26,7 @@ class CheckoutService
         private readonly BatchService $batchService,
         private readonly TransactionTenderService $tenderService,
         private readonly StockMutationService $stockMutationService,
+        private readonly InventoryCostService $inventoryCostService,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
@@ -177,6 +178,17 @@ class CheckoutService
             $baseUnitPrice = (int) data_get($pricingItem, 'base_unit_price', $cart->product->sell_price);
             $unitPrice = (int) data_get($pricingItem, 'effective_unit_price', $cart->product->sell_price);
 
+            $product = Product::find($cart->product_id);
+
+            if ($product->is_raw_material) {
+                throw ValidationException::withMessages([
+                    'stock' => "{$product->title} adalah bahan baku dan tidak dapat dijual.",
+                ]);
+            }
+
+            // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
+            $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, $cart->qty, (float) ($cart->conversion_factor ?? 1));
+
             $detail = $transaction->details()->create([
                 'transaction_id' => $transaction->id,
                 'product_id' => $cart->product_id,
@@ -187,6 +199,7 @@ class CheckoutService
                 'unit_price' => $unitPrice,
                 'price' => $lineTotal,
                 'discount_total' => $linePromoDiscount,
+                'cost_total' => $costTotal,
                 'pricing_rule_id' => data_get($pricingItem, 'pricing_rule.id'),
                 'pricing_rule_name' => data_get($pricingItem, 'pricing_rule.name'),
                 'pricing_rule_kind' => data_get($pricingItem, 'pricing_rule.kind'),
@@ -194,26 +207,10 @@ class CheckoutService
                 'pricing_group_label' => data_get($pricingItem, 'pricing_group_label'),
             ]);
 
-            $product = Product::find($cart->product_id);
-
-            if ($product->is_raw_material) {
-                throw ValidationException::withMessages([
-                    'stock' => "{$product->title} adalah bahan baku dan tidak dapat dijual.",
-                ]);
-            }
-
-            // HPP follows base-unit cost: cart qty is in the selling unit, buy_price is per base unit.
-            if ($product->is_composite) {
-                $totalBuyPrice = $product->components->sum(
-                    fn ($component) => $component->buy_price * (float) $component->pivot->qty
-                ) * $cart->qty;
-            } else {
-                $totalBuyPrice = $product->buy_price * $cart->qty * (float) ($cart->conversion_factor ?? 1);
-            }
             $lineShare = $subtotalAfterPromo > 0 ? $lineTotal / $subtotalAfterPromo : 0;
             $allocatedManualDiscount = (int) round($appliedManualDiscount * $lineShare);
             $netSellPrice = max(0, $lineTotal - $allocatedManualDiscount);
-            $profits = $netSellPrice - $totalBuyPrice;
+            $profits = $netSellPrice - $costTotal;
 
             $transaction->profits()->create([
                 'transaction_id' => $transaction->id,
