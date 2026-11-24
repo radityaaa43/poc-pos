@@ -39,12 +39,12 @@ class V1CrmApiTest extends TestCase
     {
         return array_merge([
             'name' => 'Member CRM '.uniqid(),
-            'no_telp' => '08'.uniqid(),
+            'no_telp' => '08'.random_int(100000000, 999999999),
             'address' => 'Jl. Member No. 1',
-            'province_id' => '32',
-            'regency_id' => '32.73',
-            'district_id' => '32.73.01',
-            'village_id' => '32.73.01.1001',
+            'province_id' => '11',
+            'regency_id' => '1101',
+            'district_id' => '110101',
+            'village_id' => '1101012001',
         ], $overrides);
     }
 

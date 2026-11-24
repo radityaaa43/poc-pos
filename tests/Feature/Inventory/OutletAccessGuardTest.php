@@ -92,7 +92,7 @@ class OutletAccessGuardTest extends TestCase
     {
         return Customer::create([
             'name' => 'Cust '.Str::random(5),
-            'no_telp' => '628'.Str::random(9),
+            'no_telp' => '628'.random_int(100000000, 999999999),
             'address' => 'Jl. Test',
         ]);
     }
