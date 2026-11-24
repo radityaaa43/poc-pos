@@ -42,6 +42,7 @@ class Product extends Model
         'max_stock',
         'is_composite',
         'is_raw_material',
+        'purchased_by',
     ];
 
     public function category()

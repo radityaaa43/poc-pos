@@ -41,6 +41,7 @@ IconRulerMeasure,
     IconListDetails,
     IconBrandWhatsapp,
     IconToolsKitchen2,
+    IconWheat,
 } from "@tabler/icons-react";
 import hasAnyPermission from "./Permission";
 import React from "react";
@@ -78,6 +79,13 @@ export default function Menu() {
                     href: route("products.index"),
                     active: url === "/dashboard/products" ? true : false,
                     icon: <IconBox size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["products-access"]),
+                },
+                {
+                    title: t("sidebar.items.rawMaterials"),
+                    href: route("raw-materials.index"),
+                    active: url.startsWith("/dashboard/raw-materials"),
+                    icon: <IconWheat size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["products-access"]),
                 },
                 {
