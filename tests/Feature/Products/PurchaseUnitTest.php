@@ -206,6 +206,23 @@ class PurchaseUnitTest extends TestCase
         $update($units)->assertSessionHasErrors('units');
     }
 
+    public function test_blank_unit_buy_price_defaults_to_base_price_times_conversion(): void
+    {
+        $units = $this->unitRows();
+        $units[1]['buy_price'] = '';
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+
+        // 1 kg = 1000 g at Rp 5/g → Rp 5.000 per kg, never the per-gram price.
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $units[1]['unit_id'], 'buy_price' => 5000,
+        ]);
+    }
+
     public function test_purchase_default_is_optional(): void
     {
         $units = array_map(fn ($u) => array_diff_key($u, ['is_purchase_default' => 1]), $this->unitRows());

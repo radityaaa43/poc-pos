@@ -375,7 +375,8 @@ class ProductController extends Controller
                 'is_base' => $u['is_base'],
                 'is_purchase_default' => $u['is_purchase_default'] ?? false,
                 'conversion_factor' => $u['conversion_factor'],
-                'buy_price' => $u['buy_price'] ?? $product->buy_price,
+                // buy_price is per that unit, so a blank pack price is the base price × its content.
+                'buy_price' => $u['buy_price'] ?? (int) round($product->buy_price * (float) $u['conversion_factor']),
                 'sell_price' => $u['sell_price'] ?? $product->sell_price,
                 'barcode' => $u['barcode'] ?? null,
             ]);
