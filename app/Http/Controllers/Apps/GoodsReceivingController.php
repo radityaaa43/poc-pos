@@ -50,6 +50,8 @@ class GoodsReceivingController extends Controller
         $orders = PurchaseOrder::with([
             'supplier:id,name',
             'items.product:id,title,sku',
+            'items.unit:id,name,symbol',
+            'items.product.units:units.id,units.symbol',
         ])->whereIn('status', ['ordered', 'partial_received'])
             ->where(function ($query) use ($request) {
                 $ids = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
@@ -128,6 +130,8 @@ class GoodsReceivingController extends Controller
             'purchaseOrder:id,document_number,status',
             'supplier:id,name',
             'items.product:id,title,sku',
+            'items.unit:id,name,symbol',
+            'items.product.units:units.id,units.symbol',
             'items.purchaseOrderItem:id,unit_price',
             'receiver:id,name',
         ]);

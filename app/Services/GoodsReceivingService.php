@@ -78,10 +78,22 @@ class GoodsReceivingService
                         ]);
                     }
 
+                    // Stock moves in stock units: qty in the PO item unit x its factor.
+                    // The 4-decimal round absorbs float noise from the decimal(15,4) factor.
+                    $stockQty = round($qtyReceived * $poItem->conversion_factor, 4);
+                    if ($stockQty != floor($stockQty)) {
+                        throw ValidationException::withMessages([
+                            'items' => "Qty diterima {$qtyReceived} {$poItem->unit?->symbol} tidak menghasilkan stok bulat (item {$poItem->product_id}).",
+                        ]);
+                    }
+                    $stockQty = (int) $stockQty;
+
                     GoodsReceivingItem::create([
                         'goods_receiving_id' => $receiving->id,
                         'purchase_order_item_id' => $poItem->id,
                         'product_id' => $poItem->product_id,
+                        'unit_id' => $poItem->unit_id,
+                        'conversion_factor' => $poItem->conversion_factor,
                         'qty_received' => $qtyReceived,
                         'notes' => $item['notes'] ?? null,
                     ]);
@@ -91,13 +103,13 @@ class GoodsReceivingService
                     $product = $poItem->product;
                     $stockBefore = (int) $product->stock;
                     // Increment legacy stock
-                    $product->increment('stock', $qtyReceived);
+                    $product->increment('stock', $stockQty);
                     // Increment warehouse pivot stock
                     if ($order->warehouse_id) {
                         ProductWarehouse::firstOrCreate(
                             ['product_id' => $product->id, 'warehouse_id' => $order->warehouse_id],
                             ['stock' => 0]
-                        )->increment('stock', $qtyReceived);
+                        )->increment('stock', $stockQty);
                     }
 
                     // Create batch record
@@ -108,17 +120,19 @@ class GoodsReceivingService
                             'batch_number' => $item['batch_number'],
                             'expired_at' => $item['expired_at'] ?? null,
                             'received_at' => now(),
-                            'stock' => $qtyReceived,
+                            'stock' => $stockQty,
                         ]);
                     }
 
                     $this->stockMutationService->recordPurchaseInbound(
                         product: $product,
                         goodsReceiving: $receiving,
-                        qty: $qtyReceived,
+                        qty: $stockQty,
                         stockBefore: $stockBefore,
                         stockAfter: (int) $product->stock,
-                        notes: 'Penerimaan dari PO '.$order->document_number,
+                        notes: $poItem->unit
+                            ? "Penerimaan {$qtyReceived} {$poItem->unit->symbol} dari PO ".$order->document_number
+                            : 'Penerimaan dari PO '.$order->document_number,
                         userId: $userId,
                     );
                 }

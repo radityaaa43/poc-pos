@@ -11,6 +11,13 @@ import {
     IconShoppingCart,
 } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import {
+    baseUnit,
+    defaultPurchaseUnit,
+    defaultUnitPrice,
+    stockEquivalent,
+    unitFactor,
+} from "@/Utils/purchaseUnits";
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -40,16 +47,32 @@ export default function Create({ suppliers, products, warehouses = [] }) {
             toast.error("Produk sudah ada di daftar.");
             return;
         }
+        const unit = defaultPurchaseUnit(product);
         setData("items", [
             ...data.items,
             {
                 product_id: product.id,
                 product_title: product.title,
                 product_sku: product.sku || "-",
+                unit_id: unit?.id ?? "",
                 qty_ordered: 1,
-                unit_price: Number(product.buy_price) || 0,
+                unit_price: defaultUnitPrice(product, unit),
             },
         ]);
+    };
+
+    const productOf = (item) => products.find((p) => p.id === item.product_id);
+    const unitOf = (item) => productOf(item)?.units?.find((u) => u.id === item.unit_id);
+    const equivalent = (item) =>
+        stockEquivalent(item.qty_ordered, unitFactor(unitOf(item)), baseUnit(productOf(item))?.symbol);
+
+    // A different unit means a different price per unit, so reset it to that unit's default.
+    const changeUnit = (index, unitId) => {
+        const item = data.items[index];
+        const unit = productOf(item).units.find((u) => u.id === Number(unitId));
+        const items = [...data.items];
+        items[index] = { ...item, unit_id: unit.id, unit_price: defaultUnitPrice(productOf(item), unit) };
+        setData("items", items);
     };
 
     const removeItem = (index) => {
@@ -187,6 +210,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                     <thead>
                                         <tr className="border-b border-slate-200 dark:border-slate-700">
                                             <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-200">Produk</th>
+                                            <th className="px-3 py-2 text-left font-semibold text-slate-700 dark:text-slate-200">Satuan</th>
                                             <th className="px-3 py-2 text-right font-semibold text-slate-700 dark:text-slate-200">Qty</th>
                                             <th className="px-3 py-2 text-right font-semibold text-slate-700 dark:text-slate-200">Harga</th>
                                             <th className="px-3 py-2 text-right font-semibold text-slate-700 dark:text-slate-200">Subtotal</th>
@@ -200,13 +224,39 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                     <p className="font-medium text-slate-800 dark:text-slate-200">{item.product_title}</p>
                                                     <p className="text-xs text-slate-500">{item.product_sku}</p>
                                                 </td>
+                                                <td className="px-3 py-3 text-left">
+                                                    {productOf(item)?.units?.length ? (
+                                                        <select
+                                                            aria-label={`Satuan ${item.product_title}`}
+                                                            value={item.unit_id}
+                                                            onChange={(e) => changeUnit(index, e.target.value)}
+                                                            className="h-11 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        >
+                                                            {productOf(item).units.map((unit) => (
+                                                                <option key={unit.id} value={unit.id}>
+                                                                    {unit.symbol}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <span className="text-slate-500">-</span>
+                                                    )}
+                                                    {errors[`items.${index}.unit_id`] && (
+                                                        <p className="mt-1 text-xs text-danger-500">{errors[`items.${index}.unit_id`]}</p>
+                                                    )}
+                                                    {equivalent(item) && (
+                                                        <p className="mt-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                                            = {equivalent(item)}
+                                                        </p>
+                                                    )}
+                                                </td>
                                                 <td className="px-3 py-3 text-right">
                                                     <input
                                                         type="number"
                                                         min="1"
                                                         value={item.qty_ordered}
                                                         onChange={(e) => updateItem(index, "qty_ordered", e.target.value)}
-                                                        className="h-10 w-20 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-20 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-3 text-right">
@@ -216,7 +266,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                         step="100"
                                                         value={item.unit_price}
                                                         onChange={(e) => updateItem(index, "unit_price", e.target.value)}
-                                                        className="h-10 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-3 text-right font-medium text-slate-800 dark:text-slate-200">
@@ -236,7 +286,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                     </tbody>
                                     <tfoot>
                                         <tr className="border-t-2 border-slate-200 dark:border-slate-700">
-                                            <td colSpan={3} className="px-3 py-3 text-right font-bold text-slate-800 dark:text-slate-200">Total</td>
+                                            <td colSpan={4} className="px-3 py-3 text-right font-bold text-slate-800 dark:text-slate-200">Total</td>
                                             <td className="px-3 py-3 text-right font-bold text-primary-600 dark:text-primary-400">{formatCurrency(total)}</td>
                                             <td></td>
                                         </tr>
