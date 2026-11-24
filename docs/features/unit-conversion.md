@@ -18,7 +18,7 @@ Satu produk dalam multiple satuan — pcs, box, karton, kg — dengan konversi s
 - 8 default unit: PCS, BOX, KARTON, KG, LITER, METER, PAK, DUS
 - Produk bisa memiliki multiple satuan dengan konversi berbeda
 - Harga beli dan jual berbeda per satuan
-- Satuan dasar (base unit) untuk stok
+- Satuan dasar (base unit) untuk stok: satu per produk, isi (konversi) 1. Lebih dari satu satuan dasar atau isi selain 1 ditolak saat simpan; tanpa satuan dasar, baris pertama jadi satuan dasar
 - Barcode spesifik per satuan
 - POS checkout menggunakan base unit qty untuk cek stok
 - Stok dikelola di base unit, otomatis dikonversi saat checkout

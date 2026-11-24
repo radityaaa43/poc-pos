@@ -235,6 +235,78 @@ class PurchaseUnitTest extends TestCase
         $this->assertDatabaseMissing('products', ['title' => 'Tepung']);
     }
 
+    public function test_store_rejects_two_base_units(): void
+    {
+        $units = $this->unitRows();
+        $units[1]['is_base'] = true;
+        $units[1]['conversion_factor'] = 1;
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasErrors(['units' => 'Hanya satu satuan dasar yang diperbolehkan.']);
+
+        $this->assertDatabaseMissing('products', ['title' => 'Tepung']);
+    }
+
+    public function test_store_counts_string_base_flags_like_booleans(): void
+    {
+        $units = $this->unitRows();
+        $units[0]['is_base'] = '1';
+        $units[1]['is_base'] = '1';
+        $units[1]['conversion_factor'] = '1';
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasErrors(['units' => 'Hanya satu satuan dasar yang diperbolehkan.']);
+
+        // "0" is not a base row, so one "1" base is fine.
+        $units[0]['is_base'] = '1';
+        $units[1]['is_base'] = '0';
+        $units[1]['conversion_factor'] = 1000;
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertRedirect(route('products.index'));
+    }
+
+    public function test_store_rejects_base_unit_with_factor_other_than_one(): void
+    {
+        $units = $this->unitRows();
+        $units[0]['conversion_factor'] = 12;
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertSessionHasErrors(['units' => 'Satuan dasar harus memiliki isi 1.']);
+
+        $this->assertDatabaseMissing('products', ['title' => 'Tepung']);
+    }
+
+    public function test_store_saves_one_base_unit_with_factor_one(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($this->unitRows()))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('product_units', [
+            'unit_id' => $this->unitRows()[0]['unit_id'], 'is_base' => true, 'conversion_factor' => 1,
+        ]);
+    }
+
+    public function test_store_without_a_base_row_makes_the_first_row_base(): void
+    {
+        $units = $this->unitRows();
+        $units[0]['is_base'] = false;
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertRedirect(route('products.index'));
+
+        $this->assertDatabaseHas('product_units', [
+            'unit_id' => $units[0]['unit_id'], 'is_base' => true, 'conversion_factor' => 1,
+        ]);
+        $this->assertDatabaseHas('product_units', ['unit_id' => $units[1]['unit_id'], 'is_base' => false]);
+    }
+
     public function test_update_persists_purchase_default_and_rejects_two(): void
     {
         $product = $this->createProduct(5);
