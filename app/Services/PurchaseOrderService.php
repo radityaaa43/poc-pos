@@ -82,7 +82,7 @@ class PurchaseOrderService
      * The conversion factor always comes from product_units, never from the request.
      * No unit means the stock unit (null unit_id, factor 1).
      */
-    private function purchaseUnit(int $productId, ?int $unitId, int $index): array
+    public function purchaseUnit(int $productId, ?int $unitId, int $index): array
     {
         if (! $unitId) {
             return ['unit_id' => null, 'conversion_factor' => 1];

@@ -13,6 +13,8 @@ class SupplierReturnItem extends Model
         'supplier_return_id',
         'goods_receiving_item_id',
         'product_id',
+        'unit_id',
+        'conversion_factor',
         'qty_returned',
         'unit_price',
         'reason',
@@ -20,6 +22,7 @@ class SupplierReturnItem extends Model
     ];
 
     protected $casts = [
+        'conversion_factor' => 'float',
         'qty_returned' => 'integer',
         'unit_price' => 'float',
     ];
@@ -37,5 +40,10 @@ class SupplierReturnItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 }

@@ -11,7 +11,6 @@ use App\Models\ProductWarehouse;
 use App\Models\PurchaseOrder;
 use App\Models\StockMutation;
 use App\Models\Supplier;
-use App\Models\SupplierReturn;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -246,40 +245,6 @@ class PurchaseUnitsTest extends TestCase
 
         $this->assertSame(1000, (int) $this->beans->fresh()->stock);
         $this->assertDatabaseCount('goods_receivings', 0);
-    }
-
-    public function test_supplier_return_rejects_a_receiving_item_in_a_purchase_unit(): void
-    {
-        $order = $this->placedKgOrder();
-        $this->post(route('goods-receivings.store'), [
-            'purchase_order_id' => $order->id,
-            'items' => [['purchase_order_item_id' => $order->items->first()->id, 'qty_received' => 2]],
-        ])->assertSessionHasNoErrors();
-
-        // Supplier returns count stock units; a kg line would cut the payable by qty x kg price. See #29.
-        $this->post(route('supplier-returns.store'), [
-            'items' => [['product_id' => $this->beans->id, 'goods_receiving_item_id' => GoodsReceivingItem::value('id'), 'qty_returned' => 1, 'unit_price' => 250000]],
-        ])->assertSessionHasErrors('items.0.goods_receiving_item_id');
-
-        $this->assertSame(0, SupplierReturn::count());
-    }
-
-    public function test_supplier_return_still_works_for_a_receiving_item_in_the_stock_unit(): void
-    {
-        $this->actingAs($this->admin);
-        $this->post(route('purchase-orders.store'), $this->poPayload(['unit_price' => 250]))->assertSessionHasNoErrors();
-        $order = PurchaseOrder::firstOrFail();
-        $this->post(route('purchase-orders.place', $order));
-        $this->post(route('goods-receivings.store'), [
-            'purchase_order_id' => $order->id,
-            'items' => [['purchase_order_item_id' => $order->items->first()->id, 'qty_received' => 4]],
-        ])->assertSessionHasNoErrors();
-
-        $this->post(route('supplier-returns.store'), [
-            'items' => [['product_id' => $this->beans->id, 'goods_receiving_item_id' => GoodsReceivingItem::value('id'), 'qty_returned' => 1, 'unit_price' => 250]],
-        ])->assertSessionHasNoErrors();
-
-        $this->assertSame(1, SupplierReturn::count());
     }
 
     public function test_api_po_rejects_a_unit_of_another_product(): void

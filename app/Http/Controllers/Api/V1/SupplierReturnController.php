@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Apps\SupplierReturnController as AppsSupplierReturnController;
 use App\Http\Traits\ApiResponder;
-use App\Models\GoodsReceiving;
 use App\Models\Product;
 use App\Models\Supplier;
 use App\Models\SupplierReturn;
@@ -52,24 +51,11 @@ class SupplierReturnController extends AppsSupplierReturnController
     {
         $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
 
-        $goodsReceivings = collect();
-        if ($request->input('supplier_id')) {
-            $goodsReceivings = GoodsReceiving::with([
-                'supplier:id,name',
-                'items.product:id,title,sku',
-                'items.purchaseOrderItem:id,unit_price',
-            ])->where('supplier_id', $request->input('supplier_id'))
-                ->whereIn('warehouse_id', $this->outletAccessService->warehousesFor($request->user())->pluck('id'))
-                ->whereHas('purchaseOrder', fn ($q) => $q->whereIn('status', ['ordered', 'partial_received', 'completed']))
-                ->orderByDesc('received_at')
-                ->get();
-        }
-
         $products = Product::orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock']);
 
         return $this->ok([
             'suppliers' => $suppliers,
-            'goods_receivings' => $goodsReceivings,
+            'goods_receivings' => $this->goodsReceivingsFor($request),
             'products' => $products,
         ]);
     }
@@ -83,11 +69,13 @@ class SupplierReturnController extends AppsSupplierReturnController
         $data = $request->validate([
             'supplier_id' => ['nullable', 'exists:suppliers,id'],
             'goods_receiving_id' => ['nullable', 'exists:goods_receivings,id'],
+            'warehouse_id' => ['nullable', 'exists:warehouses,id'],
             'payable_id' => ['nullable', 'exists:payables,id'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.goods_receiving_item_id' => ['nullable', 'integer', 'exists:goods_receiving_items,id'],
+            'items.*.unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.qty_returned' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['nullable', 'numeric', 'min:0'],
             'items.*.reason' => ['nullable', 'string', 'max:100'],
@@ -155,6 +143,7 @@ class SupplierReturnController extends AppsSupplierReturnController
             'goodsReceiving:id,document_number',
             'payable:id,total,paid,status,document_number',
             'items.product:id,title,sku',
+            'items.unit:id,symbol',
             'items.goodsReceivingItem',
             'creator:id,name',
         ]);
