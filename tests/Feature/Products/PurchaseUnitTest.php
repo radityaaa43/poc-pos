@@ -164,6 +164,48 @@ class PurchaseUnitTest extends TestCase
         $assertFixed();
     }
 
+    public function test_data_fix_reprices_pack_rows_sold_at_per_piece_price(): void
+    {
+        $pcs = Unit::where('code', 'PCS')->firstOrFail();
+        $karton = Unit::where('code', 'KARTON')->firstOrFail();
+        $box = Unit::where('code', 'BOX')->firstOrFail();
+        $dus = Unit::where('code', 'DUS')->firstOrFail();
+        $gram = Unit::where('code', 'GRAM')->firstOrFail();
+
+        $product = $this->createProduct(); // base sell price 10000
+        $product->units()->attach($pcs->id, ['is_base' => true, 'conversion_factor' => 1, 'buy_price' => 5000, 'sell_price' => 10000]);
+        // carried the per-piece price onto the pack
+        $product->units()->attach($karton->id, ['is_base' => false, 'conversion_factor' => 24, 'buy_price' => 120000, 'sell_price' => 10000]);
+        // carried an older, lower per-piece price
+        $product->units()->attach($box->id, ['is_base' => false, 'conversion_factor' => 12, 'buy_price' => 60000, 'sell_price' => 8000]);
+        // already above the base price (a discounted pack): must stay
+        $product->units()->attach($dus->id, ['is_base' => false, 'conversion_factor' => 24, 'buy_price' => 115000, 'sell_price' => 230000]);
+        // a non-base row with factor 1 is not a pack: stays
+        $product->units()->attach($gram->id, ['is_base' => false, 'conversion_factor' => 1, 'buy_price' => 4000, 'sell_price' => 9000]);
+
+        // a base row is never repriced, whatever its factor or price
+        $other = $this->createProduct();
+        $other->units()->attach($pcs->id, ['is_base' => true, 'conversion_factor' => 12, 'buy_price' => 3000, 'sell_price' => 5000]);
+
+        $price = fn (Product $p, Unit $unit) => $p->units()->whereKey($unit->id)->first()->pivot->sell_price;
+        $assertFixed = function () use ($price, $product, $other, $pcs, $karton, $box, $dus, $gram) {
+            $this->assertSame(10000, $price($product, $pcs));
+            $this->assertSame(240000, $price($product, $karton));
+            $this->assertSame(120000, $price($product, $box));
+            $this->assertSame(230000, $price($product, $dus));
+            $this->assertSame(9000, $price($product, $gram));
+            $this->assertSame(5000, $price($other, $pcs));
+        };
+
+        $migration = $this->migration('2026_11_26_100001_fix_per_pack_sell_price_in_product_units');
+        $migration->up();
+        $assertFixed();
+
+        // running it again must not compound the repricing
+        $migration->up();
+        $assertFixed();
+    }
+
     public function test_store_persists_buy_price_and_purchase_default_per_unit(): void
     {
         $this->actingAs($this->admin)
