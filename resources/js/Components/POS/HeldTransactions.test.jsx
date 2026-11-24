@@ -35,7 +35,7 @@ describe("HeldTransactions", () => {
         return { user, ...utils };
     }
 
-    // The delete button is icon-only and has no title or label.
+    // The delete button is icon-only and has no title or label (#45).
     const deleteButton = (index) =>
         document.querySelectorAll(".tabler-icon-trash")[index].closest("button");
 

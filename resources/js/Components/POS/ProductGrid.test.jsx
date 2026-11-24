@@ -176,6 +176,17 @@ describe("ProductGrid", () => {
             expect(screen.getAllByText(/^Rp\s/)).toHaveLength(1);
             expect(screen.getByText("Promo tersedia")).toBeInTheDocument();
         });
+
+        it("shows no promo price when promo_price is above the base price", () => {
+            const promo = {
+                ...kopi,
+                pricing_badge: { label: "Promo", promo_price: 16000, base_price: 15000 },
+            };
+            renderGrid({ products: [promo] });
+
+            expect(screen.getByText("Rp 15.000")).not.toHaveClass("line-through");
+            expect(screen.getAllByText(/^Rp\s/)).toHaveLength(1);
+        });
     });
 
     describe("unit chips", () => {

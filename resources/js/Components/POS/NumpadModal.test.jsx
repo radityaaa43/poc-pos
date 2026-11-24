@@ -23,7 +23,7 @@ function setup(props = {}) {
             await user.click(screen.getByRole("button", { name: label }));
         }
     };
-    // Backspace and close are icon-only buttons without a title or label.
+    // Backspace and close are icon-only buttons without a title or label (#45).
     const backspace = () =>
         utils.container
             .querySelector(".tabler-icon-backspace")
@@ -101,7 +101,6 @@ describe("NumpadModal", () => {
 
             await click("+100rb");
 
-            expect(screen.getByText("Rp 0")).toBeInTheDocument();
             expect(display()).toHaveTextContent(/^Rp 0$/);
         });
 
