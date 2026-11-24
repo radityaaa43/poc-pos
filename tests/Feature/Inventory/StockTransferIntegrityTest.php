@@ -266,4 +266,77 @@ class StockTransferIntegrityTest extends TestCase
         $this->assertEquals(40, $this->pivotStock($product->id, $this->source->id));
         $this->assertEquals(50, $product->fresh()->stock);
     }
+
+    private function setAvgCost(Product $product, Warehouse $warehouse, float $cost): void
+    {
+        ProductWarehouse::where(['product_id' => $product->id, 'warehouse_id' => $warehouse->id])->update(['avg_cost' => $cost]);
+    }
+
+    private function avgCost(Product $product, Warehouse $warehouse): float
+    {
+        return (float) ProductWarehouse::where(['product_id' => $product->id, 'warehouse_id' => $warehouse->id])->value('avg_cost');
+    }
+
+    public function test_receive_merges_the_source_cost_into_the_destination_average(): void
+    {
+        $product = $this->createProduct(100, 100);
+        $this->setAvgCost($product, $this->source, 265);
+        $this->setAvgCost($product, $this->destination, 100);
+        $transfer = $this->createDraft($product, 100);
+        $service = app(StockTransferService::class);
+
+        $service->send($transfer, $this->admin->id);
+        $this->assertEquals(265, $transfer->items()->first()->unit_cost);
+        $service->receive($transfer->fresh(), $this->admin->id);
+
+        // (100 * 100 + 100 * 265) / 200
+        $this->assertEquals(182.5, $this->avgCost($product, $this->destination));
+        $this->assertEquals(200, $this->pivotStock($product->id, $this->destination->id));
+        $this->assertEquals(100, $product->fresh()->stock);
+    }
+
+    public function test_destination_without_stock_takes_the_transferred_cost(): void
+    {
+        $product = $this->createProduct(100);
+        $this->setAvgCost($product, $this->source, 265);
+        $transfer = $this->createDraft($product, 40);
+        $service = app(StockTransferService::class);
+
+        $service->send($transfer, $this->admin->id);
+        $service->receive($transfer->fresh(), $this->admin->id);
+
+        $this->assertEquals(265, $this->avgCost($product, $this->destination));
+        $this->assertEquals(40, $this->pivotStock($product->id, $this->destination->id));
+        $this->assertEquals(265, $this->avgCost($product, $this->source));
+    }
+
+    public function test_cancel_in_transit_returns_stock_to_the_source_at_the_same_cost(): void
+    {
+        $product = $this->createProduct(100);
+        $this->setAvgCost($product, $this->source, 265);
+        $transfer = $this->createDraft($product, 100);
+        $service = app(StockTransferService::class);
+
+        $service->send($transfer, $this->admin->id);
+        $service->cancel($transfer->fresh(), $this->admin->id);
+
+        $this->assertEquals(100, $this->pivotStock($product->id, $this->source->id));
+        $this->assertEquals(265, $this->avgCost($product, $this->source));
+        $this->assertEquals(100, $product->fresh()->stock);
+    }
+
+    public function test_transfer_without_a_stored_unit_cost_falls_back_to_the_source_cost(): void
+    {
+        $product = $this->createProduct(100);
+        $this->setAvgCost($product, $this->source, 265);
+        $transfer = $this->createDraft($product, 40);
+        $service = app(StockTransferService::class);
+
+        $service->send($transfer, $this->admin->id);
+        $transfer->items()->update(['unit_cost' => null]); // sent before unit_cost existed
+        $service->receive($transfer->fresh(), $this->admin->id);
+
+        $this->assertEquals(265, $this->avgCost($product, $this->destination));
+        $this->assertEquals(40, $this->pivotStock($product->id, $this->destination->id));
+    }
 }
