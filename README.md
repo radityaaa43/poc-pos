@@ -123,6 +123,10 @@ The repo is already configured for them (`AGENTS.md` → Agent skills, `docs/age
 | GitHub Copilot | `copilot plugin marketplace add mattpocock/skills && copilot plugin install mattpocock-skills@mattpocock` |
 | Cursor, OpenCode, Windsurf, others | `npx skills@latest add mattpocock/skills -a <agent>` (don't commit the copied files) |
 
+Stack skills (Laravel, Inertia, React, Vitest, MySQL, UI/UX, ...) are pinned in `skills-lock.json`
+and git-ignored. Restore them once after cloning with `npx skills experimental_install`;
+`CLAUDE.md` → *Use the Project Skills* says which one to load for which code.
+
 Claude Code also loads a guard hook from `.claude/settings.json` (needs `python3` or `python` on
 your PATH). It blocks edits to secrets and protected files, pushes to the default branch and AI
 attribution lines, and asks before destructive commands. If it blocks something you really need,

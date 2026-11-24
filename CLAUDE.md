@@ -62,6 +62,35 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Use the Project Skills
+
+**Load the skill for the area before you write or review code there.** Project skills live in
+`.claude/skills/` (mirrored in `.agents/skills/`, versions pinned in `skills-lock.json`). They run
+inside an AGENTS.md workflow step and never replace one.
+
+| When you touch | Load |
+|---|---|
+| Controllers, models, services, Form Requests, jobs, Eloquent queries | `laravel-best-practices`, `laravel-specialist` |
+| Auth, Sanctum tokens, input handling, file uploads, webhooks | `laravel-security` |
+| Roles, permissions, policies (Spatie) | `laravel-permission-development` |
+| PHP tests (`tests/`) | `laravel-tdd` |
+| Migrations, indexes, slow queries, stock locking | `mysql` |
+| Inertia pages, `useForm`, shared props, layouts | `laravel-inertia-react` |
+| React components and hooks | `vercel-react-best-practices` |
+| Frontend tests (`*.test.js`, `*.test.jsx`) | `vitest` |
+| New or reshaped UI: layout, colour, type, spacing | `ui-ux-pro-max`, `frontend-design` |
+| Reviewing a UI change before the PR | `web-design-guidelines`, `accessibility` |
+| `docker-compose.yml` | `docker-compose-patterns` |
+| `.github/workflows/` | `github-actions-hardening` |
+
+- Repo docs beat skills. Where a skill disagrees with `CODING_STANDARDS.md`, `docs/agents/project-guide.md`
+  or the code, follow the repo. The stack is Laravel 13 + Inertia React (no Livewire, no Pest, no
+  Horizon: queue is `database`), Tailwind **v3** (`tailwind.config.js`, not v4 `@theme`), and tests on
+  in-memory SQLite (no MySQL-only features).
+- Load only the skills the change touches, not the whole table.
+- Personal plugins (`superpowers`, `impeccable`, `ponytail`, mattpocock skills) are optional helpers
+  for whoever has them installed; the project skills above must be enough on their own.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.

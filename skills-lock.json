@@ -1,0 +1,110 @@
+{
+  "version": 2,
+  "skills": {
+    "accessibility": {
+      "source": "addyosmani/web-quality-skills",
+      "commit": "afa8da942115f2961fdbfa80807ea0b232ff6c00",
+      "sourceType": "github",
+      "skillPath": "skills/accessibility/SKILL.md",
+      "computedHash": "c668809f5df57feb87cc06f1bc37fb340d1d92e26bacb6edbeab9258d22e76a5"
+    },
+    "docker-compose-patterns": {
+      "source": "docker/skills",
+      "commit": "5cf37e721e6190622b4dc2d81d4cd7f15933ee9c",
+      "sourceType": "github",
+      "skillPath": "skills/docker-compose-patterns/SKILL.md",
+      "computedHash": "fd752b44e789bbf42f8c0edd92df89c84871d46aee92785230e5260f866e8f99"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "commit": "e4bb5d960d87126ff3b3a8af1a104b7db67560ba",
+      "sourceType": "github",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "computedHash": "83485963700bcf11d5bf78118facb301676b69d918fee2e45a95e7f1a2840f6c"
+    },
+    "github-actions-hardening": {
+      "source": "github/awesome-copilot",
+      "commit": "f10fdb8b2660ce85c98f220b2f1ca24653768a5c",
+      "sourceType": "github",
+      "skillPath": "skills/github-actions-hardening/SKILL.md",
+      "computedHash": "ce7df8e90622480a41ffae4a81c78dbf4de3a6965cc21a91693efdf15fb3284c"
+    },
+    "laravel-best-practices": {
+      "source": "laravel/boost",
+      "commit": "6004f09e71fe199880a671df6dc34a6e731ba1ea",
+      "sourceType": "github",
+      "skillPath": ".ai/laravel/skill/laravel-best-practices/SKILL.md",
+      "computedHash": "a92d7c727eaa27cb5153af54203ff6dbf283bf4b6b31aad6f6a12517b471a306"
+    },
+    "laravel-inertia-react": {
+      "source": "AsyrafHussin/agent-skills",
+      "commit": "1aa0ff717c10309226c9e678f00873976450fd76",
+      "sourceType": "github",
+      "skillPath": "skills/laravel-inertia-react/SKILL.md",
+      "computedHash": "f4e6da3b9e5c0f6811726a6b106af29033560abb621cfd6bd814e5c976cba932"
+    },
+    "laravel-permission-development": {
+      "source": "spatie/laravel-permission",
+      "commit": "0bd8ab977e53ba68e6cf7bd967b2f86ddd53cff1",
+      "sourceType": "github",
+      "skillPath": "resources/boost/skills/laravel-permission-development/SKILL.md",
+      "computedHash": "bd2cee66b500fbaeeb485a81698856cbb7b5a93ada5711ccedad965c3117b0b9"
+    },
+    "laravel-security": {
+      "source": "affaan-m/ECC",
+      "commit": "4adeee6732a12d1540f49a4d50a38ce8c97f9a53",
+      "sourceType": "github",
+      "skillPath": "skills/laravel-security/SKILL.md",
+      "computedHash": "76754b92b4dbe1d7de632944924e51196e2a35c6dcb85ec0b4ba4d13adc15af6"
+    },
+    "laravel-specialist": {
+      "source": "Jeffallan/claude-skills",
+      "commit": "d98d06edb54c25cfb94017c0ef830342a34a43ba",
+      "sourceType": "github",
+      "skillPath": "plugin/skills/laravel-specialist/SKILL.md",
+      "computedHash": "576cc242c75c0b66f95de5843e96884ad6952e7df4d3e64a6c30309ba6559588"
+    },
+    "laravel-tdd": {
+      "source": "affaan-m/ECC",
+      "commit": "4adeee6732a12d1540f49a4d50a38ce8c97f9a53",
+      "sourceType": "github",
+      "skillPath": "skills/laravel-tdd/SKILL.md",
+      "computedHash": "006ad22ac3d173507df1cdf01e4baf937622441c39b124c6226b7a450a3cfdc4"
+    },
+    "mysql": {
+      "source": "planetscale/database-skills",
+      "commit": "f6ed002d03084cb39c01d1d58904d47a36f5322a",
+      "sourceType": "github",
+      "skillPath": "skills/mysql/SKILL.md",
+      "computedHash": "4e83e190ae1dfc5ffde49f1a4154effa7477f21180e15cdd0030aa7b664bc8ab"
+    },
+    "ui-ux-pro-max": {
+      "source": "nextlevelbuilder/ui-ux-pro-max-skill",
+      "commit": "cc7b20d85d64d8fa022292cfad731995d3cd4eeb",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/ui-ux-pro-max/SKILL.md",
+      "computedHash": "b2defbac0cde30996f120c953d243b5ccd396c55e550a98a08d4206eaadac670"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "7991ed4fbecdac23f47c1a40c243e00a212a9e7f3604db93959b3ae11dffe299"
+    },
+    "vitest": {
+      "source": "antfu/skills",
+      "commit": "4a6bb39e7b45e26402eb215393c51ccf5df1ca4c",
+      "sourceType": "github",
+      "skillPath": "skills/vitest/SKILL.md",
+      "computedHash": "bd95e41d66d76da9008893c9bc48c30f0a68f352cd2b00017767f5e4c129501d"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "commit": "5a37a6329fbad3666c3207392a6a7c0110e92efb",
+      "sourceType": "github",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "computedHash": "5994e4cfd86144903d2ba750f862b9e36af15e3297aac983679e347b99f6cb71"
+    }
+  }
+}
