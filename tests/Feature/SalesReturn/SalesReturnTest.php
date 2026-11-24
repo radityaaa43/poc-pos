@@ -13,6 +13,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -414,6 +415,78 @@ class SalesReturnTest extends TestCase
             'transaction_id' => $transaction->id,
             'total' => -180000,
         ]);
+    }
+
+    public function test_complete_sales_return_reverses_profit_with_the_frozen_hpp(): void
+    {
+        [$user, $transaction, $salesReturn] = $this->createPartialReturnDraft();
+
+        $this->actingAs($user)
+            ->post(route('sales-returns.complete', $salesReturn))
+            ->assertSessionDoesntHaveErrors();
+
+        // Frozen unit cost 99000 / 3 = 33000, not the current buy_price (90000): (60000 - 33000) x 2.
+        $this->assertDatabaseHas('profits', [
+            'transaction_id' => $transaction->id,
+            'total' => -54000,
+        ]);
+    }
+
+    public function test_api_complete_sales_return_reverses_profit_with_the_frozen_hpp(): void
+    {
+        [$user, $transaction, $salesReturn] = $this->createPartialReturnDraft();
+
+        Sanctum::actingAs($user, ['*']);
+        $this->postJson(route('api.sales-returns.complete', $salesReturn))->assertOk();
+
+        $this->assertDatabaseHas('profits', [
+            'transaction_id' => $transaction->id,
+            'total' => -54000,
+        ]);
+    }
+
+    /**
+     * Draft returning 2 of 3 units; the line froze cost_total 99000 and the product's buy_price has since moved.
+     */
+    private function createPartialReturnDraft(): array
+    {
+        $user = $this->createUserWithPermissions([
+            'transactions-access',
+            'sales-returns-access',
+            'sales-returns-create',
+            'sales-returns-complete',
+        ]);
+
+        [$transaction, $detail, $product] = $this->createTransaction($user, qty: 3);
+        $detail->update(['price' => 180000, 'cost_total' => 99000]);
+        $product->update(['buy_price' => 90000]);
+        $this->openShiftFor($user);
+
+        $salesReturn = SalesReturn::create([
+            'code' => 'SR-TEST-HPP',
+            'transaction_id' => $transaction->id,
+            'customer_id' => $transaction->customer_id,
+            'cashier_id' => $user->id,
+            'status' => 'draft',
+            'return_type' => 'refund_cash',
+            'refund_amount' => 120000,
+            'credited_amount' => 0,
+            'total_return_amount' => 120000,
+        ]);
+
+        $salesReturn->items()->create([
+            'transaction_detail_id' => $detail->id,
+            'product_id' => $product->id,
+            'qty_sold' => 3,
+            'qty_returned_before' => 0,
+            'qty_return' => 2,
+            'unit_price' => 60000,
+            'subtotal' => 120000,
+            'return_reason' => 'Barang dikembalikan',
+            'restock_to_inventory' => true,
+        ]);
+
+        return [$user, $transaction, $salesReturn];
     }
 
     private function createUserWithPermissions(array $permissions): User

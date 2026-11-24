@@ -265,10 +265,7 @@ class SalesReturnController extends Controller
                 }
 
                 // Reverse margin proportionally: (unit sell - unit cost) x returned qty.
-                $buyPrice = (int) ($item->product?->buy_price ?? 0);
-                $unitSellPrice = (int) round((int) $detail->price / max(1, (int) $detail->qty));
-                $unitCost = (int) round($buyPrice * (float) ($detail->conversion_factor ?? 1));
-                $margin = ($unitSellPrice - $unitCost) * (int) $item->qty_return;
+                $margin = $detail->returnMargin((int) $item->qty_return);
 
                 Profit::create([
                     'transaction_id' => $salesReturn->transaction_id,

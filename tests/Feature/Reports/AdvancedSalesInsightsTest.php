@@ -407,6 +407,43 @@ class AdvancedSalesInsightsTest extends TestCase
         });
     }
 
+    public function test_insights_profit_reads_the_frozen_cost_total_and_falls_back_for_legacy_lines(): void
+    {
+        $user = $this->createUser();
+        $category = Category::create([
+            'name' => 'Insights Category',
+            'description' => 'Testing',
+            'image' => 'category.png',
+        ]);
+        $customer = Customer::create([
+            'name' => 'Insight Customer',
+            'no_telp' => '62813333333',
+            'address' => 'Jl. Insight 3',
+        ]);
+        $cashier = User::factory()->create();
+        $frozen = $this->createProduct($category, 'Frozen Product', 'FRZ-001', 12_000, 20_000, 10);
+        $legacy = $this->createProduct($category, 'Legacy Product', 'LEG-001', 7_000, 20_000, 10);
+
+        $this->createTransactionWithDetails($cashier, $customer, Carbon::parse('2026-05-05 09:10:00'), [
+            ['product' => $frozen, 'qty' => 2, 'line_total' => 40_000, 'cost_total' => 18_000],
+            ['product' => $legacy, 'qty' => 2, 'line_total' => 40_000],
+        ]);
+
+        // A later receipt at another price moves buy_price; the frozen line must not follow it.
+        $frozen->update(['buy_price' => 99_000]);
+
+        $this->actingAs($user)->get(route('reports.insights.index'))->assertInertia(function (Assert $page) {
+            $props = $page->toArray()['props'];
+
+            foreach (['topSellingProducts', 'marginByProduct'] as $key) {
+                $profits = collect($props[$key])->pluck('profit_total', 'product_title');
+                $this->assertSame(22_000, $profits['Frozen Product'], $key);
+                $this->assertSame(26_000, $profits['Legacy Product'], $key);
+            }
+            $this->assertSame(48_000, $props['marginByCategory'][0]['profit_total']);
+        });
+    }
+
     private function createUser(): User
     {
         $user = User::factory()->create();
@@ -468,6 +505,7 @@ class AdvancedSalesInsightsTest extends TestCase
                 'base_unit_price' => $product->sell_price,
                 'unit_price' => (int) round($lineTotal / $quantity),
                 'price' => $lineTotal,
+                'cost_total' => $line['cost_total'] ?? null,
             ]);
             $detail->forceFill([
                 'created_at' => $createdAt,
