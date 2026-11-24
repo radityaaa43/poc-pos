@@ -14,6 +14,7 @@ use App\Services\StockMutationService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
@@ -54,15 +55,10 @@ class ProductController extends Controller
         // get categories
         $categories = Category::all();
 
-        // get non-composite products for composite component selection
-        $products = Product::where('is_composite', false)
-            ->orderBy('title')
-            ->get(['id', 'title', 'buy_price', 'sell_price', 'is_composite']);
-
         // return inertia
         return Inertia::render('Dashboard/Products/Create', [
             'categories' => $categories,
-            'products' => $products,
+            'products' => $this->componentCandidates(),
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
         ]);
     }
@@ -163,16 +159,10 @@ class ProductController extends Controller
         // get categories
         $categories = Category::all();
 
-        // get non-composite products for composite component selection
-        $products = Product::where('is_composite', false)
-            ->where('id', '!=', $product->id)
-            ->orderBy('title')
-            ->get(['id', 'title', 'buy_price', 'sell_price', 'is_composite']);
-
         return Inertia::render('Dashboard/Products/Edit', [
             'product' => $product->load('components', 'units'),
             'categories' => $categories,
-            'products' => $products,
+            'products' => $this->componentCandidates($product),
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
         ]);
     }
@@ -321,6 +311,26 @@ class ProductController extends Controller
             'components.*.component_product_id' => 'required|integer|distinct|exists:products,id',
             'components.*.qty' => 'required|integer|min:1',
         ];
+    }
+
+    /**
+     * Non-composite products for the component picker: raw materials first, each with its
+     * base-unit symbol (one subquery, no N+1; null when the product has no units).
+     */
+    private function componentCandidates(?Product $except = null)
+    {
+        return Product::where('is_composite', false)
+            ->when($except, fn ($query) => $query->where('id', '!=', $except->id))
+            ->addSelect(['id', 'title', 'buy_price', 'sell_price', 'is_composite', 'is_raw_material'])
+            ->addSelect(['unit_symbol' => DB::table('product_units')
+                ->join('units', 'units.id', '=', 'product_units.unit_id')
+                ->select('units.symbol')
+                ->whereColumn('product_units.product_id', 'products.id')
+                ->where('product_units.is_base', true)
+                ->limit(1)])
+            ->orderByDesc('is_raw_material')
+            ->orderBy('title')
+            ->get();
     }
 
     private function validateComponentProducts(Request $request, ?Product $product = null): void

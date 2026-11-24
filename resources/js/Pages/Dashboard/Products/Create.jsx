@@ -124,8 +124,22 @@ export default function Create({ categories, products, units = [] }) {
         );
     };
 
+    // The picker shows `label`; raw materials arrive first from the server.
+    const options = products.map((p) => ({
+        ...p,
+        label: p.is_raw_material ? `${p.title} (bahan baku)` : p.title,
+    }));
+
+    // Stock-unit symbol of a recipe line's component; products without units count in pcs.
+    const unitSymbol = (component) => {
+        const p = products.find(
+            (x) => x.id === Number(component.component_product_id)
+        );
+        return p ? p.unit_symbol ?? "pcs" : "";
+    };
+
     const availableProducts = (selectedIndex) =>
-        products.filter(
+        options.filter(
             (p) =>
                 !p.is_composite &&
                 !data.components.some(
@@ -587,15 +601,15 @@ export default function Create({ categories, products, units = [] }) {
                                     {data.components.map((component, index) => (
                                         <div
                                             key={index}
-                                            className="flex items-end gap-3"
+                                            className="flex flex-wrap items-end gap-3 sm:flex-nowrap"
                                         >
-                                            <div className="flex-1">
+                                            <div className="w-full sm:w-auto sm:flex-1">
                                                 <InputSelect
                                                     data={availableProducts(
                                                         index
                                                     )}
                                                     selected={
-                                                        products.find(
+                                                        options.find(
                                                             (p) =>
                                                                 p.id ===
                                                                 Number(
@@ -619,7 +633,7 @@ export default function Create({ categories, products, units = [] }) {
                                                         ]
                                                     }
                                                     searchable={true}
-                                                    displayKey="title"
+                                                    displayKey="label"
                                                 />
                                             </div>
                                             <div className="w-28">
@@ -643,6 +657,9 @@ export default function Create({ categories, products, units = [] }) {
                                                     placeholder="Qty"
                                                 />
                                             </div>
+                                            <span className="flex h-11 w-10 items-center text-sm text-slate-500 dark:text-slate-400">
+                                                {unitSymbol(component)}
+                                            </span>
                                             <button
                                                 type="button"
                                                 onClick={() =>
@@ -657,7 +674,7 @@ export default function Create({ categories, products, units = [] }) {
                                 </div>
                                 {estimatedCost > 0 && (
                                     <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                                        Estimasi HPP per porsi:{" "}
+                                        HPP per porsi, estimasi (harga referensi):{" "}
                                         <span className="font-semibold text-slate-700 dark:text-slate-200">
                                             Rp{" "}
                                             {estimatedCost.toLocaleString(
