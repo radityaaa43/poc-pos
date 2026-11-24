@@ -2,12 +2,14 @@
 
 namespace App\Services;
 
+use App\Models\ProductUnit;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderService
 {
@@ -47,10 +49,11 @@ class PurchaseOrderService
                 'created_by' => $userId,
             ]);
 
-            foreach ($items as $item) {
+            foreach ($items as $index => $item) {
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $order->id,
                     'product_id' => $item['product_id'],
+                    ...$this->purchaseUnit($item['product_id'], $item['unit_id'] ?? null, $index),
                     'qty_ordered' => $item['qty_ordered'],
                     'qty_received' => 0,
                     'unit_price' => $item['unit_price'],
@@ -73,6 +76,26 @@ class PurchaseOrderService
 
             return $order;
         });
+    }
+
+    /**
+     * The conversion factor always comes from product_units, never from the request.
+     * No unit means the stock unit (null unit_id, factor 1).
+     */
+    private function purchaseUnit(int $productId, ?int $unitId, int $index): array
+    {
+        if (! $unitId) {
+            return ['unit_id' => null, 'conversion_factor' => 1];
+        }
+
+        $factor = ProductUnit::where('product_id', $productId)->where('unit_id', $unitId)->value('conversion_factor');
+        if ($factor === null) {
+            throw ValidationException::withMessages([
+                "items.$index.unit_id" => 'Satuan tidak tersedia untuk produk ini.',
+            ]);
+        }
+
+        return ['unit_id' => $unitId, 'conversion_factor' => $factor];
     }
 
     public function placeOrder(PurchaseOrder $order): void

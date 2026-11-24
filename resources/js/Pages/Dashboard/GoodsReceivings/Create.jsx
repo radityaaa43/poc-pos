@@ -7,6 +7,7 @@ import {
     IconTruckDelivery,
 } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import { baseUnit, stockEquivalent } from "@/Utils/purchaseUnits";
 
 export default function Create({ orders }) {
     const { data, setData, post, processing, errors } = useForm({
@@ -31,6 +32,9 @@ export default function Create({ orders }) {
                     purchase_order_item_id: item.id,
                     product_title: item.product?.title || "Produk #" + item.product_id,
                     product_sku: item.product?.sku || "-",
+                    unit_symbol: item.unit?.symbol || "",
+                    conversion_factor: item.conversion_factor,
+                    stock_symbol: baseUnit(item.product)?.symbol,
                     qty_ordered: item.qty_ordered,
                     qty_received_already: item.qty_received || 0,
                     outstanding: item.qty_ordered - (item.qty_received || 0),
@@ -131,9 +135,9 @@ export default function Create({ orders }) {
                                                     <p className="font-medium text-slate-800 dark:text-slate-200">{item.product_title}</p>
                                                     <p className="text-xs text-slate-500">{item.product_sku}</p>
                                                 </td>
-                                                <td className="px-3 py-3 text-right">{item.qty_ordered}</td>
-                                                <td className="px-3 py-3 text-right text-slate-500">{item.qty_received_already}</td>
-                                                <td className="px-3 py-3 text-right font-semibold text-warning-600">{item.outstanding}</td>
+                                                <td className="px-3 py-3 text-right">{item.qty_ordered} {item.unit_symbol}</td>
+                                                <td className="px-3 py-3 text-right text-slate-500">{item.qty_received_already} {item.unit_symbol}</td>
+                                                <td className="px-3 py-3 text-right font-semibold text-warning-600">{item.outstanding} {item.unit_symbol}</td>
                                                 <td className="px-3 py-3 text-right">
                                                     <input
                                                         type="number"
@@ -141,8 +145,13 @@ export default function Create({ orders }) {
                                                         max={item.outstanding}
                                                         value={item.qty_received}
                                                         onChange={(e) => updateItem(index, e.target.value)}
-                                                        className="h-10 w-24 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
+                                                    {stockEquivalent(item.qty_received, item.conversion_factor, item.stock_symbol) && (
+                                                        <p className="mt-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
+                                                            = {stockEquivalent(item.qty_received, item.conversion_factor, item.stock_symbol)}
+                                                        </p>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 text-right">
                                                     <input
@@ -154,7 +163,7 @@ export default function Create({ orders }) {
                                                             setData("items", items);
                                                         }}
                                                         placeholder="-"
-                                                        className="h-10 w-32 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                             </tr>
@@ -162,6 +171,7 @@ export default function Create({ orders }) {
                                     </tbody>
                                 </table>
                             </div>
+                            {errors.items && <p className="mt-3 text-sm text-danger-500">{errors.items}</p>}
                         </div>
                     )}
 

@@ -7,6 +7,7 @@ import {
     IconTruckDelivery,
     IconPackage,
 } from "@tabler/icons-react";
+import { baseUnit, stockEquivalent } from "@/Utils/purchaseUnits";
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -73,6 +74,7 @@ export default function Show({ receiving }) {
                             {receiving.items.length > 0 ? (
                                 receiving.items.map((item) => {
                                     const unitPrice = item.purchase_order_item?.unit_price || 0;
+                                    const equivalent = stockEquivalent(item.qty_received, item.conversion_factor, baseUnit(item.product)?.symbol);
                                     return (
                                         <tr key={item.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                             <Table.Td>
@@ -81,8 +83,14 @@ export default function Show({ receiving }) {
                                                 </p>
                                                 <p className="text-xs text-slate-500">{item.product?.sku || "-"}</p>
                                             </Table.Td>
-                                            <Table.Td className="font-semibold">{item.qty_received}</Table.Td>
-                                            <Table.Td>{formatCurrency(unitPrice)}</Table.Td>
+                                            <Table.Td className="font-semibold">
+                                                {item.qty_received} {item.unit?.symbol}
+                                                {equivalent && <p className="text-xs font-normal text-slate-500">= {equivalent}</p>}
+                                            </Table.Td>
+                                            <Table.Td>
+                                                {formatCurrency(unitPrice)}
+                                                {item.unit && <span className="text-xs text-slate-500"> / {item.unit.symbol}</span>}
+                                            </Table.Td>
                                             <Table.Td className="font-semibold">{formatCurrency(item.qty_received * unitPrice)}</Table.Td>
                                             <Table.Td className="text-xs text-slate-500">{item.notes || "-"}</Table.Td>
                                         </tr>

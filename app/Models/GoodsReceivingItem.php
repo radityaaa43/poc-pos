@@ -13,11 +13,14 @@ class GoodsReceivingItem extends Model
         'goods_receiving_id',
         'purchase_order_item_id',
         'product_id',
+        'unit_id',
+        'conversion_factor',
         'qty_received',
         'notes',
     ];
 
     protected $casts = [
+        'conversion_factor' => 'float',
         'qty_received' => 'integer',
     ];
 
@@ -34,5 +37,10 @@ class GoodsReceivingItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function unit()
+    {
+        return $this->belongsTo(Unit::class);
     }
 }

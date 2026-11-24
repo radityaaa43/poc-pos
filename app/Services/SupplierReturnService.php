@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\GoodsReceiving;
+use App\Models\GoodsReceivingItem;
 use App\Models\ProductWarehouse;
 use App\Models\SupplierReturn;
 use App\Models\SupplierReturnItem;
@@ -41,6 +42,18 @@ class SupplierReturnService
         }
         if ($warehouseId) {
             $this->ensureWarehouseAccess($userId, $warehouseId);
+        }
+
+        // Returns count stock units and reduce the payable by qty x unit_price; receipts in a
+        // purchase unit (kg) would be misread. Proper support: #29.
+        $unitBased = GoodsReceivingItem::whereIn('id', array_filter(array_column($items, 'goods_receiving_item_id')))
+            ->where('conversion_factor', '!=', 1)->pluck('id')->all();
+        foreach ($items as $i => $item) {
+            if (in_array($item['goods_receiving_item_id'] ?? null, $unitBased)) {
+                throw ValidationException::withMessages([
+                    "items.{$i}.goods_receiving_item_id" => 'Retur untuk item penerimaan dengan satuan beli belum didukung (lihat #29).',
+                ]);
+            }
         }
 
         return DB::transaction(function () use ($data, $items, $userId) {

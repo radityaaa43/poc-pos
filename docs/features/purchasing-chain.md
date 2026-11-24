@@ -11,6 +11,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 ### Purchase Order (PO)
 - Buat PO dengan pilih supplier + item produk
 - Qty dan harga beli per item
+- Satuan beli per item (default: satuan beli utama produk, else satuan dasar); qty dan harga per satuan itu. Faktor konversi dibaca server dari `product_units` dan disimpan di item (`unit_id`, `conversion_factor`); tampil ekuivalen satuan stok ("5 kg = 5.000 g")
 - Auto-generate nomor dokumen (`PO-YYYYmmdd-XXXX`)
 - Status lifecycle: `draft` → `ordered` → `partial_received` / `completed` → `cancelled`
 - Filter by status, supplier, nomor dokumen
@@ -21,6 +22,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 - Auto-update status PO (partial/completed)
 - Input **batch number** + **expired date** per item (untuk batch tracking)
 - Increment stok di warehouse tujuan (dari PO)
+- Qty diterima dalam satuan item PO; stok, batch, dan mutasi masuk dalam satuan stok (qty x faktor). Ditolak jika hasilnya bukan bilangan bulat
 - Auto-create payable (30 days due date)
 
 ### Supplier Return

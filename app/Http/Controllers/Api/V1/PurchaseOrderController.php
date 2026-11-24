@@ -53,7 +53,7 @@ class PurchaseOrderController extends AppsPurchaseOrderController
     {
         return $this->ok([
             'suppliers' => Supplier::orderBy('name')->get(['id', 'name']),
-            'products' => Product::orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock']),
+            'products' => Product::with('units:units.id,units.name,units.symbol')->orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock']),
             'warehouses' => $this->outletAccessService->warehousesFor($request->user()),
         ]);
     }
@@ -71,6 +71,7 @@ class PurchaseOrderController extends AppsPurchaseOrderController
             'notes' => ['nullable', 'string', 'max:1000'],
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],
+            'items.*.unit_id' => ['nullable', 'integer', 'exists:units,id'],
             'items.*.qty_ordered' => ['required', 'integer', 'min:1'],
             'items.*.unit_price' => ['required', 'numeric', 'min:0'],
         ]);
@@ -129,8 +130,10 @@ class PurchaseOrderController extends AppsPurchaseOrderController
             'supplier:id,name,phone,email,address',
             'warehouse:id,code,name',
             'items.product:id,title,sku,image',
+            'items.unit:id,name,symbol',
+            'items.product.units:units.id,units.symbol',
             'goodsReceivings' => function ($q) {
-                $q->with('items.product:id,title,sku')->orderByDesc('received_at');
+                $q->with(['items.product:id,title,sku', 'items.unit:id,name,symbol'])->orderByDesc('received_at');
             },
             'creator:id,name',
             'payable:id,purchase_order_id,total,paid,status,document_number',

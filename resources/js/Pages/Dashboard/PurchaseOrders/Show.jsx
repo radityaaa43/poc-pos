@@ -13,6 +13,7 @@ import {
     IconTruckDelivery,
 } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import { baseUnit, stockEquivalent } from "@/Utils/purchaseUnits";
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -151,6 +152,8 @@ export default function Show({ order }) {
                                 {order.items.length > 0 ? (
                                     order.items.map((item) => {
                                         const remaining = item.qty_ordered - item.qty_received;
+                                        const qty = (n) => (item.unit ? `${n} ${item.unit.symbol}` : n);
+                                        const equivalent = stockEquivalent(item.qty_ordered, item.conversion_factor, baseUnit(item.product)?.symbol);
                                         return (
                                             <tr key={item.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
                                                 <Table.Td>
@@ -159,14 +162,20 @@ export default function Show({ order }) {
                                                     </p>
                                                     <p className="text-xs text-slate-500">{item.product?.sku || "-"}</p>
                                                 </Table.Td>
-                                                <Table.Td>{item.qty_ordered}</Table.Td>
-                                                <Table.Td>{item.qty_received}</Table.Td>
+                                                <Table.Td>
+                                                    {qty(item.qty_ordered)}
+                                                    {equivalent && <p className="text-xs text-slate-500">= {equivalent}</p>}
+                                                </Table.Td>
+                                                <Table.Td>{qty(item.qty_received)}</Table.Td>
                                                 <Table.Td>
                                                     <span className={`font-semibold ${remaining > 0 ? "text-warning-600" : "text-success-600"}`}>
-                                                        {remaining}
+                                                        {qty(remaining)}
                                                     </span>
                                                 </Table.Td>
-                                                <Table.Td>{formatCurrency(item.unit_price)}</Table.Td>
+                                                <Table.Td>
+                                                    {formatCurrency(item.unit_price)}
+                                                    {item.unit && <span className="text-xs text-slate-500"> / {item.unit.symbol}</span>}
+                                                </Table.Td>
                                                 <Table.Td className="font-semibold">{formatCurrency(item.qty_ordered * item.unit_price)}</Table.Td>
                                             </tr>
                                         );
