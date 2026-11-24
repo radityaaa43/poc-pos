@@ -240,6 +240,37 @@ class PurchaseUnitTest extends TestCase
         ]);
     }
 
+    public function test_blank_unit_sell_price_defaults_to_base_price_times_conversion(): void
+    {
+        $units = $this->unitRows();
+        $units[1]['sell_price'] = '';
+
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($units))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+
+        // 1 kg = 1000 g at Rp 10/g → Rp 10.000 per kg, never the per-gram price (#40).
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $units[1]['unit_id'], 'sell_price' => 10000,
+        ]);
+    }
+
+    public function test_an_explicit_unit_sell_price_is_kept_as_typed(): void
+    {
+        $this->actingAs($this->admin)
+            ->post(route('products.store'), $this->storePayload($this->unitRows()))
+            ->assertRedirect(route('products.index'));
+
+        $product = Product::where('title', 'Tepung')->firstOrFail();
+
+        // a discounted pack price (9.500 instead of 10 × 1000) stays as typed
+        $this->assertDatabaseHas('product_units', [
+            'product_id' => $product->id, 'unit_id' => $this->unitRows()[1]['unit_id'], 'sell_price' => 9500,
+        ]);
+    }
+
     public function test_blank_buy_price_uses_the_base_fallback_factor_when_no_row_is_flagged_base(): void
     {
         $kg = Unit::where('code', 'KG')->firstOrFail();
