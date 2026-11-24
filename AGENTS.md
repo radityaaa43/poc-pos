@@ -98,6 +98,7 @@ issue, stdlib and native features before new libraries.
 # laravel
 docker compose exec -T app vendor/bin/pint --test --diff=main
 docker compose exec -T app php artisan test --compact
+# CI also runs the suite on MySQL 8.4 (Backend job)
 # frontend
 npm test
 npm run build

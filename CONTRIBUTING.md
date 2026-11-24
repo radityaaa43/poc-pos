@@ -166,7 +166,8 @@ on every turn.
 | Check | Blocks? | What it checks |
 |---|---|---|
 | CI/CD Pipeline → CI (Build) (`deploy.yml`) | yes | `composer validate`, Pint on changed PHP files (`--diff=origin/main`), `npm run build`, `php artisan test` on SQLite. CI does not deploy: deploying to the VPS is a manual step outside CI/CD (ADR 0001) |
-| Tests → Frontend (`tests.yml`) | yes | Vitest on the frontend utilities with a coverage summary and the `frontend-coverage` artifact |
+| Tests → Frontend (`tests.yml`) | yes | Vitest coverage + production build (`npm run build`), with a coverage summary and the `frontend-coverage` artifact |
+| Tests → Backend (`tests.yml`) | not yet (required once ruleset switches, see #51) | Pint on changed PHP files, PHPUnit on MySQL 8.4 with pcov line coverage, summary and `backend-coverage` artifact |
 | PR checklist | yes | `Closes #`, Manual test, Docs, AI used, Backlog lines; no AI attribution |
 | Issue checklist | comments | Required sections and lines on new issues |
 | PR size / File length | above the fail limit | Counted changed lines; code files growing past the limit |
