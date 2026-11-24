@@ -371,6 +371,17 @@ class ProductController extends Controller
                 if ($defaults->count() > 1) {
                     $fail('Hanya satu satuan beli default yang diperbolehkan.');
                 }
+
+                // No base row is fine: syncUnits() makes the first row the base.
+                $bases = collect($value)->filter(
+                    fn ($u) => filter_var($u['is_base'] ?? false, FILTER_VALIDATE_BOOLEAN)
+                );
+
+                if ($bases->count() > 1) {
+                    $fail('Hanya satu satuan dasar yang diperbolehkan.');
+                } elseif ($bases->isNotEmpty() && (float) ($bases->first()['conversion_factor'] ?? 1) !== 1.0) {
+                    $fail('Satuan dasar harus memiliki isi 1.');
+                }
             }],
             'units.*.unit_id' => 'required|integer|distinct|exists:units,id',
             'units.*.is_base' => 'required|boolean',
