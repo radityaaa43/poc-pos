@@ -123,6 +123,35 @@ class PrBody(unittest.TestCase):
         self.assertTrue(check_pr_body.problems(GOOD_PR, "2030-01-02T00:00:00Z", on, title="feat: x"))
         self.assertEqual(check_pr_body.problems(GOOD_PR, cfg=cfg(), title="feat: x"), [])
 
+    def test_ac_tags(self):
+        c = cfg(backlog__enabled=True, backlog__require_ac=True, backlog__id_regex=r"\bREQ-\d+\b",
+                e2e_rule__enabled=True, e2e_rule__ac_tags=True)
+        body = GOOD_PR + "- **Backlog:** REQ-002 AC-5, AC-07\n"
+        tagged = {"a.spec.js": "test('receive 2 kg', { tag: ['@REQ-002-AC-05', '@REQ-002-AC-07'] }, async () => {});"}
+        self.assertEqual(check_pr_body.problems(body, cfg=c, specs=tagged), [])
+        in_title = {"a.spec.js": "test.describe('po @REQ-002-AC-05', () => { test(`x @REQ-002-AC-7`, f); });"}
+        self.assertEqual(check_pr_body.problems(body, cfg=c, specs=in_title), [])
+        excepted = body + "- **E2E:** AC-07 none — data migration; REQ-002 AC-05 none — API only\n"
+        self.assertEqual(check_pr_body.problems(excepted, cfg=c, specs={}), [])
+        found = check_pr_body.problems(body, cfg=c, specs={"a.spec.js": "test('x', { tag: '@REQ-002-AC-05' }, f);"})
+        self.assertEqual(len(found), 1)
+        self.assertIn("No e2e test proves REQ-002 AC-07: tag a test", found[0])
+        parked = {"a.spec.js": "test.fixme('x', { tag: '@REQ-002-AC-05' }, f); test.skip('y @REQ-002-AC-07', f);"}
+        self.assertTrue(check_pr_body.problems(body, cfg=c, specs=parked))
+        other_req = {"a.spec.js": "test('x', { tag: ['@REQ-003-AC-05', '@REQ-003-AC-07'] }, f);"}
+        self.assertTrue(check_pr_body.problems(body, cfg=c, specs=other_req))
+        self.assertTrue(check_pr_body.problems(body + "- **E2E:** none — later\n", cfg=c, specs={}))
+        none = GOOD_PR + "- **Backlog:** none — CI fix\n"
+        self.assertEqual(check_pr_body.problems(none, cfg=c, specs={}), [])
+        dated = cfg(backlog__enabled=True, e2e_rule__ac_tags=True, e2e_rule__rule_start="2030-01-01")
+        self.assertEqual(check_pr_body.problems(body, "2029-12-31", dated, specs={}), [])
+        self.assertEqual(check_pr_body.problems(body, cfg=cfg(backlog__enabled=True), specs={}), [])
+
+    def test_feat_pr_with_per_ac_exception_needs_no_e2e_change(self):
+        c = cfg(e2e_rule__enabled=True, e2e_rule__paths=["tests/e2e/features/"])
+        body = GOOD_PR + "- **E2E:** AC-07 none — data migration\n"
+        self.assertEqual(check_pr_body.problems(body, cfg=c, title="feat: x", files=["app/A.php"]), [])
+
 
 class IssueBody(unittest.TestCase):
     def test_sections_and_ai_used(self):
