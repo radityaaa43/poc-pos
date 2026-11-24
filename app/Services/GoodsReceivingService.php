@@ -41,7 +41,7 @@ class GoodsReceivingService
         return retry(3, function () use ($order, $items, $notes, $userId) {
             return DB::transaction(function () use ($order, $items, $notes, $userId) {
                 // ponytail: lock the order + its items so concurrent receipts cannot double-consume the same PO item
-                $order = PurchaseOrder::with('items')->whereKey($order->id)->lockForUpdate()->firstOrFail();
+                $order = PurchaseOrder::with('items.unit')->whereKey($order->id)->lockForUpdate()->firstOrFail();
                 $user = User::findOrFail($userId);
                 $warehouse = $order->warehouse_id ? Warehouse::findOrFail($order->warehouse_id) : null;
                 abort_unless($this->outletAccessService->canUseWarehouse($user, $warehouse), 403);

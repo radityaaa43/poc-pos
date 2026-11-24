@@ -3,11 +3,15 @@
 namespace Tests\Feature\Purchasing;
 
 use App\Models\Category;
+use App\Models\GoodsReceivingItem;
+use App\Models\Payable;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\PurchaseOrder;
 use App\Models\StockMutation;
+use App\Models\Supplier;
+use App\Models\SupplierReturn;
 use App\Models\Unit;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -86,7 +90,7 @@ class PurchaseUnitsTest extends TestCase
     private function placedKgOrder(): PurchaseOrder
     {
         $this->actingAs($this->admin);
-        $this->post(route('purchase-orders.store'), $this->poPayload(['unit_id' => $this->kg->id]))->assertSessionHasNoErrors();
+        $this->post(route('purchase-orders.store'), $this->poPayload(['unit_id' => $this->kg->id]) + ['supplier_id' => Supplier::create(['name' => 'CV Kopi'])->id])->assertSessionHasNoErrors();
         $order = PurchaseOrder::firstOrFail();
         $this->post(route('purchase-orders.place', $order))->assertSessionHasNoErrors();
 
@@ -157,7 +161,6 @@ class PurchaseUnitsTest extends TestCase
 
         $poItem->refresh();
         $this->assertSame(2, $poItem->qty_received);
-        $this->assertSame(3, $poItem->qty_ordered - $poItem->qty_received);
         $this->assertSame('partial_received', $order->fresh()->status);
 
         $this->assertDatabaseHas('goods_receiving_items', [
@@ -165,6 +168,8 @@ class PurchaseUnitsTest extends TestCase
             'unit_id' => $this->kg->id,
             'qty_received' => 2,
         ]);
+        $this->assertSame(1000.0, GoodsReceivingItem::firstOrFail()->conversion_factor);
+        $this->assertSame(500000.0, Payable::firstOrFail()->total); // 2 kg x Rp 250.000, not 2000 g x 250.000
     }
 
     public function test_receiving_rejects_a_non_whole_stock_quantity(): void
@@ -222,7 +227,59 @@ class PurchaseUnitsTest extends TestCase
         $this->assertSame(3000, (int) $this->beans->fresh()->stock);
         $this->assertSame(3000, (int) ProductWarehouse::where('product_id', $this->beans->id)->value('stock'));
         $this->assertSame(2000, (int) StockMutation::where('reference_type', 'goods_receiving')->value('qty'));
-        $this->assertSame(3, PurchaseOrder::findOrFail($id)->items()->first()->qty_ordered - 2);
+        $this->assertSame(2, PurchaseOrder::findOrFail($id)->items()->first()->qty_received);
+    }
+
+    public function test_api_receiving_rejects_a_non_whole_stock_quantity(): void
+    {
+        $half = Unit::firstOrCreate(['code' => 'HALF'], ['name' => 'Setengah', 'symbol' => 'hf']);
+        $this->beans->units()->attach($half->id, ['conversion_factor' => 0.5, 'buy_price' => 125, 'sell_price' => 0]);
+
+        Sanctum::actingAs($this->admin, ['*']);
+        $id = $this->postJson('/api/v1/purchase-orders', $this->poPayload(['unit_id' => $half->id]))->assertCreated()->json('data.id');
+        $this->postJson("/api/v1/purchase-orders/{$id}/place")->assertOk();
+
+        $this->postJson('/api/v1/goods-receivings', [
+            'purchase_order_id' => $id,
+            'items' => [['purchase_order_item_id' => PurchaseOrder::findOrFail($id)->items()->value('id'), 'qty_received' => 3]],
+        ])->assertStatus(422);
+
+        $this->assertSame(1000, (int) $this->beans->fresh()->stock);
+        $this->assertDatabaseCount('goods_receivings', 0);
+    }
+
+    public function test_supplier_return_rejects_a_receiving_item_in_a_purchase_unit(): void
+    {
+        $order = $this->placedKgOrder();
+        $this->post(route('goods-receivings.store'), [
+            'purchase_order_id' => $order->id,
+            'items' => [['purchase_order_item_id' => $order->items->first()->id, 'qty_received' => 2]],
+        ])->assertSessionHasNoErrors();
+
+        // Supplier returns count stock units; a kg line would cut the payable by qty x kg price. See #29.
+        $this->post(route('supplier-returns.store'), [
+            'items' => [['product_id' => $this->beans->id, 'goods_receiving_item_id' => GoodsReceivingItem::value('id'), 'qty_returned' => 1, 'unit_price' => 250000]],
+        ])->assertSessionHasErrors('items.0.goods_receiving_item_id');
+
+        $this->assertSame(0, SupplierReturn::count());
+    }
+
+    public function test_supplier_return_still_works_for_a_receiving_item_in_the_stock_unit(): void
+    {
+        $this->actingAs($this->admin);
+        $this->post(route('purchase-orders.store'), $this->poPayload(['unit_price' => 250]))->assertSessionHasNoErrors();
+        $order = PurchaseOrder::firstOrFail();
+        $this->post(route('purchase-orders.place', $order));
+        $this->post(route('goods-receivings.store'), [
+            'purchase_order_id' => $order->id,
+            'items' => [['purchase_order_item_id' => $order->items->first()->id, 'qty_received' => 4]],
+        ])->assertSessionHasNoErrors();
+
+        $this->post(route('supplier-returns.store'), [
+            'items' => [['product_id' => $this->beans->id, 'goods_receiving_item_id' => GoodsReceivingItem::value('id'), 'qty_returned' => 1, 'unit_price' => 250]],
+        ])->assertSessionHasNoErrors();
+
+        $this->assertSame(1, SupplierReturn::count());
     }
 
     public function test_api_po_rejects_a_unit_of_another_product(): void

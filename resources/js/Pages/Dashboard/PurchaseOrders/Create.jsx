@@ -230,7 +230,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                             aria-label={`Satuan ${item.product_title}`}
                                                             value={item.unit_id}
                                                             onChange={(e) => changeUnit(index, e.target.value)}
-                                                            className="h-11 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                            className="h-11 w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                         >
                                                             {productOf(item).units.map((unit) => (
                                                                 <option key={unit.id} value={unit.id}>
@@ -256,7 +256,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                         min="1"
                                                         value={item.qty_ordered}
                                                         onChange={(e) => updateItem(index, "qty_ordered", e.target.value)}
-                                                        className="h-11 w-20 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-20 rounded-xl border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-3 text-right">
@@ -266,7 +266,7 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                         step="100"
                                                         value={item.unit_price}
                                                         onChange={(e) => updateItem(index, "unit_price", e.target.value)}
-                                                        className="h-11 w-28 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-28 rounded-xl border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                                 <td className="px-3 py-3 text-right font-medium text-slate-800 dark:text-slate-200">

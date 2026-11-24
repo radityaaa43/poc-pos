@@ -94,7 +94,7 @@ class PurchaseOrderController extends Controller
             'items.unit:id,name,symbol',
             'items.product.units:units.id,units.symbol',
             'goodsReceivings' => function ($q) {
-                $q->with(['items.product:id,title,sku', 'items.unit:id,name,symbol'])->orderByDesc('received_at');
+                $q->with('items.product:id,title,sku')->orderByDesc('received_at');
             },
             'creator:id,name',
             'payable:id,purchase_order_id,total,paid,status,document_number',

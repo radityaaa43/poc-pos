@@ -145,7 +145,7 @@ export default function Create({ orders }) {
                                                         max={item.outstanding}
                                                         value={item.qty_received}
                                                         onChange={(e) => updateItem(index, e.target.value)}
-                                                        className="h-11 w-24 rounded-lg border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-24 rounded-xl border border-slate-200 bg-slate-50 px-3 text-right text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                     {stockEquivalent(item.qty_received, item.conversion_factor, item.stock_symbol) && (
                                                         <p className="mt-1 whitespace-nowrap text-xs text-slate-500 dark:text-slate-400">
@@ -163,7 +163,7 @@ export default function Create({ orders }) {
                                                             setData("items", items);
                                                         }}
                                                         placeholder="-"
-                                                        className="h-11 w-32 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                                                        className="h-11 w-32 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                                     />
                                                 </td>
                                             </tr>
