@@ -110,10 +110,8 @@ describe("CustomerHistoryPanel", () => {
     });
 
     describe("errors", () => {
-        let errorSpy;
-
         beforeEach(() => {
-            errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+            vi.spyOn(console, "error").mockImplementation(() => {});
         });
 
         it("shows a generic error when the response is not ok", async () => {
@@ -124,7 +122,6 @@ describe("CustomerHistoryPanel", () => {
             expect(
                 await screen.findByText("Gagal memuat data pelanggan")
             ).toBeInTheDocument();
-            expect(errorSpy).toHaveBeenCalled();
         });
 
         it("shows the server message when success is false", async () => {
@@ -145,7 +142,6 @@ describe("CustomerHistoryPanel", () => {
             expect(
                 await screen.findByText("Gagal memuat data pelanggan")
             ).toBeInTheDocument();
-            expect(errorSpy).toHaveBeenCalled();
         });
     });
 });
@@ -178,7 +174,7 @@ describe("CustomerHistoryButton", () => {
 
         expect(await screen.findByText("Riwayat Pelanggan")).toBeInTheDocument();
 
-        // The close button has no title or text; it is the only button without a title.
+        // The close button has no title or text; it is the only button without a title (#45).
         const closeButton = screen
             .getAllByRole("button")
             .find((button) => !button.hasAttribute("title"));

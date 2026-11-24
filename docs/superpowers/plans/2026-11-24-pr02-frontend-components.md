@@ -29,6 +29,12 @@ total (`subtotal - discount`, ignoring voucher, points, shipping and tax) disagr
 **This plan does not test those five files.** Task 0 opens one issue asking the maintainer to wire
 or delete them; tests follow whichever is chosen.
 
+## Delivery
+
+Shipped as three PRs to stay under 1,000 counted lines: Tasks 1, 2, 6 (checkout components) under
+#44; Tasks 3–5 (customer components) and this plan under #18; Tasks 7–10 under #19. Icon-only
+buttons without accessible names found by the tests: #45.
+
 ## Global Constraints
 
 - No application code changes. A test that shows the application is wrong is not weakened and the
@@ -118,7 +124,7 @@ stock:3}`, `teh {id:2, title:"Teh Manis", barcode:null, category_id:2, sell_pric
   - `clicking an in-stock product adds it with the base unit`: → `onAddToCart(kopi, null)`
   - `promo price`: `pricing_badge {label:"Promo", promo_price:12000, base_price:15000}` → shows
     "Rp 12.000" and the struck "Rp 15.000"; `promo_price` ≥ base → no promo price
-  - `unit chips`: `units:[{id:9, code:"BOX", sell_price:140000, is_base:false}]` → chips "Dasar",
+  - `unit chips`: `units:[{unit_id:9, code:"BOX", sell_price:140000, is_base:false}]` → chips "Dasar",
     "BOX"; select BOX → price "Rp 140.000" with "/BOX"; add → `onAddToCart(product, unit)`;
     "Dasar" → back to base
   - `search input`: typing calls `onSearchChange`; Enter calls `onSearch`; disabled while

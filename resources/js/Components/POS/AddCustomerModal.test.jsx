@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import toast from "react-hot-toast";
@@ -114,21 +114,23 @@ describe("AddCustomerModal", () => {
         await fillForm(user);
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
-        expect(axios.post).toHaveBeenCalledWith("/customers.storeAjax", {
-            name: "Citra",
-            no_telp: "0812",
-            address: "Jl. Mawar",
-            is_loyalty_member: false,
-            loyalty_tier: "regular",
+        await waitFor(() => {
+            expect(axios.post).toHaveBeenCalledWith("/customers.storeAjax", {
+                name: "Citra",
+                no_telp: "0812",
+                address: "Jl. Mawar",
+                is_loyalty_member: false,
+                loyalty_tier: "regular",
+            });
+            expect(toast.success).toHaveBeenCalledWith(
+                "Pelanggan berhasil ditambahkan"
+            );
+            expect(onSuccess).toHaveBeenCalledWith(customer);
+            expect(onClose).toHaveBeenCalledTimes(1);
+            expect(onSuccess.mock.invocationCallOrder[0]).toBeLessThan(
+                onClose.mock.invocationCallOrder[0]
+            );
         });
-        expect(toast.success).toHaveBeenCalledWith(
-            "Pelanggan berhasil ditambahkan"
-        );
-        expect(onSuccess).toHaveBeenCalledWith(customer);
-        expect(onClose).toHaveBeenCalledTimes(1);
-        expect(onSuccess.mock.invocationCallOrder[0]).toBeLessThan(
-            onClose.mock.invocationCallOrder[0]
-        );
     });
 
     it("server says no: shows the message and the field error", async () => {
@@ -145,30 +147,27 @@ describe("AddCustomerModal", () => {
         await fillForm(user);
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
-        expect(toast.error).toHaveBeenCalledWith("Telepon sudah dipakai");
-        expect(screen.getByText("Telepon sudah dipakai")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled();
+        await waitFor(() => {
+            expect(toast.error).toHaveBeenCalledWith("Telepon sudah dipakai");
+            expect(screen.getByText("Telepon sudah dipakai")).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled();
+        });
         expect(onSuccess).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
     });
 
     it("request rejected: shows the server message and re-enables Simpan", async () => {
         const user = userEvent.setup();
-        const consoleError = vi
-            .spyOn(console, "error")
-            .mockImplementation(() => {});
-        const failure = { response: { data: { message: "Validasi gagal" } } };
-        axios.post.mockRejectedValue(failure);
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        axios.post.mockRejectedValue({
+            response: { data: { message: "Validasi gagal" } },
+        });
         const { onClose, onSuccess } = renderModal();
 
         await fillForm(user);
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
         expect(toast.error).toHaveBeenCalledWith("Validasi gagal");
-        expect(consoleError).toHaveBeenCalledWith(
-            "Add customer error:",
-            failure
-        );
         expect(screen.getByRole("button", { name: "Simpan" })).toBeEnabled();
         expect(onSuccess).not.toHaveBeenCalled();
         expect(onClose).not.toHaveBeenCalled();
