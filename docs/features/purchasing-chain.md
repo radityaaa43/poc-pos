@@ -23,7 +23,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 - Input **batch number** + **expired date** per item (untuk batch tracking)
 - Increment stok di warehouse tujuan (dari PO)
 - Qty diterima dalam satuan item PO; stok, batch, dan mutasi masuk dalam satuan stok (qty x faktor). Ditolak jika hasilnya bukan bilangan bulat
-- Auto-create payable (30 days due date)
+- Auto-create payable (30 days due date) pada GR pertama; GR berikutnya menghitung ulang `total` = Σ(qty diterima x harga item PO) semua GR PO itu − retur supplier `completed` pada payable tersebut. `paid` dan `due_date` dipertahankan, status dihitung ulang (paid ≥ total → `paid`)
 
 ### Supplier Return
 - Retur barang ke supplier dari GR
