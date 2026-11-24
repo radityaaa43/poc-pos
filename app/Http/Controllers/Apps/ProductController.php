@@ -307,7 +307,8 @@ class ProductController extends Controller
         return [
             'is_composite' => 'nullable|boolean',
             'is_raw_material' => 'nullable|boolean',
-            'components' => 'required_if:is_composite,1,true|array|min:1',
+            // The form always sends `components: []`; only a composite needs at least one.
+            'components' => 'exclude_unless:is_composite,1,true|required|array|min:1',
             'components.*.component_product_id' => 'required|integer|distinct|exists:products,id',
             'components.*.qty' => 'required|integer|min:1',
         ];
