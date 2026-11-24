@@ -26,4 +26,5 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dine order | A dine-in table order, paid at the counter | Transaction | `DineOrder` / `dine_orders` |
 | Cashier shift | A cashier's open-to-close session with opening and closing cash | | `CashierShift` |
 | HPP (cost of goods sold) | Cost of what was sold, from buy prices; sale minus HPP is profit | Buy price: the current price, not the cost at sale time | `profits` |
+| Average cost | Weighted-average cost per stock unit of one product in one warehouse; moves on goods receiving (and starts at the reference price on opening stock), other warehouses do not change | Buy price: the reference price, the latest price paid, also the fallback until a warehouse has an average | `product_warehouse.avg_cost`, `InventoryCostService` |
 | Backlog item | A requirement file `backlog/REQ-<n>-<slug>.md` with `AC-<n>` acceptance criteria | Issue: the unit of work built from a backlog item | `backlog/` |

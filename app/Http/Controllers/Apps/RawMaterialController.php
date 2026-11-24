@@ -63,11 +63,11 @@ class RawMaterialController extends Controller
                     'purchased_by' => $product->purchased_by,
                     'min_stock' => $product->min_stock,
                     'default_purchase_unit' => $default ? ['code' => $default->code, 'conversion_factor' => (float) $default->pivot->conversion_factor] : null,
-                    // Cost is the reference price per stock unit until #27 adds the warehouse average.
+                    // Cost is the warehouse's average per stock unit; the reference price until it has one.
                     'stocks' => $warehouses->map(fn (Warehouse $warehouse) => [
                         'warehouse_id' => $warehouse->id,
                         'stock' => (int) ($product->warehouses->firstWhere('id', $warehouse->id)?->pivot->stock ?? 0),
-                        'cost' => $product->buy_price,
+                        'cost' => $product->warehouses->firstWhere('id', $warehouse->id)?->pivot->avg_cost ?? $product->buy_price,
                     ])->values(),
                 ];
             });

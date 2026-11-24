@@ -15,6 +15,7 @@ const formatCurrency = (value = 0) =>
         style: "currency",
         currency: "IDR",
         minimumFractionDigits: 0,
+        maximumFractionDigits: 2, // average cost per stock unit is fractional (e.g. Rp 265,08/g)
     }).format(value);
 
 const formatNumber = (value) => new Intl.NumberFormat("id-ID").format(value);
