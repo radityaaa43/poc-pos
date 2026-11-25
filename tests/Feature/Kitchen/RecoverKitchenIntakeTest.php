@@ -186,13 +186,25 @@ class RecoverKitchenIntakeTest extends TestCase
         Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 1]);
     }
 
-    public function test_a_product_flagged_after_the_sale_is_recovered_while_the_sale_is_under_24_hours_old(): void
+    public function test_the_window_is_30_minutes_29_recovered_31_skipped(): void
+    {
+        $inside = $this->sale();
+        $outside = $this->sale();
+        Transaction::whereKey($inside->id)->update(['updated_at' => now()->subMinutes(29)]);
+        Transaction::whereKey($outside->id)->update(['updated_at' => now()->subMinutes(31)]);
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame([$inside->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
+    public function test_a_product_flagged_after_the_sale_is_recovered_while_the_sale_is_inside_the_window(): void
     {
         // Known limit (docs/features/kitchen-display.md): the flag is read when the job runs.
         $product = $this->product(false);
         $recent = $this->sale([$product]);
         $old = $this->sale([$product]);
-        Transaction::whereKey($old->id)->update(['created_at' => now()->subHours(30), 'updated_at' => now()->subHours(30)]);
+        Transaction::whereKey($old->id)->update(['created_at' => now()->subMinutes(31), 'updated_at' => now()->subMinutes(31)]);
         $this->artisan('kitchen:recover-intake')->assertSuccessful();
         $this->assertSame(0, KitchenItem::count(), 'nothing needs preparation yet');
 

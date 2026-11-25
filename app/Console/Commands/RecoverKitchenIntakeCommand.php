@@ -11,7 +11,10 @@ class RecoverKitchenIntakeCommand extends Command
 {
     protected $signature = 'kitchen:recover-intake';
 
-    protected $description = 'Put paid sales of the last 24 hours that missed the kitchen intake into the kitchen';
+    // Intake failures are transient, and a short window avoids phantom orders after products are re-flagged.
+    private const WINDOW_MINUTES = 30;
+
+    protected $description = 'Put paid sales of the last 30 minutes that missed the kitchen intake into the kitchen';
 
     public function handle(KitchenIntakeService $intake): int
     {
@@ -24,8 +27,8 @@ class RecoverKitchenIntakeCommand extends Command
             ->where('payment_status', 'paid')
             ->where('is_pay_later', false)
             ->whereNotNull('warehouse_id')
-            ->where('created_at', '>=', now()->subHours(48)) // cheap prefilter: skips old rows before the updated_at window
-            ->where('updated_at', '>=', now()->subDay())
+            ->where('created_at', '>=', now()->subHours(48)) // indexed prefilter; gateway sales can be paid long after they are created, so 48 h still covers them
+            ->where('updated_at', '>=', now()->subMinutes(self::WINDOW_MINUTES))
             ->whereDoesntHave('kitchenItems')
             ->whereHas('details.product', fn ($product) => $product->where('needs_preparation', true))
             ->whereHas('details', fn ($detail) => $detail->whereRaw(
