@@ -70,6 +70,10 @@ __pycache__/
 /.claude/skills/vitest
 /.agents/skills/web-design-guidelines/
 /.claude/skills/web-design-guidelines
+/.agents/skills/playwright-best-practices/
+/.claude/skills/playwright-best-practices
+/.agents/skills/documentation-and-adrs/
+/.claude/skills/documentation-and-adrs
 
 # Playwright
 /tests/e2e/.auth/
