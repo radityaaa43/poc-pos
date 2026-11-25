@@ -149,7 +149,8 @@ Dikontrol via `Setting` table:
 | GET | `/dine/{token}` | Halaman menu publik |
 | POST | `/dine/{token}/order` | Submit pesanan |
 | GET | `/dine-order/{accessToken}` | Halaman status pesanan |
-| GET | `/dine-order/{accessToken}/check` | Endpoint polling status (JSON) |
+| GET | `/dine-order/{accessToken}/check` | Endpoint polling status (JSON); also carries `payment` (see "Guest online payment") |
+| POST | `/dine-order/{accessToken}/pay` | Guest starts the online payment of an accepted order (`dine-order.pay`, limiter `dine-order-pay`) |
 
 ## Permissions
 
@@ -236,6 +237,38 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
+
+### Guest online payment (REQ-005, server half)
+
+After staff accept an order, the guest can pay its open bill online from the status page, at an outlet whose Midtrans or
+Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_online` stays rejected). The pay panel on the
+page ships with the second half of #325; until then only the endpoint and the `payment` payload exist.
+
+- `POST /dine-order/{accessToken}/pay` is public (the order token is the only credential, no permission, no login).
+  It reads only `method` (`qris`, the default, or `gateway` for the gateway's own page with every enabled method); an
+  `amount` in the body is never read. The limiter `dine-order-pay` allows 5 requests a minute per order token **and**
+  IP (not one bucket per IP, so one cafe Wi-Fi does not block other tables).
+- The amount is always `Transaction::remainingTotal()` of the accepted bill, worked out by the server. A bill with
+  nothing left (fully returned) is refused without calling the gateway.
+- Each press is a new **payment attempt** (`transactions.payment_attempt`, order id `{invoice}-r{n}`): the charge is claimed and
+  committed under the bill's row lock, then the gateway is called with **no DB transaction open**, then the result is
+  stored only if the bill is still on that attempt. A second press (or a retry after failed/expired) supersedes the
+  first; the old charge's webhook is ignored by the existing guard (a late paid callback is only marked for a manual refund).
+  The existing webhook settles the bill and the existing paid hook sends the flagged items to the kitchen, once.
+- A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
+- It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
+  transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
+  A pay-later bill (`is_pay_later`) is also `counter` for now.
+- Refusals are 422 `errors.payment[0]`: `not_payable` (not accepted, rejected, nothing left, cashier's charge, pay-later bill),
+  `already_paid`, `no_gateway`, `gateway_error` (the call failed: the bill is set to `failed` with reason `gateway_error`, so
+  the cashier can pay at the counter). 404 for an unknown token, 429 over the limit.
+- `transactions.payment_failure_reason` is `expired` when the gateway reported an expiry (Midtrans `expire`, Xendit `EXPIRED`), `gateway_error` when
+  the charge could not be created, null otherwise; it lets the page tell Kedaluwarsa from Pembayaran gagal.
+- The guest's QRIS and hosted page expire after 15 minutes, and the gateway's finish redirect goes back to the status page
+  (not the staff-only receipt).
+- `payment` on the status page props and on the `/check` response: `{state, amount, attempt, payment_url, qr}`, or `null` while there is nothing to show.
+  `state` is `can_pay`, `pending`, `failed`, `expired`, `gateway_error`, `counter` (pay at the counter) or `paid`. `qr` (an SVG data URI) is
+  only on the page, never on the poll. It holds no invoice, bill id, customer, outlet or gateway reference.
 
 ## Catatan Teknis
 

@@ -47,6 +47,44 @@ class PaymentWebhookTest extends TestCase
         $this->assertSame('midtrans-tx-001', $transaction->payment_reference);
     }
 
+    public function test_midtrans_expiry_stores_the_failure_reason_and_another_failure_clears_it(): void
+    {
+        $this->enableMidtrans();
+        $transaction = $this->createPendingTransaction('midtrans');
+
+        $this->postJson(route('webhooks.midtrans'), $this->midtransNotification($transaction, 'expire'))->assertOk();
+        $this->assertSame('failed', $transaction->fresh()->payment_status);
+        $this->assertSame('expired', $transaction->fresh()->payment_failure_reason);
+
+        // A new attempt starts pending again; a denied payment is a failure that did not expire.
+        // refresh(): the webhook changed the row through another instance, so this one must see 'failed' to write 'pending'.
+        $transaction->refresh()->update(['payment_status' => 'pending', 'payment_failure_reason' => 'expired']);
+        $this->postJson(route('webhooks.midtrans'), $this->midtransNotification($transaction, 'deny'))->assertOk();
+        $this->assertSame('failed', $transaction->fresh()->payment_status);
+        $this->assertNull($transaction->fresh()->payment_failure_reason);
+    }
+
+    public function test_xendit_expiry_stores_the_failure_reason_and_another_failure_clears_it(): void
+    {
+        PaymentSetting::create([
+            'default_gateway' => 'xendit', 'xendit_enabled' => true, 'xendit_secret_key' => 'xendit-secret',
+            'xendit_public_key' => 'xendit-public', 'xendit_callback_token' => 'callback-token',
+        ]);
+        $transaction = $this->createPendingTransaction('xendit');
+        $notify = fn (string $status) => $this->withHeader('X-CALLBACK-TOKEN', 'callback-token')->postJson(route('webhooks.xendit'), [
+            'external_id' => $transaction->invoice, 'status' => $status, 'id' => 'xendit-invoice-009',
+        ])->assertOk();
+
+        $notify('EXPIRED');
+        $this->assertSame('failed', $transaction->fresh()->payment_status);
+        $this->assertSame('expired', $transaction->fresh()->payment_failure_reason);
+
+        $transaction->refresh()->update(['payment_status' => 'pending', 'payment_failure_reason' => 'expired']);
+        $notify('FAILED');
+        $this->assertSame('failed', $transaction->fresh()->payment_status);
+        $this->assertNull($transaction->fresh()->payment_failure_reason);
+    }
+
     public function test_midtrans_webhook_rejects_invalid_signature(): void
     {
         Log::spy();
@@ -264,6 +302,15 @@ class PaymentWebhookTest extends TestCase
             'sha512',
             $payload['order_id'].$payload['status_code'].$payload['gross_amount'].'server-key'
         );
+
+        return $payload;
+    }
+
+    private function midtransNotification(Transaction $transaction, string $status): array
+    {
+        $payload = $this->midtransSettlement($transaction, (int) $transaction->grand_total);
+        $payload['transaction_status'] = $status;
+        $payload['signature_key'] = hash('sha512', $payload['order_id'].$payload['status_code'].$payload['gross_amount'].'server-key');
 
         return $payload;
     }
