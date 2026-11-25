@@ -88,6 +88,12 @@ message**. "Done" without evidence is not done.
 
 ### 2a. Evidence (in the PR body, the `## Evidence` section)
 
+**Mandatory evidence** (maintainer, 2026-11-25):
+
+- **Every UI change** has before and after screenshots attached to the PR, showing the REQ wording. A failed upload blocks the merge, and there is no waiver.
+- **Every feature or flow change** has e2e tests, including a backend-only flow, which is asserted through the e2e state query.
+- `E2E: none — <reason>` is allowed only for docs, governance and pure refactors.
+
 One row per Done-when line, per AC on the `Backlog:` line, and per plan item.
 
 ```markdown
