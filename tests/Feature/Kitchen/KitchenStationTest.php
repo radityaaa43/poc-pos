@@ -290,7 +290,8 @@ class KitchenStationTest extends TestCase
 
         $this->actingAs($this->manager)->delete(route('settings.kitchen-stations.destroy', $bar))->assertSessionHasNoErrors();
         // The station is mapped again between the two clicks: the second call must not touch it.
-        $inBar->forceFill(['kitchen_station_id' => $bar->id])->save();
+        // A query, not save(): $inBar still holds the id in memory, so the model would see nothing dirty and write nothing.
+        Product::whereKey($inBar->id)->update(['kitchen_station_id' => $bar->id]);
         $this->actingAs($this->manager)->delete(route('settings.kitchen-stations.destroy', $bar))->assertNotFound();
 
         $this->assertSame($bar->id, $inBar->fresh()->kitchen_station_id);
