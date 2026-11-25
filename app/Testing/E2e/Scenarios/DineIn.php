@@ -8,7 +8,6 @@ use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
-use App\Models\KitchenItem;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
@@ -198,7 +197,6 @@ class DineIn
                     'payment_failure_reason' => $transaction?->payment_failure_reason,
                     'payment_reference' => $transaction?->payment_reference,
                     'in_open_bills' => $transaction ? Transaction::openBills()->whereKey($transaction->id)->exists() : false,
-                    'kitchen_items' => $transaction ? KitchenItem::where('transaction_id', $transaction->id)->count() : 0,
                     'orders_on_table' => DineOrder::where('dine_table_id', $order->dine_table_id)->count(),
                     'invoice' => $transaction?->invoice,
                     'payment_status' => $transaction?->payment_status,
