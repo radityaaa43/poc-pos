@@ -31,7 +31,10 @@ name the date you read it.
 5. **Split** (`/to-tickets`) into thin end-to-end slices (all layers plus tests for one behavior)
    that merge independently, not into a backend ticket and a frontend ticket. Mark order with
    `Blocked by #<n>`.
-6. **Triage, then build.** Exactly one `module:*` label per ticket; `ready-for-agent` tickets go through `/ship-issue <n>`.
+6. **Plan, then build.** Exactly one `module:*` label per ticket. Business / PM moves a ticket that
+   meets the Definition of Ready to Planning; the Tech Lead plans it, sets Effort and a `Builder:`,
+   and sets `ready-for-agent`; the developer runs `/ship-issue <n>` (roles and board:
+   [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles)).
 
 **The backlog disagrees with the code, the design or the issue?** The backlog is the source of
 truth and only its owner changes it. Whoever finds the mismatch stops and tells the requester the
@@ -56,7 +59,8 @@ upstream Git Flow (`development`, `release/*`) is not used here (ADR 0001). Rele
 ## Ownership
 
 Every area of the product has an Owner and backups. The Owner decides scope questions in their
-module and reviews its PRs. When the Owner is away or wrote the PR, ask the Backup.
+module, through Business / PM. The Tech Lead reviews and merges PRs in every module. When the
+Owner is away, ask the Backup.
 
 | Label | Module | Scope | Paths | Owner | Backup |
 |---|---|---|---|---|---|
@@ -70,7 +74,9 @@ module and reviews its PRs. When the Owner is away or wrote the PR, ask the Back
 
 - **Every issue gets exactly one `module:*` label** at triage: the module whose behavior its
   Done-when changes. Work that spans modules takes the main one and names the others in Background.
-- **Ask the module's Owner for review** (`gh pr edit <n> --add-reviewer <handle>`). A change that also
+- **Ask the Tech Lead for review**: by message while every session shares one GitHub login (its
+  `/code-review` result as a PR comment is the approval), otherwise `gh pr edit <n> --add-reviewer
+  <handle>`. A change that also
   touches another module's code mentions that module's Owner in the PR.
 - Anyone may work on any module; claiming an issue still applies. Ownership is about who decides
   and reviews, not who is allowed to code.

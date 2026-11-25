@@ -13,7 +13,9 @@ used in this repo's tracker.
 
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the label from this table.
 
-Only a module Owner or a Standards owner moves an issue to `ready-for-*` (`AGENTS.md` → Issues).
+The Tech Lead sets `ready-for-*` when it moves the card from Planning to Todo, and the maintainer
+can set or remove it at any time ([`issue-tracker.md` → Board and roles](issue-tracker.md#board-and-roles)).
+
 ## Module labels
 
 Besides its triage role, every issue carries exactly one `module:*` label (`module:platform`, `module:sales`, `module:dine-in`, `module:inventory`, `module:purchasing`, `module:pricing-crm`, `module:whatsapp-service`;

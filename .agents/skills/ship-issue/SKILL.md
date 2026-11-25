@@ -39,7 +39,7 @@ on its **Done when**; start the next step only once it holds.
    🔴. **Done when** no 🔴 remains.
 7. **PR** with `/pr` and `.github/pull_request_template.md`: *In plain words*, `Closes #<n>`, Manual
    test, Docs, AI used, Backlog, hotspot files. Commit with Conventional Commits ending
-   `Refs #<n>`, no AI attribution. Request review from the module Owner (`CONTRIBUTING.md` →
+   `Refs #<n>`, no AI attribution. Ask the Tech Lead for review, by message while all sessions share one login (`CONTRIBUTING.md` →
    Ownership) and paste the PR link in chat. **Done when** the PR is open with a reviewer requested.
 8. **CI.** Watch `gh pr checks <n> --watch` in the background and report the result unasked, with
    the run link added to the PR. An unrelated failure follows `AGENTS.md` → Verify. Merging follows
