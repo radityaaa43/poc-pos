@@ -97,5 +97,26 @@ class Bash(unittest.TestCase):
         self.assertEqual(decision(guard.merge_decision("5", None, lambda a: None)), "deny")
 
 
+class LocalOverride(unittest.TestCase):
+    """GOVERNANCE_BASH_MODE=local-override hands "ask" decisions to Claude's own permissions; "deny" always stands."""
+
+    def test_override_drops_ask_but_keeps_deny(self):
+        old = guard.local_bash_override_enabled
+        guard.local_bash_override_enabled = lambda: True
+        try:
+            self.assertIsNone(guard.bash_decision("git reset --hard origin/main"))
+            self.assertEqual(decision(guard.bash_decision("cat .env")), "deny")
+        finally:
+            guard.local_bash_override_enabled = old
+
+    def test_without_override_ask_stays(self):
+        old = guard.local_bash_override_enabled
+        guard.local_bash_override_enabled = lambda: False
+        try:
+            self.assertEqual(decision(guard.bash_decision("git reset --hard origin/main")), "ask")
+        finally:
+            guard.local_bash_override_enabled = old
+
+
 if __name__ == "__main__":
     unittest.main()
