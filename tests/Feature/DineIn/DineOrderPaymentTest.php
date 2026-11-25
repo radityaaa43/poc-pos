@@ -79,7 +79,7 @@ class DineOrderPaymentTest extends TestCase
     }
 
     /** Kitchen starts it and marks it ready, then someone serves it. */
-    private function fulfil(DineOrder $order): void
+    private function fulfil(DineOrder $order): void // the bill must already be paid
     {
         $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
         $this->actingAs($this->cashier)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
@@ -159,39 +159,72 @@ class DineOrderPaymentTest extends TestCase
             ->assertJsonPath('order.status', 'completed');
     }
 
-    public function test_served_then_paid_stays_an_open_bill_until_paid_then_completes(): void
+    public function test_mulai_buat_is_refused_while_the_bill_is_unpaid(): void
     {
         $order = $this->acceptedOrder();
 
-        $this->fulfil($order);
-        // repeating a step already taken is a no-op
-        $this->fulfil($order);
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasErrors('order');
 
-        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
+        $order->refresh();
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->status);
+        $this->assertNull($order->preparing_at);
+        $this->assertNull($order->preparing_by);
+
+        // the unpaid order is listed (the UI shows it as Menunggu Pembayaran), and is an open bill on the POS
         $this->actingAs($this->admin)->get(route('dine-orders.index'))
-            ->assertInertia(fn (Assert $page) => $page->has('orders', 0));
-        $this->actingAs($this->cashier)->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page
-                ->has('openBills', 1)
-                ->where('openBills.0.table', 'Meja 7')
-                ->where('openBills.0.order_status', 'served'));
+                ->has('orders', 1)
+                ->where('orders.0.transaction.payment_status', 'unpaid'));
         $this->get(route('dine-order.status-check', $order->access_token))
-            ->assertJsonPath('order.status', 'served');
+            ->assertJsonPath('order.is_paid', false)
+            ->assertJsonMissingPath('order.transaction');
+    }
 
-        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())
-            ->assertSessionHasNoErrors();
+    public function test_mulai_buat_is_allowed_once_the_bill_is_paid_and_serving_then_completes_the_order(): void
+    {
+        $order = $this->acceptedOrder();
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
 
-        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
+        $this->get(route('dine-order.status-check', $order->access_token))->assertJsonPath('order.is_paid', true);
+
+        $this->fulfil($order);
+
+        // paid before it was made, so serving is the last step
+        $order->refresh();
+        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->status);
+        $this->assertNotNull($order->completed_at);
         $this->actingAs($this->cashier)->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page->has('openBills', 0));
     }
 
-    public function test_any_path_that_marks_the_bill_paid_completes_a_served_order(): void
+    public function test_mulai_buat_is_refused_while_a_bank_transfer_awaits_confirmation_then_allowed_after_it(): void
     {
         $order = $this->acceptedOrder();
-        $this->fulfil($order);
+        $account = BankAccount::create([
+            'bank_name' => 'BCA', 'account_number' => '123', 'account_name' => 'Toko', 'is_active' => true, 'sort_order' => 0,
+        ]);
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), [
+            'tenders' => [['method' => 'bank_transfer', 'amount' => 20000, 'bank_account_id' => $account->id]],
+        ])->assertSessionHasNoErrors();
+        $this->assertEquals('pending', $order->transaction->fresh()->payment_status);
 
-        // e.g. a confirmed bank transfer: payment_status flips without going through the pay endpoint
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasErrors('order');
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
+        $this->actingAs($this->admin)->withSession(['auth.password_confirmed_at' => time()])
+            ->patch(route('transactions.confirm-payment', $order->transaction))->assertSessionHasNoErrors();
+        $this->actingAs($this->cashier)->patch(route('transactions.confirm-payment', $order->transaction))->assertSessionHasNoErrors();
+        $this->assertEquals('paid', $order->transaction->fresh()->payment_status);
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->assertEquals(DineOrder::STATUS_PREPARING, $order->fresh()->status);
+    }
+
+    // Safety net only: serving needs a paid bill, so a served-but-unpaid order cannot normally occur.
+    public function test_any_path_that_marks_a_served_orders_bill_paid_completes_it(): void
+    {
+        $order = $this->acceptedOrder();
+        $order->update(['status' => DineOrder::STATUS_SERVED, 'served_at' => now()]);
+
         $order->transaction->update(['payment_status' => 'paid']);
 
         $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
@@ -272,6 +305,7 @@ class DineOrderPaymentTest extends TestCase
     public function test_each_step_is_valid_only_from_the_previous_status_and_repeating_it_is_a_no_op(): void
     {
         $order = $this->acceptedOrder();
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
         $post = fn (string $step) => $this->actingAs($this->cashier)->post(route("dine-orders.$step", $order));
 
         $post('ready')->assertSessionHasErrors('order');
@@ -289,9 +323,13 @@ class DineOrderPaymentTest extends TestCase
         $post('ready')->assertSessionHasNoErrors();
         $this->assertEquals(DineOrder::STATUS_READY, $order->fresh()->status);
 
+        // already paid, so serving completes it; repeating any step afterwards is a no-op
         $post('serve')->assertSessionHasNoErrors();
-        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
+        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
         $this->assertNotNull($order->fresh()->served_at);
+        $post('serve')->assertSessionHasNoErrors();
+        $post('prepare')->assertSessionHasNoErrors();
+        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
     }
 
     public function test_a_full_run_records_when_and_who_for_every_step_and_a_repeat_does_not_overwrite_it(): void
@@ -300,16 +338,16 @@ class DineOrderPaymentTest extends TestCase
         $kitchen = User::factory()->create();
         $kitchen->assignRole(Role::create(['name' => 'kitchen'])->givePermissionTo('dine-orders-access', 'dine-orders-prepare'));
 
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
         $this->actingAs($kitchen)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
         $this->actingAs($kitchen)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
+        $this->assertNull($order->fresh()->completed_at);
         $this->actingAs($this->admin)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
-        $this->assertNull($order->fresh()->completed_at); // not paid yet
 
         // another user repeating a step changes nothing
         $this->actingAs($this->admin)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
         $this->actingAs($this->admin)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
-
-        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
 
         $order->refresh();
         $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->status);
@@ -342,6 +380,7 @@ class DineOrderPaymentTest extends TestCase
 
         $this->actingAs($kitchen)->post(route('dine-orders.serve', $order))->assertForbidden();
         $this->actingAs($kitchen)->post(route('dine-orders.pay', $order), $this->cashTender())->assertForbidden();
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
         $this->actingAs($kitchen)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
         $this->assertEquals(DineOrder::STATUS_PREPARING, $order->fresh()->status);
     }
@@ -388,13 +427,16 @@ class DineOrderPaymentTest extends TestCase
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasErrors('order');
         $this->assertEquals(1, $transaction->tenders()->count());
 
-        $this->fulfil($order);
-        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
+        // a QRIS payment still pending is not paid: Mulai Buat is refused
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasErrors('order');
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
 
-        // Midtrans settles it: the order completes
+        // Midtrans settles it: now the kitchen can start, and serving completes the order
         $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction->invoice, 'settlement'))->assertOk();
-
         $this->assertEquals('paid', $transaction->fresh()->payment_status);
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
+
+        $this->fulfil($order);
         $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
     }
 

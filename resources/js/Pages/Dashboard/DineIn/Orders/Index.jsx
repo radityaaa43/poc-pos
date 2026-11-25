@@ -17,6 +17,7 @@ import toast from "react-hot-toast";
 const STATUS_CONFIG = {
     submitted: { label: "Menunggu", color: "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400", icon: IconClock },
     accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400", icon: IconCheck },
+    waiting_payment: { label: "Menunggu Pembayaran", color: "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400", icon: IconClock },
     preparing: { label: "Sedang dibuat", color: "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400", icon: IconClock },
     ready: { label: "Siap", color: "bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400", icon: IconCheck },
     served: { label: "Disajikan", color: "bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400", icon: IconCheck },
@@ -25,12 +26,17 @@ const STATUS_CONFIG = {
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", icon: IconX },
 };
 
-// Queue views: the kitchen works accepted and preparing orders, the handover desk works ready ones.
+// Payment comes first: the kitchen only sees an accepted order once its bill is paid (a pending transfer or gateway is not paid).
+const isPaid = (order) => order.transaction?.payment_status === "paid";
+const isWaitingForPayment = (order) => order.status === "accepted" && !isPaid(order);
+
+// Queue views: the kitchen works paid accepted and preparing orders, the handover desk works ready ones.
 const VIEWS = [
-    { key: "all", label: "Semua", statuses: null },
-    { key: "new", label: "Baru", statuses: ["submitted"] },
-    { key: "kitchen", label: "Dapur", statuses: ["accepted", "preparing"] },
-    { key: "handover", label: "Serah-terima", statuses: ["ready"] },
+    { key: "all", label: "Semua", match: () => true },
+    { key: "new", label: "Baru", match: (order) => order.status === "submitted" },
+    { key: "waiting", label: "Menunggu Pembayaran", match: isWaitingForPayment },
+    { key: "kitchen", label: "Dapur", match: (order) => (order.status === "accepted" && isPaid(order)) || order.status === "preparing" },
+    { key: "handover", label: "Serah-terima", match: (order) => order.status === "ready" },
 ];
 
 const PAY_CONFIG = {
@@ -44,8 +50,7 @@ export default function Index({ orders }) {
     const canPrepare = can("dine-orders-prepare");
     const canHandover = can("dine-orders-handover");
     const [view, setView] = useState("all");
-    const viewStatuses = VIEWS.find((item) => item.key === view).statuses;
-    const visibleOrders = viewStatuses ? orders.filter((order) => viewStatuses.includes(order.status)) : orders;
+    const visibleOrders = orders.filter(VIEWS.find((item) => item.key === view).match);
 
     const handleAccept = (order) => {
         if (!confirm("Terima pesanan ini dan lanjutkan ke kasir?")) return;
@@ -123,7 +128,7 @@ export default function Index({ orders }) {
             {visibleOrders.length > 0 ? (
                 <div className="space-y-4">
                     {visibleOrders.map((order) => {
-                        const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: "bg-slate-100 text-slate-500", icon: IconClock };
+                        const status = (isWaitingForPayment(order) ? STATUS_CONFIG.waiting_payment : STATUS_CONFIG[order.status]) ?? { label: order.status, color: "bg-slate-100 text-slate-500", icon: IconClock };
                         const StatusIcon = status.icon;
                         const pay = PAY_CONFIG[order.payment_option] ?? { label: order.payment_option, color: "text-slate-500" };
 
@@ -156,7 +161,7 @@ export default function Index({ orders }) {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canPrepare && order.status === "accepted" && (
+                                            {canPrepare && order.status === "accepted" && isPaid(order) && (
                                                 <Button
                                                     type={"button"}
                                                     label={"Mulai Buat"}

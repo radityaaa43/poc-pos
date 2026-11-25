@@ -15,7 +15,7 @@ const label = (order) => {
 describe("DineOrderStatus", () => {
     it.each([
         ["submitted", "Menunggu Konfirmasi"],
-        ["accepted", "Diterima"],
+        ["accepted", "Menunggu Pembayaran"],
         ["preparing", "Sedang dibuat"],
         ["ready", "Siap"],
         ["served", "Disajikan"],
@@ -24,11 +24,16 @@ describe("DineOrderStatus", () => {
         expect(label({ status })).toBe(expected);
     });
 
+    it("shows Diterima once an accepted order is paid", () => {
+        expect(label({ status: "accepted", is_paid: true })).toBe("Diterima");
+    });
+
     it("marks the current step in the progress list once accepted", () => {
         render(<DineOrderStatus order={{ ...base, status: "ready" }} table={table} storeName="Toko" />);
         expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Siap");
         expect(screen.getAllByRole("listitem").map((item) => item.textContent)).toEqual([
             "Diterima",
+            "Menunggu Pembayaran",
             "Sedang dibuat",
             "Siap",
             "Disajikan",

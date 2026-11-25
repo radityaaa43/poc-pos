@@ -15,7 +15,7 @@ const formatPrice = (value = 0) =>
  * "Bayar" opens the payment modal for the transaction created at accept.
  */
 // Fulfillment state of the order, shown next to the amount.
-const FULFILLMENT_LABELS = { accepted: "Diterima", preparing: "Sedang dibuat", ready: "Siap", served: "Sudah diserahkan" };
+const FULFILLMENT_LABELS = { accepted: "Menunggu Pembayaran", preparing: "Sedang dibuat", ready: "Siap", served: "Sudah diserahkan" };
 
 export default function OpenBills({ openBills = [], bankAccounts = [], paymentGateways = [] }) {
     const [isExpanded, setIsExpanded] = useState(false);

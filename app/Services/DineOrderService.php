@@ -300,7 +300,7 @@ class DineOrderService
         });
     }
 
-    /** Kitchen starts making an accepted order. */
+    /** Kitchen starts making an accepted order, but only once its bill is paid. */
     public function startPreparing(DineOrder $order): void
     {
         $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing');
@@ -312,7 +312,7 @@ class DineOrderService
         $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready');
     }
 
-    /** Someone verifies a ready order was handed to the customer. Completes it at once if it is already paid. */
+    /** Someone verifies a ready order was handed to the customer. The bill is already paid by then, so this completes the order. */
     public function serve(DineOrder $order): void
     {
         $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served');
@@ -332,6 +332,20 @@ class DineOrderService
                 throw ValidationException::withMessages([
                     'order' => "Pesanan harus berstatus {$from} untuk langkah ini (sekarang: {$order->status}).",
                 ]);
+            }
+
+            // Payment first: the kitchen starts only on a paid bill. A transfer or gateway payment still pending is not paid.
+            // The bill row is locked here, in the same transaction, so the check cannot race a webhook or a refund.
+            if ($to === DineOrder::STATUS_PREPARING) {
+                $status = Transaction::whereKey($order->transaction_id)->lockForUpdate()->value('payment_status');
+
+                if ($status !== 'paid') {
+                    throw ValidationException::withMessages([
+                        'order' => $status === 'pending'
+                            ? 'Pembayaran pesanan ini masih menunggu (konfirmasi transfer atau gateway). Pesanan baru bisa dibuat setelah lunas.'
+                            : 'Pesanan ini belum dibayar. Selesaikan pembayaran sebelum mulai dibuat.',
+                    ]);
+                }
             }
 
             // when and who, in the same transaction as the status change, so kitchen speed can be analysed later

@@ -29,7 +29,7 @@ test.describe('38-dine-orders-queue', () => {
 
         page.once('dialog', (confirm) => confirm.accept());
         await card.getByRole('button', { name: 'Terima' }).click();
-        await expect(card).toContainText('Diterima');
+        await expect(card).toContainText('Menunggu Pembayaran');
         await expect(card.getByRole('button', { name: 'Terima' })).toHaveCount(0);
         await expect(card.getByRole('button', { name: 'Tolak' })).toHaveCount(0);
 
@@ -44,7 +44,7 @@ test.describe('38-dine-orders-queue', () => {
         await expect(row).toContainText(/Rp\s*20\.000/);
 
         // The guest's page polls every 5 s and moves on by itself.
-        await expect(guest.getByTestId('dine-status')).toHaveText('Diterima', { timeout: 30_000 });
+        await expect(guest.getByTestId('dine-status')).toHaveText('Menunggu Pembayaran', { timeout: 30_000 });
     });
 
     test('accepting without an open shift is refused and takes no stock', async ({ asRole, arrange, uniq }) => {

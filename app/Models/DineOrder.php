@@ -123,10 +123,15 @@ class DineOrder extends Model
         return $this->status === self::STATUS_SUBMITTED;
     }
 
-    /** Fulfillment (status) and payment (transaction) are separate: completed only once the order is both served and paid, in either order. */
+    public function isPaid(): bool
+    {
+        return $this->transaction?->payment_status === 'paid';
+    }
+
+    /** Safety net: completed once the order is served and paid. Payment comes first (the kitchen waits for it), so serving normally completes it. */
     public function completeIfSettled(): void
     {
-        if ($this->status === self::STATUS_SERVED && $this->transaction?->payment_status === 'paid') {
+        if ($this->status === self::STATUS_SERVED && $this->isPaid()) {
             $this->update(['status' => self::STATUS_COMPLETED, 'completed_at' => now()]);
         }
     }

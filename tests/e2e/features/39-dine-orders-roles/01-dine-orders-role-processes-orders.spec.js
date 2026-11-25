@@ -17,7 +17,7 @@ test.describe('39-dine-orders-roles', () => {
 
         page.once('dialog', (confirm) => confirm.accept());
         await card.getByRole('button', { name: 'Terima' }).click();
-        await expect(card).toContainText('Diterima');
+        await expect(card).toContainText('Menunggu Pembayaran');
         expect(arrange('dine.order-state', { access_token, product_id })).toMatchObject({ status: 'accepted', product_stock: 4, warehouse_stock: 4 });
 
         // This role has dine-orders-* only.

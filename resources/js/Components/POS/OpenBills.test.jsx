@@ -22,7 +22,7 @@ vi.mock("@/Components/Dashboard/Modal", () => ({
 }));
 
 const openBills = [
-    { order_id: 7, invoice: "TRX-ABC", table: "Meja 3", grand_total: 20000, order_status: "served", pending: false },
+    { order_id: 7, invoice: "TRX-ABC", table: "Meja 3", grand_total: 20000, order_status: "accepted", pending: false },
 ];
 const bankAccounts = [{ id: 4, bank_name: "BCA", account_number: "123" }];
 const paymentGateways = [
@@ -46,7 +46,7 @@ describe("OpenBills", () => {
         render(<OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
 
         await user.click(screen.getByRole("button", { name: /Tagihan Terbuka/ }));
-        expect(screen.getByText(/Sudah diserahkan/)).toBeInTheDocument();
+        expect(screen.getByText(/Menunggu Pembayaran/)).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Bayar" }));
 
         // cash short of the bill is blocked on the client

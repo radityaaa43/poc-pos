@@ -138,7 +138,7 @@ class DineOrderController extends Controller
 
     public function status(string $accessToken)
     {
-        $order = DineOrder::with(['table.area', 'items.product'])
+        $order = DineOrder::with(['table.area', 'items.product', 'transaction:id,payment_status'])
             ->where('access_token', $accessToken)
             ->firstOrFail();
 
@@ -147,6 +147,8 @@ class DineOrderController extends Controller
             ->firstOrFail();
 
         $storeName = Setting::getForOutlet('store_name', $order->table?->area?->outlet, 'Restoran');
+        $order->setAttribute('is_paid', $order->isPaid());
+        $order->makeHidden('transaction');
 
         return Inertia::render('Public/DineOrderStatus', [
             'order' => $order,
@@ -162,7 +164,7 @@ class DineOrderController extends Controller
     public function statusCheck(string $accessToken)
     {
         $order = DineOrder::where('access_token', $accessToken)
-            ->first(['id', 'status', 'payment_option', 'payment_status', 'subtotal', 'item_count', 'updated_at']);
+            ->first(['id', 'transaction_id', 'status', 'payment_option', 'payment_status', 'subtotal', 'item_count', 'updated_at']);
 
         if (! $order) {
             return response()->json(['message' => 'Pesanan tidak ditemukan.'], 404);
@@ -173,6 +175,9 @@ class DineOrderController extends Controller
             return response()->json(['message' => 'Pesanan sudah kedaluwarsa.'], 410);
         }
 
-        return response()->json(['order' => $order]);
+        // the kitchen waits for payment, so the guest needs to know whether the bill is paid yet
+        $order->setAttribute('is_paid', $order->isPaid());
+
+        return response()->json(['order' => $order->makeHidden(['transaction_id', 'transaction'])]);
     }
 }

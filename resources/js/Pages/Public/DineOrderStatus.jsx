@@ -4,18 +4,19 @@ import { IconCheck, IconClock, IconX, IconRefresh } from "@tabler/icons-react";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
-const PROGRESS_STEPS = ["Diterima", "Sedang dibuat", "Siap", "Disajikan", "Selesai"];
+const PROGRESS_STEPS = ["Diterima", "Menunggu Pembayaran", "Sedang dibuat", "Siap", "Disajikan", "Selesai"];
 
 // Statuses that can still change, so the page keeps polling.
 const ACTIVE = ["submitted", "accepted", "preparing", "ready", "served"];
 
 const STATUS_CONFIG = {
     submitted: { label: "Menunggu Konfirmasi", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan Anda sedang menunggu konfirmasi dari staff." },
-    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan diterima dan akan segera dibuat." },
+    // payment comes first: the kitchen starts only on a paid bill
+    waiting_payment: { label: "Menunggu Pembayaran", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan diterima. Silakan menuju kasir untuk membayar, setelah itu pesanan mulai dibuat." },
+    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pembayaran diterima. Pesanan akan segera dibuat." },
     preparing: { label: "Sedang dibuat", color: "bg-primary-100 text-primary-700", icon: IconClock, desc: "Pesanan Anda sedang dibuat." },
     ready: { label: "Siap", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan Anda sudah siap." },
-    // served and paid is completed; served alone means only the payment is left
-    served: { label: "Disajikan", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan sudah disajikan. Jika belum, silakan menuju kasir untuk pembayaran." },
+    served: { label: "Disajikan", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan sudah disajikan." },
     completed: { label: "Selesai", color: "bg-emerald-100 text-emerald-700", icon: IconCheck, desc: "Pesanan sudah selesai." },
     rejected: { label: "Ditolak", color: "bg-rose-100 text-rose-700", icon: IconX, desc: "Pesanan ditolak oleh staff." },
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500", icon: IconX, desc: "Pesanan dibatalkan." },
@@ -48,9 +49,10 @@ export default function DineOrderStatus({ order, table, storeName }) {
         }
     }, [currentOrder.status, currentOrder.access_token]);
 
-    // progress shown once the order is accepted: Diterima, Sedang dibuat, Siap, Disajikan, Selesai
-    const stepIndex = { accepted: 0, preparing: 1, ready: 2, served: 3, completed: 4 }[currentOrder.status];
-    const status = STATUS_CONFIG[currentOrder.status] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
+    // progress shown once the order is accepted: Diterima, Menunggu Pembayaran, Sedang dibuat, Siap, Disajikan, Selesai
+    const statusKey = currentOrder.status === "accepted" && !currentOrder.is_paid ? "waiting_payment" : currentOrder.status;
+    const stepIndex = { waiting_payment: 1, accepted: 1, preparing: 2, ready: 3, served: 4, completed: 5 }[statusKey];
+    const status = STATUS_CONFIG[statusKey] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
     const StatusIcon = status.icon;
 
     return (
@@ -74,7 +76,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
                         </div>
 
                         {stepIndex !== undefined && (
-                            <ol className="mb-6 grid grid-cols-5 gap-1 text-center text-[11px] leading-tight" aria-label="Progres pesanan">
+                            <ol className="mb-6 grid grid-cols-6 gap-1 text-center text-[11px] leading-tight" aria-label="Progres pesanan">
                                 {PROGRESS_STEPS.map((step, index) => (
                                     <li
                                         key={step}
