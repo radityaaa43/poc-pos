@@ -23,6 +23,11 @@ class DineOrderController extends Controller
         $table = DiningTable::where('token', $token)->where('is_active', true)->firstOrFail();
         $outlet = $table->area?->outlet;
 
+        // Same global setting the menu page reads; the page only hides the button.
+        if (! Setting::getBool('dine_in_self_order_enabled', true)) {
+            throw ValidationException::withMessages(['order' => 'Fitur pemesanan sementara nonaktif.']);
+        }
+
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
             'items.*.product_id' => ['required', 'exists:products,id'],

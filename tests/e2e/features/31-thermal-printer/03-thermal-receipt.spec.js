@@ -55,8 +55,7 @@ test.describe('thermal printer: receipt page', () => {
         await expect((await popup).getByText(invoice).first()).toBeVisible();
     });
 
-    // Bug #130: the receipt page renders no Toaster, so print results and errors are never shown.
-    test.fixme('the Thermal button tells the cashier the receipt was printed', async ({ asRole, arrange, uniq }) => {
+    test('the Thermal button tells the cashier the receipt was printed', async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const page = await asRole(cashier);
         await fakePrinter(page, { granted: true });

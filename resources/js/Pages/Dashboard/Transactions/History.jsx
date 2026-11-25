@@ -374,8 +374,7 @@ const History = ({ transactions, filters, warehouses = [] }) => {
                                                         href={`https://wa.me/?text=${encodeURIComponent(
                                                             `Invoice ${transaction.invoice}: ${route(
                                                                 "transactions.public",
-                                                                transaction.invoice,
-                                                                { token: transaction.access_token }
+                                                                [transaction.invoice, { token: transaction.access_token }]
                                                             )}`
                                                         )}`}
                                                         target="_blank"
@@ -552,8 +551,7 @@ const History = ({ transactions, filters, warehouses = [] }) => {
                                         <a
                                             href={route(
                                                 "transactions.public",
-                                                transaction.invoice,
-                                                { token: transaction.access_token }
+                                                [transaction.invoice, { token: transaction.access_token }]
                                             )}
                                             target="_blank"
                                             rel="noopener noreferrer"

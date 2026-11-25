@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { addProduct, cartTotal, field, openPos, pickCustomer, roleOf, rupiah } from '../../support/crm.js';
 
 test.describe('pricing rules: edit', () => {
-    // Bug #101: saving the edit form fails on the hidden default rows, the page stays on /edit with no message.
-    test.fixme('editing the discount changes the cart price', async ({ asRole, arrange, uniq }) => {
+    test('editing the discount changes the cart price', async ({ asRole, arrange, uniq }) => {
         const [title, ruleName, customerName] = [uniq('edit-produk'), uniq('Diskon Edit'), uniq('Pelanggan')];
         arrange('crm.pos-ready');
         const { product_id } = arrange('crm.product', { title, price: 20000 });

@@ -9,6 +9,7 @@ use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\Unit;
 use App\Models\User;
@@ -123,6 +124,20 @@ class DineOrderTest extends TestCase
             'qty' => 2,
             'price' => 10000,
         ]);
+    }
+
+    public function test_store_is_refused_when_self_order_is_disabled(): void
+    {
+        Setting::set('dine_in_self_order_enabled', '0');
+        $product = $this->createProduct(10);
+
+        $this->from(route('dine.menu', $this->table->token))
+            ->post(route('dine-order.store', $this->table->token), $this->orderPayload([
+                ['product_id' => $product->id, 'qty' => 1],
+            ]))
+            ->assertSessionHasErrors('order');
+
+        $this->assertEquals(0, DineOrder::count());
     }
 
     public function test_store_rejects_qty_exceeding_global_stock(): void

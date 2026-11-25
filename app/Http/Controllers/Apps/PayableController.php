@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankAccount;
-use App\Models\Outlet;
 use App\Models\Payable;
 use App\Models\PayablePayment;
 use App\Models\Supplier;
@@ -225,7 +224,8 @@ class PayableController extends Controller
 
             if ($warehouseIds->isEmpty()) {
                 $builder->whereRaw('1 = 0');
-            } elseif (Outlet::active()->count() <= 1) {
+            } else {
+                // No purchase order = no outlet: shared, like other records without an outlet_id.
                 $builder->orWhereDoesntHave('purchaseOrder');
             }
         });
@@ -234,7 +234,8 @@ class PayableController extends Controller
     protected function ensureAccess(Payable $payable): void
     {
         abort_unless(
-            $this->outletAccessService->canUseWarehouse(request()->user(), $payable->purchaseOrder?->warehouse),
+            ! $payable->purchaseOrder
+                || $this->outletAccessService->canUseWarehouse(request()->user(), $payable->purchaseOrder->warehouse),
             404
         );
     }

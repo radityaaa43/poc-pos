@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { addProduct, cartTotal, field, openPos, pickCustomer, roleOf, rupiah } from '../../support/crm.js';
 
 test.describe('pricing rules: create a rule', () => {
-    // Bug #101: the form always sends hidden default rows that fail validation, so nothing is saved and no error shows.
-    test.fixme('a manager creates a product discount, previews it, and the POS cart uses it', async ({ asRole, arrange, uniq }) => {
+    test('a manager creates a product discount, previews it, and the POS cart uses it', async ({ asRole, arrange, uniq }) => {
         const [title, ruleName, customerName] = [uniq('promo-produk'), uniq('Diskon 15'), uniq('Pelanggan')];
         arrange('crm.pos-ready');
         arrange('crm.product', { title, price: 20000 });
