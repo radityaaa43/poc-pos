@@ -12,8 +12,7 @@ test('a guest opens the public invoice PDF with the right token', async ({ arran
     expect((await response.body()).subarray(0, 4).toString()).toBe('%PDF');
 });
 
-// Bug #113: the controller asks for `no-store, max-age=0`, the response says `no-cache, private`.
-test.fixme('the public invoice PDF is not stored by caches', async ({ arrange, request }) => {
+test('the public invoice PDF is not stored by caches', async ({ arrange, request }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'cash' });
 

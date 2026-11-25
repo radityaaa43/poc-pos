@@ -109,9 +109,9 @@ class DocumentController extends Controller
             'barcode' => $this->barcode($transaction->invoice),
         ])->setPaper('a4');
 
-        return $pdf->stream("invoice-{$transaction->invoice}.pdf", [
-            'Cache-Control' => 'no-store, max-age=0',
-        ]);
+        // DomPDF's stream() only takes the file name, so the header goes on the response.
+        return $pdf->stream("invoice-{$transaction->invoice}.pdf")
+            ->header('Cache-Control', 'no-store, max-age=0');
     }
 
     public function receipt(string $invoice, string $size = '80')
