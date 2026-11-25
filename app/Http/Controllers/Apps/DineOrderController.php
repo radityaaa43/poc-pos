@@ -25,7 +25,7 @@ class DineOrderController extends Controller
             : $this->outletAccessService->accessibleOutlets($request->user())->pluck('id')->all();
 
         // Fulfillment queue: new orders, accepted ones waiting for payment, the kitchen (paid accepted, preparing) and the handover (ready).
-        // The UI splits them by payment_status; an unpaid order is also an Open Bill on the POS.
+        // The UI splits them by payment_status; an unpaid order is also in the POS "Bayar Belakangan · Tamu" section.
         $orders = DineOrder::with(['table.area', 'items.product', 'transaction:id,payment_status'])
             ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY])
             ->when($outletIds !== null, function ($query) use ($outletIds, $includeLegacy) {

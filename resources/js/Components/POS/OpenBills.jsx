@@ -11,7 +11,7 @@ const formatPrice = (value = 0) =>
     });
 
 /**
- * Open Bills: accepted dine-in orders still to be paid. Collapsed to a badge like HeldTransactions;
+ * "Bayar Belakangan · Tamu (belum lunas)" (code name: open bills): accepted dine-in orders still to be paid, no receivable. Collapsed to a badge like HeldTransactions;
  * "Bayar" opens the payment modal for the transaction created at accept.
  */
 // Fulfillment state of the order, shown next to the amount.
@@ -39,7 +39,7 @@ export default function OpenBills({ openBills = [], bankAccounts = [], paymentGa
                     <span className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-500 text-xs font-bold text-white">
                         {openBills.length}
                     </span>
-                    <span className="text-sm font-medium text-sky-700 dark:text-sky-300">Tagihan Terbuka</span>
+                    <span className="text-sm font-medium text-sky-700 dark:text-sky-300">Bayar Belakangan · Tamu (belum lunas)</span>
                 </span>
                 <Chevron size={16} className="text-sky-600" />
             </button>

@@ -17,7 +17,7 @@ const inputClass =
  * Settles the open bill of an accepted dine-in order. It pays the transaction created at accept
  * (POST dine-orders.pay with the same tenders[] payload as POS checkout), it never creates a new one.
  * Gateway methods (QRIS, Midtrans, Xendit) leave the bill pending and open the receipt with the QR.
- * Used by the POS "Tagihan Terbuka" section and by Transactions History.
+ * Used by the POS "Bayar Belakangan · Tamu" section and by Transactions History.
  */
 export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGateways = [], onClose }) {
     const [method, setMethod] = useState("cash");

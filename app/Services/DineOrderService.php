@@ -218,7 +218,7 @@ class DineOrderService
     }
 
     /**
-     * Settle the open bill of an accepted order. Stock was taken at accept, so only the payment is
+     * Settle the unpaid guest bill ("Bayar Belakangan", code name open bill) of an accepted order. Stock was taken at accept, so only the payment is
      * recorded: on the paying cashier's shift, which is the drawer the money goes into.
      * A gateway tender (QRIS, Midtrans, Xendit) charges against the same transaction and leaves the
      * bill pending until the webhook marks it paid.

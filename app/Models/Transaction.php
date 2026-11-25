@@ -10,7 +10,7 @@ class Transaction extends Model
 {
     use HasFactory;
 
-    // Neutral payment_method of an accepted dine-in bill until the cashier settles it.
+    // Neutral payment_method of an accepted dine-in bill until the cashier settles it. User-facing name: "Bayar Belakangan" (guest form, no receivable).
     public const METHOD_OPEN_BILL = 'open_bill';
 
     protected static function booted(): void

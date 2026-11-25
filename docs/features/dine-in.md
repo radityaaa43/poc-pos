@@ -18,7 +18,7 @@ BAYAR DULU, BARU DIBUAT. Dua siklus berjalan berdampingan, dengan satu gerbang d
   submitted                                     (transaksi belum ada)
      │ Terima        dine-orders-process
   accepted  "Menunggu Pembayaran" ────────────► unpaid  (payment_method = open_bill, tanpa piutang)
-     │                                              │ Bayar dari POS "Tagihan Terbuka" atau Riwayat:
+     │                                              │ Bayar dari POS "Bayar Belakangan · Tamu (belum lunas)" atau Riwayat:
      │                                              │   tunai ................... paid
      │                                              │   transfer ................ pending → paid (konfirmasi kasir)
      │                                              │   QRIS / Midtrans / Xendit  pending → paid (webhook)
@@ -44,10 +44,10 @@ Aturan:
   jaring pengaman.
 - Siapa yang menjalankan tiap langkah ditentukan lewat permission di Settings → Roles, bukan role tetap.
 - Antrean staff punya tampilan: **Baru** (`submitted`), **Menunggu Pembayaran** (`accepted` dan belum lunas, juga tampil di
-  POS Tagihan Terbuka dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
+  POS "Bayar Belakangan · Tamu" dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
   **Penyerahan** (`ready`). Pesanan yang belum lunas tidak muncul di Dapur. `completed` hilang dari antrean.
 
-Tagihan terbuka (*open bill*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
+"Bayar Belakangan" punya dua bentuk: (1) tamu tak terdaftar, yang dibangun di sini, dan (2) piutang pelanggan terdaftar dengan jatuh tempo ("Bayar Belakangan (Nota Barang)" di POS, tidak berubah). Bentuk tamu (kode: `open_bill`) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
 metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
 ## Database
@@ -194,20 +194,20 @@ Dikontrol via `Setting` table:
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
 - Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
-- Bayar: lihat "Pembayaran tagihan terbuka" di bawah
+- Bayar: lihat "Bayar Belakangan (belum lunas)" di bawah
 
 ## Pembayaran
 
 Saat ini endpoint `/dine/{token}/order` hanya menerima `payment_option: pay_at_counter`.
 `pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
 
-### Pembayaran tagihan terbuka
+
 
 Pesanan yang sudah diterima (accepted sampai ready) dibayar dari dua tempat, keduanya memakai satu endpoint
 (`POST /dashboard/dine-orders/{order}/pay`) dan **memperbarui transaksi yang dibuat saat accept** (tidak ada transaksi baru).
 Pembayaran harus selesai sebelum pesanan dibuat (gerbang "Mulai Buat" di atas):
 
-- **POS** → bagian "Tagihan Terbuka" (pesanan yang belum lunas di outlet kasir).
+- **POS** → bagian "Bayar Belakangan · Tamu (belum lunas)" (pesanan yang belum lunas di outlet kasir).
 - **Riwayat Transaksi** → baris dengan pesanan dine-in yang belum lunas tampil "Belum Lunas · Meja X" (badge amber) dengan tombol "Bayar".
 
 Payload memakai `tenders[]` yang sama dengan checkout POS (`TransactionTenderService::normalize`). Layar bayar menawarkan
@@ -240,5 +240,5 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - QR generator: `simplesoftwareio/simple-qrcode`
 - Status polling: fetch JSON setiap 5 detik (tanpa broadcast/realtime dependency)
 - Stok dipotong saat `accept` — bukan saat submit
-- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data Tagihan Terbuka (POS) dan relasi pesanan di Riwayat
+- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data "Bayar Belakangan · Tamu" (POS) dan relasi pesanan di Riwayat
 - Cart tetap berbasis `cashier_id` — tidak terpengaruh oleh dine-in

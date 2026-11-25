@@ -36,7 +36,7 @@ beforeEach(() => {
 });
 
 describe("OpenBills", () => {
-    it("renders nothing without open bills", () => {
+    it("renders nothing without unpaid guest bills", () => {
         const { container } = render(<OpenBills />);
         expect(container).toBeEmptyDOMElement();
     });
@@ -45,7 +45,7 @@ describe("OpenBills", () => {
         const user = userEvent.setup();
         render(<OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
 
-        await user.click(screen.getByRole("button", { name: /Tagihan Terbuka/ }));
+        await user.click(screen.getByRole("button", { name: /Bayar Belakangan · Tamu/ }));
         expect(screen.getByText(/Menunggu Pembayaran/)).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Bayar" }));
 
@@ -70,7 +70,7 @@ describe("OpenBills", () => {
         const user = userEvent.setup();
         render(<OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
 
-        await user.click(screen.getByRole("button", { name: /Tagihan Terbuka/ }));
+        await user.click(screen.getByRole("button", { name: /Bayar Belakangan · Tamu/ }));
         await user.click(screen.getByRole("button", { name: "Bayar" }));
         await user.selectOptions(screen.getByLabelText("Metode pembayaran"), "bank_transfer");
         await user.click(screen.getAllByRole("button", { name: "Bayar" }).at(-1));
@@ -88,7 +88,7 @@ describe("OpenBills gateway payments", () => {
         const user = userEvent.setup();
         render(<OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
 
-        await user.click(screen.getByRole("button", { name: /Tagihan Terbuka/ }));
+        await user.click(screen.getByRole("button", { name: /Bayar Belakangan · Tamu/ }));
         await user.click(screen.getByRole("button", { name: "Bayar" }));
         await user.selectOptions(screen.getByLabelText("Metode pembayaran"), "qris");
         await user.click(screen.getAllByRole("button", { name: "Bayar" }).at(-1));
@@ -110,7 +110,7 @@ describe("OpenBills gateway payments", () => {
             />
         );
 
-        await user.click(screen.getByRole("button", { name: /Tagihan Terbuka/ }));
+        await user.click(screen.getByRole("button", { name: /Bayar Belakangan · Tamu/ }));
         expect(screen.queryByRole("button", { name: "Bayar" })).not.toBeInTheDocument();
         expect(screen.getByRole("link", { name: "Lihat QR" })).toHaveAttribute("href", "/transactions.print/TRX-ABC");
     });

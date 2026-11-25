@@ -170,7 +170,7 @@ class DineOrderPaymentTest extends TestCase
         $this->assertNull($order->preparing_at);
         $this->assertNull($order->preparing_by);
 
-        // the unpaid order is listed (the UI shows it as Menunggu Pembayaran), and is an open bill on the POS
+        // the unpaid order is listed (the UI shows it as Menunggu Pembayaran), and is in the POS "Bayar Belakangan · Tamu" section
         $this->actingAs($this->admin)->get(route('dine-orders.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->has('orders', 1)
@@ -418,7 +418,7 @@ class DineOrderPaymentTest extends TestCase
         $this->assertEquals(1, Transaction::count());
         $this->assertEquals(18, $this->product->fresh()->stock);
 
-        // still an open bill (Belum Lunas), marked pending, until the webhook confirms it
+        // still an unpaid guest bill (Belum Lunas), marked pending, until the webhook confirms it
         $this->actingAs($this->cashier)->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page->has('openBills', 1)->where('openBills.0.pending', true));
 
