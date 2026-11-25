@@ -93,9 +93,11 @@ class DineIn
                 $qty = (int) ($options['qty'] ?? 2);
 
                 return DB::transaction(function () use ($suffix, $gateway, $qty, $options) {
-                    $outlet = Outlet::create(['code' => "DB{$suffix}", 'name' => "Outlet Tagihan {$suffix}", 'is_active' => true, 'is_sales_enabled' => true]);
+                    // Codes must sort AFTER the shared E2E outlet and warehouse ('E2E', 'WH-E2E'): the super admin's default
+                    // outlet and the first warehouse are the first by code, and specs of other features rely on the shared ones.
+                    $outlet = Outlet::create(['code' => "PAY{$suffix}", 'name' => "Outlet Tagihan {$suffix}", 'is_active' => true, 'is_sales_enabled' => true]);
                     $warehouse = Warehouse::create([
-                        'code' => "WH-DB{$suffix}", 'name' => "Gudang Tagihan {$suffix}", 'type' => 'branch',
+                        'code' => "WH-PAY{$suffix}", 'name' => "Gudang Tagihan {$suffix}", 'type' => 'branch',
                         'is_active' => true, 'sort_order' => 1, 'outlet_id' => $outlet->id,
                     ]);
                     // Its own row, also for 'none': else the outlet would inherit the shared Midtrans or Xendit setting.
