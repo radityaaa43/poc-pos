@@ -1077,6 +1077,22 @@
             "preparing": "Preparing",
             "ready": "Ready"
         },
+        "print": {
+            "open": "Kitchen printer settings",
+            "stationName": "Print device name",
+            "stationPlaceholder": "Kitchen 1",
+            "save": "Save",
+            "nameTaken": "This print device name is already used in this outlet",
+            "connect": "Connect printer",
+            "disconnect": "Disconnect",
+            "paper": "Paper size (58 mm / 80 mm)",
+            "test": "Test print",
+            "auto": "Auto-print",
+            "ready": "Printer ready",
+            "notConnected": "Printer not connected",
+            "otherTab": "Tickets are printed from another tab on this device",
+            "unpaid": "UNPAID"
+        },
         "actions": {
             "start": "Start",
             "ready": "Ready",

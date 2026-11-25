@@ -4,7 +4,7 @@ Back to the docs index: `docs/README.md`
 
 ## Purpose
 
-One screen for the kitchen: every paid order that still has something to prepare, in one queue, oldest first. Dine-in (QR) orders and POS sales land in the same list, and the kitchen moves each line forward from here (see Actions).
+One screen for the kitchen: every paid order that still has something to prepare, in one queue, oldest first. Dine-in (QR) orders and POS sales land in the same list, and the kitchen moves each line forward from here (see Actions). The screen can also print a ticket for each new order (see Kitchen tickets).
 
 ## What it shows
 
@@ -48,6 +48,18 @@ Known limit: the job reads the product flag at the time it runs, so a sale made 
 
 Every refresh is an authenticated request, so an open display keeps the idle session alive. The 12-hour absolute session limit still applies: when the session ends, the next refresh is redirected to the login page, so the screen asks for a sign-in instead of showing an empty queue.
 
+## Kitchen tickets (print device)
+
+A device that has the kitchen display open can print a ticket for every new order on a thermal printer. That device is a **print device**. It is not a kitchen station (see Kitchen stations below): a kitchen station is a place in the kitchen where a product is made, a print device is the tablet or PC that prints.
+
+- Set it up once per device: **Pengaturan printer dapur** / "Kitchen printer settings" on the display. Give the print device a name (**Nama perangkat cetak** / "Print device name", unique in the outlet, for example "Dapur 1"), connect the printer, pick 58 mm or 80 mm paper, press **Cetak percobaan** / "Test print" to check it, then switch **Cetak otomatis** / "Auto-print" on. The name is saved on the server; the printer, paper size and the switch are saved in this browser only, so each device is set up on its own.
+- A ticket prints once per print device: the print device asks the server every 5 seconds for orders it has not printed yet, prints them one at a time in arrival order, then tells the server which items it printed. Reloading or reopening the page does not print an order again, and a second tablet with its own print device name prints the same order once on its own. A print device prints only orders that reach the kitchen after it was named, not the queue that is already on the screen.
+- Only one tab per device prints: the tab that holds the browser's Web Lock `kitchen-print` runs the loop, and any other tab of the same browser shows "Tiket dicetak dari tab lain di perangkat ini" / "Tickets are printed from another tab on this device" in the panel and waits. When the printing tab closes, a waiting tab takes over on its own, so two open kitchen tabs never print a ticket twice.
+- A ticket has the table name or invoice number in large type, the order type and the time (`HH:MM`), then `qty x product` per line with its note. There are no prices. A pay-later order says **BELUM LUNAS** / "UNPAID". Ticket labels follow the device's current language.
+- Printing never changes the order: it is still "Diterima" / accepted on the screen until the kitchen moves it.
+- Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Failure warnings, reprint and the Windows driver steps are not part of this first version.
+- Routes: `kitchen.stations.store`, `kitchen.stations.tickets`, `kitchen.stations.prints` (same permission as the display). Tables: `kitchen_print_stations`, `kitchen_ticket_prints` (one row per station and item).
+
 ## Language
 
 Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
@@ -56,8 +68,9 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 
 - `app/Http/Controllers/Apps/KitchenController.php`
 - `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Services/KitchenItemService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
-- `resources/js/Pages/Dashboard/Kitchen/Index.jsx`
-- E2E: `tests/e2e/features/32-kitchen-display/`
+- `app/Http/Controllers/Apps/KitchenPrintStationController.php`, `app/Services/KitchenTicketService.php`
+- `resources/js/Pages/Dashboard/Kitchen/Index.jsx`, `PrintStationPanel.jsx`, `resources/js/Hooks/useKitchenPrintStation.js`, `resources/js/Utils/printQueue.js`
+- E2E: `tests/e2e/features/32-kitchen-display/`, `tests/e2e/features/33-kitchen-printer/`
 
 ## Kitchen stations
 

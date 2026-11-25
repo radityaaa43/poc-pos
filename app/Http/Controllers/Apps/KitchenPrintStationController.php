@@ -8,6 +8,7 @@ use App\Http\Requests\StoreKitchenTicketPrintsRequest;
 use App\Models\KitchenPrintStation;
 use App\Services\KitchenTicketService;
 use App\Services\OutletAccessService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -25,7 +26,12 @@ class KitchenPrintStationController extends Controller
         $outlet = $this->outletAccessService->activeOutlet($request)
             ?? throw ValidationException::withMessages(['name' => 'Pilih outlet terlebih dahulu']);
 
-        $station = KitchenPrintStation::create(['outlet_id' => $outlet->id, 'name' => $request->validated('name')]);
+        // Two devices naming a station at once both pass the validation; the unique index stops the second.
+        try {
+            $station = KitchenPrintStation::create(['outlet_id' => $outlet->id, 'name' => $request->validated('name')]);
+        } catch (UniqueConstraintViolationException) {
+            throw ValidationException::withMessages(['name' => $request->messages()['name.unique']]);
+        }
 
         return response()->json($station->only('id', 'name'), 201);
     }
