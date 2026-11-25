@@ -109,6 +109,7 @@ class PaymentWebhookController extends Controller
                         ? $this->settleReceivable($transaction, $request->input('gross_amount'), 'midtrans')
                         : $newStatus,
                     'payment_reference' => $request->input('transaction_id') ?: $transaction->payment_reference,
+                    ...$this->failureReason($newStatus, $transactionStatus === 'expire'),
                 ]);
             }
 
@@ -237,6 +238,7 @@ class PaymentWebhookController extends Controller
                         ? $this->settleReceivable($transaction, $request->input('paid_amount') ?? $request->input('amount'), 'xendit')
                         : $newStatus,
                     'payment_reference' => $paymentId ?: $transaction->payment_reference,
+                    ...$this->failureReason($newStatus, strtoupper($status) === 'EXPIRED'),
                 ]);
             }
 
@@ -299,6 +301,17 @@ class PaymentWebhookController extends Controller
 
             return $receivable->status === 'paid' ? 'paid' : 'unpaid';
         });
+    }
+
+    /**
+     * Why a bill failed, for the guest page (Kedaluwarsa vs Pembayaran gagal): both gateways report an expiry as `failed`.
+     * Other statuses leave the column untouched.
+     *
+     * @return array<string, ?string>
+     */
+    private function failureReason(string $newStatus, bool $expired): array
+    {
+        return $newStatus === 'failed' ? ['payment_failure_reason' => $expired ? 'expired' : null] : [];
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\DineOrderOnlinePaymentService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -16,6 +17,7 @@ class DineOrderController extends Controller
 {
     public function __construct(
         private PricingService $pricingService,
+        private DineOrderOnlinePaymentService $onlinePayment,
     ) {}
 
     public function store(Request $request, string $token)
@@ -35,7 +37,8 @@ class DineOrderController extends Controller
             'items.*.unit_id' => ['nullable', 'exists:units,id'],
             'items.*.note' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],
-            // ponytail: online payment (gateway + webhook) is not wired yet — counter payment or pay later only
+            // Payment is never taken at submit: the guest can pay online only after staff accept (POST dine-order.pay).
+            // So the only options here are the counter and pay later (the outlet's choice, checked below).
             'payment_option' => ['required', 'in:'.DineOrder::PAY_AT_COUNTER.','.DineOrder::PAY_LATER],
         ]);
 
@@ -164,6 +167,7 @@ class DineOrderController extends Controller
                 'name' => $table->name,
             ],
             'storeName' => $storeName,
+            'payment' => $this->onlinePayment->state($order),
         ]);
     }
 
@@ -184,6 +188,9 @@ class DineOrderController extends Controller
         // the kitchen waits for payment, so the guest needs to know whether the bill is paid yet
         $order->setAttribute('is_paid', $order->isPaid());
 
-        return response()->json(['order' => $order->makeHidden(['transaction_id', 'transaction'])]);
+        // No QR here: the page already holds it, and the poll stays light.
+        $payment = $this->onlinePayment->state($order, withQr: false);
+
+        return response()->json(['order' => $order->makeHidden(['transaction_id', 'transaction']), 'payment' => $payment]);
     }
 }
