@@ -283,6 +283,26 @@ class HandleInertiaRequestsTest extends TestCase
                     && $bucket['total'] === 50000)));
     }
 
+    public function test_session_success_and_error_flashes_are_shared_as_flash_prop(): void
+    {
+        [$outlet] = $this->makeOutletWithWarehouse('FLS');
+        $user = $this->makeUserForOutlet($outlet);
+
+        $this->actingAs($user)
+            ->withSession(['success' => 'Tersimpan.', 'error' => 'Ditolak.'])
+            ->get('/dashboard/access')
+            ->assertInertia(fn ($page) => $page
+                ->where('flash.success', 'Tersimpan.')
+                ->where('flash.error', 'Ditolak.'));
+
+        $this->flushSession();
+        $this->actingAs($user)
+            ->get('/dashboard/access')
+            ->assertInertia(fn ($page) => $page
+                ->where('flash.success', null)
+                ->where('flash.error', null));
+    }
+
     public function test_superadmin_sees_all_outlet_data(): void
     {
         [$outletA, $warehouseA] = $this->makeOutletWithWarehouse('SAD');

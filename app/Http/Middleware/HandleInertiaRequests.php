@@ -252,6 +252,11 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            // Inertia 3 carries only Inertia::flash() data; pages read the session flash from this prop.
+            'flash' => fn () => [
+                'success' => $request->session()->get('success'),
+                'error' => $request->session()->get('error'),
+            ],
             'auth' => [
                 'user' => $request->user(),
                 'permissions' => $request->user() ? $request->user()->getPermissions() : [],
