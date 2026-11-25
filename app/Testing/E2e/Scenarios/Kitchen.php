@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CheckoutService;
 use App\Services\DineOrderService;
+use App\Services\KitchenStationService;
 use App\Support\Checkout\CheckoutContext;
 use App\Testing\E2e\Scenarios;
 use Database\Seeders\E2eSeeder;
@@ -60,6 +61,21 @@ class Kitchen
                     ->orderBy('id')->get()
                     ->map(fn ($item) => $item->kitchenStation?->name)->all(),
             ],
+
+            // The status of each kitchen item of the sale --arg=invoice=<invoice>, keyed by the station name it was given (a deleted station's name still shows).
+            'kitchen.status-by-station' => fn (array $options): array => [
+                'status_by_station' => KitchenItem::with('kitchenStation')
+                    ->where('transaction_id', Transaction::where('invoice', $options['invoice'])->firstOrFail()->id)
+                    ->orderBy('id')->get()
+                    ->mapWithKeys(fn ($item) => [$item->kitchenStation?->name => $item->status])->all(),
+            ],
+
+            // Soft-deletes the kitchen station --arg=name=<name> through the service the settings page uses (its products move to Dapur).
+            'kitchen.station-delete' => function (array $options): array {
+                app(KitchenStationService::class)->delete(KitchenStation::where('name', $options['name'])->firstOrFail());
+
+                return ['name' => $options['name']];
+            },
 
             // Creates the kitchen station --arg=name=<name> and maps the products --arg=products=<id>,<id> to it.
             'kitchen.station' => function (array $options): array {
@@ -142,6 +158,8 @@ class Kitchen
             // and sells one of each. --arg=status=paid (default) or pending (a bank transfer nobody confirmed).
             // --arg=dine=1 instead has a guest order on a new table accepted and paid in cash, flagged lines only.
             // Returns the invoice (or table_name for dine), and the flagged and plain titles.
+            // --arg=station=<name> maps the LAST flagged product to that station (created if missing) before the sale
+            // and adds `station` to the result; the others stay on the default station.
             'kitchen-sale' => function (array $options): array {
                 $prefix = $options['prefix'] ?? 'Dapur';
                 $email = $options['cashier'] ?? 'cashier@e2e.test';
@@ -155,6 +173,13 @@ class Kitchen
                 $flagged = $make('Masak', (int) ($options['flagged'] ?? 1), true);
                 $plain = $make('Kemasan', (int) ($options['plain'] ?? 0), false);
                 $titles = ['flagged' => array_column($flagged, 'title'), 'plain' => array_column($plain, 'title')];
+
+                $stationName = $options['station'] ?? null;
+                if ($stationName !== null && $flagged) {
+                    $station = KitchenStation::firstOrCreate(['name' => $stationName]);
+                    $flagged[array_key_last($flagged)]->update(['kitchen_station_id' => $station->id]);
+                    $titles['station'] = $stationName;
+                }
 
                 Scenarios::registry()['open-shift'](['cashier' => $email, 'cash' => '100000']);
 

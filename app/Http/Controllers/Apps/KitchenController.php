@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\Transaction;
 use App\Models\Warehouse;
 use App\Services\KitchenItemService;
@@ -33,6 +34,8 @@ class KitchenController extends Controller
         return Inertia::render('Dashboard/Kitchen/Index', [
             'orders' => KitchenOrders::fromItems($items),
             'outlet' => $outlet?->only('id', 'name'),
+            // Active stations only (the model's soft-delete scope); the display filters by them in the browser.
+            'stations' => KitchenStation::orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'is_default']),
         ]);
     }
 
@@ -55,7 +58,11 @@ class KitchenController extends Controller
     public function allReady(Request $request, Transaction $transaction, KitchenItemService $service)
     {
         $this->ensureOutlet($request, $transaction->warehouse_id);
-        $service->allReady($transaction, $request->user());
+        $data = $request->validate([
+            'station_ids' => ['sometimes', 'array'],
+            'station_ids.*' => ['integer'],
+        ]);
+        $service->allReady($transaction, $request->user(), $data['station_ids'] ?? null);
 
         return back();
     }
