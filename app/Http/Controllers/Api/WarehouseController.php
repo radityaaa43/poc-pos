@@ -78,7 +78,7 @@ class WarehouseController extends Controller
      */
     public function update(Request $request, Warehouse $warehouse): JsonResponse
     {
-        abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 404);
+        abort_unless($this->outletAccessService->canManageWarehouse($request->user(), $warehouse), 404);
 
         $validated = $request->validate([
             'code' => ['sometimes', 'string', 'max:50', Rule::unique('warehouses', 'code')->ignore($warehouse->id)],
@@ -105,7 +105,7 @@ class WarehouseController extends Controller
      */
     public function destroy(Request $request, Warehouse $warehouse): JsonResponse
     {
-        abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 404);
+        abort_unless($this->outletAccessService->canManageWarehouse($request->user(), $warehouse), 404);
 
         if ($this->outletAccessService->hasWarehouseHistory($warehouse)) {
             return $this->error('Gudang yang memiliki histori operasional tidak bisa dihapus.', 422);

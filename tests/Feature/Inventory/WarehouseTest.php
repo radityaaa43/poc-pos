@@ -3,10 +3,12 @@
 namespace Tests\Feature\Inventory;
 
 use App\Models\Category;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
+use App\Services\OutletAccessService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
@@ -148,6 +150,48 @@ class WarehouseTest extends TestCase
             ])->assertSessionHas('success');
 
         $this->assertDatabaseHas('warehouses', ['name' => 'Gudang 1 Updated']);
+    }
+
+    public function test_admin_can_reactivate_and_delete_an_inactive_warehouse()
+    {
+        $warehouse = Warehouse::factory()->create(['code' => 'OFF-1', 'type' => 'branch', 'is_active' => false]);
+
+        $this->from(route('settings.warehouses.index'))
+            ->put(route('settings.warehouses.update', $warehouse->id), [
+                'code' => 'OFF-1',
+                'name' => 'Back on',
+                'type' => 'branch',
+                'sort_order' => 0,
+                'is_active' => true,
+            ])->assertSessionHas('success');
+        $this->assertDatabaseHas('warehouses', ['id' => $warehouse->id, 'name' => 'Back on', 'is_active' => true]);
+
+        $warehouse->update(['is_active' => false]);
+
+        $this->from(route('settings.warehouses.index'))
+            ->delete(route('settings.warehouses.destroy', $warehouse->id))
+            ->assertSessionHas('success');
+        $this->assertDatabaseMissing('warehouses', ['id' => $warehouse->id]);
+    }
+
+    public function test_inactive_warehouse_can_be_managed_but_not_used()
+    {
+        $inactive = Warehouse::factory()->create(['is_active' => false]);
+        $service = app(OutletAccessService::class);
+
+        $this->assertTrue($service->canManageWarehouse($this->admin, $inactive));
+        $this->assertFalse($service->canUseWarehouse($this->admin, $inactive));
+    }
+
+    public function test_user_without_the_outlet_cannot_manage_its_inactive_warehouse()
+    {
+        $mine = Outlet::create(['code' => 'OUT-A', 'name' => 'Outlet A', 'is_active' => true]);
+        $other = Outlet::create(['code' => 'OUT-B', 'name' => 'Outlet B', 'is_active' => true]);
+        $inactive = Warehouse::factory()->create(['outlet_id' => $other->id, 'is_active' => false]);
+        $user = User::factory()->create();
+        $user->outlets()->attach($mine->id);
+
+        $this->assertFalse(app(OutletAccessService::class)->canManageWarehouse($user, $inactive));
     }
 
     public function test_cannot_delete_main_warehouse()

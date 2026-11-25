@@ -15,13 +15,15 @@ class OutletAccessService
 {
     public function canUseWarehouse(User $user, ?Warehouse $warehouse): bool
     {
+        return $this->canManageWarehouse($user, $warehouse) && (! $warehouse || $warehouse->is_active);
+    }
+
+    // Same outlet access as canUseWarehouse but ignores is_active: inactive warehouses stay manageable (reactivate, delete).
+    public function canManageWarehouse(User $user, ?Warehouse $warehouse): bool
+    {
         if (! $warehouse) {
             // Legacy installs allowed shifts without a warehouse assignment.
             return $this->legacySingleOutletBypass();
-        }
-
-        if (! $warehouse->is_active) {
-            return false;
         }
 
         if ($user->isSuperAdmin()) {

@@ -53,7 +53,7 @@ scan in the POS.
 | `12-shell` | `01-language-switch`, `02-guided-tours`: auto-start, replay, reset, saved as done; `03-notifications`: low-stock bell, per-user read | manager-like user |
 | `13-dashboard` | `01-dashboard-home`: summary cards, low-stock widget, shortcut, checklist subtitle | manager-like user |
 | `14-access-control` | `01-users`: create, edit role, delete, sign in, own-delete refused; `02-roles`: create/rename/delete, custom-role access, super-admin protected; `03-permissions`: page, search, page size | super-admin, custom role |
-| `15-organisation` | `01-units`, `02-warehouses` (list fields fixme: an inactive warehouse cannot be deleted, 404), `03-outlets`: create/rename/delete, outlet switch keeps settings per outlet | manager, super-admin |
+| `15-organisation` | `01-units`, `02-warehouses`, `03-outlets`: create/rename/delete, outlet switch keeps settings per outlet | manager, super-admin |
 | `16-settings` | `01-store-profile` (+ tax rate; new-product default rate in `06`), `02-sales-target`, `03-printer-loyalty`, `04-payments` (gateway keys, bank accounts), `05-whatsapp`. Real USB printer and real WhatsApp pairing are Manual | manager, super-admin |
 | `17-audit-logs` | `01-audit-trail`: entries for user, reset request, bank account; filters; detail page | super-admin |
 | `18-import-export` | `01-exports-and-templates`: Excel exports, template headers; `02-imports`: customer CSV and product workbook re-import | manager-like user |
