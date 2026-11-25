@@ -12,6 +12,9 @@ const fillBasics = async (page, uniq, title) => {
 
 test.describe('42-recipes', () => {
     test('a recipe without its own price sells at the total of its components', { tag: ['@REQ-001-AC-02'] }, async ({ asRole, arrange, uniq }) => {
+        // Own components with unique names, each sold at Rp 10.000 by the scenario.
+        const first = arrange('product', { title: uniq('Komponen-A'), stock: 20 }).title;
+        const second = arrange('product', { title: uniq('Komponen-B'), stock: 20 }).title;
         const admin = await asRole(role('super-admin'));
         const title = uniq('Paket');
 
@@ -23,12 +26,12 @@ test.describe('42-recipes', () => {
         await expect(admin.getByPlaceholder('Kosong = total harga komponen')).toBeEmpty();
 
         await admin.getByRole('button', { name: '+ Tambah Komponen' }).click();
-        await pick(admin, admin.getByRole('button', { name: 'Pilih produk komponen' }).last(), 'Produk E2E 1');
+        await pick(admin, admin.getByRole('button', { name: 'Pilih produk komponen' }).last(), first);
         await admin.getByPlaceholder('Qty').last().fill('2');
         await admin.getByRole('button', { name: '+ Tambah Komponen' }).click();
-        await pick(admin, admin.getByRole('button', { name: 'Pilih produk komponen' }).last(), 'Produk E2E 2');
-        // 2 x Rp 10.000 + 1 x Rp 15.000
-        await expect(admin.getByText(/Total harga jual komponen:\s*Rp\s*35\.000/)).toBeVisible();
+        await pick(admin, admin.getByRole('button', { name: 'Pilih produk komponen' }).last(), second);
+        // 2 x Rp 10.000 + 1 x Rp 10.000
+        await expect(admin.getByText(/Total harga jual komponen:\s*Rp\s*30.000/)).toBeVisible();
 
         await admin.getByRole('button', { name: 'Simpan Produk' }).click();
         await expect(admin.getByText('Produk berhasil ditambahkan')).toBeVisible();
@@ -37,7 +40,7 @@ test.describe('42-recipes', () => {
         const cashier = await asRole(role('cashier'));
         await cashier.goto('/dashboard/transactions');
         await posSearch(cashier, title);
-        await expect(card(cashier, title)).toContainText('35.000');
+        await expect(card(cashier, title)).toContainText('30.000');
     });
 
     test('a recipe needs at least one component', async ({ asRole, uniq }) => {

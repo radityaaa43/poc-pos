@@ -39,7 +39,7 @@ test.describe('42-recipes', () => {
         await admin.getByRole('button', { name: 'Filter' }).click();
         await admin.getByRole('button', { name: 'Semua pelanggan' }).click();
         await admin.getByPlaceholder('Search...').fill(customer);
-        await admin.getByRole('option', { name: customer }).click();
+        await admin.getByRole('option', { name: customer, exact: true }).click();
         await admin.getByRole('button', { name: 'Terapkan' }).click();
         const row = admin.getByRole('row').filter({ hasText: customer });
         await expect(row).toContainText('44.000');

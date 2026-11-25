@@ -10,7 +10,7 @@ export const field = (scope, label) => scope.locator('label', { hasText: new Reg
 // Headless UI listbox (category picker, recipe component picker): open it, then pick the option by name.
 export async function pick(page, button, name) {
     await button.click();
-    await page.getByRole('option', { name }).click();
+    await page.getByRole('option', { name, exact: true }).click();
 }
 
 // Native confirm() dialogs (stock transfer actions) are accepted for the rest of the page's life.
