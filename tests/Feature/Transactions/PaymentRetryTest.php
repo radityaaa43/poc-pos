@@ -119,7 +119,7 @@ class PaymentRetryTest extends TestCase
 
         $this->actingAs($this->cashier)
             ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 25000])
-            ->assertSessionHasErrors(['payment' => 'Bayar lewat Tagihan Terbuka']);
+            ->assertSessionHasErrors(['payment' => 'Bayar lewat daftar Belum Lunas di POS']);
 
         $this->assertSame('failed', $sale->fresh()->payment_status);
         $this->assertSame(0, $sale->fresh()->payment_attempt);

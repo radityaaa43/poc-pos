@@ -60,7 +60,7 @@ class TransactionPaymentRetryService
             }
 
             if ($sale->dineOrder()->exists()) {
-                throw ValidationException::withMessages(['payment' => 'Bayar lewat Tagihan Terbuka']);
+                throw ValidationException::withMessages(['payment' => 'Bayar lewat daftar Belum Lunas di POS']);
             }
 
             if ($this->wasRestocked($sale)) {
