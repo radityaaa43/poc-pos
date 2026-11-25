@@ -13,6 +13,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
@@ -539,6 +540,56 @@ class SalesReturnTest extends TestCase
             'transaction_id' => $transaction->id,
             'total' => -54000,
         ]);
+    }
+
+    public function test_a_second_completion_that_lost_the_race_is_refused_and_changes_nothing(): void
+    {
+        [$user, $transaction, $salesReturn] = $this->createPartialReturnDraft();
+        $product = $transaction->details()->firstOrFail()->product;
+        $this->completedByAnotherRequestOnceTheShiftIsLocked($salesReturn);
+
+        $this->actingAs($user)
+            ->post(route('sales-returns.complete', $salesReturn))
+            ->assertSessionHasErrors('sales_return');
+
+        $this->assertNothingWasBooked($transaction, $product);
+    }
+
+    public function test_the_api_completion_that_lost_the_race_is_refused_and_changes_nothing(): void
+    {
+        [$user, $transaction, $salesReturn] = $this->createPartialReturnDraft();
+        $product = $transaction->details()->firstOrFail()->product;
+        $this->completedByAnotherRequestOnceTheShiftIsLocked($salesReturn);
+
+        Sanctum::actingAs($user, ['*']);
+        $this->postJson(route('api.sales-returns.complete', $salesReturn))->assertUnprocessable();
+
+        $this->assertNothingWasBooked($transaction, $product);
+    }
+
+    /**
+     * Two requests both loaded the draft; the other one commits while this one waits for its locks. The completion is
+     * decided on the row read under the lock, not on the copy loaded before it (#355): the shift lock is the first
+     * lock inside the transaction, so the other request "commits" right after it.
+     */
+    private function completedByAnotherRequestOnceTheShiftIsLocked(SalesReturn $salesReturn): void
+    {
+        $baseLevel = DB::transactionLevel();
+        $armed = true;
+
+        CashierShift::retrieved(function () use (&$armed, $baseLevel, $salesReturn) {
+            if ($armed && DB::transactionLevel() > $baseLevel) {
+                $armed = false;
+                DB::table('sales_returns')->where('id', $salesReturn->id)->update(['status' => 'completed', 'completed_at' => now()]);
+            }
+        });
+    }
+
+    private function assertNothingWasBooked(Transaction $transaction, Product $product): void
+    {
+        $this->assertSame(10, $product->fresh()->stock, 'nothing is restocked twice');
+        $this->assertDatabaseMissing('stock_mutations', ['product_id' => $product->id, 'reference_type' => 'sales_return']);
+        $this->assertSame(1, $transaction->profits()->count(), 'no second profit reversal');
     }
 
     /**

@@ -184,7 +184,6 @@ class SalesReturnController extends Controller
         $this->ensureSalesReturnTablesExist();
 
         $salesReturn = $this->resolveAccessibleSalesReturn($request, $salesReturn->id);
-        $this->ensureDraft($salesReturn);
         $before = $this->salesReturnAuditPayload($salesReturn);
 
         DB::transaction(function () use ($request, $salesReturn) {
@@ -192,6 +191,10 @@ class SalesReturnController extends Controller
                 $request->user()->id,
                 lockForUpdate: true
             );
+
+            // Re-read under a row lock: two completions of one draft could both pass an unlocked check and
+            // restock, refund and cancel kitchen items twice (#355). The second one is refused here.
+            $this->ensureDraft(SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail());
 
             $salesReturn->load([
                 'transaction.receivable',
