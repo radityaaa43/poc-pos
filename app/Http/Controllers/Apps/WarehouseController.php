@@ -58,7 +58,7 @@ class WarehouseController extends Controller
 
     public function update(Request $request, Warehouse $warehouse)
     {
-        abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $warehouse), 404);
+        abort_unless($this->outletAccessService->canManageWarehouse($request->user(), $warehouse), 404);
         $validated = $request->validate([
             'code' => ['required', 'string', 'max:20', Rule::unique('warehouses', 'code')->ignore($warehouse->id)],
             'name' => ['required', 'string', 'max:100'],
@@ -82,7 +82,7 @@ class WarehouseController extends Controller
 
     public function destroy(Warehouse $warehouse)
     {
-        abort_unless($this->outletAccessService->canUseWarehouse(request()->user(), $warehouse), 404);
+        abort_unless($this->outletAccessService->canManageWarehouse(request()->user(), $warehouse), 404);
         if ($warehouse->type === 'main') {
             return back()->with('error', 'Gudang utama tidak bisa dihapus.');
         }
