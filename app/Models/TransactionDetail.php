@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -27,6 +28,7 @@ class TransactionDetail extends Model
         'price',
         'discount_total',
         'cost_total',
+        'needs_preparation',
         'product_batch_id',
         'pricing_rule_id',
         'pricing_rule_name',
@@ -42,10 +44,35 @@ class TransactionDetail extends Model
         'price' => 'integer',
         'discount_total' => 'integer',
         'cost_total' => 'integer',
+        'needs_preparation' => 'boolean',
         'pricing_rule_id' => 'integer',
         'pricing_rule_kind' => 'string',
         'conversion_factor' => 'decimal:4',
     ];
+
+    /**
+     * Whether this line is made in the kitchen: the flag frozen at sale time, else (a line written before the
+     * snapshot existed) the product's flag now. The one rule for intake, self-heal and the BR-1 serve check.
+     */
+    public function goesToKitchen(): bool
+    {
+        return $this->needs_preparation ?? (bool) $this->product?->needs_preparation;
+    }
+
+    /**
+     * SQL twin of goesToKitchen().
+     *
+     * @param  Builder<TransactionDetail>  $query
+     * @return Builder<TransactionDetail>
+     */
+    public function scopeGoesToKitchen(Builder $query): Builder
+    {
+        return $query->where(fn (Builder $line) => $line
+            ->where('transaction_details.needs_preparation', true)
+            ->orWhere(fn (Builder $old) => $old
+                ->whereNull('transaction_details.needs_preparation')
+                ->whereHas('product', fn ($product) => $product->where('needs_preparation', true))));
+    }
 
     /**
      * Base-unit quantity consumed/returned by this line: selling qty x conversion factor.

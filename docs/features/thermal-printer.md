@@ -35,6 +35,16 @@ Cetak langsung byte ESC/POS ke printer via WebUSB (tanpa dialog print browser):
 
 > **Catatan:** WebUSB hanya tersedia di browser Chromium (Chrome/Edge/Opera) dan butuh gesture pengguna (klik tombol "Hubungkan Printer"). Browser lain, printer yang tidak kompatibel, atau printer yang terputus akan memakai fallback `window.print()` dari tombol Thermal. Auto-print tidak membuka dialog browser secara otomatis.
 
+## Kitchen printer (English)
+
+The kitchen display can print an order ticket on its own printer: see "Kitchen tickets" in `docs/features/kitchen-display.md`. It uses the same WebUSB code as the receipt printer (`resources/js/Utils/escpos.js`), with its own settings.
+
+- The kitchen printer, its paper size and auto-print are saved per browser in `localStorage` (`kitchen.printerKey`, `kitchen.paper`, `kitchen.autoPrint`). They are separate from **Settings > Printer**, so a cashier PC keeps its receipt printer unchanged.
+- Connect it from **Pengaturan printer dapur** on the kitchen display, not from Settings > Printer. Test it with **Cetak percobaan**.
+- A cashier PC with a receipt printer and a kitchen printer: grant both in Chrome. Receipts and the cash drawer use the printer that is not the kitchen printer; tickets use the one saved as the kitchen printer. Printers are told apart by vendor id, product id and serial number, so use two different models, or two printers with serial numbers.
+- Keep the kitchen display in a **separate browser window**, not a background tab: Chrome slows the timers of hidden tabs, so tickets could arrive late. The same goes for a tablet: keep the screen on and the page in front.
+- Needs Chrome or Edge on HTTPS (or `localhost`). Pairing the printer needs one tap on **Hubungkan printer** and Chrome's device dialog; it cannot be done for the user.
+
 ## Route
 
 | Route | Method | Fungsi |

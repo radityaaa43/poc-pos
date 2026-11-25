@@ -13,6 +13,7 @@ class KitchenOrders
         'transaction.dineOrder:id,transaction_id,dine_table_id',
         'transaction.dineOrder.table:id,name',
         'product:id,title',
+        'kitchenStation:id,name', // withTrashed: an item of a deleted station keeps its old name
     ];
 
     /** $items: kitchen items in queue order, with RELATIONS loaded. */
@@ -37,6 +38,8 @@ class KitchenOrders
                     'qty' => $item->qty,
                     'note' => $item->note ?? null, // the column arrives with a later #236 change
                     'status' => $item->status,
+                    'station_id' => $item->kitchen_station_id,
+                    'station' => $item->kitchenStation?->name,
                 ])->values(),
             ];
         })->values();

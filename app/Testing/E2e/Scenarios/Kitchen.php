@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CheckoutService;
 use App\Services\DineOrderService;
+use App\Services\KitchenStationService;
 use App\Support\Checkout\CheckoutContext;
 use App\Testing\E2e\Scenarios;
 use Database\Seeders\E2eSeeder;
@@ -60,6 +61,21 @@ class Kitchen
                     ->orderBy('id')->get()
                     ->map(fn ($item) => $item->kitchenStation?->name)->all(),
             ],
+
+            // The status of each kitchen item of the sale --arg=invoice=<invoice>, keyed by the station name it was given (a deleted station's name still shows).
+            'kitchen.status-by-station' => fn (array $options): array => [
+                'status_by_station' => KitchenItem::with('kitchenStation')
+                    ->where('transaction_id', Transaction::where('invoice', $options['invoice'])->firstOrFail()->id)
+                    ->orderBy('id')->get()
+                    ->mapWithKeys(fn ($item) => [$item->kitchenStation?->name => $item->status])->all(),
+            ],
+
+            // Soft-deletes the kitchen station --arg=name=<name> through the service the settings page uses (its products move to Dapur).
+            'kitchen.station-delete' => function (array $options): array {
+                app(KitchenStationService::class)->delete(KitchenStation::where('name', $options['name'])->firstOrFail());
+
+                return ['name' => $options['name']];
+            },
 
             // Creates the kitchen station --arg=name=<name> and maps the products --arg=products=<id>,<id> to it.
             'kitchen.station' => function (array $options): array {
@@ -140,8 +156,12 @@ class Kitchen
             // Opens the cashier's shift (--arg=cashier=<email>, default cashier@e2e.test), creates products
             // "<prefix> Masak <i>" (needs_preparation) x --arg=flagged and "<prefix> Kemasan <i>" x --arg=plain,
             // and sells one of each. --arg=status=paid (default) or pending (a bank transfer nobody confirmed).
-            // --arg=dine=1 instead has a guest order on a new table accepted and paid in cash, flagged lines only.
+            // --arg=pay_later=1 sells it on "Bayar belakangan" instead (unpaid, a guest, with the note the rule needs).
+            // --arg=dine=1 instead has a guest order on a new table accepted and paid in cash, flagged lines only;
+            // --arg=note=<text> is then the note on every dine-in line (it reaches the kitchen item).
             // Returns the invoice (or table_name for dine), and the flagged and plain titles.
+            // --arg=station=<name> maps the LAST flagged product to that station (created if missing) before the sale
+            // and adds `station` to the result; the others stay on the default station.
             'kitchen-sale' => function (array $options): array {
                 $prefix = $options['prefix'] ?? 'Dapur';
                 $email = $options['cashier'] ?? 'cashier@e2e.test';
@@ -156,13 +176,25 @@ class Kitchen
                 $plain = $make('Kemasan', (int) ($options['plain'] ?? 0), false);
                 $titles = ['flagged' => array_column($flagged, 'title'), 'plain' => array_column($plain, 'title')];
 
+                $stationName = $options['station'] ?? null;
+                if ($stationName !== null && $flagged) {
+                    $station = KitchenStation::firstOrCreate(['name' => $stationName]);
+                    $flagged[array_key_last($flagged)]->update(['kitchen_station_id' => $station->id]);
+                    $titles['station'] = $stationName;
+                }
+
                 Scenarios::registry()['open-shift'](['cashier' => $email, 'cash' => '100000']);
 
                 if (($options['dine'] ?? '0') === '1') {
-                    return $titles + self::dineSale($cashier, $flagged, $prefix);
+                    return $titles + self::dineSale($cashier, $flagged, $prefix, $options['note'] ?? null);
                 }
 
-                $transaction = self::sell($cashier, [...$flagged, ...$plain], ($options['status'] ?? 'paid') === 'pending');
+                $transaction = self::sell(
+                    $cashier,
+                    [...$flagged, ...$plain],
+                    ($options['status'] ?? 'paid') === 'pending',
+                    ($options['pay_later'] ?? '0') === '1',
+                );
 
                 return $titles + ['invoice' => $transaction->invoice, 'transaction_id' => $transaction->id];
             },
@@ -170,7 +202,7 @@ class Kitchen
     }
 
     /** A guest order on a new table, accepted by the cashier and paid in cash: the paid bill reaches the kitchen. */
-    private static function dineSale(User $cashier, array $products, string $prefix): array
+    private static function dineSale(User $cashier, array $products, string $prefix, ?string $note): array
     {
         $table = Scenarios::registry()['dine.table'](['area' => "Area $prefix", 'name' => "Meja $prefix"]);
         $order = DineOrder::create([
@@ -183,7 +215,7 @@ class Kitchen
             'item_count' => count($products),
         ]);
         foreach ($products as $product) {
-            $order->items()->create(['product_id' => $product->id, 'qty' => 1, 'price' => (int) $product->sell_price]);
+            $order->items()->create(['product_id' => $product->id, 'qty' => 1, 'price' => (int) $product->sell_price, 'note' => $note]);
         }
 
         $service = app(DineOrderService::class);
@@ -193,8 +225,8 @@ class Kitchen
         return ['table_name' => $table['table_name'], 'order_id' => $order->id];
     }
 
-    /** One POS sale of one unit of each product: paid in cash, or a bank transfer left pending. */
-    private static function sell(User $cashier, array $products, bool $pending): Transaction
+    /** One POS sale of one unit of each product: paid in cash, a bank transfer left pending, or on pay-later (unpaid). */
+    private static function sell(User $cashier, array $products, bool $pending, bool $payLater = false): Transaction
     {
         $shift = CashierShift::open()->where('user_id', $cashier->id)->with('warehouse.outlet')->firstOrFail();
         Cart::where('cashier_id', $cashier->id)->delete();
@@ -220,13 +252,13 @@ class Kitchen
             manualDiscount: 0,
             shippingCost: 0,
             requestedRedeemPoints: 0,
-            isPayLater: false,
+            isPayLater: $payLater,
             dueDate: null,
             orderType: 'in_store',
-            note: null,
+            note: $payLater ? 'Bayar belakangan e2e' : null, // a guest on pay-later needs a note: who owes
             customerNpwp: null,
-            isCashPayment: ! $pending,
-            cashAmount: $pending ? 0 : $total,
+            isCashPayment: ! $pending && ! $payLater,
+            cashAmount: $pending || $payLater ? 0 : $total,
             paymentGateway: null,
             useTenders: $pending,
             tenderInput: $pending ? [['method' => 'bank_transfer', 'amount' => $total, 'bank_account_id' => $bankId]] : [],

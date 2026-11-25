@@ -96,6 +96,7 @@ class DineOrderService
                     'price' => $lineTotal,
                     'discount_total' => 0,
                     'cost_total' => $costTotal,
+                    'needs_preparation' => $product->needs_preparation, // the bill is paid later: freeze the flag at accept
                 ]);
 
                 $transaction->profits()->create([

@@ -30,7 +30,7 @@ class RecoverKitchenIntakeCommand extends Command
             ->where('created_at', '>=', now()->subHours(48)) // indexed prefilter; gateway sales can be paid long after they are created, so 48 h still covers them
             ->where('updated_at', '>=', now()->subMinutes(self::WINDOW_MINUTES))
             ->whereDoesntHave('kitchenItems')
-            ->whereHas('details.product', fn ($product) => $product->where('needs_preparation', true))
+            ->whereHas('details', fn ($detail) => $detail->goesToKitchen())
             ->whereHas('details', fn ($detail) => $detail->whereRaw(
                 'transaction_details.qty > coalesce((select sum(sri.qty_return) from sales_return_items sri'
                 .' join sales_returns sr on sr.id = sri.sales_return_id'
