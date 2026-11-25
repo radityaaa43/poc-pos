@@ -153,7 +153,7 @@ In Claude Code, `.claude/hooks/guard.py` enforces these (it blocks the edit or c
 first) and `.claude/settings.json` denies reads of secret files. Other agents and humans aren't
 covered by the hook; review and CI still apply.
 
-- Commit secrets: `.env*` (except `*.example`), keys and certificates (`*.pem`, `*.key`), credentials files,
+- Commit secrets: `.env*` (except `*.example`), keys and certificates (`*.pem`, `*.key`; keep them outside the repo, `secrets/` is ignored), credentials files,
   database dumps (`*.sql`, `*.sql.gz`, `*.dump`).
 - Edit `storage/`: Runtime logs and uploads; may hold customer data. Never edit or commit by hand.
 - Edit `public/build/`: Vite build output; regenerate with npm run build, never edit.
