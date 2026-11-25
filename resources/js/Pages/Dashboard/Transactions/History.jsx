@@ -45,32 +45,48 @@ const formatDateTime = (value) =>
         minute: "2-digit",
     });
 
-// Accepted dine-in order whose bill is unsettled: the cashier pays it from here or from the POS "Tagihan Terbuka" section.
+// Accepted dine-in order whose bill is unsettled. A pending bank transfer stays with the existing "Pending - Konfirmasi" action.
+const isOpenBill = (transaction) =>
+    transaction.dine_order?.status === "accepted" &&
+    (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
+        (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"));
+
+// The cashier pays an open bill from here or from the POS "Tagihan Terbuka" section. A pending gateway payment
+// (QRIS) cannot be charged twice: it links to the receipt, which shows the QR, until the webhook marks it paid.
 const OpenBillStatus = ({ transaction, canPay, onPay }) => (
     <span className="inline-flex items-center gap-2">
         <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
             Belum Lunas · {transaction.dine_order.table?.name ?? "Meja"}
         </span>
-        {canPay && (
-            <button
-                type="button"
-                onClick={() =>
-                    onPay({
-                        order_id: transaction.dine_order.id,
-                        invoice: transaction.invoice,
-                        table: transaction.dine_order.table?.name,
-                        grand_total: transaction.grand_total,
-                    })
-                }
-                className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+        {transaction.payment_status === "pending" ? (
+            <Link
+                href={route("transactions.print", transaction.invoice)}
+                className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-sky-500 text-white rounded-full hover:bg-sky-600 transition-colors"
             >
-                Bayar
-            </button>
+                Lihat QR
+            </Link>
+        ) : (
+            canPay && (
+                <button
+                    type="button"
+                    onClick={() =>
+                        onPay({
+                            order_id: transaction.dine_order.id,
+                            invoice: transaction.invoice,
+                            table: transaction.dine_order.table?.name,
+                            grand_total: transaction.grand_total,
+                        })
+                    }
+                    className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+                >
+                    Bayar
+                </button>
+            )
         )}
     </span>
 );
 
-const History = ({ transactions, filters, warehouses = [], bankAccounts = [] }) => {
+const History = ({ transactions, filters, warehouses = [], bankAccounts = [], paymentGateways = [] }) => {
     const { can } = useAuthorization();
     const canCreateSalesReturn = can("sales-returns-create");
     const canConfirmPayment = can("transactions-confirm-payment");
@@ -357,9 +373,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [] }) 
                                                         <IconCheck size={12} />
                                                         Lunas
                                                     </span>
-                                                ) : transaction.dine_order &&
-                                                  transaction.payment_status ===
-                                                      "unpaid" ? (
+                                                ) : isOpenBill(transaction) ? (
                                                     <OpenBillStatus
                                                         transaction={transaction}
                                                         canPay={canPayOpenBill}
@@ -490,9 +504,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [] }) 
                                                         <IconCheck size={12} />
                                                         Lunas
                                                     </span>
-                                                ) : transaction.dine_order &&
-                                                  transaction.payment_status ===
-                                                      "unpaid" ? (
+                                                ) : isOpenBill(transaction) ? (
                                                     <OpenBillStatus
                                                         transaction={transaction}
                                                         canPay={canPayOpenBill}
@@ -658,7 +670,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [] }) 
 
             {/* Confirmation Modal */}
             {payingBill && (
-                <OpenBillPayModal bill={payingBill} bankAccounts={bankAccounts} onClose={() => setPayingBill(null)} />
+                <OpenBillPayModal bill={payingBill} bankAccounts={bankAccounts} paymentGateways={paymentGateways} onClose={() => setPayingBill(null)} />
             )}
 
             {confirmModal.open && confirmModal.transaction && (

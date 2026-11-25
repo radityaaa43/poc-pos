@@ -1058,7 +1058,7 @@ export default function Index({
                         />
                     </div>
 
-                    <OpenBills openBills={openBills} bankAccounts={bankAccounts} />
+                    <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 
                     {/* Held Transactions & Alerts */}
                     {heldCarts.length > 0 && (

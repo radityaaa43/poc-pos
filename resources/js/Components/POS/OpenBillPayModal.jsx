@@ -16,9 +16,10 @@ const inputClass =
 /**
  * Settles the open bill of an accepted dine-in order. It pays the transaction created at accept
  * (POST dine-orders.pay with the same tenders[] payload as POS checkout), it never creates a new one.
+ * Gateway methods (QRIS, Midtrans, Xendit) leave the bill pending and open the receipt with the QR.
  * Used by the POS "Tagihan Terbuka" section and by Transactions History.
  */
-export default function OpenBillPayModal({ bill, bankAccounts = [], onClose }) {
+export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGateways = [], onClose }) {
     const [method, setMethod] = useState("cash");
     const [cashReceived, setCashReceived] = useState("");
     const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
@@ -74,7 +75,15 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], onClose }) {
                     </label>
                     <select id="open-bill-method" className={inputClass} value={method} onChange={(e) => setMethod(e.target.value)}>
                         <option value="cash">Tunai</option>
-                        {bankAccounts.length > 0 && <option value="bank_transfer">Transfer Bank</option>}
+                        {paymentGateways.map((gateway) => (
+                            <option key={gateway.value} value={gateway.value}>
+                                {gateway.label}
+                            </option>
+                        ))}
+                        {/* QRIS is charged through whichever of Midtrans or Xendit is ready */}
+                        {paymentGateways.some((gateway) => ["midtrans", "xendit"].includes(gateway.value)) && (
+                            <option value="qris">QRIS</option>
+                        )}
                     </select>
                 </div>
 

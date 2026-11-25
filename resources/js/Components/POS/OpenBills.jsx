@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "@inertiajs/react";
 import { IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import OpenBillPayModal from "./OpenBillPayModal";
 
@@ -13,7 +14,10 @@ const formatPrice = (value = 0) =>
  * Open Bills: accepted dine-in orders still to be paid. Collapsed to a badge like HeldTransactions;
  * "Bayar" opens the payment modal for the transaction created at accept.
  */
-export default function OpenBills({ openBills = [], bankAccounts = [] }) {
+// Fulfillment state of the order, shown next to the amount.
+const FULFILLMENT_LABELS = { accepted: "Diterima", preparing: "Sedang dibuat", ready: "Siap", served: "Sudah diserahkan" };
+
+export default function OpenBills({ openBills = [], bankAccounts = [], paymentGateways = [] }) {
     const [isExpanded, setIsExpanded] = useState(false);
     const [payingBill, setPayingBill] = useState(null);
 
@@ -52,23 +56,33 @@ export default function OpenBills({ openBills = [], bankAccounts = [] }) {
                                     {bill.table ?? "Meja"} · {bill.invoice}
                                 </p>
                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                    {formatPrice(bill.grand_total)} · {bill.served ? "Sudah disajikan" : "Belum disajikan"}
+                                    {formatPrice(bill.grand_total)} · {FULFILLMENT_LABELS[bill.order_status] ?? bill.order_status}
                                 </p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={() => setPayingBill(bill)}
-                                className="h-9 rounded-lg bg-sky-500 px-3 text-xs font-semibold text-white hover:bg-sky-600"
-                            >
-                                Bayar
-                            </button>
+                            {bill.pending ? (
+                                // a gateway payment is already waiting: show its QR instead of charging again
+                                <Link
+                                    href={route("transactions.print", bill.invoice)}
+                                    className="inline-flex h-9 items-center rounded-lg bg-slate-500 px-3 text-xs font-semibold text-white hover:bg-slate-600"
+                                >
+                                    Lihat QR
+                                </Link>
+                            ) : (
+                                <button
+                                    type="button"
+                                    onClick={() => setPayingBill(bill)}
+                                    className="h-9 rounded-lg bg-sky-500 px-3 text-xs font-semibold text-white hover:bg-sky-600"
+                                >
+                                    Bayar
+                                </button>
+                            )}
                         </li>
                     ))}
                 </ul>
             )}
 
             {payingBill && (
-                <OpenBillPayModal bill={payingBill} bankAccounts={bankAccounts} onClose={() => setPayingBill(null)} />
+                <OpenBillPayModal bill={payingBill} bankAccounts={bankAccounts} paymentGateways={paymentGateways} onClose={() => setPayingBill(null)} />
             )}
         </div>
     );
