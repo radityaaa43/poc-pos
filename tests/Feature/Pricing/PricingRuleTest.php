@@ -123,6 +123,24 @@ class PricingRuleTest extends TestCase
             ->assertSessionHasErrors('qty_breaks.0.discount_value');
     }
 
+    public function test_draft_preview_applies_the_discount_to_its_sample_cart(): void
+    {
+        $user = $this->createUserWithPermissions(['pricing-rules-access', 'pricing-rules-create']);
+        $product = $this->createProduct();
+
+        $this->actingAs($user)->postJson(route('pricing-rules.preview'), [
+            'name' => 'Diskon Produk',
+            'kind' => PricingRule::KIND_STANDARD_DISCOUNT,
+            'is_active' => true,
+            'priority' => 100,
+            'target_type' => 'product',
+            'product_id' => $product->id,
+            'customer_scope' => 'all',
+            'discount_type' => 'percentage',
+            'discount_value' => 15,
+        ])->assertOk()->assertJsonPath('data.summary.promo_discount_total', 9000);
+    }
+
     public function test_pricing_preview_respects_customer_scope(): void
     {
         $cashier = $this->createUserWithPermissions([
