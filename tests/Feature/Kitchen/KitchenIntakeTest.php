@@ -17,6 +17,7 @@ use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use App\Services\KitchenIntakeService;
 use App\Services\Payments\PaymentGatewayManager;
+use App\Services\TransactionTenderService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
@@ -149,6 +150,54 @@ class KitchenIntakeTest extends TestCase
 
         $this->assertSame('pending', Transaction::firstOrFail()->payment_status);
         $this->assertSame(0, KitchenItem::count());
+    }
+
+    public function test_fully_paid_split_puts_items_in_the_kitchen(): void
+    {
+        $bankAccount = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko Test', 'is_active' => true]);
+        $this->addToCart($this->product('Nasi goreng', flagged: true));
+        $this->actingAs($this->cashier)->post(route('transactions.store'), [
+            'tenders' => [
+                ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+                ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $bankAccount->id],
+            ],
+        ])->assertSessionHasNoErrors();
+        $this->assertSame(0, KitchenItem::count()); // the transfer part is still open
+
+        $transaction = Transaction::firstOrFail();
+        $transaction->tenders()->where('method', 'bank_transfer')->update(['payment_status' => 'paid']);
+        // The last part is confirmed: the sale's status is the aggregate of its parts, as the webhook computes it.
+        $transaction->update(['payment_status' => app(TransactionTenderService::class)->aggregateStatus($transaction->tenders()->get())]);
+        $this->assertSame('paid', $transaction->fresh()->payment_status);
+
+        $this->assertSame(1, KitchenItem::count());
+    }
+
+    public function test_failed_intake_midway_creates_nothing_and_can_retry(): void
+    {
+        $transaction = $this->pendingSale('cash', [$this->product('Nasi', flagged: true), $this->product('Mie', flagged: true)]);
+
+        // The second line fails to insert: the first must not stay behind, or the once-only guard would skip the rest forever.
+        $creating = 0;
+        KitchenItem::creating(function () use (&$creating) {
+            if (++$creating === 2) {
+                throw new RuntimeException('second line fails');
+            }
+        });
+        $transaction->forceFill(['payment_status' => 'paid']);
+
+        try {
+            app(KitchenIntakeService::class)->intake($transaction);
+            $this->fail('intake should have thrown on the second line');
+        } catch (RuntimeException) {
+            $this->assertSame(0, KitchenItem::where('transaction_id', $transaction->id)->count());
+        } finally {
+            KitchenItem::flushEventListeners();
+        }
+
+        app(KitchenIntakeService::class)->intake($transaction); // the retry records every line
+
+        $this->assertSame(2, KitchenItem::where('transaction_id', $transaction->id)->count());
     }
 
     public function test_dine_order_paid_at_counter_adds_kitchen_items(): void
