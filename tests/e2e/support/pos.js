@@ -20,6 +20,8 @@ export async function addToCart(page, title, { unit } = {}) {
         await productCard(page, title).getByRole('button', { name: unit, exact: true }).click();
     }
     await expect(async () => {
+        // The card is disabled while the previous add is still being applied.
+        await expect(cardButton(page, title)).toBeEnabled({ timeout: 15_000 });
         const sent = page.waitForResponse((response) => response.url().endsWith('/addToCart'), { timeout: 10_000 });
         await cardButton(page, title).click();
         await sent;

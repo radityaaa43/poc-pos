@@ -60,6 +60,7 @@ test.describe('POS history: list, filters and who sees what', () => {
         await page.getByRole('button', { name: 'Filter' }).click();
         await page.getByPlaceholder('TRX-...').fill(first.invoice);
         await page.getByRole('button', { name: 'Cari' }).click();
+        await expect(page).toHaveURL(new RegExp(`invoice=${first.invoice}`));
         await expect(page.getByRole('row').filter({ hasText: first.invoice })).toBeVisible();
         await expect(page.getByRole('row').filter({ hasText: second.invoice })).toHaveCount(0);
 
@@ -69,12 +70,14 @@ test.describe('POS history: list, filters and who sees what', () => {
         await dates.nth(0).fill(day(-1));
         await dates.nth(1).fill(day(1));
         await page.getByRole('button', { name: 'Cari' }).click();
+        await expect(page).toHaveURL(new RegExp(`end_date=${day(1)}`));
         await expect(page.getByRole('row').filter({ hasText: first.invoice })).toBeVisible();
 
         await page.getByRole('button', { name: 'Filter' }).click();
         await dates.nth(0).fill(day(-10));
         await dates.nth(1).fill(day(-5));
         await page.getByRole('button', { name: 'Cari' }).click();
+        await expect(page).toHaveURL(new RegExp(`end_date=${day(-5)}`));
         await expect(page.getByText('Tidak ada transaksi sesuai filter.')).toBeVisible();
         await expect(page.getByRole('row').filter({ hasText: first.invoice })).toHaveCount(0);
     });

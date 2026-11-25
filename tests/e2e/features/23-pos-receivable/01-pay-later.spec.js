@@ -60,7 +60,7 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
         await expect(list.getByText(invoice, { exact: true })).toBeVisible();
         await expect(list.getByText(customer.name)).toBeVisible();
         await expect(list.getByText(rupiah(20000)).first()).toBeVisible();
-        await expect(list.getByText('Belum Lunas', { exact: true }).first()).toBeVisible();
+        await expect(list.getByText('Belum Lunas', { exact: true }).last()).toBeVisible();
 
         // Goods left the shelf at once: 5 - 2 = 3 (the card flags 5 or fewer).
         await page.goto('/dashboard/transactions');
