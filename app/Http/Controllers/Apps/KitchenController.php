@@ -20,10 +20,10 @@ class KitchenController extends Controller
     public function index(Request $request)
     {
         $outlet = $this->outletAccessService->activeOutlet($request);
-        // Open items of the current outlet, oldest first. Release rows from the #236 backfill have no accepted_at.
+        // Open items (and ones cancelled in the last 2 minutes) of the current outlet, oldest first. Release rows from the #236 backfill have no accepted_at.
         // Every warehouse of the outlet: a shift may sell from any of them, not only the first one.
         $items = $outlet
-            ? KitchenItem::open()
+            ? KitchenItem::onDisplay()
                 ->inOutlet($outlet->id)
                 ->with(KitchenOrders::RELATIONS)
                 ->orderByRaw('COALESCE(accepted_at, created_at)')

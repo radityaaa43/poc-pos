@@ -546,7 +546,8 @@
         "refundAmount": "Refund Amount",
         "exchangeItem": "Exchange Item",
         "cashRefund": "Cash Refund",
-        "storeCredit": "Store Credit"
+        "storeCredit": "Store Credit",
+        "restockKitchenHint": "Already being made in the kitchen: not restocked by default"
     },
     "cashierShifts": {
         "title": "Cashier Shifts",
@@ -1075,7 +1076,8 @@
         "status": {
             "accepted": "Accepted",
             "preparing": "Preparing",
-            "ready": "Ready"
+            "ready": "Ready",
+            "cancelled": "Cancelled"
         },
         "print": {
             "open": "Kitchen printer settings",

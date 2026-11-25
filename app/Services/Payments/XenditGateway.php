@@ -8,17 +8,17 @@ use Illuminate\Support\Facades\Http;
 
 class XenditGateway
 {
-    public function createInvoice(Transaction $transaction, array $config, ?int $amount = null, ?string $externalId = null): array
+    public function createInvoice(Transaction $transaction, array $config, ?int $amount = null, ?string $externalId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
-        return $this->createInvoiceRequest($transaction, $config, null, $amount, $externalId);
+        return $this->createInvoiceRequest($transaction, $config, null, $amount, $externalId, $returnUrl, $expiresInMinutes);
     }
 
     /**
      * Dynamic QRIS invoice — QRIS-only channel; returns qr_string.
      */
-    public function createQrisInvoice(Transaction $transaction, array $config, ?int $amount = null, ?string $externalId = null): array
+    public function createQrisInvoice(Transaction $transaction, array $config, ?int $amount = null, ?string $externalId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
-        $result = $this->createInvoiceRequest($transaction, $config, ['QRIS'], $amount, $externalId);
+        $result = $this->createInvoiceRequest($transaction, $config, ['QRIS'], $amount, $externalId, $returnUrl, $expiresInMinutes);
 
         return [
             ...$result,
@@ -26,7 +26,7 @@ class XenditGateway
         ];
     }
 
-    private function createInvoiceRequest(Transaction $transaction, array $config, ?array $channels = null, ?int $amount = null, ?string $externalId = null): array
+    private function createInvoiceRequest(Transaction $transaction, array $config, ?array $channels = null, ?int $amount = null, ?string $externalId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
         if (! ($config['enabled'] ?? false)) {
             throw new PaymentGatewayException('Xendit tidak aktif atau belum dikonfigurasi.');
@@ -43,8 +43,12 @@ class XenditGateway
                 'email' => optional($customer)->email ?? config('mail.from.address'),
                 'mobile_number' => optional($customer)->no_telp,
             ],
-            'success_redirect_url' => route('transactions.print', $transaction->invoice),
+            'success_redirect_url' => $returnUrl ?? route('transactions.print', $transaction->invoice),
         ];
+
+        if ($expiresInMinutes !== null) {
+            $payload['invoice_duration'] = $expiresInMinutes * 60; // Xendit takes seconds
+        }
 
         if ($channels !== null) {
             $payload['channel_code'] = $channels;

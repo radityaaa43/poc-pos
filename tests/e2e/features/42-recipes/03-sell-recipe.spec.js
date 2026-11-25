@@ -1,5 +1,5 @@
 import { test, expect } from '../../support/fixtures.js';
-import { role, card, posSearch, posCustomer, posPayExact } from '../../support/inventory.js';
+import { role, warehouseCell, card, posSearch, posCustomer, posPayExact } from '../../support/inventory.js';
 
 test.describe('42-recipes', () => {
     test('selling 2 portions bills the menu price, uses the ingredients and books the profit', { tag: ['@REQ-001-AC-01', '@REQ-001-AC-06'] }, async ({ asRole, arrange, uniq }) => {
@@ -30,9 +30,10 @@ test.describe('42-recipes', () => {
         // 2 portions use 36 g of beans, 400 ml of water and 2 cups.
         const admin = await asRole(role('super-admin'));
         await admin.goto(`/dashboard/raw-materials?search=${prefix}`);
-        await expect(admin.getByRole('row', { name: new RegExp(`${prefix} Biji`) })).toContainText('964');
-        await expect(admin.getByRole('row', { name: new RegExp(`${prefix} Air`) })).toContainText('9.600');
-        await expect(admin.getByRole('row', { name: new RegExp(`${prefix} Cup`) })).toContainText('98');
+        const stockOf = async (name) => warehouseCell(admin, admin.getByRole('row', { name: new RegExp(`${prefix} ${name}`) }), /WH-E2E/);
+        await expect(await stockOf('Biji')).toContainText('964');
+        await expect(await stockOf('Air')).toContainText('9.600');
+        await expect(await stockOf('Cup')).toContainText('98');
 
         // Profit = Rp 44.000 sales - 2 x (18 x 250 + 200 x 1 + 1 x 1.500) = Rp 31.600.
         await admin.goto('/dashboard/reports/profits');

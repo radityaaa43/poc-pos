@@ -44,6 +44,7 @@ use App\Http\Controllers\Apps\WarehouseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DineMenuController;
 use App\Http\Controllers\DineOrderController;
+use App\Http\Controllers\DineOrderPaymentController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\NotificationController;
@@ -481,5 +482,6 @@ Route::get('/dine/{token}', [DineMenuController::class, 'show'])->name('dine.men
 Route::post('/dine/{token}/order', [DineOrderController::class, 'store'])->name('dine-order.store');
 Route::get('/dine-order/{accessToken}', [DineOrderController::class, 'status'])->name('dine-order.status');
 Route::get('/dine-order/{accessToken}/check', [DineOrderController::class, 'statusCheck'])->middleware('throttle:30,1')->name('dine-order.status-check');
+Route::post('/dine-order/{accessToken}/pay', DineOrderPaymentController::class)->middleware('throttle:dine-order-pay')->name('dine-order.pay');
 
 require __DIR__.'/auth.php';

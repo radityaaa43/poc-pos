@@ -72,6 +72,8 @@ This creates `features/08-purchase-orders/01-create-order.spec.js` from `support
 
 - A step arranges its own data and never depends on another step: call `arrange('open-shift', { cash: 100000 })`
   and use `uniq('product')` for names, so reruns and shards do not collide.
+- Specs must not depend on folder order. Shared data created by other specs (outlets, warehouses) may exist,
+  so assert on the cell you mean (`warehouseCell` in `support/inventory.js`), not on a whole row's text.
 - Need data no scenario creates? Add a closure to `app/Testing/E2e/Scenarios.php` (name -> options in,
   created ids out) and call it with `arrange('<name>', { ... })`.
 - `asRole(role)` gives a page already signed in as a role from `support/roles.js`. Do not log out
