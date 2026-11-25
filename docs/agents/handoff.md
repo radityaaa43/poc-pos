@@ -59,8 +59,11 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
   flake.
 - **E2E is the full regression suite** (maintainer, 2026-11-26).
   - CI runs **every** feature's e2e on every PR. Shards split the same full suite and never run a subset.
-  - A new feature or change adds its e2e to its feature folder, with one test per AC tagged
-    `@REQ-<n>-AC-<n>`, and that test stays in the suite for good. Every later PR re-proves the feature.
+  - **Every feature or change PR writes its own e2e in the same PR.** It goes in the feature's folder
+    under `tests/e2e/features/`, with one test per AC tagged `@REQ-<n>-AC-<n>` that proves the AC as
+    written. A PR without it isn't reviewed.
+  - That test joins the regression suite for good, so every later PR re-proves the feature, and a new
+    feature can't silently break an older one.
   - An e2e test is never skipped, `fixme`'d or deleted to get a PR green. A test changes only when its
     behaviour is changed on purpose, and the PR names the AC or decision behind the change.
   - A flaky test gets fixed, not silenced.
