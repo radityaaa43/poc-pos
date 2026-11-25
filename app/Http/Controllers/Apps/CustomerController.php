@@ -7,12 +7,14 @@ use App\Models\Customer;
 use App\Models\CustomerSegment;
 use App\Models\CustomerVoucher;
 use App\Models\Transaction;
+use App\Services\AuditLogService;
 use App\Services\CustomerSegmentationService;
 use App\Services\LoyaltyService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Laravolt\Indonesia\Models\City;
@@ -24,7 +26,8 @@ class CustomerController extends Controller
 {
     public function __construct(
         private readonly LoyaltyService $loyaltyService,
-        private readonly CustomerSegmentationService $segmentationService
+        private readonly CustomerSegmentationService $segmentationService,
+        private readonly AuditLogService $auditLogService
     ) {}
 
     /**
@@ -313,6 +316,32 @@ class CustomerController extends Controller
         $this->segmentationService->syncManualSegments($customer, $validated['segment_ids'] ?? []);
 
         return back()->with('success', 'Segment manual customer berhasil diperbarui.');
+    }
+
+    public function updateCredit(Request $request, Customer $customer)
+    {
+        $validated = $request->validate(['may_buy_on_credit' => ['required', 'boolean']]);
+        $new = (bool) $validated['may_buy_on_credit'];
+        DB::transaction(function () use ($customer, $new) {
+            $old = (bool) Customer::lockForUpdate()->findOrFail($customer->id)->may_buy_on_credit;
+
+            if ($new === $old) {
+                return;
+            }
+
+            $customer->forceFill(['may_buy_on_credit' => $new])->save();
+
+            $this->auditLogService->log(
+                event: 'customer.credit_updated',
+                module: 'customers',
+                auditable: $customer,
+                description: 'Customer credit permission changed',
+                before: ['may_buy_on_credit' => $old],
+                after: ['may_buy_on_credit' => $new],
+            );
+        });
+
+        return back()->with('success', $new ? 'Pelanggan boleh piutang.' : 'Pelanggan tidak lagi boleh piutang.');
     }
 
     /**

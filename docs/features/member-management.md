@@ -37,6 +37,7 @@ Modul ini reuse permission customer yang sudah ada:
 - `customers-edit`
 - `customers-delete`
 - `customers-upgrade-member` — khusus upgrade customer jadi member dari POS (`customers.upgrade-member`); dimiliki role `cashier`. Pemegang `customers-edit` tetap boleh upgrade. Tombol "Upgrade member" di POS disembunyikan tanpa salah satu permission ini, dan kegagalan upgrade menampilkan toast error. Database yang sudah ada mendapat permission lewat `php artisan db:seed --class=PermissionSeeder` lalu `--class=RoleSeeder`.
+- `customers-credit-approve` — mengubah penanda **Boleh piutang** pelanggan (`customers.credit`, tombol di halaman detail pelanggan); dimiliki `super-admin` dan `manager`, bukan `cashier`. Setiap perubahan dicatat di audit log (`customer.credit_updated`). Database yang sudah ada mendapat permission lewat `php artisan db:seed --class=PermissionSeeder` lalu `--class=RoleSeeder`; pengguna yang sedang login baru melihat tombolnya setelah login ulang.
 
 ## Alur User
 

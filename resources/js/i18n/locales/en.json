@@ -453,7 +453,15 @@
             "platinum": "Platinum"
         },
         "history": "Transaction History",
-        "segments": "Segments"
+        "segments": "Segments",
+        "credit": {
+            "label": "May buy on credit",
+            "yes": "Yes",
+            "no": "No",
+            "confirmGrant": "Allow this customer to buy on credit?",
+            "confirmRevoke": "Revoke this customer's credit permission?",
+            "cancel": "Cancel"
+        }
     },
     "transactions": {
         "title": "Transactions",

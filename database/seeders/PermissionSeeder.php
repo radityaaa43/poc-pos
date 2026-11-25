@@ -59,6 +59,7 @@ class PermissionSeeder extends Seeder
         $create('customers-create');
         $create('customers-edit');
         $create('customers-delete');
+        $create('customers-credit-approve');
         $create('customer-vouchers-access');
         $create('customer-vouchers-create');
         $create('customer-vouchers-update');
