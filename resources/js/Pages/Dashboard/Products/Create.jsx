@@ -3,7 +3,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
-import { PurchasedBySelect } from "@/Components/Dashboard/Select";
+import Select, { PurchasedBySelect } from "@/Components/Dashboard/Select";
 import UnitRow from "./Partials/UnitRow";
 import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
@@ -28,6 +28,7 @@ export default function Create({
     units = [],
     cost_outlet: costOutlet,
     default_tax_rate: defaultTaxRate = 11,
+    kitchen_stations: kitchenStations = [],
 }) {
     const { errors } = usePage().props;
     const { t } = useTranslation();
@@ -51,6 +52,7 @@ export default function Create({
         purchased_by: "",
         needs_preparation: false,
         prep_target_minutes: "",
+        kitchen_station_id: "",
         components: [],
         units: [],
     });
@@ -386,8 +388,10 @@ export default function Create({
                                             "needs_preparation",
                                             e.target.checked
                                         );
-                                        if (!e.target.checked)
+                                        if (!e.target.checked) {
                                             setData("prep_target_minutes", "");
+                                            setData("kitchen_station_id", "");
+                                        }
                                     }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
@@ -412,6 +416,32 @@ export default function Create({
                                         }
                                         errors={errors.prep_target_minutes}
                                     />
+                                </div>
+                            )}
+                            {data.needs_preparation && (
+                                <div className="mb-4 max-w-sm">
+                                    {/* Dapur is stored as no station (""), so unmapped products and Dapur read the same. */}
+                                    <Select
+                                        id="kitchen_station_id"
+                                        label={t("products.preparation.station")}
+                                        value={data.kitchen_station_id}
+                                        onChange={(e) =>
+                                            setData(
+                                                "kitchen_station_id",
+                                                e.target.value
+                                            )
+                                        }
+                                        error={errors.kitchen_station_id}
+                                    >
+                                        {kitchenStations.map((s) => (
+                                            <option
+                                                key={s.id}
+                                                value={s.is_default ? "" : s.id}
+                                            >
+                                                {s.name}
+                                            </option>
+                                        ))}
+                                    </Select>
                                 </div>
                             )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

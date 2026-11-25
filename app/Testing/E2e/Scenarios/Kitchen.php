@@ -7,6 +7,7 @@ use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
@@ -49,6 +50,23 @@ class Kitchen
                     'product_ids' => $items->pluck('product_id')->all(),
                     'statuses' => $items->pluck('status')->unique()->values()->all(),
                 ];
+            },
+
+            // The station name each kitchen item of the sale --arg=invoice=<invoice> was given at intake (a deleted station's name still shows).
+            // Separate from kitchen.items, whose exact output other specs assert.
+            'kitchen.item-stations' => fn (array $options): array => [
+                'station_names' => KitchenItem::with('kitchenStation')
+                    ->where('transaction_id', Transaction::where('invoice', $options['invoice'])->firstOrFail()->id)
+                    ->orderBy('id')->get()
+                    ->map(fn ($item) => $item->kitchenStation?->name)->all(),
+            ],
+
+            // Creates the kitchen station --arg=name=<name> and maps the products --arg=products=<id>,<id> to it.
+            'kitchen.station' => function (array $options): array {
+                $station = KitchenStation::create(['name' => $options['name']]);
+                Product::whereIn('id', array_filter(explode(',', $options['products'] ?? '')))->update(['kitchen_station_id' => $station->id]);
+
+                return ['station_id' => $station->id, 'name' => $station->name];
             },
 
             // A menu with a 5 minute target and finished kitchen items on --arg=date (default 2025-04-14) in the E2E outlet, one sale each:

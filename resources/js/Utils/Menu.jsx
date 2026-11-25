@@ -456,6 +456,13 @@ export default function Menu() {
                     permissions: hasAnyPermission(["units-access"]),
                 },
                 {
+                    title: t("sidebar.items.kitchenStations"),
+                    href: route("settings.kitchen-stations.index"),
+                    active: url === "/dashboard/settings/kitchen-stations",
+                    icon: <IconToolsKitchen2 size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["products-edit"]),
+                },
+                {
                     title: t("sidebar.items.whatsApp"),
                     href: route("settings.whatsapp"),
                     active: url === "/dashboard/settings/whatsapp",
