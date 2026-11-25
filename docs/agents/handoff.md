@@ -89,6 +89,12 @@ message**. "Done" without evidence is not done.
 
 ### 2a. Evidence (in the PR body, the `## Evidence` section)
 
+**Mandatory evidence** (maintainer, 2026-11-25):
+
+- **Every UI change** has before and after screenshots attached to the PR, showing the REQ wording. A failed upload blocks the merge, and there is no waiver.
+- **Every feature or flow change** has e2e tests, including a backend-only flow, which is asserted through the e2e state query.
+- `E2E: none — <reason>` is allowed only for docs, governance and pure refactors.
+
 One row per Done-when line, per AC on the `Backlog:` line, and per plan item.
 
 ```markdown
@@ -133,7 +139,7 @@ Reviews run in a fixed order, and each step starts only when the one before it p
    AC checklist below.
 2. **Business review (Business / PM).** It covers the AC check against *What good looks like*. The
    Tech Lead hands the PR over only after a technical **APPROVE**, with a message to Business / PM:
-   `#<n> | PR <url> | technical APPROVE | ready for business review`. This applies to `feat` PRs and
+   `#<n> | PR <url> | technical APPROVE | ready for business review`. In the same step the Tech Lead moves the issue's card from Technical review to Business review, so the hand-over and the board can't drift. This applies to `feat` PRs and
    to any PR whose `Backlog:` line names criteria. Business / PM doesn't review a PR before the
    handover.
 3. **Merge (Tech Lead).** Both reviews passed and CI is green. The Tech Lead merges and tells
@@ -144,8 +150,8 @@ Reviews run in a fixed order, and each step starts only when the one before it p
    it didn't.
 
 If business review doesn't pass, Business / PM sends its evaluation to the Tech Lead: the criteria
-not met and what it saw. The Tech Lead turns it into a fix for the developer, and the order starts
-again at step 1.
+not met and what it saw. The Tech Lead turns it into a fix for the developer, moves the card back to
+In progress, and the order starts again at step 1.
 
 The Tech Lead's technical approval is a **Requirement & AC checklist** comment on the PR
 ([`REVIEW.md`](../../REVIEW.md) → Review against, item 7). The code review itself runs as

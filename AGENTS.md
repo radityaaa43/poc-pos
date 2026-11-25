@@ -31,8 +31,8 @@ Nothing goes directly to `main`. Workflow skills come from
 
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
 
-Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress → In
-review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
+Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
+Technical review → Business review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
 and merge), **Developer** (steps 3–7) and the **maintainer** (decides, owns the Standards, overrules).
 Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 
@@ -66,7 +66,7 @@ issue, stdlib and native features before new libraries.
 - Branch `<type>/<issue>-<slug>`, `<type>` ∈ `feat fix refactor docs test chore`. One branch per issue.
 - **Bugs**: reproduce first with a failing test (`/diagnosing-bugs`), then fix. The fix must not
   edit or weaken that test; if the test itself is wrong, say why in the PR.
-- **UI work**: after the manual test, take before/after screenshots (dummy data, as the affected
+- **UI work**: mandatory, and a failed upload blocks the merge. After the manual test, take before/after screenshots (dummy data, as the affected
   role) and attach them to the PR (`gh pr create --attach`, skill `github-upload-image-to-pr`).
   Never commit them.
 - **Commits**: [Conventional Commits](https://www.conventionalcommits.org/) (`feat(scope): ...`),
@@ -84,7 +84,8 @@ issue, stdlib and native features before new libraries.
   post-review change, wait for green CI again.
 - **E2E**: a `feat` PR adds or updates its feature's e2e folder (`npm run e2e:new -- <NN-feature>`;
   one folder per feature, one file per step; see `tests/e2e/README.md`) or says
-  `E2E: none — <reason>`. Every PR whose `Backlog:` line names criteria has, per criterion, an e2e
+  `E2E: none — <reason>` (only for docs, governance and pure refactors; every feature or flow change,
+  backend-only included, has e2e). Every PR whose `Backlog:` line names criteria has, per criterion, an e2e
   test tagged `@REQ-<n>-AC-<n>` or `E2E: AC-<n> none — <reason>`. CI's *PR checklist* enforces both.
 - **Standards files** (`AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `REVIEW.md`,
   `CONTRIBUTING.md`, `.agents/skills/`, `.claude/`, `.github/`) need a Standards owner's
