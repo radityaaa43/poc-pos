@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\PosApiController;
 use App\Http\Controllers\Apps\AgingController;
 use App\Http\Controllers\Apps\AuditLogController;
 use App\Http\Controllers\Apps\BankAccountController;
@@ -265,6 +266,8 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     // route transaction store
     Route::post('/transactions/store', [TransactionController::class, 'store'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.store');
+    // offline queue flush from the browser (session auth); the shift is checked per sale in syncOne()
+    Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware('permission:transactions-access')->name('transactions.sync');
     Route::get('/transactions/{invoice}/status', [TransactionController::class, 'status'])->middleware('permission:transactions-access')->name('transactions.status');
     Route::get('/transactions/{invoice}/qr', [TransactionController::class, 'qrisImage'])->middleware('permission:transactions-access')->name('transactions.qr');
     Route::get('/transactions/{invoice}/print', [TransactionController::class, 'print'])->middleware('permission:transactions-access')->name('transactions.print');

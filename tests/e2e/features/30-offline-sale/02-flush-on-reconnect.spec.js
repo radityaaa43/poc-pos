@@ -5,8 +5,7 @@ import { fillCart, readQueue } from '../../support/offline-pos.js';
 const cashier = roles.find((role) => role.key === 'cashier');
 
 test.describe('offline sale: flush', () => {
-    // Bug #107: the flush POSTs with the session cookie only and the API answers 401 Unauthenticated.
-    test.fixme('going online flushes the queued sale exactly once', async ({ asRole, arrange, uniq }) => {
+    test('going online flushes the queued sale exactly once', async ({ asRole, arrange, uniq }) => {
         test.setTimeout(120_000);
         const title = uniq('Kopi');
         const customer = uniq('Budi');

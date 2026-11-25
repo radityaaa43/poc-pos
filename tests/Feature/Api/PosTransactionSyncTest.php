@@ -15,6 +15,7 @@ use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
 class PosTransactionSyncTest extends TestCase
@@ -641,5 +642,41 @@ class PosTransactionSyncTest extends TestCase
 
         // Live cart survives untouched.
         $this->assertDatabaseHas('carts', ['id' => $liveCart->id, 'qty' => 1]);
+    }
+
+    // #107: the browser flushes its offline queue on the web session route, not with a bearer token.
+    // (actingAs bypasses the session middleware, so the 401 itself is only visible to the e2e step.)
+    public function test_browser_session_can_flush_the_offline_queue(): void
+    {
+        $this->cashier->givePermissionTo(
+            Permission::firstOrCreate(['name' => 'transactions-access', 'guard_name' => 'web'])
+        );
+        app(CashierShiftService::class)->openShift(
+            cashier: $this->cashier,
+            actor: $this->cashier,
+            openingCash: 100000,
+            notes: null,
+            warehouseId: $this->warehouse->id
+        );
+
+        $this->actingAs($this->cashier)
+            ->postJson(route('transactions.sync'), ['transactions' => [$this->syncPayload()]])
+            ->assertOk()
+            ->assertJsonPath('data.results.0.status', 'synced');
+
+        $this->assertSame(1, Transaction::count());
+    }
+
+    public function test_session_sync_requires_login_and_transactions_access(): void
+    {
+        $payload = ['transactions' => [$this->syncPayload()]];
+
+        $this->postJson(route('transactions.sync'), $payload)->assertUnauthorized();
+
+        $this->actingAs($this->cashier)
+            ->postJson(route('transactions.sync'), $payload)
+            ->assertForbidden();
+
+        $this->assertSame(0, Transaction::count());
     }
 }
