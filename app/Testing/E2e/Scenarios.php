@@ -14,7 +14,9 @@ use Illuminate\Support\Str;
 
 /**
  * Arrange scenarios for `php artisan e2e:arrange <name> --arg=key=value`.
- * Each closure takes the parsed options and returns the created ids. Add new scenarios here.
+ * Each closure takes the parsed options and returns the created ids. A feature group adds its own
+ * class in Scenarios/ (`App\Testing\E2e\Scenarios\<Name>` with a static registry()), so parallel
+ * PRs never edit the same array.
  */
 class Scenarios
 {
@@ -22,6 +24,19 @@ class Scenarios
      * @return array<string, \Closure(array<string, string>): array<string, mixed>>
      */
     public static function registry(): array
+    {
+        $groups = [];
+        foreach (glob(__DIR__.'/Scenarios/*.php') ?: [] as $file) {
+            $groups[] = (__NAMESPACE__.'\\Scenarios\\'.basename($file, '.php'))::registry();
+        }
+
+        return array_merge(self::base(), ...$groups);
+    }
+
+    /**
+     * @return array<string, \Closure(array<string, string>): array<string, mixed>>
+     */
+    private static function base(): array
     {
         return [
             // Opens a shift for --arg=cashier=<email> (default cashier@e2e.test) with --arg=cash=<amount>.

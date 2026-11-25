@@ -29,6 +29,23 @@ docker compose --profile e2e stop app-e2e      # when done
 - Test users are `*@e2e.test` with password `password` (see `support/roles.js`, `E2eSeeder`).
 - After a failure open the report: `npx playwright show-report`, or the trace in `test-results/`.
 
+### Several worktrees at once
+
+`app-e2e` serves one checkout and one database. A second worktree runs its own container on its own
+port and `*_e2e` database (ports 8000–8004 and 8010 are taken), with its own `npm ci && npm run build`:
+
+```bash
+docker compose exec -T mysql mysql -uroot -psecret -e "CREATE DATABASE IF NOT EXISTS pos_8011_e2e"
+MSYS_NO_PATHCONV=1 docker run -d --name pos-e2e-8011 --network poc-pos_default -p 127.0.0.1:8011:8011 \
+  -v "$PWD:/var/www/html" -v poc-pos_vendor:/var/www/html/vendor -w /var/www/html \
+  -e APP_ENV=e2e -e APP_URL=http://localhost:8011 -e DB_DATABASE=pos_8011_e2e <the app-e2e env> \
+  poc-pos-php:8.4 php artisan serve --host=0.0.0.0 --port=8011 --no-reload
+E2E_PHP="docker exec -i pos-e2e-8011 php" E2E_BASE_URL=http://localhost:8011 npm run test:e2e
+```
+
+`<the app-e2e env>` is every other `environment:` entry of `app-e2e` in `docker-compose.yml`.
+Remove it with `docker rm -f pos-e2e-8011`.
+
 The app env is set in the `app-e2e` service of `docker-compose.yml` (real env vars beat `.env`):
 session/cache in the database, `QUEUE_CONNECTION=sync`, bot guard on but with no minimum submit time,
 low bcrypt cost, no SSR. The bot-guard honeypot and token stay on.
