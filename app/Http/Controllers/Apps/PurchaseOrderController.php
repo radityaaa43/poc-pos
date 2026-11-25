@@ -53,8 +53,10 @@ class PurchaseOrderController extends Controller
     public function create()
     {
         $suppliers = Supplier::orderBy('name')->get(['id', 'name']);
-        $products = Product::with('units:units.id,units.name,units.symbol')->orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock']);
-        $warehouses = $this->outletAccessService->warehousesFor(request()->user());
+        $products = Product::with('units:units.id,units.name,units.symbol')->orderBy('title')->get(['id', 'title', 'sku', 'buy_price', 'stock', 'purchased_by']);
+        // The page hides central-bought materials for non-central warehouses, as createOrder rejects them.
+        $warehouses = $this->outletAccessService->warehousesFor(request()->user())
+            ->each(fn ($w) => $w->setAttribute('is_central', $w->isCentral()));
 
         return Inertia::render('Dashboard/PurchaseOrders/Create', [
             'suppliers' => $suppliers,

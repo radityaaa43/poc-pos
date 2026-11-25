@@ -47,4 +47,15 @@ class Warehouse extends Model
     {
         return $query->where('is_active', true);
     }
+
+    /** A warehouse is central when its outlet does not sell (a legacy warehouse without an outlet is not). */
+    public function isCentral(): bool
+    {
+        return $this->outlet && ! $this->outlet->is_sales_enabled;
+    }
+
+    public function scopeCentral($query)
+    {
+        return $query->whereHas('outlet', fn ($q) => $q->where('is_sales_enabled', false));
+    }
 }

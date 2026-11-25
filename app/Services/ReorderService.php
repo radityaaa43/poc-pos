@@ -20,7 +20,7 @@ class ReorderService
             });
 
             // Raw materials are bought by central or by the outlet; other products have no purchased_by.
-            $purchasedBy = $this->isCentral(Warehouse::with('outlet')->find($warehouseId)) ? 'central' : 'outlet';
+            $purchasedBy = Warehouse::with('outlet')->find($warehouseId)?->isCentral() ? 'central' : 'outlet';
             $query->where(fn ($q) => $q->whereNull('purchased_by')->orWhere('purchased_by', $purchasedBy));
         } else {
             $query->whereColumn('stock', '<=', 'min_stock');
@@ -45,12 +45,6 @@ class ReorderService
         }
 
         return app(PurchaseOrderService::class)->createOrder($data, $items, $userId);
-    }
-
-    /** A warehouse is central when its outlet does not sell (a legacy warehouse without an outlet is not). */
-    private function isCentral(?Warehouse $warehouse): bool
-    {
-        return $warehouse?->outlet && ! $warehouse->outlet->is_sales_enabled;
     }
 
     /**
