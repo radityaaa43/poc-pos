@@ -31,8 +31,8 @@ Nothing goes directly to `main`. Workflow skills come from
 
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
 
-Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress → In
-review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
+Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
+Technical review → Business review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
 and merge), **Developer** (steps 3–7) and the **maintainer** (decides, owns the Standards, overrules).
 Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 
