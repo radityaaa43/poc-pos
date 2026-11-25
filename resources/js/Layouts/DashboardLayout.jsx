@@ -98,7 +98,8 @@ export default function AppLayout({ children }) {
                                 },
                             }}
                         />
-                        {children}
+                        {/* Remount the page on an outlet switch so forms seeded from props don't keep the old outlet's values. */}
+                        <React.Fragment key={auth?.currentOutlet?.id}>{children}</React.Fragment>
                     </div>
                 </main>
             </div>
