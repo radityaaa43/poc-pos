@@ -29,7 +29,7 @@ class UserController extends Controller
             ->when(request()->search, fn ($query) => $query->where('name', 'like', '%'.request()->search.'%'))
             ->select('id', 'name', 'avatar', 'email')
             ->latest()
-            ->paginate(7)
+            ->paginate($this->perPage())
             ->withQueryString();
 
         // render view

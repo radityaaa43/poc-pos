@@ -120,4 +120,22 @@ class PaginationTest extends TestCase
             ->where('products.per_page', 100)
         );
     }
+
+    public function test_access_control_lists_honor_per_page(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']));
+        User::factory()->count(12)->create();
+        foreach (range(1, 12) as $i) {
+            Permission::create(['name' => 'extra-'.$i, 'guard_name' => 'web']);
+            Role::create(['name' => 'extra-role-'.$i, 'guard_name' => 'web']);
+        }
+
+        foreach (['users' => 'users', 'permissions' => 'permissions', 'roles' => 'roles'] as $path => $prop) {
+            $this->actingAs($admin)->get("/dashboard/{$path}")
+                ->assertInertia(fn ($page) => $page->where("{$prop}.per_page", 10));
+            $this->actingAs($admin)->get("/dashboard/{$path}?per_page=5")
+                ->assertInertia(fn ($page) => $page->where("{$prop}.per_page", 5));
+        }
+    }
 }
