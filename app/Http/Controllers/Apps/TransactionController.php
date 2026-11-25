@@ -13,6 +13,7 @@ use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
@@ -33,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -177,6 +179,7 @@ class TransactionController extends Controller
                     'order_status' => $bill->dineOrder->status,
                     'pending' => $bill->payment_status === 'pending',
                 ]),
+            'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'customers' => $customers,
             'products' => $products,
             'categories' => $categories,
@@ -621,17 +624,23 @@ class TransactionController extends Controller
             : null;
         $note = trim((string) $request->input('note', '')) ?: null;
 
-        if ($isPayLater && ! $request->filled('due_date')) {
-            return redirect()
-                ->route('transactions.index')
-                ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
-        }
+        $customer = $request->filled('customer_id') ? Customer::find($request->integer('customer_id')) : null;
 
-        // ponytail: piutang wajib punya customer; walk-in (null) sah untuk transaksi biasa
-        if ($isPayLater && ! $request->filled('customer_id')) {
-            return redirect()
-                ->route('transactions.index')
-                ->with('error', 'Nota barang memerlukan pelanggan.');
+        if ($isPayLater) {
+            if (! $outlet || ! Setting::getBoolForOutlet('pay_later_enabled', $outlet)) {
+                throw ValidationException::withMessages(['pay_later' => 'Bayar belakangan tidak aktif di outlet ini']);
+            }
+
+            // A guest has no customer record to chase, so the note must say who owes.
+            if (! $customer && mb_strlen((string) $note) < 2) {
+                throw ValidationException::withMessages(['note' => 'Catatan minimal 2 karakter wajib diisi untuk bayar belakangan tanpa pelanggan.']);
+            }
+
+            if ($customer?->may_buy_on_credit && ! $request->filled('due_date')) {
+                return redirect()
+                    ->route('transactions.index')
+                    ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
+            }
         }
 
         $paymentSetting = null;
@@ -658,7 +667,7 @@ class TransactionController extends Controller
 
         $context = new CheckoutContext(
             userId: $request->user()->id,
-            customer: $request->filled('customer_id') ? Customer::find($request->integer('customer_id')) : null,
+            customer: $customer,
             voucher: $request->filled('customer_voucher_id') ? CustomerVoucher::find($request->integer('customer_voucher_id')) : null,
             manualDiscount: max(0, (int) $request->input('discount', 0)),
             shippingCost: max(0, (int) $request->input('shipping_cost', 0)),

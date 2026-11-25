@@ -24,6 +24,7 @@ class UpdateOutletRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'is_active' => ['boolean'],
             'is_sales_enabled' => ['boolean'],
+            'pay_later_enabled' => ['boolean'],
         ];
     }
 }

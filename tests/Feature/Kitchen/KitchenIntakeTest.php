@@ -361,8 +361,10 @@ class KitchenIntakeTest extends TestCase
     public function test_settling_a_pre_release_pay_later_sale_adds_no_kitchen_items(): void
     {
         $transaction = $this->pendingSale('pay_later', [$this->product('Nasi goreng', flagged: true)]);
-        $transaction->update(['payment_status' => 'unpaid']);
+        $transaction->forceFill(['is_pay_later' => true, 'payment_status' => 'unpaid'])->save();
 
+        // Settling it later changes the method (a transfer, a gateway) and then pays: the flag still marks it pay later.
+        $transaction->update(['payment_method' => 'bank_transfer']);
         $transaction->update(['payment_status' => 'paid']); // the customer pays the receivable after release
 
         $this->assertSame(0, KitchenItem::count());

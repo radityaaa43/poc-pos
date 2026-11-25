@@ -7,7 +7,9 @@ use App\Http\Requests\StoreOutletRequest;
 use App\Http\Requests\UpdateOutletRequest;
 use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\User;
+use App\Services\AuditLogService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -17,12 +19,16 @@ use Inertia\Response;
 
 class OutletController extends Controller
 {
-    public function __construct(protected readonly OutletAccessService $outletAccessService) {}
+    public function __construct(
+        protected readonly OutletAccessService $outletAccessService,
+        protected readonly AuditLogService $auditLogService,
+    ) {}
 
     public function index(): Response
     {
         $outlets = $this->outletAccessService->accessibleOutlets(request()->user())
-            ->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')]);
+            ->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')])
+            ->each(fn (Outlet $outlet) => $outlet->setAttribute('pay_later_enabled', Setting::getBoolForOutlet('pay_later_enabled', $outlet)));
 
         return Inertia::render('Dashboard/Settings/Outlets/Index', ['outlets' => $outlets]);
     }
@@ -87,8 +93,40 @@ class OutletController extends Controller
             'is_active' => $isActive,
             'is_sales_enabled' => $isSalesEnabled,
         ]);
+        $this->updatePayLater($outlet, $data);
 
         return back()->with('success', 'Outlet berhasil diperbarui.');
+    }
+
+    /**
+     * Shared with the API twin. Absent field = unchanged; audited only when the value flips.
+     */
+    protected function updatePayLater(Outlet $outlet, array $data): void
+    {
+        if (! array_key_exists('pay_later_enabled', $data)) {
+            return;
+        }
+
+        $new = (bool) $data['pay_later_enabled'];
+
+        DB::transaction(function () use ($outlet, $new): void {
+            $old = Setting::getBoolForOutlet('pay_later_enabled', $outlet);
+
+            if ($new === $old) {
+                return;
+            }
+
+            Setting::setForOutlet('pay_later_enabled', $new ? '1' : '0', $outlet);
+
+            $this->auditLogService->log(
+                event: 'outlet.pay_later_updated',
+                module: 'outlets',
+                auditable: $outlet,
+                description: 'Outlet pay later setting changed',
+                before: ['pay_later_enabled' => $old],
+                after: ['pay_later_enabled' => $new],
+            );
+        });
     }
 
     public function destroy(Outlet $outlet): RedirectResponse
