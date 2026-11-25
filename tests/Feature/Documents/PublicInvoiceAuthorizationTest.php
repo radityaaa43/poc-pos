@@ -82,6 +82,16 @@ class PublicInvoiceAuthorizationTest extends TestCase
         ]))->assertOk();
     }
 
+    public function test_public_invoice_is_not_stored_by_caches(): void
+    {
+        $response = $this->get(route('transactions.public', [
+            'invoice' => $this->transaction->invoice,
+            'token' => $this->transaction->access_token,
+        ]))->assertOk();
+
+        $this->assertStringContainsString('no-store', $response->headers->get('Cache-Control'));
+    }
+
     public function test_public_invoice_rejects_missing_token(): void
     {
         $this->get(route('transactions.public', $this->transaction->invoice))
