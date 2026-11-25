@@ -1,0 +1,10 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - phpstan-baseline.gen.neon
+
+parameters:
+    level: 5
+    paths:
+        - app
+        - database
+    tmpDir: storage/framework/cache/phpstan
