@@ -98,8 +98,8 @@ test.describe('POS cart: add, change quantity, remove', () => {
         const page = await asRole(cashier);
 
         await openPos(page);
-        await expect(page.getByRole('heading', { name: 'Produk E2E 1', level: 3 })).toBeVisible();
-        await expect(page.getByRole('heading', { name: product.title, level: 3 })).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: 'Produk E2E 1', level: 3, exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: product.title, level: 3, exact: true })).toHaveCount(0);
         await page.getByPlaceholder(/Cari produk/).fill(product.title);
         await expect(page.getByText('Produk tidak ditemukan')).toBeVisible();
         await expect(page.getByText('Keranjang kosong', { exact: true })).toBeVisible();
