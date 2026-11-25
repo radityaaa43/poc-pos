@@ -302,7 +302,7 @@ class PricingRuleController extends Controller
             'starts_at' => ['nullable', 'date'],
             'ends_at' => ['nullable', 'date', 'after_or_equal:starts_at'],
             'notes' => ['nullable', 'string', 'max:1000'],
-            'qty_breaks' => ['nullable', 'array'],
+            'qty_breaks' => ['exclude_unless:kind,'.PricingRule::KIND_QTY_BREAK, 'nullable', 'array'],
             'qty_breaks.*.min_qty' => ['required_with:qty_breaks', 'integer', 'min:1'],
             'qty_breaks.*.discount_type' => ['required_with:qty_breaks', Rule::in([
                 PricingRule::TYPE_PERCENTAGE,
@@ -311,11 +311,11 @@ class PricingRuleController extends Controller
             ])],
             'qty_breaks.*.discount_value' => ['required_with:qty_breaks', 'numeric', 'min:0.01'],
             'qty_breaks.*.sort_order' => ['nullable', 'integer', 'min:0'],
-            'bundle_items' => ['nullable', 'array'],
+            'bundle_items' => ['exclude_unless:kind,'.PricingRule::KIND_BUNDLE_PRICE, 'nullable', 'array'],
             'bundle_items.*.product_id' => ['required_with:bundle_items', 'integer', 'exists:products,id'],
             'bundle_items.*.quantity' => ['required_with:bundle_items', 'integer', 'min:1'],
             'bundle_items.*.sort_order' => ['nullable', 'integer', 'min:0'],
-            'buy_get_items' => ['nullable', 'array'],
+            'buy_get_items' => ['exclude_unless:kind,'.PricingRule::KIND_BUY_X_GET_Y, 'nullable', 'array'],
             'buy_get_items.*.product_id' => ['required_with:buy_get_items', 'integer', 'exists:products,id'],
             'buy_get_items.*.role' => ['required_with:buy_get_items', Rule::in([
                 PricingRuleBuyGetItem::ROLE_BUY,
@@ -483,17 +483,18 @@ class PricingRuleController extends Controller
 
     protected function buildPreviewCarts(PricingRule $rule): Collection
     {
-        $products = match ($rule->kind) {
-            PricingRule::KIND_BUNDLE_PRICE => Product::query()
+        // Bundle and buy-x-get-y list their own products; the other kinds sample their target.
+        $products = match (true) {
+            $rule->kind === PricingRule::KIND_BUNDLE_PRICE => Product::query()
                 ->whereIn('id', $rule->bundleItems->pluck('product_id'))
                 ->get(),
-            PricingRule::KIND_BUY_X_GET_Y => Product::query()
+            $rule->kind === PricingRule::KIND_BUY_X_GET_Y => Product::query()
                 ->whereIn('id', $rule->buyGetItems->pluck('product_id'))
                 ->get(),
-            PricingRule::TARGET_PRODUCT => Product::query()
+            $rule->target_type === PricingRule::TARGET_PRODUCT => Product::query()
                 ->whereKey($rule->product_id)
                 ->get(),
-            PricingRule::TARGET_CATEGORY => Product::query()
+            $rule->target_type === PricingRule::TARGET_CATEGORY => Product::query()
                 ->where('category_id', $rule->category_id)
                 ->orderBy('title')
                 ->limit(3)
@@ -506,11 +507,12 @@ class PricingRuleController extends Controller
             ->map(function (Product $product, int $index) use ($rule) {
                 $qty = $this->previewQuantityForRule($rule, $product);
                 $cart = new Cart([
-                    'id' => -($index + 1),
                     'product_id' => $product->id,
                     'qty' => $qty,
                     'price' => (int) $product->sell_price * $qty,
                 ]);
+                // id is not fillable; the preview keys its lines by cart id, so set it directly.
+                $cart->id = -($index + 1);
                 $cart->setRelation('product', $product);
 
                 return $cart;
