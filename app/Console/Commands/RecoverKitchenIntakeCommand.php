@@ -24,6 +24,7 @@ class RecoverKitchenIntakeCommand extends Command
             ->where('payment_status', 'paid')
             ->where('is_pay_later', false)
             ->whereNotNull('warehouse_id')
+            ->where('created_at', '>=', now()->subHours(48)) // cheap prefilter: skips old rows before the updated_at window
             ->where('updated_at', '>=', now()->subDay())
             ->whereDoesntHave('kitchenItems')
             ->whereHas('details.product', fn ($product) => $product->where('needs_preparation', true))

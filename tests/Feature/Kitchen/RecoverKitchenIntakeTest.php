@@ -186,6 +186,22 @@ class RecoverKitchenIntakeTest extends TestCase
         Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 1]);
     }
 
+    public function test_a_product_flagged_after_the_sale_is_recovered_while_the_sale_is_under_24_hours_old(): void
+    {
+        // Known limit (docs/features/kitchen-display.md): the flag is read when the job runs.
+        $product = $this->product(false);
+        $recent = $this->sale([$product]);
+        $old = $this->sale([$product]);
+        Transaction::whereKey($old->id)->update(['created_at' => now()->subHours(30), 'updated_at' => now()->subHours(30)]);
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+        $this->assertSame(0, KitchenItem::count(), 'nothing needs preparation yet');
+
+        $product->update(['needs_preparation' => true]);
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame([$recent->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
     public function test_command_is_scheduled_every_five_minutes(): void
     {
         $event = collect(app(Schedule::class)->events())
