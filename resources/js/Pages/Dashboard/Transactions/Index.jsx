@@ -495,8 +495,9 @@ export default function Index({
 
             let data;
             try {
+                // Session route: the API one only accepts bearer tokens (#107).
                 ({ data } = await axios.post(
-                    "/api/v1/pos/transactions/sync",
+                    route("transactions.sync"),
                     {
                         transactions: sendable.map((row) => ({
                             ...row.data,

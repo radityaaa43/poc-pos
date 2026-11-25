@@ -43,7 +43,7 @@ Dokumen ini menjelaskan bagaimana sistem disusun: lapisan-lapisan aplikasi, alur
                          │  Inertia pages · Ziggy route() · i18next    │
                          │  Service Worker (sw.js) · IndexedDB queue   │
                          └───────┬───────────────────────┬─────────────┘
-              Inertia XHR (session cookie)               │ axios JSON (/api/v1/pos/transactions/sync)
+              Inertia XHR (session cookie)               │ axios JSON (/dashboard/transactions/sync)
                                  │                       │
  Mobile app / pihak ketiga ──────┼──── Bearer token ─────┤
                                  ▼                       ▼
@@ -236,7 +236,7 @@ Overview → Master Data (kategori, produk, customer, supplier) → Penjualan (t
 ```
 Online:   POS ── Inertia POST /dashboard/transactions/store ──► Laravel
 Offline:  POS ── payload + client_uuid ──► IndexedDB "pos-offline".pending_transactions
-Online lagi: flushPendingTransactions() ── axios POST /api/v1/pos/transactions/sync ──► PosApiController::syncTransactions
+Online lagi: flushPendingTransactions() ── axios POST /dashboard/transactions/sync ──► PosApiController::syncTransactions
              (idempoten berdasarkan transactions.client_uuid → status synced / duplicate / pending_approval / failed)
 ```
 
@@ -532,7 +532,7 @@ Status per upstream `81a91b8`. Temuan dari review awal (snapshot 2026-09-10) yan
 
 ### Masih terbuka
 
-1. **Offline sync dari web kemungkinan besar selalu 401.** `flushPendingTransactions()` di `Transactions/Index.jsx` memanggil `/api/v1/pos/transactions/sync` hanya dengan cookie session (tanpa Bearer token). `php artisan route:list -v` menunjukkan middleware route itu `api` → `Authenticate:sanctum` → `ThrottleRequests:api` → `CheckAbilities:pos-access`. Tidak ada session maupun `EnsureFrontendRequestsAreStateful`, karena `bootstrap/app.php` tidak memanggil `$middleware->statefulApi()`. Akibatnya guard `web` milik Sanctum tidak bisa membaca session, dan transaksi offline tertahan di IndexedDB (sekarang ditandai gagal lalu dicoba ulang). Test sync memakai `Sanctum::actingAs`, jadi tidak menangkap ini. `.env.example` memang menambah `SANCTUM_STATEFUL_DOMAINS`, tapi variabel itu tidak berpengaruh tanpa `statefulApi()`, dan nilainya tidak memuat `localhost:8000`. Perbaikan paling kecil: tambahkan `$middleware->statefulApi();` dan `localhost:8000` ke `SANCTUM_STATEFUL_DOMAINS`.
+1. **Offline sync dari web (sudah diperbaiki).** Browser mengirim queue lewat route session `POST /dashboard/transactions/sync` (`transactions.sync`, permission `transactions-access`) yang memakai `PosApiController::syncTransactions`; route `POST /api/v1/pos/transactions/sync` tetap untuk klien Bearer token (mobile). `bootstrap/app.php` sengaja tidak memakai `statefulApi()`.
 2. **Stok dipotong sebelum approval diskon.** `needsDiscountApproval` dihitung di `CheckoutService` dan status `pending_approval` diset setelah commit, jadi transaksi yang menunggu approval sudah memotong stok. Jika supervisor menolak, diskon dibatalkan (`grand_total` dinaikkan, status `unpaid`) dan transaksi tetap berlaku. Tidak ada route pembatalan transaksi; stok hanya kembali lewat retur penjualan.
 3. **Beban per request.** `HandleInertiaRequests` menjalankan beberapa query notifikasi (stok menipis, batch, piutang, hutang, approval, dine-in), daftar outlet, dan 9× `Setting::get*()` tanpa cache di **setiap** request Inertia.
 4. **`package-lock.json` tidak sinkron dengan `package.json`.** Lockfile upstream tidak memuat `driver.js` dan `concurrently`, sehingga `npm ci` gagal (`Missing: concurrently@10.0.7 from lock file`). Job CI build sudah beralih ke `npm install`, tetapi langkah deploy di VPS masih memakai `npm ci`, jadi kemungkinan besar gagal. Lockfile hasil `npm install` di working tree ini sudah benar.
