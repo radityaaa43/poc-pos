@@ -89,6 +89,7 @@ class Kitchen
             // a 4 min make, a qty-3 line of 7 min, a 3 min make, plus a cancelled and a not collected item that
             // the speed report must leave out. Report: 3 orders, 5 portions, make median 4.0 / avg 4.7, wait + make
             // median 5.0 / avg 6.0, within target 66.7%; handover avg 7.0 over 3 orders.
+            // --arg=station=<name> puts the items at that kitchen station (created if missing) and adds `station` to the result.
             'kitchen.speed-items' => function (array $options): array {
                 $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
                 $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
@@ -110,6 +111,7 @@ class Kitchen
                     ['not_collected', 1, 181, 185, null],
                 ];
                 $day = $options['date'] ?? '2025-04-14'; // a step passes its own day, so reruns on one database do not add up
+                $station = isset($options['station']) ? KitchenStation::firstOrCreate(['name' => $options['station']]) : null;
                 $at = fn (?int $minutes) => $minutes === null ? null : Carbon::parse($day.' 10:00:00')->addMinutes($minutes);
                 foreach ($lines as $n => [$status, $qty, $preparing, $ready, $served]) {
                     $transaction = Transaction::create([
@@ -125,6 +127,7 @@ class Kitchen
                         'transaction_id' => $transaction->id, 'transaction_detail_id' => $detail->id, 'product_id' => $product->id,
                         'warehouse_id' => $warehouse->id, 'qty' => $qty, 'status' => $status, 'accepted_at' => $at($n * 60),
                         'preparing_at' => $at($preparing), 'ready_at' => $at($ready), 'served_at' => $at($served),
+                        'kitchen_station_id' => $station?->id,
                     ]);
                 }
 
@@ -132,7 +135,7 @@ class Kitchen
                     'title' => $product->title, 'date' => $day, 'target' => 5, 'count_rows' => 3, 'count_portions' => 5,
                     'make_median' => 4.0, 'make_avg' => 4.7, 'wait_make_median' => 5.0, 'wait_make_avg' => 6.0,
                     'within_target_pct' => 66.7, 'orders' => 3, 'handover_avg' => 7.0,
-                ];
+                ] + ($station ? ['station' => $station->name] : []);
             },
 
             // Sets the sale --arg=invoice=<invoice> to --arg=status=failed|expired|pending (default failed), as the

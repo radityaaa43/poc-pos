@@ -885,7 +885,11 @@
             "withinTarget": "Dalam target",
             "handover": "Waktu bayar sampai diserahkan",
             "minutes": "{{value}} mnt",
-            "empty": "Belum ada data dapur untuk periode ini"
+            "empty": "Belum ada data dapur untuk periode ini",
+            "station": "Stasiun",
+            "allStations": "Semua stasiun",
+            "stationDeleted": "(dihapus)",
+            "handoverAllStations": "Semua pesanan dari semua stasiun"
         }
     },
     "auditLogs": {

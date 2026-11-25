@@ -4,6 +4,7 @@ namespace Tests\Feature\Reports;
 
 use App\Models\Category;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -62,7 +63,8 @@ class KitchenSpeedReportTest extends TestCase
         $rows = collect($this->build()['rows'])->keyBy('title');
 
         $this->assertSame([
-            'product_id' => $odd->id, 'title' => 'Nasi goreng', 'count_rows' => 3, 'count_portions' => 3,
+            'product_id' => $odd->id, 'title' => 'Nasi goreng', 'station_id' => $this->dapur(), 'station' => 'Dapur', 'station_deleted' => false,
+            'count_rows' => 3, 'count_portions' => 3,
             'make_median' => 4.0, 'make_avg' => 5.0, 'wait_make_median' => 5.0, 'wait_make_avg' => 6.0,
             'target' => 5, 'within_target_pct' => 66.7,
         ], $rows['Nasi goreng']);
@@ -272,6 +274,206 @@ class KitchenSpeedReportTest extends TestCase
             ->assertJsonValidationErrors('end_date');
     }
 
+    public function test_no_station_filter_counts_every_station(): void
+    {
+        $bar = $this->station('Bar');
+        $nasi = $this->product('Nasi goreng');
+        $teh = $this->product('Es teh');
+        $this->item($nasi);
+        $this->item($teh, ['station' => $bar->id]);
+
+        $props = $this->page();
+
+        $this->assertNull($props['filters']['station_id']);
+        $this->assertSame(
+            [['Es teh', 'Bar'], ['Nasi goreng', 'Dapur']],
+            collect($props['rows'])->map(fn ($row) => [$row['title'], $row['station']])->all(),
+        );
+        $this->assertSame(2, $props['orders']['orders']);
+    }
+
+    public function test_station_filter_counts_only_that_stations_items(): void
+    {
+        $bar = $this->station('Bar');
+        $pastry = $this->station('Pastry');
+        $kopi = $this->product('Kopi', target: 5);
+        $this->item($kopi, ['station' => $bar->id, 'prep' => 1, 'ready' => 3]);
+        $this->item($kopi, ['station' => $bar->id, 'prep' => 1, 'ready' => 5]);
+        $this->item($kopi, ['station' => $pastry->id, 'prep' => 1, 'ready' => 21]);
+        $this->item($this->product('Roti'), ['station' => $pastry->id]);
+
+        $props = $this->page(['station_id' => $bar->id]);
+
+        $this->assertSame($bar->id, $props['filters']['station_id']);
+        $this->assertCount(1, $props['rows']);
+        $row = $props['rows'][0];
+        $this->assertSame(['Kopi', $bar->id, 'Bar', false, 2, 3.0, 100.0], [
+            $row['title'], $row['station_id'], $row['station'], $row['station_deleted'], $row['count_rows'], $row['make_median'], $row['within_target_pct'],
+        ]);
+        $this->assertFalse($props['empty']);
+    }
+
+    public function test_deleted_station_keeps_its_name_and_can_be_filtered(): void
+    {
+        $bar = $this->station('Bar');
+        $this->item($this->product('Kopi'), ['station' => $bar->id]);
+        $bar->update(['name' => 'Bar atas']);
+        $bar->delete();
+
+        $all = $this->page();
+        $filtered = $this->page(['station_id' => $bar->id]);
+
+        // A rename shows the current name under the same id; deletion keeps it and marks the row.
+        $this->assertSame(['Bar atas', $bar->id, true], [$all['rows'][0]['station'], $all['rows'][0]['station_id'], $all['rows'][0]['station_deleted']]);
+        $this->assertSame($all['rows'], $filtered['rows']);
+        $this->assertSame($bar->id, $filtered['filters']['station_id']);
+    }
+
+    public function test_station_options_list_active_stations_then_deleted_ones(): void
+    {
+        $this->station('Zeta');
+        $this->station('Alpha')->delete();
+        $this->station('Bar');
+        $this->station('Cold')->delete();
+
+        $stations = $this->page()['stations'];
+
+        $this->assertSame(
+            [['Dapur', false], ['Bar', false], ['Zeta', false], ['Alpha', true], ['Cold', true]],
+            collect($stations)->map(fn ($station) => [$station['name'], $station['deleted']])->all(),
+        );
+        $this->assertSame(['id', 'name', 'deleted'], array_keys($stations[0]));
+    }
+
+    public function test_reused_station_name_is_two_stations(): void
+    {
+        $old = $this->station('Bar');
+        $kopi = $this->product('Kopi');
+        $this->item($kopi, ['station' => $old->id]);
+        $old->delete();
+        $new = $this->station('Bar');
+        $this->item($kopi, ['station' => $new->id]);
+
+        $rows = collect($this->page()['rows'])->sortBy('station_id')->values();
+
+        $this->assertSame([[$old->id, true, 1], [$new->id, false, 1]], $rows->map(fn ($row) => [$row['station_id'], $row['station_deleted'], $row['count_rows']])->all());
+        $this->assertSame(1, $this->page(['station_id' => $old->id])['rows'][0]['count_rows']);
+        $this->assertCount(1, $this->page(['station_id' => $new->id])['rows']);
+    }
+
+    public function test_menu_with_items_at_two_stations_gets_a_row_per_station(): void
+    {
+        $bar = $this->station('Bar');
+        $kopi = $this->product('Kopi');
+        $this->item($kopi, ['station' => $bar->id, 'prep' => 1, 'ready' => 3]);
+        $this->item($kopi, ['station' => $bar->id, 'prep' => 1, 'ready' => 3]);
+        $this->item($kopi, ['prep' => 1, 'ready' => 11]);
+
+        $this->assertSame(
+            [['Bar', 2, 2.0], ['Dapur', 1, 10.0]],
+            collect($this->page()['rows'])->map(fn ($row) => [$row['station'], $row['count_rows'], $row['make_median']])->all(),
+        );
+    }
+
+    public function test_item_without_station_counts_as_the_default_station(): void
+    {
+        $this->item($this->product('Nasi goreng'));
+        $bar = $this->station('Bar');
+        $stations = KitchenStation::withTrashed()->count();
+
+        $all = $this->page();
+        $dapur = $this->page(['station_id' => $this->dapur()]);
+        $other = $this->page(['station_id' => $bar->id]);
+
+        $this->assertSame([$this->dapur(), 'Dapur'], [$all['rows'][0]['station_id'], $all['rows'][0]['station']]);
+        $this->assertSame($all['rows'], $dapur['rows']);
+        $this->assertSame([], $other['rows']);
+        // The report only reads: the default station is looked up, never created, on a GET.
+        $this->assertSame($stations, KitchenStation::withTrashed()->count());
+        $this->assertNull(KitchenItem::first()->kitchen_station_id);
+    }
+
+    public function test_unknown_station_id_is_rejected(): void
+    {
+        foreach (['9999', 'abc'] as $bad) {
+            $this->actingAs($this->user)
+                ->getJson(route('reports.kitchen-speed.index', ['station_id' => $bad]))
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('station_id');
+        }
+    }
+
+    public function test_handover_ignores_the_station_filter(): void
+    {
+        $bar = $this->station('Bar');
+        $pastry = $this->station('Pastry');
+        // One order holds a Bar and a Pastry item: it is done when the last one is served (12 min), whatever the station.
+        $order = $this->transaction();
+        $this->item($this->product('Kopi'), ['transaction' => $order, 'station' => $bar->id, 'served' => 6]);
+        $this->item($this->product('Roti'), ['transaction' => $order, 'station' => $pastry->id, 'served' => 12]);
+
+        $all = $this->page();
+
+        $this->assertSame(['orders' => 1, 'avg_minutes' => 12.0], $all['orders']);
+        $this->assertSame($all['orders'], $this->page(['station_id' => $bar->id])['orders']);
+        $this->assertSame($all['orders'], $this->page(['station_id' => $pastry->id])['orders']);
+    }
+
+    public function test_station_with_no_items_is_empty_even_when_other_stations_have_orders(): void
+    {
+        $bar = $this->station('Bar');
+        $this->item($this->product('Nasi goreng'));
+
+        $props = $this->page(['station_id' => $bar->id]);
+
+        $this->assertSame([], $props['rows']);
+        $this->assertTrue($props['empty']);
+        $this->assertFalse($this->page()['empty']);
+    }
+
+    public function test_station_filter_stays_inside_the_outlet(): void
+    {
+        $other = Outlet::create(['code' => 'OUT-B', 'name' => 'Outlet B', 'is_active' => true]);
+        $this->user->outlets()->attach($other->id);
+        $otherWarehouse = $this->warehouse($other, 'WH-B1');
+        $bar = $this->station('Bar');
+        $kopi = $this->product('Kopi');
+        $this->item($kopi, ['station' => $bar->id]);
+        $this->item($kopi, ['station' => $bar->id, 'warehouse' => $otherWarehouse]);
+        $this->item($kopi, ['warehouse' => $otherWarehouse]);
+
+        $this->assertSame(1, $this->page(['outlet_id' => $this->outlet->id, 'station_id' => $bar->id])['rows'][0]['count_rows']);
+        $this->assertSame(1, $this->page(['outlet_id' => $other->id, 'station_id' => $bar->id])['rows'][0]['count_rows']);
+        // The NULL branch of the default station stays inside its outlet too.
+        $this->assertSame(1, $this->page(['outlet_id' => $other->id, 'station_id' => $this->dapur()])['rows'][0]['count_rows']);
+        $this->assertSame([], $this->page(['outlet_id' => $this->outlet->id, 'station_id' => $this->dapur()])['rows']);
+    }
+
+    public function test_station_filter_keeps_cancelled_not_collected_and_release_rows_out(): void
+    {
+        $bar = $this->station('Bar');
+        $kopi = $this->product('Kopi');
+        $this->item($kopi, ['station' => $bar->id]);
+        $this->item($kopi, ['station' => $bar->id, 'status' => 'cancelled', 'ready' => null, 'served' => null]);
+        $this->item($kopi, ['station' => $bar->id, 'status' => 'not_collected', 'ready' => null, 'served' => null]);
+        $this->item($kopi, ['station' => $bar->id, 'status' => 'ready', 'accepted' => null, 'prep' => null, 'ready' => null, 'served' => null]);
+
+        $rows = $this->page(['station_id' => $bar->id])['rows'];
+
+        $this->assertCount(1, $rows);
+        $this->assertSame(1, $rows[0]['count_rows']);
+    }
+
+    public function test_an_end_date_before_the_start_is_rejected_with_a_station_chosen(): void
+    {
+        $bar = $this->station('Bar');
+
+        $this->actingAs($this->user)
+            ->getJson(route('reports.kitchen-speed.index', ['start_date' => '2025-04-20', 'end_date' => '2025-04-10', 'station_id' => $bar->id]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('end_date');
+    }
+
     /** Wall-clock times are stored in the app timezone: make both the config and the PHP default Jakarta (UTC+7). */
     private function useJakarta(): void
     {
@@ -285,6 +487,16 @@ class KitchenSpeedReportTest extends TestCase
         date_default_timezone_set('UTC');
 
         parent::tearDown();
+    }
+
+    private function dapur(): int
+    {
+        return (int) KitchenStation::where('is_default', true)->value('id');
+    }
+
+    private function station(string $name): KitchenStation
+    {
+        return KitchenStation::create(['name' => $name]);
     }
 
     /** The report as the page receives it. */
@@ -353,6 +565,7 @@ class KitchenSpeedReportTest extends TestCase
         return KitchenItem::create([
             'transaction_id' => $transaction->id, 'transaction_detail_id' => $detail->id, 'product_id' => $product->id,
             'warehouse_id' => $warehouse->id, 'qty' => $o['qty'] ?? 1, 'status' => $o['status'] ?? 'served',
+            'kitchen_station_id' => $o['station'] ?? null,
             'accepted_at' => $accepted, 'preparing_at' => $after($o['prep']), 'ready_at' => $after($o['ready']), 'served_at' => $after($o['served']),
         ]);
     }
