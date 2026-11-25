@@ -28,8 +28,7 @@ test.describe('permissions', () => {
         await expect(page.getByText('users-access', { exact: true })).toBeHidden();
     });
 
-    // Bug #139: the picker sends ?per_page, the controller ignores it (always 7 rows).
-    test.fixme('the page-size picker changes how many permissions a page shows', async ({ page, arrange }) => {
+    test('the page-size picker changes how many permissions a page shows', async ({ page, arrange }) => {
         const admin = arrange('platform.user', { role: 'super-admin' });
 
         await signIn(page, admin.email);

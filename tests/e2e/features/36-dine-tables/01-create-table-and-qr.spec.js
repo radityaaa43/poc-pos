@@ -38,8 +38,7 @@ test.describe('36-dine-tables', () => {
         await expect(guest.getByText(`Meja ${name} · ${area_name}`)).toBeVisible();
     });
 
-    // Bug #118: QR PNG generation needs the imagick extension, which the app image and CI do not install: 500.
-    test.fixme('the QR button opens a PNG of the table link', async ({ asRole, arrange, uniq }) => {
+    test('the QR button opens an SVG of the table link', async ({ asRole, arrange, uniq }) => {
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
         const page = await asRole(manager);
         await page.goto('/dashboard/dine-tables');
@@ -51,6 +50,6 @@ test.describe('36-dine-tables', () => {
         await popup.waitForURL(/\/dashboard\/dine-tables\/\d+\/qr$/);
         const qr = await page.request.get(popup.url());
         expect(qr.status()).toBe(200);
-        expect(qr.headers()['content-type']).toContain('image/png');
+        expect(qr.headers()['content-type']).toContain('image/svg+xml');
     });
 });
