@@ -5,16 +5,16 @@
 - **Module:** module:sales
 - **Updated:** 2026-11-26
 
-## User story
+## User stories
 
-Sebagai staf dapur di kedai yang bekerja dengan kertas, saya ingin setiap pesanan yang masuk dapur
-langsung tercetak di printer dapur, agar saya bisa memasak dari tiket tanpa terus menatap layar.
-
-Sebagai kasir, saya ingin pesanan yang sudah saya terima tidak perlu saya sampaikan lagi ke dapur,
-agar antrean kasir tidak tertahan.
-
-Sebagai pemilik, saya ingin tahu kalau printer dapur bermasalah, agar tidak ada pesanan yang
-terlewat.
+| # | Story | Journey | AC |
+|---|---|---|---|
+| US-1 | Sebagai **staf dapur** di kedai yang bekerja dengan kertas, saya ingin setiap pesanan yang masuk dapur langsung tercetak di printer dapur, agar saya bisa memasak dari tiket tanpa terus menatap layar. | J2, J3 | AC-01, AC-02, AC-03, AC-04 |
+| US-2 | Sebagai **staf dapur**, saya ingin menyiapkan printer di perangkat Layar Dapur sendiri, agar tidak perlu bantuan teknisi setiap hari. | J1 | AC-07, AC-09, AC-11 |
+| US-3 | Sebagai **kasir**, saya ingin pesanan yang sudah saya terima tidak perlu saya sampaikan lagi ke dapur, agar antrean kasir tidak tertahan. | J2 | AC-01 |
+| US-4 | Sebagai **staf dapur**, saya ingin tahu kalau printer bermasalah dan bisa mencetak ulang, agar tidak ada pesanan yang terlewat. | J4, J5 | AC-05, AC-06, AC-08, AC-10 |
+| US-5 | Sebagai **pemilik**, saya ingin printer dapur tidak pernah menyembunyikan atau mencetak ganda pesanan, agar dapur dan data kecepatan tetap benar. | J2, J4, J5 | AC-05, AC-08 |
+| US-6 | Sebagai **tamu**, saya ingin pesanan saya, termasuk tambahan dan pembatalan, sampai ke dapur dengan benar, agar yang saya terima sesuai pesanan. | J2, J3 | AC-01, AC-03, AC-04 |
 
 ## Context
 
