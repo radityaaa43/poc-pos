@@ -80,3 +80,8 @@ __pycache__/
 /test-results/
 /playwright-report/
 /blob-report/
+
+# Secrets: keys and certificates live outside the repo
+/secrets/
+*.pem
+*.key
