@@ -25,6 +25,7 @@ test.describe('sales report: outlet scope', () => {
     test('a super admin sees the active outlet and follows the outlet switcher', async ({ page, arrange }) => {
         test.slow(); // a fresh login plus an outlet switch
         const { prefix, a1, a2, b1, other_outlet } = arrange('reports.sales');
+        arrange('reports.no-open-shift'); // an open shift of the super admin locks the outlet switcher
         // A fresh login: switching the outlet is stored in the session, which must not leak into the shared saved one.
         await login(page, superAdmin.email);
         await expect(page).toHaveURL(/dashboard\/transactions$/);

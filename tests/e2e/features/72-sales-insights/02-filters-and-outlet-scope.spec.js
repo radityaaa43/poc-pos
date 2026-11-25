@@ -45,6 +45,7 @@ test.describe('sales insights: filters and outlet scope', () => {
     test('a super admin sees the active outlet and follows the outlet switcher', async ({ page, arrange }) => {
         test.slow(); // a fresh login plus an outlet switch
         const { category, kopi, teh, other_outlet } = arrange('reports.sales');
+        arrange('reports.no-open-shift'); // an open shift of the super admin locks the outlet switcher
         // A fresh login keeps the outlet switch out of the shared saved session.
         await login(page, 'superadmin@e2e.test');
         await expect(page).toHaveURL(/dashboard\/transactions$/);

@@ -6,6 +6,7 @@ test.describe('profit report: outlet scope', () => {
     test('a super admin sees only the active outlet and switches to the other', async ({ page, arrange }) => {
         test.slow(); // a fresh login plus an outlet switch
         const { prefix, a1, a2, b1, other_outlet } = arrange('reports.sales');
+        arrange('reports.no-open-shift'); // an open shift of the super admin locks the outlet switcher
         // A fresh login keeps the outlet switch out of the shared saved session.
         await login(page, 'superadmin@e2e.test');
         await expect(page).toHaveURL(/dashboard\/transactions$/);

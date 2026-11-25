@@ -2,6 +2,7 @@
 
 namespace App\Testing\E2e\Scenarios;
 
+use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Outlet;
@@ -74,6 +75,16 @@ class Reports
                     'teh' => $teh->title,
                     'other_outlet' => self::OTHER_OUTLET_CODE.' - Outlet E2E B',
                 ];
+            },
+
+            // Closes every open shift of --arg=cashier=<email> (default superadmin@e2e.test): an open shift locks the outlet switcher.
+            'reports.no-open-shift' => function (array $options): array {
+                $user = User::where('email', $options['cashier'] ?? 'superadmin@e2e.test')->firstOrFail();
+
+                $closed = CashierShift::open()->where('user_id', $user->id)
+                    ->update(['status' => CashierShift::STATUS_CLOSED, 'closed_at' => now()]);
+
+                return ['closed' => $closed];
             },
 
             // A pay-later sale in the E2E outlet with its receivable (--arg=outlet=other puts it in the second outlet).

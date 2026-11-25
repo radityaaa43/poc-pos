@@ -9,6 +9,11 @@ test.describe('57-sales-cost', () => {
     test.describe.configure({ timeout: 240_000 }); // three role sessions on a loaded runner
     test.use({ actionTimeout: 45_000 });
 
+    // The super admin's shift opened for the return would lock the outlet switcher for later steps.
+    test.afterEach(({ arrange }) => {
+        arrange('reports.no-open-shift');
+    });
+
     // A recipe (18 g of a material averaging Rp 250 in the outlet) x 2 and a plain product (average Rp 4.000, buy
     // price Rp 5.000) x 1 are sold at the web till. HPP is frozen on the lines: Rp 4.500 x 2 + Rp 4.000.
     test('sale-cost: the sale takes the warehouse average, a later purchase price leaves it alone, a return reverses it', {
