@@ -320,6 +320,7 @@ class TransactionController extends Controller
 
         $cart = Cart::with('product')
             ->where('product_id', $validated['product_id'])
+            ->where('unit_id', $unitId)
             ->where('cashier_id', auth()->user()->id)
             ->active()
             ->first();

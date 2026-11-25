@@ -53,3 +53,5 @@ Satu produk dalam multiple satuan — pcs, box, karton, kg — dengan konversi s
 - Produk existing dianggap punya base unit PCS dengan conversion factor 1
 - Unit tidak bisa dihapus jika masih dipakai produk
 - Harga per unit disimpan di pivot, bukan hitungan dari base price * factor
+- A cart line in a non-base unit (e.g. BOX) is charged that unit's own sell price (`carts.price` / qty), at checkout and on the receipt. Customer price lists apply to the base unit only. Pricing rules (discount, qty break, bundle, buy X get Y) count base pieces, so they skip non-base-unit lines.
+- One product can have several cart rows, one per unit (BOX and PCS are separate rows).

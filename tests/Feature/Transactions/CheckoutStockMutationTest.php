@@ -144,11 +144,11 @@ class CheckoutStockMutationTest extends TestCase
             'unit_id' => $box->id,
         ]);
 
-        $result = app(CheckoutService::class)->execute($this->context());
+        $result = app(CheckoutService::class)->execute($this->context(300000));
 
         // HPP harus mengikuti konversi: 2 box x 12 pcs x 5000 = 120000.
-        // Sell side tetap base price (20000) — gap pricing multi-satuan terpisah.
-        $this->assertSame(20000 - 120000, (int) $result->transaction->profits()->sum('total'));
+        // Harga jual mengikuti harga box: 2 x 130000 = 260000 (#106).
+        $this->assertSame(260000 - 120000, (int) $result->transaction->profits()->sum('total'));
 
         // Stok terdecrement dalam satuan dasar: 2 x 12 = 24
         $this->assertDatabaseHas('stock_mutations', [
