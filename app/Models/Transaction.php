@@ -166,7 +166,8 @@ class Transaction extends Model
         return $this->hasOne(DineOrder::class);
     }
 
-    public function kitchenItems()
+    /** @return HasMany<KitchenItem, $this> */
+    public function kitchenItems(): HasMany
     {
         return $this->hasMany(KitchenItem::class);
     }

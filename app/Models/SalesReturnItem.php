@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SalesReturnItem extends Model
 {
@@ -34,7 +35,8 @@ class SalesReturnItem extends Model
         'restock_to_inventory' => 'boolean',
     ];
 
-    public function salesReturn()
+    /** @return BelongsTo<SalesReturn, $this> */
+    public function salesReturn(): BelongsTo
     {
         return $this->belongsTo(SalesReturn::class);
     }

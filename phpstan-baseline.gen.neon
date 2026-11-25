@@ -1,24 +1,6 @@
 parameters:
 	ignoreErrors:
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Console/Commands/ExpirePendingTransactionsCommand.php
-
-		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Console/Commands/ExpirePendingTransactionsCommand.php
-
-		-
-			message: '#^Relation ''dineOrder'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Console/Commands/ExpirePendingTransactionsCommand.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\PurchaseOrder\:\:\$items\.$#'
 			identifier: property.notFound
 			count: 1
@@ -79,27 +61,9 @@ parameters:
 			path: app/Http/Controllers/Api/CategoryController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/PaymentWebhookController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Http/Controllers/Api/PaymentWebhookController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Cart\:\:\$product\.$#'
 			identifier: property.notFound
 			count: 1
-			path: app/Http/Controllers/Api/PosApiController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 2
 			path: app/Http/Controllers/Api/PosApiController.php
 
 		-
@@ -181,12 +145,6 @@ parameters:
 			path: app/Http/Controllers/Api/PosApiController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Http/Controllers/Api/PosApiController.php
-
-		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
 			identifier: larastan.relationExistence
 			count: 5
@@ -206,18 +164,6 @@ parameters:
 
 		-
 			message: '#^Relation ''unit'' is not found in App\\Models\\Cart model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Api/PosApiController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 5
-			path: app/Http/Controllers/Api/PosApiController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 3
 			path: app/Http/Controllers/Api/PosApiController.php
@@ -283,12 +229,6 @@ parameters:
 			path: app/Http/Controllers/Api/V1/CashierShiftController.php
 
 		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/V1/CashierShiftController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\CustomerCampaignLog\:\:\$campaign\.$#'
 			identifier: property.notFound
 			count: 2
@@ -296,12 +236,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Receivable\:\:\$transaction\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Api/V1/CrmCampaignController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Api/V1/CrmCampaignController.php
@@ -727,12 +661,6 @@ parameters:
 			path: app/Http/Controllers/Api/V1/SupplierReturnController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
 			message: '#^Relation ''bankAccount'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -757,19 +685,7 @@ parameters:
 			path: app/Http/Controllers/Api/V1/TransactionController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
-			message: '#^Relation ''profits'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Api/V1/TransactionController.php
@@ -784,18 +700,6 @@ parameters:
 			message: '#^Relation ''tenders'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
 			path: app/Http/Controllers/Api/V1/TransactionController.php
 
 		-
@@ -836,12 +740,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$user\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/CashierShiftController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Apps/CashierShiftController.php
@@ -890,12 +788,6 @@ parameters:
 
 		-
 			message: '#^Relation ''user'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Apps/CashierShiftController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
 			path: app/Http/Controllers/Apps/CashierShiftController.php
@@ -962,12 +854,6 @@ parameters:
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Receivable\:\:\$transaction\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/CrmCampaignController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Apps/CrmCampaignController.php
@@ -1111,37 +997,7 @@ parameters:
 			path: app/Http/Controllers/Apps/CustomerVoucherController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\DineArea\:\:\$outlet_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/DineAreaController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$area\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/DineOrderController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\DineArea\:\:\$outlet_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/DineTableController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$outlet_id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/DineTableController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$cashier\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/DiscountApprovalController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Http/Controllers/Apps/DiscountApprovalController.php
@@ -1615,12 +1471,6 @@ parameters:
 			path: app/Http/Controllers/Apps/SalesReturnController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\SalesReturnItem\:\:\$salesReturn\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\SalesReturnItem\:\:\$subtotal_return\.$#'
 			identifier: property.notFound
 			count: 1
@@ -1639,25 +1489,7 @@ parameters:
 			path: app/Http/Controllers/Apps/SalesReturnController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$receivable\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TransactionDetail\:\:\$product\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TransactionDetail\:\:\$salesReturnItems\.$#'
 			identifier: property.notFound
 			count: 2
 			path: app/Http/Controllers/Apps/SalesReturnController.php
@@ -1687,12 +1519,6 @@ parameters:
 			path: app/Http/Controllers/Apps/SalesReturnController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
 			message: '#^Relation ''items'' is not found in App\\Models\\SalesReturn model\.$#'
 			identifier: larastan.relationExistence
 			count: 6
@@ -1700,12 +1526,6 @@ parameters:
 
 		-
 			message: '#^Relation ''receivable'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
-			message: '#^Relation ''salesReturn'' is not found in App\\Models\\SalesReturnItem model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Apps/SalesReturnController.php
@@ -1861,30 +1681,6 @@ parameters:
 			path: app/Http/Controllers/Apps/TransactionController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 4
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$dineOrder\.$#'
-			identifier: property.notFound
-			count: 3
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$code\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2029,27 +1825,9 @@ parameters:
 			path: app/Http/Controllers/Apps/TransactionController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Relation ''dineOrder'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
 			identifier: larastan.relationExistence
 			count: 7
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Relation ''profits'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Apps/TransactionController.php
 
 		-
@@ -2060,18 +1838,6 @@ parameters:
 
 		-
 			message: '#^Relation ''tenders'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 3
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Apps/TransactionController.php
@@ -2155,18 +1921,6 @@ parameters:
 			path: app/Http/Controllers/DineMenuController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DineMenuController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$outlet\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DineMenuController.php
-
-		-
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Database\\Eloquent\\Collection\<int,App\\Models\\Product\>\:\:map\(\) contains unresolvable type\.$#'
 			identifier: argument.unresolvableType
 			count: 1
@@ -2179,27 +1933,9 @@ parameters:
 			path: app/Http/Controllers/DineMenuController.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$area\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DineOrderController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$outlet\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/DineOrderController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$pivot\.$#'
 			identifier: property.notFound
 			count: 2
-			path: app/Http/Controllers/DineOrderController.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$token\.$#'
-			identifier: property.notFound
-			count: 1
 			path: app/Http/Controllers/DineOrderController.php
 
 		-
@@ -2221,12 +1957,6 @@ parameters:
 			path: app/Http/Controllers/DocumentController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 8
-			path: app/Http/Controllers/DocumentController.php
-
-		-
 			message: '#^Relation ''cashier'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 5
@@ -2240,12 +1970,6 @@ parameters:
 
 		-
 			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 5
-			path: app/Http/Controllers/DocumentController.php
-
-		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 5
 			path: app/Http/Controllers/DocumentController.php
@@ -2281,12 +2005,6 @@ parameters:
 			path: app/Http/Controllers/DocumentController.php
 
 		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
-			path: app/Http/Controllers/DocumentController.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
 			identifier: property.notFound
 			count: 1
@@ -2303,12 +2021,6 @@ parameters:
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/OutletContextController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/PublicPortalController.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$receivable\.$#'
@@ -2336,12 +2048,6 @@ parameters:
 
 		-
 			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/PublicPortalController.php
-
-		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/PublicPortalController.php
@@ -2593,24 +2299,6 @@ parameters:
 			path: app/Http/Controllers/Reports/ProfitReportController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/ProfitReportController.php
-
-		-
-			message: '#^Relation ''profits'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/ProfitReportController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/ProfitReportController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>total_profit" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -2629,34 +2317,10 @@ parameters:
 			path: app/Http/Controllers/Reports/SalesReportController.php
 
 		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/SalesReportController.php
-
-		-
-			message: '#^Relation ''profits'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/SalesReportController.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/SalesReportController.php
-
-		-
 			message: '#^Parameter \$auditable of method App\\Services\\AuditLogService\:\:log\(\) expects array\|Illuminate\\Database\\Eloquent\\Model\|null, Spatie\\Permission\\Contracts\\Role given\.$#'
 			identifier: argument.type
 			count: 1
 			path: app/Http/Controllers/RoleController.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Middleware/HandleInertiaRequests.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Product\:\:\$warehouse_stock\.$#'
@@ -2680,12 +2344,6 @@ parameters:
 			message: '#^Relation ''user'' is not found in App\\Models\\CashierShift model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
-			path: app/Http/Middleware/HandleInertiaRequests.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
 			path: app/Http/Middleware/HandleInertiaRequests.php
 
 		-
@@ -3433,12 +3091,6 @@ parameters:
 			path: app/Models/Profit.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$dineOrder\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Transaction.php
-
-		-
 			message: '#^Method App\\Models\\Transaction\:\:bankAccount\(\) with return type void returns Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\<App\\Models\\BankAccount, \$this\(App\\Models\\Transaction\)\> but should not return anything\.$#'
 			identifier: return.void
 			count: 1
@@ -3452,12 +3104,6 @@ parameters:
 
 		-
 			message: '#^Method App\\Models\\Transaction\:\:customer\(\) with return type void returns Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\<App\\Models\\Customer, \$this\(App\\Models\\Transaction\)\> but should not return anything\.$#'
-			identifier: return.void
-			count: 1
-			path: app/Models/Transaction.php
-
-		-
-			message: '#^Method App\\Models\\Transaction\:\:profits\(\) with return type void returns Illuminate\\Database\\Eloquent\\Relations\\HasMany\<App\\Models\\Profit, \$this\(App\\Models\\Transaction\)\> but should not return anything\.$#'
 			identifier: return.void
 			count: 1
 			path: app/Models/Transaction.php
@@ -3497,12 +3143,6 @@ parameters:
 			identifier: property.phpDocType
 			count: 1
 			path: app/Models/User.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_sales_enabled\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Models/Warehouse.php
 
 		-
 			message: '#^Called ''env'' outside of the config directory which returns null when the config is cached, use ''config''\.$#'
@@ -3547,12 +3187,6 @@ parameters:
 			path: app/Services/CashierShiftService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/CashierShiftService.php
-
-		-
 			message: '#^Relation ''openedBy'' is not found in App\\Models\\CashierShift model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -3589,12 +3223,6 @@ parameters:
 			path: app/Services/CheckoutService.php
 
 		-
-			message: '#^Cannot call method create\(\) on null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/CheckoutService.php
-
-		-
 			message: '#^Parameter \$product of method App\\Services\\StockMutationService\:\:recordMutation\(\) expects App\\Models\\Product, Illuminate\\Database\\Eloquent\\Model given\.$#'
 			identifier: argument.type
 			count: 1
@@ -3609,12 +3237,6 @@ parameters:
 		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/CheckoutService.php
-
-		-
-			message: '#^Result of method App\\Models\\Transaction\:\:profits\(\) \(void\) is used\.$#'
-			identifier: method.void
 			count: 1
 			path: app/Services/CheckoutService.php
 
@@ -3709,24 +3331,6 @@ parameters:
 			path: app/Services/CustomerSegmentationService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$area\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/DineOrderService.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$price\.$#'
 			identifier: property.notFound
 			count: 3
@@ -3753,30 +3357,6 @@ parameters:
 		-
 			message: '#^Call to an undefined method Illuminate\\Database\\Eloquent\\Model\:\:baseQuantity\(\)\.$#'
 			identifier: method.notFound
-			count: 1
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Cannot call method create\(\) on null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/DineOrderService.php
-
-		-
-			message: '#^Result of method App\\Models\\Transaction\:\:profits\(\) \(void\) is used\.$#'
-			identifier: method.void
 			count: 1
 			path: app/Services/DineOrderService.php
 
@@ -3823,46 +3403,10 @@ parameters:
 			path: app/Services/InventoryCostService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/KitchenIntakeService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$dineOrder\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/KitchenIntakeService.php
-
-		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/KitchenIntakeService.php
-
-		-
-			message: '#^Relation ''dineOrder'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/KitchenIntakeService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\CustomerVoucher\:\:\$outlet_id\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/LoyaltyService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/OutletAccessService.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$is_sales_enabled\.$#'
-			identifier: property.notFound
-			count: 2
-			path: app/Services/OutletAccessService.php
 
 		-
 			message: '#^Method App\\Services\\OutletAccessService\:\:activeOutlet\(\) should return App\\Models\\Outlet\|null but returns Illuminate\\Database\\Eloquent\\Model\|null\.$#'
@@ -3880,12 +3424,6 @@ parameters:
 			message: '#^Parameter \#1 \$callback of method Illuminate\\Support\\Collection\<\(int\|string\),Illuminate\\Database\\Eloquent\\Model\>\:\:filter\(\) expects \(callable\(Illuminate\\Database\\Eloquent\\Model, int\|string\)\: bool\)\|null, Closure\(App\\Models\\Warehouse\)\: bool given\.$#'
 			identifier: argument.type
 			count: 1
-			path: app/Services/OutletAccessService.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
 			path: app/Services/OutletAccessService.php
 
 		-
@@ -4099,25 +3637,7 @@ parameters:
 			path: app/Services/ThermalPrintService.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ThermalPrintService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ThermalPrintService.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$tenders\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/ThermalPrintService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Services/ThermalPrintService.php
@@ -4151,30 +3671,6 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 1
 			path: app/Services/ThermalPrintService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TransactionSettlementService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/TransactionSettlementService.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/TransactionSettlementService.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Services/TransactionSettlementService.php
 
 		-
 			message: '#^Access to property \$payment_status on an unknown class App\\Services\\App\\Models\\TransactionTender\.$#'
@@ -4219,46 +3715,10 @@ parameters:
 			path: app/Services/WhatsAppService.php
 
 		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$name\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Testing/E2e/Scenarios/DineIn.php
-
-		-
 			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Relations\\Pivot\:\:\$stock\.$#'
 			identifier: property.notFound
 			count: 1
 			path: app/Testing/E2e/Scenarios/Offline.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Testing/E2e/Scenarios/PosCheckout.php
-
-		-
-			message: '#^Access to an undefined property Illuminate\\Database\\Eloquent\\Model\:\:\$id\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Testing/E2e/Scenarios/PosCheckout.php
-
-		-
-			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Testing/E2e/Scenarios/PosCheckout.php
-
-		-
-			message: '#^Cannot call method create\(\) on null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: app/Testing/E2e/Scenarios/PosOperations.php
-
-		-
-			message: '#^Result of method App\\Models\\Transaction\:\:profits\(\) \(void\) is used\.$#'
-			identifier: method.void
-			count: 1
-			path: app/Testing/E2e/Scenarios/PosOperations.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\PurchaseOrder\:\:\$items\.$#'
@@ -4351,25 +3811,7 @@ parameters:
 			path: database/seeders/FeatureDemoSeeder.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$details\.$#'
-			identifier: property.notFound
-			count: 1
-			path: database/seeders/OperationalCoreSeeder.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\TransactionDetail\:\:\$product\.$#'
-			identifier: property.notFound
-			count: 1
-			path: database/seeders/OperationalCoreSeeder.php
-
-		-
 			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: database/seeders/OperationalCoreSeeder.php
-
-		-
-			message: '#^Relation ''details'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: database/seeders/OperationalCoreSeeder.php
@@ -4387,19 +3829,7 @@ parameters:
 			path: database/seeders/RawMaterialDemoSeeder.php
 
 		-
-			message: '#^Cannot call method create\(\) on null\.$#'
-			identifier: method.nonObject
-			count: 1
-			path: database/seeders/SampleDataSeeder.php
-
-		-
 			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
-			count: 1
-			path: database/seeders/SampleDataSeeder.php
-
-		-
-			message: '#^Result of method App\\Models\\Transaction\:\:profits\(\) \(void\) is used\.$#'
-			identifier: method.void
 			count: 1
 			path: database/seeders/SampleDataSeeder.php

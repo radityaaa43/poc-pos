@@ -138,7 +138,7 @@ class Kitchen
                 $plain = $make('Kemasan', (int) ($options['plain'] ?? 0), false);
                 $titles = ['flagged' => array_column($flagged, 'title'), 'plain' => array_column($plain, 'title')];
 
-                Scenarios::registry()['open-shift'](['cashier' => $email, 'cash' => 100000]);
+                Scenarios::registry()['open-shift'](['cashier' => $email, 'cash' => '100000']);
 
                 if (($options['dine'] ?? '0') === '1') {
                     return $titles + self::dineSale($cashier, $flagged, $prefix);
