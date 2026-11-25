@@ -153,7 +153,7 @@ export default function Index({ customers }) {
                             <input id="import-customers-input" type="file" accept=".xlsx,.xls,.csv" className="hidden"
                                 onChange={function(e) {
                                     const file = e.target.files && e.target.files[0];
-                                    if (file) router.post(route("import.customers"), { file });
+                                    if (file) router.post(route("import.customers"), { file }, { onError: (errors) => toast.error(Object.values(errors)[0]) });
                                 }}
                             />
                             <Button

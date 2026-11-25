@@ -24,6 +24,7 @@ import { getProductImageUrl } from "@/Utils/imageUrl";
 import BarcodePrintModal from "@/Components/Barcode/BarcodePrintModal";
 import { useAuthorization } from "@/Utils/authorization";
 import { router } from "@inertiajs/react";
+import toast from "react-hot-toast";
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -288,7 +289,7 @@ export default function Index({ products }) {
                                     className="hidden"
                                     onChange={function(e) {
                                         const file = e.target.files && e.target.files[0];
-                                        if (file) router.post(route("import.products"), { file });
+                                        if (file) router.post(route("import.products"), { file }, { onError: (errors) => toast.error(Object.values(errors)[0]) });
                                     }}
                                 />
                             </>

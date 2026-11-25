@@ -42,7 +42,7 @@ class ImportExportController extends Controller
     public function importProducts(Request $request)
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+            'file' => ['required', 'file', 'extensions:xlsx,xls,csv', 'mimes:xlsx,xls,csv,txt', 'max:5120'],
         ]);
 
         $import = new ProductsImport;
@@ -56,7 +56,7 @@ class ImportExportController extends Controller
     public function importCustomers(Request $request)
     {
         $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv', 'max:5120'],
+            'file' => ['required', 'file', 'extensions:xlsx,xls,csv', 'mimes:xlsx,xls,csv,txt', 'max:5120'],
         ]);
 
         $import = new CustomersImport;
