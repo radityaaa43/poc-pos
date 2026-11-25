@@ -57,21 +57,28 @@ class KitchenItemService
     }
 
     /**
-     * BR-1: a paid dine order with no kitchen item needs no kitchen step, so it is served at payment (by the system,
-     * served_by null) and completed at once. Pay later (served at accept, completed once paid) lands in #279 (T6c).
+     * BR-1: a paid dine order with nothing to make (no line whose product needs preparation) needs no kitchen step, so it
+     * is served at payment (by the system, served_by null) and completed at once. Decided from the sale's lines, not from
+     * the kitchen rows: no rows can also mean a sale without a warehouse or an intake that has not run yet (#289), and
+     * those orders must still reach the kitchen. Pay later (served at accept, completed once paid) lands in #279 (T6c).
      */
     public function serveIfNoKitchenItems(Transaction $transaction): void
     {
         DB::transaction(function () use ($transaction) {
             $order = DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->first();
 
-            if (! $order || $order->status !== DineOrder::STATUS_ACCEPTED || KitchenItem::where('transaction_id', $transaction->id)->exists()) {
+            if (! $order || $order->status !== DineOrder::STATUS_ACCEPTED || $this->hasLinesToMake($transaction)) {
                 return;
             }
 
             $order->update(['status' => DineOrder::STATUS_SERVED, 'served_at' => now(), 'served_by' => null]);
             $order->completeIfSettled();
         });
+    }
+
+    private function hasLinesToMake(Transaction $transaction): bool
+    {
+        return $transaction->details()->whereHas('product', fn ($product) => $product->where('needs_preparation', true))->exists();
     }
 
     /** One step: valid only from `$from`. The row lock makes the first tap win; a later one is told who did it (AC-23). */

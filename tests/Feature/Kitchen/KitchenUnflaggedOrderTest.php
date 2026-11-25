@@ -13,6 +13,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\KitchenIntakeService;
+use App\Services\KitchenItemService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -69,6 +70,28 @@ class KitchenUnflaggedOrderTest extends TestCase
         app(KitchenIntakeService::class)->intakeUnpaid($sale->fresh());
 
         $this->assertSame(DineOrder::STATUS_ACCEPTED, $sale->dineOrder->fresh()->status, 'the Pay-later half is #279');
+    }
+
+    public function test_flagged_line_without_a_warehouse_is_not_served(): void
+    {
+        $sale = $this->openBill([true]);
+        $sale->update(['warehouse_id' => null]);
+
+        $sale->update(['payment_status' => 'paid']);
+
+        $this->assertSame(0, KitchenItem::count(), 'intake skips a sale without a warehouse');
+        $this->assertSame(DineOrder::STATUS_ACCEPTED, $sale->dineOrder->fresh()->status, 'it still has something to make');
+    }
+
+    public function test_flagged_line_whose_intake_has_not_run_yet_is_not_served(): void
+    {
+        $sale = $this->openBill([true]);
+        $sale->update(['payment_status' => 'paid']);
+        KitchenItem::query()->delete(); // what a failed intake leaves behind (#289 recovers it)
+
+        app(KitchenItemService::class)->serveIfNoKitchenItems($sale->fresh());
+
+        $this->assertSame(DineOrder::STATUS_ACCEPTED, $sale->dineOrder->fresh()->status);
     }
 
     public function test_mixed_order_waits_only_for_flagged_items(): void
