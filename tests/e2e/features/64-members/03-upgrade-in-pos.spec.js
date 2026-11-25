@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { openPos, pickCustomer, roleOf } from '../../support/crm.js';
 
 test.describe('members: upgrade at the till', () => {
-    // Bug #137: the cashier role has no customers-edit, so the upgrade request is a silent 403.
-    test.fixme('a plain customer chosen in the POS can be upgraded to a member on the spot', async ({ asRole, arrange, uniq }) => {
+    test('a plain customer chosen in the POS can be upgraded to a member on the spot', async ({ asRole, arrange, uniq }) => {
         const name = uniq('Calon Member');
         arrange('crm.pos-ready');
         const { customer_id } = arrange('crm.customer', { name });

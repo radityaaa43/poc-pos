@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { router } from "@inertiajs/react";
 import axios from "axios";
+import toast from "react-hot-toast";
 import {
     IconCrown,
     IconUser,
@@ -11,6 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { CustomerHistoryButton } from "./CustomerHistoryPanel";
 import AddCustomerModal from "./AddCustomerModal";
+import { useAuthorization } from "@/Utils/authorization";
 
 export default function CustomerSelect({
     customers = [],
@@ -27,6 +29,11 @@ export default function CustomerSelect({
     const [showAddModal, setShowAddModal] = useState(false);
     const containerRef = useRef(null);
     const inputRef = useRef(null);
+    // customers-edit holders keep upgrading (same either-or as the route).
+    const canUpgradeMember = useAuthorization().canAny([
+        "customers-upgrade-member",
+        "customers-edit",
+    ]);
 
     // Filter customers by search
     const filteredCustomers = customers.filter(
@@ -96,7 +103,10 @@ export default function CustomerSelect({
                 router.reload({ only: ["customers"] });
             }
         } catch (error) {
-            console.error("Upgrade member error:", error);
+            toast.error(
+                error.response?.data?.message ||
+                    "Gagal meng-upgrade pelanggan menjadi member"
+            );
         }
     };
 
@@ -194,7 +204,9 @@ export default function CustomerSelect({
                             />
                         )}
 
-                        {selected && !selected.is_loyalty_member ? (
+                        {canUpgradeMember &&
+                        selected &&
+                        !selected.is_loyalty_member ? (
                             <button
                                 type="button"
                                 onClick={handleUpgradeMember}

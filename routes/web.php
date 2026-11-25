@@ -236,7 +236,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory'])->middleware('permission:transactions-access')->name('customers.history');
     Route::put('/customers/{customer}/segments', [CustomerController::class, 'syncSegments'])->middleware('permission:customers-edit')->name('customers.segments.sync');
     Route::match(['post', 'put'], '/customers/{customer}/upgrade-member', [CustomerController::class, 'upgradeToMember'])
-        ->middleware('permission:customers-edit')
+        ->middleware('permission:customers-upgrade-member|customers-edit')
         ->name('customers.upgrade-member');
 
     // route customer store via AJAX (no redirect)
