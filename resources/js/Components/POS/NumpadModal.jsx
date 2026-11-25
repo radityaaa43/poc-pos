@@ -127,6 +127,7 @@ export default function NumpadModal({
                     </h3>
                     <button
                         onClick={onClose}
+                        aria-label="Tutup"
                         className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                     >
                         <IconX size={20} />
@@ -189,6 +190,7 @@ export default function NumpadModal({
                     {/* Backspace */}
                     <button
                         onClick={handleBackspace}
+                        aria-label="Hapus angka"
                         className="h-14 flex items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 active:scale-95 transition-all"
                     >
                         <IconBackspace size={24} />

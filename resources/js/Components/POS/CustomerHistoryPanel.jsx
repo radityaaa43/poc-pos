@@ -114,6 +114,7 @@ export default function CustomerHistoryPanel({
                 {onClose && (
                     <button
                         onClick={onClose}
+                        aria-label="Tutup"
                         className="text-white/80 hover:text-white"
                     >
                         <IconX size={18} />
