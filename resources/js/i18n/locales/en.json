@@ -1100,6 +1100,13 @@
             "ready": "Ready",
             "allReady": "All ready",
             "saveFailed": "Not saved — check the connection and try again"
+        },
+        "stations": {
+            "label": "Station",
+            "all": "All stations",
+            "progress": "{{ready}} of {{total}} ready",
+            "removed": "The selected station was removed. Showing all stations.",
+            "emptyForSelection": "No orders for this station yet"
         }
     },
     "pos": {

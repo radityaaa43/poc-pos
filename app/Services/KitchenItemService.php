@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Transaction;
@@ -34,14 +35,28 @@ class KitchenItemService
         $this->step($item, KitchenItem::STATUS_PREPARING, KitchenItem::STATUS_READY, $user);
     }
 
-    /** Semua siap: every open item of the sale becomes ready; one never started gets its preparing time at the same moment. */
-    public function allReady(Transaction $transaction, User $user): void
+    /**
+     * Semua siap: every open item of the sale becomes ready; one never started gets its preparing time at the same moment.
+     * $stationIds limits it to those stations' items (a station display must not mark other stations' food ready); null = all.
+     *
+     * @param  array<int, int>|null  $stationIds
+     */
+    public function allReady(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
-        DB::transaction(function () use ($transaction, $user) {
+        DB::transaction(function () use ($transaction, $user, $stationIds) {
             $now = now();
 
             $items = KitchenItem::where('transaction_id', $transaction->id)
                 ->whereIn('status', [KitchenItem::STATUS_ACCEPTED, KitchenItem::STATUS_PREPARING])
+                ->when($stationIds !== null, fn ($query) => $query->where(function ($stations) use ($stationIds) {
+                    $stations->whereIn('kitchen_station_id', $stationIds);
+
+                    // The Dapur display also shows work of a removed station (or none), so its button must cover it (B1).
+                    if (in_array(KitchenStation::where('is_default', true)->value('id'), array_map('intval', $stationIds), true)) {
+                        $stations->orWhereNull('kitchen_station_id')
+                            ->orWhereNotIn('kitchen_station_id', KitchenStation::query()->select('id'));
+                    }
+                }))
                 ->lockForUpdate()
                 ->get();
 

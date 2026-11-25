@@ -78,7 +78,7 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 
 ## Kitchen stations
 
-A kitchen station is a named place in the kitchen (Dapur, Bar, Panggang). Each product that needs preparation goes to one station; the kitchen display does not filter by station yet (REQ-006 S2).
+A kitchen station is a named place in the kitchen (Dapur, Bar, Panggang). Each product that needs preparation goes to one station; the kitchen display can be set to stations per device (see "Station filter on the display" below).
 
 - Page: Settings → "Stasiun dapur" (`/dashboard/settings/kitchen-stations`), permission `products-edit` (403 and no menu entry without it). Stations are shop-wide, not per outlet.
 - **Dapur** is the default station, created by the migration. It can be renamed but not deleted ("Bawaan" badge, no delete button; the server answers 422). Names are unique, ignoring case; a duplicate is refused under the field.
@@ -87,3 +87,11 @@ A kitchen station is a named place in the kitchen (Dapur, Bar, Panggang). Each p
 - Deleting a station is a soft delete in one transaction: its products go back to Dapur, its kitchen items are untouched and still show its name (`KitchenItem::kitchenStation()` uses `withTrashed()`). A deleted station's name can be used again.
 - Audit log events (module `kitchen_stations`): `kitchen_station.created`, `.updated`, `.deleted` (with the number of products moved).
 - Files: `app/Http/Controllers/Apps/KitchenStationController.php`, `app/Services/KitchenStationService.php`, `app/Models/KitchenStation.php`, `resources/js/Pages/Dashboard/Settings/KitchenStations.jsx`. E2E: `tests/e2e/features/34-kitchen-stations/`.
+
+### Station filter on the display
+
+- The server sends every open item of the outlet; the browser filters. Each item in `orders[].items[]` carries `station_id` and `station` (the name, also for a station deleted since: `withTrashed()`), and the page gets a `stations` prop: active stations, Dapur first, then by name. The 5 s poll reloads `orders` and `stations`.
+- **Semua stasiun** is the default on every device: whole orders, the station name on each item, and "x dari y siap" per order (only when the shop has two or more stations). Tapping station chips shows only those stations' items and hides orders with none. The choice lives in the browser (`localStorage` key `kitchenStations`), so it is per device; it is never sent to the server. A saved station that was deleted falls back to Semua stasiun with a notice.
+- An item of a deleted station is shown as Dapur's: it appears on a device set to Dapur, not on one set to another station, and Semua stasiun still labels it with the old name.
+- **Semua siap** (`POST kitchen.orders.all-ready`) takes an optional `station_ids` (array of integers). A filtered display sends its stations, so only their items become ready (`KitchenItemService::allReady($transaction, $user, $stationIds)`); without it every open item of the sale does. An unknown id changes nothing; anything that is not an array of integers is a 422. The dine order still becomes `ready` only when every item of every station is ready. The whole-order buttons on the Dine-in Orders page call it without a scope.
+- Payload code: `app/Support/Kitchen/KitchenOrders.php`, `app/Http/Controllers/Apps/KitchenController.php`. Tests: `tests/Feature/Kitchen/KitchenStationDisplayTest.php`; e2e `34-kitchen-stations/05..08`.

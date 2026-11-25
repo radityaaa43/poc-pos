@@ -1100,6 +1100,13 @@
             "ready": "Siap",
             "allReady": "Semua siap",
             "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi"
+        },
+        "stations": {
+            "label": "Stasiun",
+            "all": "Semua stasiun",
+            "progress": "{{ready}} dari {{total}} siap",
+            "removed": "Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.",
+            "emptyForSelection": "Belum ada pesanan untuk stasiun ini"
         }
     },
     "pos": {

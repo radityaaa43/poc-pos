@@ -53,6 +53,7 @@ beforeEach(async () => {
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
+    localStorage.clear();
     permissions = { "dine-orders-prepare": true };
     vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     await i18n.changeLanguage("id");
@@ -112,7 +113,7 @@ describe("Kitchen/Index", () => {
     it("polls the orders prop every 5 seconds", () => {
         render(<Index orders={orders} outlet={outlet} />);
 
-        expect(usePoll).toHaveBeenCalledWith(5000, expect.objectContaining({ only: ["orders"] }));
+        expect(usePoll).toHaveBeenCalledWith(5000, expect.objectContaining({ only: ["orders", "stations"] }));
     });
 
     it("shows the connection notice on the offline event and hides it on the online event", () => {
@@ -320,5 +321,291 @@ describe("Kitchen/Index steps", () => {
 
         expect(router.post).not.toHaveBeenCalled();
         expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan — periksa koneksi, lalu coba lagi");
+    });
+});
+
+describe("Kitchen/Index stations", () => {
+    const KEY = "kitchenStations";
+    const stations = [
+        { id: 1, name: "Dapur", is_default: true },
+        { id: 2, name: "Bar", is_default: false },
+    ];
+    const item = (id, title, station_id, station, status = "accepted") => ({
+        id, title, qty: 1, note: null, status, station_id, station,
+    });
+    const stationOrders = [
+        {
+            id: 21, number: "Meja 1", type: "dine_in", unpaid: false, since: minutesAgo(5),
+            items: [item(11, "Kopi", 2, "Bar", "ready"), item(12, "Nasi Goreng", 1, "Dapur", "preparing")],
+        },
+        {
+            id: 22, number: "Meja 2", type: "dine_in", unpaid: false, since: minutesAgo(4),
+            items: [item(13, "Mie Ayam", 1, "Dapur")],
+        },
+        {
+            id: 23, number: "Meja 3", type: "takeaway", unpaid: false, since: minutesAgo(3),
+            items: [item(14, "Teh", 2, "Bar")],
+        },
+    ];
+    const cards = () => screen.queryAllByRole("article");
+    const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    const chip = (name) => screen.getByRole("button", { name });
+    const renderIndex = (props = {}) =>
+        render(<Index orders={stationOrders} outlet={outlet} stations={stations} {...props} />);
+
+    it("starts on Semua stasiun with every order and item when nothing is saved", () => {
+        renderIndex();
+
+        expect(screen.getByRole("group", { name: "Stasiun" })).toBeInTheDocument();
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "true");
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "false");
+        expect(chip("Dapur")).toHaveAttribute("aria-pressed", "false");
+        expect(cards()).toHaveLength(3);
+        expect(screen.getByText(/Kopi/)).toBeInTheDocument();
+        expect(screen.getByText(/Nasi Goreng/)).toBeInTheDocument();
+    });
+
+    it("filters the items on a chip tap and drops orders with nothing left", async () => {
+        const user = setup();
+        renderIndex();
+
+        await user.click(chip("Bar"));
+
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "true");
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "false");
+        expect(cards()).toHaveLength(2);
+        expect(screen.getByText(/Kopi/)).toBeInTheDocument();
+        expect(screen.getByText(/Teh/)).toBeInTheDocument();
+        expect(screen.queryByText(/Nasi Goreng/)).not.toBeInTheDocument();
+        expect(screen.queryByText(/Mie Ayam/)).not.toBeInTheDocument();
+        expect(screen.queryByText("Meja 2")).not.toBeInTheDocument();
+        expect(screen.queryByText(/dari \d+ siap/)).not.toBeInTheDocument();
+    });
+
+    it("shows the union of two chosen stations and returns to Semua when the last chip is untapped", async () => {
+        const user = setup();
+        renderIndex();
+
+        await user.click(chip("Bar"));
+        await user.click(chip("Dapur"));
+        expect(cards()).toHaveLength(3);
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "true");
+        expect(chip("Dapur")).toHaveAttribute("aria-pressed", "true");
+        expect(screen.queryByText(/dari \d+ siap/)).not.toBeInTheDocument();
+
+        await user.click(chip("Bar"));
+        await user.click(chip("Dapur"));
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "true");
+        expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
+    it("saves the choice and a remount reads it back; Semua stasiun clears the key", async () => {
+        const user = setup();
+        const first = renderIndex();
+
+        await user.click(chip("Bar"));
+        expect(JSON.parse(localStorage.getItem(KEY))).toEqual([2]);
+        first.unmount();
+
+        renderIndex();
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "true");
+        expect(cards()).toHaveLength(2);
+
+        await user.click(chip("Semua stasiun"));
+        expect(localStorage.getItem(KEY)).toBeNull();
+        expect(cards()).toHaveLength(3);
+    });
+
+    it.each([
+        ["bad JSON", "{nope"],
+        ["a non-array", '{"a":1}'],
+        ["a non-integer array", '[1,"2"]'],
+        ["a fractional array", "[1.5]"],
+    ])("treats %s in storage as Semua stasiun", (_, saved) => {
+        localStorage.setItem(KEY, saved);
+        renderIndex();
+
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "true");
+        expect(cards()).toHaveLength(3);
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    });
+
+    it("does not crash when storage is blocked", async () => {
+        vi.spyOn(Storage.prototype, "getItem").mockImplementation(() => {
+            throw new Error("blocked");
+        });
+        vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+            throw new Error("blocked");
+        });
+        const user = setup();
+        renderIndex();
+
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "true");
+        await user.click(chip("Bar"));
+        expect(cards()).toHaveLength(2);
+    });
+
+    it("falls back to Semua stasiun with a notice when every saved station is gone, writing nothing", () => {
+        localStorage.setItem(KEY, "[9]");
+        renderIndex();
+
+        expect(screen.getByRole("status")).toHaveTextContent("Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.");
+        expect(chip("Semua stasiun")).toHaveAttribute("aria-pressed", "true");
+        expect(cards()).toHaveLength(3);
+        expect(localStorage.getItem(KEY)).toBe("[9]");
+    });
+
+    it("filters by the remaining saved station without a notice when another one was deleted", () => {
+        localStorage.setItem(KEY, "[2,9]");
+        renderIndex();
+
+        expect(screen.queryByRole("status")).not.toBeInTheDocument();
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "true");
+        expect(cards()).toHaveLength(2);
+    });
+
+    it("says so when orders exist but none belongs to the chosen station", async () => {
+        const user = setup();
+        renderIndex({ orders: [stationOrders[1]] });
+
+        await user.click(chip("Bar"));
+
+        expect(screen.getByText("Belum ada pesanan untuk stasiun ini")).toBeInTheDocument();
+        expect(screen.queryByText("Belum ada pesanan")).not.toBeInTheDocument();
+        expect(cards()).toHaveLength(0);
+    });
+
+    it("shows the station on each item and the ready count in the order header on Semua stasiun", () => {
+        renderIndex();
+
+        const first = cards()[0];
+        const rows = within(first).getAllByRole("listitem");
+        expect(within(rows[0]).getByText("Bar")).toBeInTheDocument();
+        expect(within(rows[1]).getByText("Dapur")).toBeInTheDocument();
+        expect(within(first).getByText("1 dari 2 siap")).toBeInTheDocument();
+        expect(within(cards()[1]).getByText("0 dari 1 siap")).toBeInTheDocument();
+    });
+
+    it("shows the English wording", async () => {
+        await i18n.changeLanguage("en");
+        renderIndex();
+
+        expect(screen.getByRole("group", { name: "Station" })).toBeInTheDocument();
+        expect(chip("All stations")).toHaveAttribute("aria-pressed", "true");
+        expect(within(cards()[0]).getByText("1 of 2 ready")).toBeInTheDocument();
+    });
+
+    it.each([
+        ["no stations prop", { stations: undefined }],
+        ["one station", { stations: [stations[0]] }],
+    ])("changes nothing on screen with %s", (_, props) => {
+        renderIndex(props);
+
+        expect(screen.queryByRole("group")).not.toBeInTheDocument();
+        expect(screen.queryByText("Semua stasiun")).not.toBeInTheDocument();
+        expect(screen.queryByText("Bar")).not.toBeInTheDocument();
+        expect(screen.queryByText("Dapur")).not.toBeInTheDocument();
+        expect(screen.queryByText(/dari \d+ siap/)).not.toBeInTheDocument();
+        expect(cards()).toHaveLength(3);
+    });
+
+    describe("item of a deleted station or without one", () => {
+        const gone = { id: 31, number: "Meja 7", type: "dine_in", unpaid: false, since: minutesAgo(2),
+            items: [item(21, "Es Kopi", 5, "Kopi Lama")] };
+        const noStation = { id: 32, number: "Meja 8", type: "dine_in", unpaid: false, since: minutesAgo(2),
+            items: [item(22, "Bakso", null, null)] };
+
+        it("is filtered as Dapur, keeps its old label on Semua and is hidden on a Bar filter", async () => {
+            const user = setup();
+            renderIndex({ orders: [gone] });
+
+            expect(within(cards()[0]).getByText("Kopi Lama")).toBeInTheDocument();
+
+            await user.click(chip("Bar"));
+            expect(cards()).toHaveLength(0);
+
+            await user.click(chip("Bar"));
+            await user.click(chip("Dapur"));
+            expect(cards()).toHaveLength(1);
+            expect(within(cards()[0]).getByText(/Es Kopi/)).toBeInTheDocument();
+            // On the Dapur device it still says where the item came from.
+            expect(within(cards()[0]).getByText("Kopi Lama")).toBeInTheDocument();
+        });
+
+        it("is treated as Dapur when it has no station at all", async () => {
+            const user = setup();
+            renderIndex({ orders: [noStation] });
+
+            await user.click(chip("Bar"));
+            expect(cards()).toHaveLength(0);
+
+            await user.click(chip("Dapur"));
+            expect(cards()).toHaveLength(1);
+        });
+    });
+
+    describe("Semua siap", () => {
+        const allReadyBody = () => router.post.mock.calls.at(-1)[1];
+        const allReadyButton = (card) => within(card).queryByRole("button", { name: "Semua siap" });
+
+        it("posts an empty body on Semua stasiun", async () => {
+            const user = setup();
+            renderIndex();
+
+            await user.click(allReadyButton(cards()[0]));
+
+            expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", {}, expect.anything());
+        });
+
+        it("posts the chosen station ids when the display is filtered", async () => {
+            const user = setup();
+            renderIndex();
+
+            await user.click(chip("Dapur"));
+            await user.click(chip("Bar"));
+            await user.click(allReadyButton(cards()[0]));
+
+            expect(allReadyBody()).toEqual({ station_ids: [1, 2] });
+        });
+
+        it("hides when every shown item is ready, even if the order has other unfinished items", async () => {
+            const user = setup();
+            renderIndex();
+            expect(allReadyButton(cards()[0])).toBeInTheDocument();
+
+            await user.click(chip("Bar"));
+
+            expect(allReadyButton(cards()[0])).not.toBeInTheDocument();
+            expect(allReadyButton(cards()[1])).toBeInTheDocument();
+        });
+    });
+
+    it("keeps the chips but shows no step buttons for a handover-only user", async () => {
+        permissions = {};
+        const user = setup();
+        renderIndex();
+
+        await user.click(chip("Bar"));
+
+        expect(chip("Bar")).toHaveAttribute("aria-pressed", "true");
+        expect(screen.queryByRole("button", { name: /Mulai buat|Semua siap/ })).not.toBeInTheDocument();
+        expect(within(cards()[0]).queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("updates the chips and labels when a poll brings a renamed or added station", () => {
+        const view = renderIndex();
+        expect(screen.queryByRole("button", { name: "Pastry" })).not.toBeInTheDocument();
+
+        const renamed = [stations[0], { id: 2, name: "Barista", is_default: false }, { id: 3, name: "Pastry", is_default: false }];
+        const renamedOrders = stationOrders.map((o) => ({
+            ...o,
+            items: o.items.map((i) => (i.station_id === 2 ? { ...i, station: "Barista" } : i)),
+        }));
+        view.rerender(<Index orders={renamedOrders} outlet={outlet} stations={renamed} />);
+
+        expect(chip("Barista")).toBeInTheDocument();
+        expect(chip("Pastry")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Bar" })).not.toBeInTheDocument();
+        expect(within(cards()[0]).getAllByText("Barista").length).toBeGreaterThan(0);
     });
 });
