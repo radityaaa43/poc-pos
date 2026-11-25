@@ -1,5 +1,6 @@
 import { test, expect as baseExpect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
+import { warehouseCell } from '../../support/inventory.js';
 
 const expect = baseExpect.configure({ timeout: 45_000 });
 
@@ -50,7 +51,7 @@ test.describe('50-raw-materials', () => {
         await expect(row).toContainText('2.500');
 
         // AC-21: 2 kg became 2.000 g in that warehouse, costed at the reference price.
-        await expect(row).toContainText(/2\.000\s*·\s*Rp\s*250\b/);
+        await expect(await warehouseCell(page, row, /WH-E2E/)).toContainText(/2\.000\s*·\s*Rp\s*250\b/);
 
         // The opening stock is on the stock history.
         await page.goto('/dashboard/stock-mutations');

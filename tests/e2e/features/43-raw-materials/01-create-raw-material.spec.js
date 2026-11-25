@@ -1,5 +1,5 @@
 import { test, expect } from '../../support/fixtures.js';
-import { role } from '../../support/inventory.js';
+import { role, warehouseCell } from '../../support/inventory.js';
 
 test.describe('43-raw-materials', () => {
     test('a raw material is bought in kg and counted in pieces, with opening stock in one warehouse', async ({ asRole, uniq }) => {
@@ -33,8 +33,9 @@ test.describe('43-raw-materials', () => {
         await expect(row).toContainText('PCS');
         await expect(row).toContainText('Pusat');
         await expect(row).toContainText('KG (isi 1.000)');
-        await expect(row).toContainText('2.000');
-        await expect(row).toContainText('Rp 80');
+        const stock = await warehouseCell(page, row, /WH-E2E/);
+        await expect(stock).toContainText('2.000');
+        await expect(stock).toContainText('Rp 80');
     });
 
     test('the raw material form names what is missing', async ({ asRole }) => {
