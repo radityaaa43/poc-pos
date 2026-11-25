@@ -59,9 +59,9 @@ class CsvUploadTest extends TestCase
     {
         $file = UploadedFile::fake()->createWithContent(
             'products.csv',
-            "barcode,nama,kategori,harga_beli,harga_jual,stok,tarif_pajak
+            'barcode,nama,kategori,harga_beli,harga_jual,stok,tarif_pajak
 8990001,Kopi Susu,Minuman,8000,15000,10,0
-"
+'
         );
 
         $this->actingAs($this->admin())
