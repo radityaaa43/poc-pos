@@ -56,6 +56,8 @@ class Transaction extends Model
         'grand_total',
         'payment_method',
         'payment_status',
+        'payment_attempt',
+        'late_superseded_payment_at',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -93,6 +95,8 @@ class Transaction extends Model
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
         'discount_approved_at' => 'datetime',
+        'payment_attempt' => 'integer',
+        'late_superseded_payment_at' => 'datetime',
     ];
 
     public function details()

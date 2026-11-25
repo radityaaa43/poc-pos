@@ -35,6 +35,7 @@ use App\Http\Controllers\Apps\StockTransferController;
 use App\Http\Controllers\Apps\SupplierController;
 use App\Http\Controllers\Apps\SupplierReturnController;
 use App\Http\Controllers\Apps\TransactionController;
+use App\Http\Controllers\Apps\TransactionRetryController;
 use App\Http\Controllers\Apps\UnitController;
 use App\Http\Controllers\Apps\WarehouseController;
 use App\Http\Controllers\DashboardController;
@@ -413,6 +414,9 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     // confirm payment for bank transfer
     Route::patch('/transactions/{transaction}/confirm-payment', [TransactionController::class, 'confirmPayment'])->middleware(['permission:transactions-confirm-payment', 'step_up'])->name('transactions.confirm-payment');
+
+    // retry a failed or expired POS payment, same method or another one
+    Route::post('/transactions/{transaction}/retry-payment', TransactionRetryController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.retry-payment');
 
     // discount approval
     Route::get('/discount-approvals', [DiscountApprovalController::class, 'pending'])->middleware('permission:discounts-approve')->name('discount-approvals.pending');
