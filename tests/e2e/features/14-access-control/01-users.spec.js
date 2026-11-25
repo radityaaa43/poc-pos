@@ -92,8 +92,7 @@ test.describe('users', () => {
         await expect(page.getByText('These credentials do not match our records.')).toBeVisible();
     });
 
-    // Bug #132: the server refuses and flashes an error, but the page renders no flash and Swal says "Berhasil".
-    test.fixme('deleting your own account is refused with a visible message', async ({ page, arrange }) => {
+    test('deleting your own account is refused with a visible message', async ({ page, arrange }) => {
         const admin = arrange('platform.user', { role: 'super-admin' });
 
         await signIn(page, admin.email);

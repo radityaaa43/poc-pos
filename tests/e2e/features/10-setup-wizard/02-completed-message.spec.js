@@ -6,8 +6,7 @@ const expect = baseExpect.configure({ timeout: 45_000 });
 test.use({ actionTimeout: 60_000, navigationTimeout: 60_000 });
 
 test.describe('setup wizard', () => {
-    // Bug #98: SetupController redirects to /login with a `success` flash, but Auth/Login.jsx only renders `status`.
-    test.fixme('the login page confirms that setup is complete', async ({ page, arrange, uniq }) => {
+    test('the login page confirms that setup is complete', async ({ page, arrange, uniq }) => {
         const next = () => page.getByRole('button', { name: 'Lanjut' }).click();
 
         arrange('platform.setup-pending');

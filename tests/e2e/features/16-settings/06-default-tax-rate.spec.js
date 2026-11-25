@@ -8,8 +8,7 @@ test.use({ actionTimeout: 60_000, navigationTimeout: 60_000 });
 test.describe('default tax rate', () => {
     test.setTimeout(240_000);
 
-    // Bug #189: the new-product form hardcodes 11 and ignores the store profile's default rate.
-    test.fixme('a new product starts with the default PPN rate of the store profile', async ({ page, arrange }) => {
+    test('a new product starts with the default PPN rate of the store profile', async ({ page, arrange }) => {
         const { email } = arrange('platform.user');
         const rate = page.getByRole('spinbutton');
         const save = async () => {
@@ -26,7 +25,7 @@ test.describe('default tax rate', () => {
             await rate.fill('12.5');
             await save();
             await page.goto('/dashboard/products/create');
-            await expect(page.getByLabel('Persentase Pajak (%)')).toHaveValue('12.5');
+            await expect(page.getByPlaceholder('11', { exact: true })).toHaveValue('12.5');
         } finally {
             await page.goto('/dashboard/settings/store');
             await rate.fill(original);

@@ -25,9 +25,7 @@ test.describe('35-dine-areas', () => {
         await expect(row).toHaveCount(0);
     });
 
-    // Bug #210: the pencil is an Inertia Link without href, so the click also GETs the page and the
-    // response closes the edit dialog about half a second after it opened, wiping what the user typed.
-    test.fixme('rename and deactivate an area', async ({ asRole, arrange, uniq }) => {
+    test('rename and deactivate an area', async ({ asRole, arrange, uniq }) => {
         const { area_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
         const renamed = `${area_name}-baru`;
         const page = await asRole(manager);
