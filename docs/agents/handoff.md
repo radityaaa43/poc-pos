@@ -91,53 +91,108 @@ The card moves Planning → Todo only after both, and only after the plan has be
 
 ### 1a. Plan comment (on the issue)
 
-Every section is required; write `none — <reason>` when one doesn't apply.
+A plan is structured, complete and comprehensive (maintainer, 2026-11-26), the technical twin of the REQ
+template (`backlog/TEMPLATE.md`, with journeys and a state diagram).
 
-```markdown
+- **Every heading below stays in every plan.** A section that doesn't apply says `n/a — <reason>`;
+  it is never deleted. A `low` ticket is mostly `n/a` lines; a `high` one fills them all.
+- **Diagrams** (Mermaid, so GitHub renders them) are required when a flow spans three or more
+  components (page → controller → service → job or webhook) and when the change has a status.
+- **Cite the code** a decision rests on as `path:line` on `origin/main`, or mark it `[unverified]`.
+- **Quote the REQ.** UI text is the REQ's exact wording; retired terms (REQ decisions) are never used.
+
+````markdown
 ## Technical plan (Tech Lead)
 
-**Summary.** 2–4 sentences: what changes and the approach.
+### 1. Context
+REQ-<n> and the AC, BR and edge cases this ticket covers (by tag), what it builds on (merged PRs, the
+frozen contracts it uses), and what it deliberately leaves to other tickets. Summary in 2–4 sentences.
 
-**Requirement wording.** The exact UI terms from the REQ / AC that the change must show, quoted
-(e.g. AC-01: "Perlu dibuat di dapur", "Target waktu buat (menit)"), or `none — no user-facing text`.
+### 2. Architecture
+Components touched (layer by layer) and where new code sits in the existing structure (no new layer
+without a reason). One sequence diagram per key flow:
+```mermaid
+sequenceDiagram
+  actor Cashier
+  Cashier->>Page: action
+  Page->>Controller: POST route
+  Controller->>Service: method()
+  Service-->>Controller: result
+```
 
-### DB
-Tables and columns (type, default, index, FK), migration file name, backfill and its REQ default,
-`down()`.
+### 3. Data model
+Tables and columns (type, null, default), constraints, indexes and FKs, migration file names in
+order, `up()` / `down()`, backfill and release defaults (matching the REQ), expected volume.
 
-### Backend
-Routes and middleware, controller methods, validation, services, permissions (Spatie and Sanctum kept
-aligned), audit log. Cite the existing code it follows as `path:line`.
+### 4. API and routes
+Each route or endpoint: method, path, request fields and validation, response, middleware. Spatie
+permission and Sanctum ability, kept aligned. Web and API twins.
 
-### Frontend
-Pages, components, `useForm`, i18n keys (`en.json` and `id.json`), Menu.jsx.
+### 5. Backend logic
+Services and methods; `DB::transaction` boundaries and `lockForUpdate` rows; idempotency
+(what makes a retry or a double tap safe); jobs, schedules, webhooks, after-commit work. Stock writes
+update `product_warehouse.stock` and `products.stock` together.
 
-### Tests
-One row per Done-when line and per AC:
-| Done-when / AC | PHPUnit | Vitest | E2E (`@REQ-<n>-AC-<n>`) or exception with reason |
+### 6. Frontend
+Pages and components (extract instead of growing oversized files). The **loading, empty, error and
+offline states** of each screen. i18n keys in `en.json` and `id.json` with the REQ's exact wording.
+Accessibility (labels, focus, touch size, contrast), Menu.jsx.
 
-### Docs
-GLOSSARY.md, docs/, README rows the change makes stale.
+### 7. States
+How the REQ's state diagram maps to columns and allowed transitions (forward only? who triggers
+each?), and what each state shows the user. `n/a — no status` when there is none.
+```mermaid
+stateDiagram-v2
+  [*] --> accepted
+  accepted --> preparing
+```
 
-### Technical acceptance criteria
-- [ ] [TC-1] <one checkable line: schema/migration, server-side permissions, tests per behaviour,
-  e2e per criterion, screenshots, docs, size, standards>
+### 8. Edge cases
+Every failure path in the REQ's journeys, plus the technical ones (concurrency, offline, retries,
+partial failure, missing data), each with its handling and its test:
+| Case (REQ journey step / BR) | Handling | Test |
 
-### Decision record
+### 9. Security
+Server-side authorization per action, input validation and mass assignment, data exposure (what
+each role sees, outlet scope), audit log entries, secrets.
+
+### 10. Performance
+Queries per request and N+1, indexes for the new filters, polling or job load, payload size,
+memory for reports (`shortcut:` comment when bounded on purpose).
+
+### 11. Observability
+Logs (what, at which level), audit events, counters or reports the owner or the flow report uses,
+how a failure is noticed.
+
+### 12. Rollout and rollback
+Migration order against other open PRs, compatibility with old data and old clients (offline
+queues, API), release defaults, how to undo (`down()`, feature off), anything the maintainer must do.
+
+### 13. Test plan
+One row per AC, BR and behaviour:
+| Line (AC / BR / behaviour) | PHPUnit | Vitest | E2E (`@REQ-<n>-AC-<n>`) |
+Regression impact (existing tests changed, and why, per AC or decision). Before/after screenshots
+for UI changes. The e2e joins the full suite for good (§0d).
+
+### 14. Technical acceptance criteria
+- [ ] [TC-1] <one checkable line each: schema, server-side permissions, tests per behaviour, e2e per
+  AC, screenshots, docs, size, standards>
+
+### 15. Files, hotspots, collisions
+Files created and changed, hotspot files (append only), migrations, overlap with other in-flight
+tickets, stacking base (`Blocked by` / branch).
+
+### 16. Decision, risks, Effort, Builder
     Decision (Tech Lead, delegated by the maintainer, YYYY-MM-DD): <what>
     Why: <reason, with the rule or code it rests on>
     Rejected: <alternatives and why>
-    Review: rules ✓ code ✓ AC ✓ data ✓ security ✓ parallel ✓ tests ✓
+    Review: rules ✓ code ✓ AC ✓ BR ✓ data ✓ security ✓ parallel ✓ tests ✓
+Risks (risk → impact → mitigation), counted lines (aim < 300), **Effort**, **Builder: devN**.
 
-### Size, effort, risks
-Counted lines (aim < 300), Effort, hotspot files touched, migration order, overlap with other
-in-flight tickets.
-
-**Builder: devN**
-
-_Plan re-review ✓ (YYYY-MM-DD): cited lines still match `origin/main` <sha>; every Done-when line and
-AC maps to a test; no file overlap with other in-flight tickets._
-```
+_Plan re-review ✓ (YYYY-MM-DD): cited lines match `origin/main` <sha>; every AC, BR and REQ journey
+step (main and failure paths) maps to a section, a test or a TC; no file overlap with other in-flight
+tickets._
+````
 
 **Acceptance lists.** The issue holds two checklists, written before any code: **Business acceptance
 criteria** (`[AC-xx]` from the REQ and `[BR-n]` for each business rule or edge case; Business / PM
@@ -147,8 +202,10 @@ the plan's `### Technical acceptance criteria` block and copies the block into t
 later keep their current form (Done when).
 
 **Re-review before Todo.** Read the plan again against current `main`. Check that the cited lines
-haven't moved, that the requirement wording is quoted, that every Done-when line has a test, and that
-parallel tickets don't share files. Then add the re-review line.
+haven't moved, that the requirement wording is quoted, that every AC, BR and **REQ journey step
+(main and failure path)** maps to a section, a test or a TC, and that parallel tickets don't share
+files. Then add the re-review line. Plans posted before 2026-11-26 keep their form; the 16-section
+form applies from the REQ-004 plans onward.
 
 ### 1b. Assignment message (SendMessage to the developer)
 
