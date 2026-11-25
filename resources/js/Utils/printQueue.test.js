@@ -176,4 +176,59 @@ describe("createPrintQueue", () => {
         queue.jobs.pop();
         expect(queue.jobs).toHaveLength(1);
     });
+    it.each([0, 1, 2, 3, 4])(
+        "a drain right after the last job (%i ticks later) sends a new job at once and never two at a time",
+        async (ticks) => {
+            const sent = [];
+            let inFlight = 0;
+            let maxInFlight = 0;
+            let second;
+            let queue;
+            const send = async (job) => {
+                inFlight += 1;
+                maxInFlight = Math.max(maxInFlight, inFlight);
+                sent.push(job.key);
+                await Promise.resolve();
+                inFlight -= 1;
+                if (job.key === "a") {
+                    // The caller enqueues and drains again a few ticks after the last job resolved.
+                    let chain = Promise.resolve();
+                    for (let i = 0; i < ticks; i += 1) chain = chain.then(() => undefined);
+                    chain.then(() => {
+                        queue.enqueue({ key: "b" });
+                        second = queue.drain();
+                    });
+                }
+            };
+            queue = createPrintQueue({ send });
+            queue.enqueue({ key: "a" });
+
+            await queue.drain();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            await second;
+
+            expect(sent).toEqual(["a", "b"]);
+            expect(maxInFlight).toBe(1);
+            expect(queue.jobs).toEqual([]);
+            expect(queue.status).toBe("idle");
+        }
+    );
+
+    it("starts a fresh run for a drain on an empty queue and again after a failed head is retried", async () => {
+        const send = vi.fn().mockRejectedValueOnce(new Error("usb")).mockResolvedValue(undefined);
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const queue = createPrintQueue({ send });
+
+        await queue.drain();
+        expect(queue.status).toBe("idle");
+
+        queue.enqueue({ key: "a" });
+        await queue.drain();
+        expect(queue.status).toBe("failed");
+        expect(queue.jobs.map((job) => job.key)).toEqual(["a"]);
+
+        await queue.drain();
+        expect(queue.status).toBe("idle");
+        expect(queue.jobs).toEqual([]);
+    });
 });

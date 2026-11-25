@@ -203,7 +203,9 @@ export async function getPrinter(key) {
     // Re-attach to previously granted device
     if (!navigator.usb) throw new Error("WebUSB tidak didukung browser ini.");
     const devices = await navigator.usb.getDevices();
-    const device = devices.find(wanted);
+    // A shop with one printer for both receipts and kitchen tickets: when excluding the kitchen printer leaves
+    // nothing and exactly one device is granted, that one is used, as before the kitchen printer existed.
+    const device = devices.find(wanted) ?? (!key && devices.length === 1 ? devices[0] : undefined);
     if (!device) return null;
     if (device.opened && device._endpoint) {
         getPrinter.cached = device;

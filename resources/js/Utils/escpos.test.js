@@ -430,6 +430,24 @@ describe("printerKey and getPrinter", () => {
         expect(only.transferOut).toHaveBeenCalledTimes(1);
     });
 
+    it("a single printer shared by receipts and kitchen tickets keeps working", async () => {
+        const only = kitchen();
+        localStorage.setItem("kitchen.printerKey", printerKey(only));
+        grant(only);
+
+        await printBytes(new Uint8Array([1]));
+
+        expect(only.transferOut).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not fall back to the kitchen printer when two devices are granted and the other is missing", async () => {
+        const [k, k2] = [kitchen(), makeDevice(2, 20, "K1")];
+        localStorage.setItem("kitchen.printerKey", printerKey(k));
+        grant(k, k2);
+
+        expect(await getPrinter()).toBeNull();
+    });
+
     it("does not hand the cached kitchen printer to a receipt print", async () => {
         const [r, k] = [receipt(), kitchen()];
         localStorage.setItem("kitchen.printerKey", printerKey(k));

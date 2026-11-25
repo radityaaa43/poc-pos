@@ -6,7 +6,9 @@ export function createPrintQueue({ send }) {
     let status = "idle";
     let running = null;
 
-    async function run() {
+    // `release` clears the in-flight marker right before run() returns, so a drain() called at once after
+    // the last job (even in the same tick) starts a new run instead of joining one that is already over.
+    async function run(release) {
         while (jobs.length > 0) {
             status = "printing";
             try {
@@ -14,11 +16,13 @@ export function createPrintQueue({ send }) {
             } catch (error) {
                 status = "failed";
                 console.warn(`Print job ${jobs[0].key} failed`, error);
+                release();
                 return;
             }
             jobs.shift();
         }
         status = "idle";
+        release();
     }
 
     return {
@@ -27,10 +31,15 @@ export function createPrintQueue({ send }) {
         },
         // A drain already in flight is returned as is: no second sender can start.
         drain() {
-            running ??= run().finally(() => {
+            if (running) return running;
+            let released = false;
+            const current = run(() => {
+                released = true;
                 running = null;
             });
-            return running;
+            // A run that ended before it could be stored (an empty queue) must not leave the marker set.
+            running = released ? null : current;
+            return current;
         },
         get jobs() {
             return [...jobs];
