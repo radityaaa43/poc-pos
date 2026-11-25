@@ -98,6 +98,7 @@ class OutletController extends AppsOutletController
             'is_active' => $isActive,
             'is_sales_enabled' => $isSalesEnabled,
         ]);
+        $this->updatePayLater($outlet, $data);
 
         return $this->ok($outlet->fresh()->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')]));
     }

@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Services\KitchenIntakeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class Transaction extends Model
@@ -19,6 +21,12 @@ class Transaction extends Model
         static::updated(function (Transaction $transaction) {
             if ($transaction->wasChanged('payment_status') && $transaction->payment_status === 'paid') {
                 $transaction->dineOrder?->completeIfSettled();
+                // Every paid-by-update path (confirmed transfer, webhooks, split, dine-in pay) reaches the kitchen here.
+                // Not a pay-later sale (marked by the flag, since a later settle can change payment_method): its items are
+                // recorded at checkout, so paying the receivable later (including a pre-release one) adds nothing. Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
+                if (! $transaction->is_pay_later) {
+                    DB::afterCommit(fn () => rescue(fn () => app(KitchenIntakeService::class)->intake($transaction)));
+                }
             }
         });
 
@@ -50,6 +58,7 @@ class Transaction extends Model
         'payment_status',
         'payment_attempt',
         'late_superseded_payment_at',
+        'is_pay_later',
         'payment_reference',
         'payment_url',
         'qr_string',
@@ -67,6 +76,7 @@ class Transaction extends Model
     ];
 
     protected $casts = [
+        'is_pay_later' => 'boolean',
         'cashier_id' => 'integer',
         'cashier_shift_id' => 'integer',
         'customer_id' => 'integer',
@@ -152,6 +162,11 @@ class Transaction extends Model
     public function dineOrder()
     {
         return $this->hasOne(DineOrder::class);
+    }
+
+    public function kitchenItems()
+    {
+        return $this->hasMany(KitchenItem::class);
     }
 
     /** Statuses of an open bill the cashier may still pay: nothing paid, or a gateway attempt that failed or expired. */

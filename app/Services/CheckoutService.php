@@ -27,6 +27,7 @@ class CheckoutService
         private readonly TransactionTenderService $tenderService,
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
+        private readonly KitchenIntakeService $kitchenIntake,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
@@ -107,6 +108,7 @@ class CheckoutService
                 'grand_total' => $grandTotal,
                 'payment_method' => $paymentMethod,
                 'payment_status' => $paymentStatus,
+                'is_pay_later' => $ctx->isPayLater,
                 'bank_account_id' => $tenderBankAccountId,
                 'order_type' => $ctx->orderType,
                 'note' => $ctx->note,
@@ -124,6 +126,13 @@ class CheckoutService
 
             $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
 
+            // The sale is created already paid, before its lines exist, so the Transaction `updated` hook never sees it.
+            // Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
+            // A pay-later sale is unpaid but goes to the kitchen at once (its settle later never intakes: see Transaction's hook).
+            DB::afterCommit(fn () => rescue(fn () => $ctx->isPayLater
+                ? $this->kitchenIntake->intakeUnpaid($transaction)
+                : $this->kitchenIntake->intake($transaction)));
+
             Cart::where('cashier_id', $ctx->userId)
                 ->active()
                 ->when($ctx->onlyCartIds, fn ($q, $ids) => $q->whereIn('id', $ids))
@@ -131,7 +140,8 @@ class CheckoutService
 
             $this->loyaltyService->finalizeTransaction($transaction, $ctx->customer, $checkoutPreview);
 
-            if ($ctx->isPayLater) {
+            // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
+            if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
                 Receivable::create([
                     'customer_id' => $ctx->customer?->id,
                     'transaction_id' => $transaction->id,

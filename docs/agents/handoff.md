@@ -4,10 +4,85 @@ How work moves between the Tech Lead and the developers. These are the only thre
 or comment that lacks a required field is sent back, not acted on. Roles and board columns:
 [`issue-tracker.md` → Board and roles](issue-tracker.md#board-and-roles).
 
+- [0. Flow rules: pull, limits, priorities](#0-flow-rules-pull-limits-priorities)
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
 - [2. Delivery: developer → Tech Lead](#2-delivery-developer--tech-lead)
 - [3. Review: Tech Lead → PR](#3-review-tech-lead--pr)
 - [4. Business track: Business / PM](#4-business-track-business--pm)
+
+## 0. Flow rules: pull, limits, priorities
+
+Set by the maintainer on 2026-11-26 to keep three developers busy without waiting on anyone. These
+rules come before sections 1–4.
+
+### 0a. Pull, don't wait
+
+- **A developer pulls their own work.** When they have no ticket In progress, they take the next card in
+  Todo whose plan names them (`Builder: devN`) and whose `Blocked by` issues are all merged. They move
+  it to In progress, then tell the Tech Lead they started. They don't wait for an assignment message.
+- **Stacking.** A ticket whose only open blocker is in the same developer's chain, and is already built
+  on a branch, can be pulled too. The developer stacks it on that branch and opens its PR only after
+  the blocker merges.
+- **Nothing of their own is ready:** they take any unblocked `low` card in Todo, or the top test-fix or
+  flaky-test issue, and say so.
+- **Nothing at all is ready:** they tell the Tech Lead "idle" once, and the Tech Lead plans their next
+  ticket first.
+- A session that restarts reads the board and its memory and carries on. It doesn't ask what to do.
+
+- **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are flaky-test fixes,
+  CI and tooling changes, dependency upgrades and refactors: `Backlog: none`, with no change a user
+  sees.
+  - The Tech Lead files them straight into Todo, with a plan and a `Builder`.
+  - They get the technical review only.
+  - If such a change does alter what a user sees, it goes through Backlog and Business / PM as usual.
+
+### 0b. Finish before starting
+
+Everyone takes work in this order:
+
+1. **Unblock merges:** a red `main`, a flaky test, a PR waiting for a review you owe.
+2. **Finish your In progress work.**
+3. **Pull new work.**
+
+The Tech Lead reviews before planning. Business / PM reviews before preparing new tickets.
+
+### 0c. Column limits
+
+| Column | Limit | Owner when it's off |
+|---|---|---|
+| Planning | at least 2 per developer, ready to plan | Business / PM prepares more (section 4, rule 4) |
+| Todo | at least 1 per developer with blockers merged | Tech Lead plans more |
+| In progress | 1 main ticket per developer, plus 1 stacked next-in-chain ticket, plus up to 2 `low` | The developer finishes before pulling |
+| Technical review | at most 3 | The Tech Lead stops planning and reviews |
+| Business review | at most 2 | Business / PM reviews before anything else |
+
+### 0d. Quality that costs no waiting
+
+- **Before Technical review,** the developer runs `/code-review` (low, in a sonnet subagent) on their
+  diff, fixes what it finds and pastes the result in the PR. The Evidence table (2a) is complete, with
+  one row per AC, BR and TC, plus the screenshots. The Tech Lead's review confirms; it doesn't discover.
+- **Flaky tests:** a test that fails and then passes on re-run gets a `test(...)` issue the same day.
+  It goes to the next free developer ahead of feature work. A PR is re-run at most once for a known
+  flake.
+- **E2E is the full regression suite** (maintainer, 2026-11-26).
+  - CI runs **every** feature's e2e on every PR. Shards split the same full suite and never run a subset.
+  - **Every feature or change PR writes its own e2e in the same PR.** It goes in the feature's folder
+    under `tests/e2e/features/`, with one test per AC tagged `@REQ-<n>-AC-<n>` that proves the AC as
+    written. A PR without it isn't reviewed.
+  - That test joins the regression suite for good, so every later PR re-proves the feature, and a new
+    feature can't silently break an older one.
+  - An e2e test is never skipped, `fixme`'d or deleted to get a PR green. A test changes only when its
+    behaviour is changed on purpose, and the PR names the AC or decision behind the change.
+  - A flaky test gets fixed, not silenced.
+- **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
+  isn't cancelled and restarted.
+
+### 0e. Talk less, show more
+
+- **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
+  and 3, plus "idle", "blocked" and "question". There's no status chatter.
+- **Changes to these rules** go into one Standards PR per day, at most. Each one rests on the daily
+  flow report (Business / PM): time per column, rework rounds, CI cancelled or failed, stuck PRs.
 
 ## 1. Task: Tech Lead → developer
 
@@ -44,6 +119,10 @@ One row per Done-when line and per AC:
 ### Docs
 GLOSSARY.md, docs/, README rows the change makes stale.
 
+### Technical acceptance criteria
+- [ ] [TC-1] <one checkable line: schema/migration, server-side permissions, tests per behaviour,
+  e2e per criterion, screenshots, docs, size, standards>
+
 ### Decision record
     Decision (Tech Lead, delegated by the maintainer, YYYY-MM-DD): <what>
     Why: <reason, with the rule or code it rests on>
@@ -59,6 +138,13 @@ in-flight tickets.
 _Plan re-review ✓ (YYYY-MM-DD): cited lines still match `origin/main` <sha>; every Done-when line and
 AC maps to a test; no file overlap with other in-flight tickets._
 ```
+
+**Acceptance lists.** The issue holds two checklists, written before any code: **Business acceptance
+criteria** (`[AC-xx]` from the REQ and `[BR-n]` for each business rule or edge case; Business / PM
+writes them in Backlog) and **Technical acceptance criteria** (`[TC-n]`; the Tech Lead writes them in
+the plan's `### Technical acceptance criteria` block and copies the block into the issue body's
+`## Technical acceptance criteria` section, so the issue holds both lists). Tickets already in Todo or
+later keep their current form (Done when).
 
 **Re-review before Todo.** Read the plan again against current `main`. Check that the cited lines
 haven't moved, that the requirement wording is quoted, that every Done-when line has a test, and that
@@ -89,7 +175,15 @@ message**. "Done" without evidence is not done.
 
 ### 2a. Evidence (in the PR body, the `## Evidence` section)
 
-One row per Done-when line, per AC on the `Backlog:` line, and per plan item.
+**Mandatory evidence** (maintainer, 2026-11-25):
+
+- **Every UI change** has before and after screenshots attached to the PR, showing the REQ wording. A failed upload blocks the merge, and there is no waiver.
+- **Every feature or flow change** has e2e tests, including a backend-only flow, which is asserted through the e2e state query.
+- `E2E: none — <reason>` is allowed only for docs, governance and pure refactors.
+
+One row per Done-when line, per AC on the `Backlog:` line, and per plan item. When the issue has the
+acceptance lists (section 1a), the rows are exactly its `[AC-xx]`, `[BR-n]` and `[TC-n]` lines, in
+that order, with the tag in the first column (`AC-01`, `BR-1`, `TC-1`).
 
 ```markdown
 | # | Item (Done-when / AC / plan) | Done | Evidence |
@@ -133,7 +227,7 @@ Reviews run in a fixed order, and each step starts only when the one before it p
    AC checklist below.
 2. **Business review (Business / PM).** It covers the AC check against *What good looks like*. The
    Tech Lead hands the PR over only after a technical **APPROVE**, with a message to Business / PM:
-   `#<n> | PR <url> | technical APPROVE | ready for business review`. This applies to `feat` PRs and
+   `#<n> | PR <url> | technical APPROVE | ready for business review`. In the same step the Tech Lead moves the issue's card from Technical review to Business review, so the hand-over and the board can't drift. This applies to `feat` PRs and
    to any PR whose `Backlog:` line names criteria. Business / PM doesn't review a PR before the
    handover.
 3. **Merge (Tech Lead).** Both reviews passed and CI is green. The Tech Lead merges and tells
@@ -144,8 +238,8 @@ Reviews run in a fixed order, and each step starts only when the one before it p
    it didn't.
 
 If business review doesn't pass, Business / PM sends its evaluation to the Tech Lead: the criteria
-not met and what it saw. The Tech Lead turns it into a fix for the developer, and the order starts
-again at step 1.
+not met and what it saw. The Tech Lead turns it into a fix for the developer, moves the card back to
+In progress, and the order starts again at step 1.
 
 The Tech Lead's technical approval is a **Requirement & AC checklist** comment on the PR
 ([`REVIEW.md`](../../REVIEW.md) → Review against, item 7). The code review itself runs as
@@ -163,6 +257,10 @@ The Tech Lead's technical approval is a **Requirement & AC checklist** comment o
 **Findings** (REVIEW.md severities): 🔴 … · 🟡 … · 🟣 …
 ```
 
+- **Issues with the acceptance lists:** the Tech Lead ticks only the `[TC-n]` lines in the issue,
+  against the Evidence, and posts `Technical: APPROVE (TC-1..n ✓)` or the failing `TC-n` lines with
+  what was seen. There is no free-form re-derivation. A new technical finding is first added as a
+  `[TC-n]` line, then checked. The table above is the form for tickets that predate the lists.
 - Every Evidence row is re-checked against the REQ text, the plan and the code. It is not copied.
 - Any ✗ or unproven row means **CHANGES**, and there is no merge.
 - On APPROVE, hand the PR to Business / PM (step 2). Merge only when the checklist is all ✓, CI is
@@ -217,6 +315,10 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
    ```
 
    - One row per tagged criterion, Done-when item, recorded decision and business rule or edge case.
+   - **Issues with the acceptance lists:** tick only the `[AC-xx]` and `[BR-n]` lines against the
+     Evidence and post `AC check: OK (AC-…, BR-… ✓)`, or name the unticked lines with what was seen. A
+     business rule found at review is first added as a `[BR-n]` line, then checked; if it changes
+     scope, it goes back through Planning.
    - UI wording must match the REQ terms exactly.
    - Read the full diff. Never pass a PR on its description alone.
    - On ❌, send the evaluation to the Tech Lead (section 3).

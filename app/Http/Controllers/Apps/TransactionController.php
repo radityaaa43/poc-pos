@@ -13,6 +13,7 @@ use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
@@ -34,7 +35,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -180,6 +181,7 @@ class TransactionController extends Controller
                     'order_status' => $bill->dineOrder->status,
                     'pending' => $bill->payment_status === 'pending',
                 ]),
+            'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'customers' => $customers,
             'products' => $products,
             'categories' => $categories,
@@ -624,17 +626,23 @@ class TransactionController extends Controller
             : null;
         $note = trim((string) $request->input('note', '')) ?: null;
 
-        if ($isPayLater && ! $request->filled('due_date')) {
-            return redirect()
-                ->route('transactions.index')
-                ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
-        }
+        $customer = $request->filled('customer_id') ? Customer::find($request->integer('customer_id')) : null;
 
-        // ponytail: piutang wajib punya customer; walk-in (null) sah untuk transaksi biasa
-        if ($isPayLater && ! $request->filled('customer_id')) {
-            return redirect()
-                ->route('transactions.index')
-                ->with('error', 'Nota barang memerlukan pelanggan.');
+        if ($isPayLater) {
+            if (! $outlet || ! Setting::getBoolForOutlet('pay_later_enabled', $outlet)) {
+                throw ValidationException::withMessages(['pay_later' => 'Bayar belakangan tidak aktif di outlet ini']);
+            }
+
+            // A guest has no customer record to chase, so the note must say who owes.
+            if (! $customer && mb_strlen((string) $note) < 2) {
+                throw ValidationException::withMessages(['note' => 'Catatan minimal 2 karakter wajib diisi untuk bayar belakangan tanpa pelanggan.']);
+            }
+
+            if ($customer?->may_buy_on_credit && ! $request->filled('due_date')) {
+                return redirect()
+                    ->route('transactions.index')
+                    ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
+            }
         }
 
         $paymentSetting = null;
@@ -661,7 +669,7 @@ class TransactionController extends Controller
 
         $context = new CheckoutContext(
             userId: $request->user()->id,
-            customer: $request->filled('customer_id') ? Customer::find($request->integer('customer_id')) : null,
+            customer: $customer,
             voucher: $request->filled('customer_voucher_id') ? CustomerVoucher::find($request->integer('customer_voucher_id')) : null,
             manualDiscount: max(0, (int) $request->input('discount', 0)),
             shippingCost: max(0, (int) $request->input('shipping_cost', 0)),
@@ -961,32 +969,6 @@ class TransactionController extends Controller
         return redirect()
             ->back()
             ->with('success', "Pembayaran untuk invoice {$transaction->invoice} berhasil dikonfirmasi.");
-    }
-
-    /**
-     * Pay a failed or expired POS sale again: the same method (Coba lagi) or another one.
-     */
-    public function retryPayment(Request $request, Transaction $transaction)
-    {
-        $this->ensureTransactionAccess($request, $transaction);
-
-        $data = $request->validate([
-            'payment_method' => ['required', Rule::in(['cash', 'qris', 'midtrans', 'xendit', 'bank_transfer'])],
-            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.(int) $transaction->grand_total],
-            'bank_account_id' => ['exclude_unless:payment_method,bank_transfer', 'required', 'integer', 'exists:bank_accounts,id'],
-        ]);
-
-        $print = redirect()->route('transactions.print', $transaction->invoice);
-
-        try {
-            $sale = $this->paymentRetryService->retry($transaction, $request->user(), $data);
-        } catch (PaymentGatewayException $exception) {
-            return $print->with('error', $exception->getMessage());
-        }
-
-        return $sale->payment_status === 'paid'
-            ? $print->with('success', "Pembayaran untuk invoice {$sale->invoice} berhasil dicatat.")
-            : $print->with('success', "Menunggu pembayaran untuk invoice {$sale->invoice}.");
     }
 
     protected function ensureTransactionAccess(Request $request, Transaction $transaction): void

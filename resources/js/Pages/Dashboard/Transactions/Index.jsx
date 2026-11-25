@@ -17,6 +17,8 @@ import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
+import PayLaterOption from "@/Components/POS/PayLaterOption";
+import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
@@ -65,6 +67,7 @@ export default function Index({
     bankAccounts = [],
     warehouses = [],
     loyaltyTierOptions = [],
+    payLaterEnabled = false,
 }) {
     const {
         auth,
@@ -678,13 +681,13 @@ export default function Index({
             return;
         }
 
-        // ponytail: walk-in tanpa pelanggan boleh; nota piutang wajib pelanggan (piutang butuh customer)
-        if (payLater && !selectedCustomer?.id) {
-            toast.error("Nota barang memerlukan pelanggan");
+        // A guest needs a note; only a credit customer gets a receivable, so only they need a due date.
+        if (payLater && !selectedCustomer && orderNote.trim().length < 2) {
+            toast.error(i18n.t("pos.payLater.noteRequired"));
             return;
         }
 
-        if (payLater && !dueDate) {
+        if (payLater && selectedCustomer?.may_buy_on_credit && !dueDate) {
             toast.error("Isi tanggal jatuh tempo untuk nota barang");
             return;
         }
@@ -740,8 +743,12 @@ export default function Index({
 
         setIsSubmitting(true);
 
-        if (!navigator.onLine && splitMode) {
-            toast.error("Split pembayaran tidak tersedia saat offline");
+        if (!navigator.onLine && (splitMode || payLater)) {
+            toast.error(
+                splitMode
+                    ? "Split pembayaran tidak tersedia saat offline"
+                    : i18n.t("pos.payLater.offline")
+            );
             setIsSubmitting(false);
             return;
         }
@@ -756,16 +763,12 @@ export default function Index({
                 shipping_cost: shipping,
                 grand_total: payable,
                 cash: isCashPayment ? cash : payable,
-                payment_method: payLater
-                    ? "pay_later"
-                    : isCashPayment
-                      ? "cash"
-                      : isBankTransfer
-                        ? "bank_transfer"
-                        : paymentMethod,
+                payment_method: isCashPayment
+                    ? "cash"
+                    : isBankTransfer
+                      ? "bank_transfer"
+                      : paymentMethod,
                 payment_gateway: null,
-                pay_later: payLater,
-                due_date: payLater ? dueDate : null,
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
                 order_type: orderType,
                 note: orderNote || null,
@@ -845,9 +848,10 @@ export default function Index({
                     setIsSubmitting(false);
                     toast.success("Transaksi berhasil!");
                 },
-                onError: () => {
+                onError: (errors) => {
                     setIsSubmitting(false);
-                    toast.error("Gagal menyimpan transaksi");
+                    // The pay-later gate and the guest note rule answer with their own message.
+                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1243,56 +1247,22 @@ export default function Index({
 
                         {/* Payment Details - Scrollable */}
                         <div data-tour="pos-payment" className="p-3 space-y-4">
-                            {/* Pay later toggle */}
-                            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-                                <div>
-                                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                                        Bayar Belakangan (Nota Barang)
-                                    </p>
-                                    <p className="text-xs text-slate-500">
-                                        Tidak perlu bayar sekarang, catat sebagai piutang.
-                                    </p>
-                                </div>
-                                <label className="inline-flex items-center cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        className="sr-only"
-                                        checked={payLater}
-                                        onChange={(e) => {
-                                            setPayLater(e.target.checked);
-                                            if (e.target.checked) {
-                                                setSelectedBankAccount(null);
-                                                setPaymentMethod("cash");
-                                            }
-                                        }}
-                                    />
-                                    <span
-                                        className={`w-11 h-6 flex items-center bg-slate-300 rounded-full p-1 transition ${
-                                            payLater ? "bg-primary-500" : ""
-                                        }`}
-                                    >
-                                        <span
-                                            className={`bg-white w-4 h-4 rounded-full shadow transform transition ${
-                                                payLater ? "translate-x-5" : ""
-                                            }`}
-                                        />
-                                    </span>
-                                </label>
-                            </div>
-
-                            {payLater && (
-                                <div>
-                                    <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-                                        Tanggal Jatuh Tempo
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={dueDate}
-                                        onChange={(e) => setDueDate(e.target.value)}
-                                        className="w-full h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
-                                    />
-                                </div>
-                            )}
+                            <PayLaterOption
+                                enabled={payLaterEnabled}
+                                payLater={payLater}
+                                onPayLaterChange={(on) => {
+                                    setPayLater(on);
+                                    if (on) {
+                                        setSelectedBankAccount(null);
+                                        setPaymentMethod("cash");
+                                    }
+                                }}
+                                customer={selectedCustomer}
+                                dueDate={dueDate}
+                                onDueDateChange={setDueDate}
+                                note={orderNote}
+                                onNoteChange={setOrderNote}
+                            />
 
                             {/* Order details */}
                             <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40">
@@ -1995,7 +1965,6 @@ export default function Index({
                             onClick={handleSubmitTransaction}
                             disabled={
                                 !carts.length ||
-                                (payLater && !selectedCustomer) ||
                                 (!payLater &&
                                     paymentMethod === "cash" &&
                                     cash < payable) ||
@@ -2004,7 +1973,6 @@ export default function Index({
                             }
                             className={`w-full h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all ${
                                 carts.length &&
-                                (!payLater || selectedCustomer) &&
                                 (paymentMethod !== "cash" || cash >= payable)
                                     && !isLoadingPricing
                                     ? "bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700 text-white shadow-lg shadow-primary-500/30"
@@ -2019,8 +1987,6 @@ export default function Index({
                                     <span>
                                         {!carts.length
                                             ? "Keranjang Kosong"
-                                            : payLater && !selectedCustomer
-                                            ? "Pilih Pelanggan untuk Nota Barang"
                                             : paymentMethod === "cash" &&
                                               cash < payable
                                             ? `Kurang ${formatPrice(

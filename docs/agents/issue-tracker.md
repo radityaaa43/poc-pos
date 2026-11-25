@@ -6,7 +6,10 @@ operations. Every change starts from an issue (`AGENTS.md`).
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body-file <file>` (use the templates in
-  `.github/ISSUE_TEMPLATE/`; a heredoc or file for multi-line bodies).
+  `.github/ISSUE_TEMPLATE/`; a heredoc or file for multi-line bodies). `feature.md` has *Business
+  acceptance criteria* and *Technical acceptance criteria*; `bug.md` stays on *Done when*, since bugs
+  carry no REQ criteria. The Issue checklist accepts either `## Business acceptance criteria` or
+  `## Done when`.
 - **Read an issue**: `gh issue view <number> --json number,title,body,labels,assignees,comments`.
 - **List issues**: `gh issue list --state open --label <label> --json number,title,labels,assignees`.
 - **Sub-issues**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>`
@@ -91,8 +94,9 @@ it on the issue.
 | **Backlog** | Business / PM | It meets the business Definition of Ready (below) | Business / PM → Planning |
 | **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
-| **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → In review |
-| **In review** | Tech Lead, then Business / PM | The Tech Lead's technical review approved, then (for a `feat` PR or any PR with criteria) Business / PM's review passed, and CI is green | Tech Lead merges; Business / PM → Done |
+| **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → Technical review |
+| **Technical review** | Tech Lead | The Tech Lead's technical review approved. A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here | Tech Lead → Business review, in the same step as the handover message ([`handoff.md`](handoff.md) → 3); or merges |
+| **Business review** | Business / PM | Business / PM's AC check is OK and CI is green. On a failed check the card goes back to In progress | Tech Lead merges |
 | **Done** | Business / PM | — | Business / PM, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
 
 New issues land in Backlog. Dependencies stay as `Blocked by #<n>` and sub-issues; there is no
@@ -127,7 +131,7 @@ files.
 **Moving a card**: `gh project item-list 1 --owner radityaaa43 --format json` gives the item IDs, then
 `gh project item-edit --project-id PVT_kwHOA9U6R84BtLzZ --id <item> --field-id
 PVTSSF_lAHOA9U6R84BtLzZzhrWdvw --single-select-option-id <option>`. Status options: Backlog
-`92c46c55`, Planning `a8b028cf`, Todo `bcf512e5`, In progress `beac7de7`, In review `d3a2e75a`,
-Done `ba2a9002`. Effort is field `PVTSSF_lAHOA9U6R84BtLzZzhrWmx4`, options low `925e9424`, medium
+`92c46c55`, Planning `a8b028cf`, Todo `bcf512e5`, In progress `beac7de7`, Technical review `d3a2e75a`,
+Business review `5ba4293e`, Done `ba2a9002`. Effort is field `PVTSSF_lAHOA9U6R84BtLzZzhrWmx4`, options low `925e9424`, medium
 `d05ec75c`, high `6ccd014c`, xhigh `1cfdc60d`, max `98931aeb`. `gh` needs the `project` scope
 (`gh auth refresh -s project`).

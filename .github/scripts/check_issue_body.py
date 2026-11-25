@@ -23,10 +23,10 @@ def problems(body: str, created_at: str = "9999", cfg: dict | None = None, title
             rf"({'|'.join(map(re.escape, types))})\([a-z0-9][a-z0-9-]*\)!?: \S", title):
         found.append(f"Title `{title.replace('`', '')}` doesn't follow `<type>(<scope>): <summary>` "
                      f"(type one of {', '.join(types)}). See docs/agents/issue-tracker.md → Conventions.")
-    for heading in cfg["issue"].get("required_sections", []):
-        text = gc.section(body, heading)
-        if text is None or not text.strip(" \n-[]"):
-            found.append(f"Fill the `## {heading}` section.")
+    for entry in cfg["issue"].get("required_sections", []):
+        names = entry if isinstance(entry, list) else [entry]  # a list means "any of these headings"
+        if not any((gc.section(body, n) or "").strip(" \n-[]") for n in names):
+            found.append(f"Fill the `## {names[0]}` section" + (f" (or `## {names[1]}`)." if len(names) > 1 else "."))
     if cfg["ai_used"].get("required") and day >= cfg["ai_used"]["rule_start"]:
         found.append(ai_used.problem(body, "drafted this issue"))
     if day >= cfg["backlog"]["rule_start"]:

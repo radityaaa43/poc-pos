@@ -16,6 +16,7 @@ use App\Http\Controllers\Apps\DineTableController;
 use App\Http\Controllers\Apps\DiscountApprovalController;
 use App\Http\Controllers\Apps\GoodsReceivingController;
 use App\Http\Controllers\Apps\ImportExportController;
+use App\Http\Controllers\Apps\KitchenController;
 use App\Http\Controllers\Apps\MemberController;
 use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PayableController;
@@ -34,6 +35,7 @@ use App\Http\Controllers\Apps\StockTransferController;
 use App\Http\Controllers\Apps\SupplierController;
 use App\Http\Controllers\Apps\SupplierReturnController;
 use App\Http\Controllers\Apps\TransactionController;
+use App\Http\Controllers\Apps\TransactionRetryController;
 use App\Http\Controllers\Apps\UnitController;
 use App\Http\Controllers\Apps\WarehouseController;
 use App\Http\Controllers\DashboardController;
@@ -414,7 +416,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::patch('/transactions/{transaction}/confirm-payment', [TransactionController::class, 'confirmPayment'])->middleware(['permission:transactions-confirm-payment', 'step_up'])->name('transactions.confirm-payment');
 
     // retry a failed or expired POS payment, same method or another one
-    Route::post('/transactions/{transaction}/retry-payment', [TransactionController::class, 'retryPayment'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.retry-payment');
+    Route::post('/transactions/{transaction}/retry-payment', TransactionRetryController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.retry-payment');
 
     // discount approval
     Route::get('/discount-approvals', [DiscountApprovalController::class, 'pending'])->middleware('permission:discounts-approve')->name('discount-approvals.pending');
@@ -449,6 +451,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('/dine-orders/{dineOrder}/serve', [App\Http\Controllers\Apps\DineOrderController::class, 'serve'])->middleware('permission:dine-orders-handover')->name('dine-orders.serve');
     Route::post('/dine-orders/{dineOrder}/pay', [App\Http\Controllers\Apps\DineOrderController::class, 'pay'])->middleware(['permission:dine-orders-process', 'active_shift'])->name('dine-orders.pay');
     Route::post('/dine-orders/{dineOrder}/reject', [App\Http\Controllers\Apps\DineOrderController::class, 'reject'])->middleware('permission:dine-orders-process')->name('dine-orders.reject');
+    Route::get('/kitchen', [KitchenController::class, 'index'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.index');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

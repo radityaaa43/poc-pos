@@ -25,8 +25,9 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
    review is the approval.
 7. **Evidence and the Requirement & AC checklist**: the PR's `## Evidence` table has a row with
    proof for every Done-when line, every `Backlog:` criterion and every plan item. The Tech Lead's
-   approval is a checklist comment that re-checks each row against the REQ text, the plan and the
-   code (format: [`docs/agents/handoff.md`](docs/agents/handoff.md) → 3). A missing row, a row
+   approval ticks the owner's list (`[TC-n]`) against the Evidence, or, on tickets that predate the
+   lists, re-checks each row against the REQ text, the plan and the code (format:
+   [`docs/agents/handoff.md`](docs/agents/handoff.md) → 3). A missing row, a row
    without proof, or UI text that differs from the REQ wording is 🔴.
 
 Also check:

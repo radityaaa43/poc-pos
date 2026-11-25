@@ -1,6 +1,7 @@
 import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
 import { addToCart, chooseCustomer, finish, increment, openPos, productCard, rupiah, total } from '../../support/pos.js';
+import { field } from '../../support/inventory.js';
 
 const cashier = roles.find((role) => role.key === 'cashier');
 // The checkbox is visually hidden (a styled switch sits on top), so act on it directly.
@@ -12,9 +13,12 @@ const payLaterToggle = (page) => ({
 test.describe('POS checkout: pay later (nota barang) to a customer', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('a pay-later sale needs a customer and a due date, then becomes a receivable', async ({ asRole, arrange, uniq }) => {
+    test('a pay-later sale to a credit customer needs a due date, then becomes a receivable', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('credit'), stock: 5 });
         const customer = arrange('pos.customer', { name: uniq('Warung Bu Tini') });
+        // Bayar Belakangan is off until the outlet turns it on, and only a "Boleh piutang" customer leaves a receivable.
+        arrange('paylater.setting', { enabled: 1 });
+        arrange('paylater.credit', { customer_id: customer.customer_id });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
 
@@ -25,18 +29,19 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
 
         // Turning pay-later on swaps the cash panel for a due-date field.
         await payLaterToggle(page).check();
-        await expect(page.getByText('Tanggal Jatuh Tempo')).toBeVisible();
         await expect(page.getByText('Pembayaran Tunai')).toHaveCount(0);
-        // Pay-later is the one case that needs a customer (#133).
-        await expect(page.getByRole('button', { name: 'Pilih Pelanggan untuk Nota Barang' })).toBeDisabled();
+        // No customer is needed any more (REQ-003 BR-7): a guest leaves a note instead, so no due date is asked yet.
+        await expect(page.getByText('Catatan (wajib untuk tamu)')).toBeVisible();
+        await expect(page.getByText('Tanggal Jatuh Tempo')).toHaveCount(0);
 
         // With a customer but no due date the sale is refused on the spot.
         await chooseCustomer(page, customer.name);
+        await expect(page.getByText('Tanggal Jatuh Tempo')).toBeVisible(); // a credit customer picks a due date
         await page.getByRole('button', { name: 'Selesaikan Transaksi' }).click();
         await expect(page.getByText('Isi tanggal jatuh tempo untuk nota barang')).toBeVisible();
         await expect(page).toHaveURL(/\/dashboard\/transactions$/);
 
-        await page.getByText('Tanggal Jatuh Tempo').locator('xpath=following-sibling::input').fill('2026-12-31');
+        await field(page, 'Tanggal Jatuh Tempo').fill('2026-12-31');
         const invoice = await finish(page);
 
         // The receipt is an unpaid note with its due date; nothing was collected.
@@ -70,15 +75,16 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
 
     test('pay later is dropped when the toggle is turned off again', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('credit-off'), stock: 5 });
+        arrange('paylater.setting', { enabled: 1 });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
 
         await openPos(page);
         await addToCart(page, product.title);
         await payLaterToggle(page).check();
-        await expect(page.getByText('Tanggal Jatuh Tempo')).toBeVisible();
+        await expect(page.getByText('Catatan (wajib untuk tamu)')).toBeVisible(); // a guest: the note, not a due date
         await payLaterToggle(page).uncheck();
-        await expect(page.getByText('Tanggal Jatuh Tempo')).toHaveCount(0);
+        await expect(page.getByText('Catatan (wajib untuk tamu)')).toHaveCount(0);
         await expect(page.getByText('Pembayaran Tunai')).toBeVisible();
         await expect(total(page)).toHaveText(rupiah(10000));
     });
