@@ -31,6 +31,7 @@ class KitchenItem extends Model
         'transaction_detail_id',
         'product_id',
         'warehouse_id',
+        'kitchen_station_id',
         'qty',
         'note',
         'status',
@@ -82,6 +83,16 @@ class KitchenItem extends Model
     public function readyUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'ready_by');
+    }
+
+    /**
+     * withTrashed: an item keeps showing the name of a station deleted after it entered the kitchen.
+     *
+     * @return BelongsTo<KitchenStation, $this>
+     */
+    public function kitchenStation(): BelongsTo
+    {
+        return $this->belongsTo(KitchenStation::class)->withTrashed();
     }
 
     /** Not yet served: still waiting on the kitchen or the pass. */
