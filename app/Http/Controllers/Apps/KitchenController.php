@@ -35,7 +35,7 @@ class KitchenController extends Controller
             'orders' => KitchenOrders::fromItems($items),
             'outlet' => $outlet?->only('id', 'name'),
             // Active stations only (the model's soft-delete scope); the display filters by them in the browser.
-            'stations' => KitchenStation::orderByDesc('is_default')->orderBy('name')->get(['id', 'name', 'is_default']),
+            'stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
         ]);
     }
 

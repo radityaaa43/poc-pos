@@ -140,6 +140,41 @@ class KitchenStationDisplayTest extends TestCase
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $drink->fresh()->status);
     }
 
+    public function test_all_ready_scopes_by_station_and_never_leaks_into_another_sale(): void
+    {
+        $dapur = KitchenStation::where('is_default', true)->firstOrFail();
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $gone = KitchenStation::create(['name' => 'Sementara']);
+
+        $build = function () use ($dapur, $bar, $gone) {
+            $sale = $this->sale();
+            $items = [
+                'dapur' => $this->item($sale, $dapur),
+                'bar' => $this->item($sale, $bar),
+                'null' => tap($this->item($sale, $dapur))->update(['kitchen_station_id' => null]),
+                'gone' => $this->item($sale, $gone),
+            ];
+
+            return [$sale, $items];
+        };
+        [$sale, $items] = $build();
+        [$other, $otherItems] = $build();
+        $gone->delete();
+
+        $statuses = fn (array $set) => array_map(fn (KitchenItem $item) => $item->fresh()->status, $set);
+        $open = KitchenItem::STATUS_ACCEPTED;
+        $ready = KitchenItem::STATUS_READY;
+
+        $this->actingAs($this->cook)->post(route('kitchen.orders.all-ready', $sale), ['station_ids' => [$dapur->id]])->assertSessionHasNoErrors();
+        $this->assertSame(['dapur' => $ready, 'bar' => $open, 'null' => $ready, 'gone' => $ready], $statuses($items));
+        $this->assertSame(['dapur' => $open, 'bar' => $open, 'null' => $open, 'gone' => $open], $statuses($otherItems));
+
+        // A Bar display on the other sale marks only Bar, and the first sale is not touched again.
+        $this->actingAs($this->cook)->post(route('kitchen.orders.all-ready', $other), ['station_ids' => [$bar->id]])->assertSessionHasNoErrors();
+        $this->assertSame(['dapur' => $open, 'bar' => $ready, 'null' => $open, 'gone' => $open], $statuses($otherItems));
+        $this->assertSame(['dapur' => $ready, 'bar' => $open, 'null' => $ready, 'gone' => $ready], $statuses($items));
+    }
+
     public function test_all_ready_with_an_unknown_station_id_changes_nothing(): void
     {
         $sale = $this->sale();
