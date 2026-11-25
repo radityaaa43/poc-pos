@@ -23,8 +23,7 @@ test('the Share button copies the portal link of the invoice', async ({ arrange,
     expect(link).toContain(`/portal/transactions/${sale.invoice}?token=${sale.token}`);
 });
 
-// Bug #111: the copied link repeats the origin (http://host/http://host/portal/...), so it does not open.
-test.fixme('a guest opens the link the cashier copied', async ({ arrange, asRole, page: guest }) => {
+test('a guest opens the link the cashier copied', async ({ arrange, asRole, page: guest }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'pay_later', outlet: 'e2e' });
 
