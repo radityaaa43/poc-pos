@@ -308,6 +308,7 @@
             "warehouses": "Warehouses / Branches",
             "outlets": "Outlets",
             "units": "Units",
+            "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp"
         },
         "menu": {
@@ -424,7 +425,8 @@
         },
         "preparation": {
             "needsPreparation": "Needs preparation (made to order in the kitchen)",
-            "targetMinutes": "Prep target (minutes)"
+            "targetMinutes": "Prep target (minutes)",
+            "station": "Kitchen station"
         }
     },
     "categories": {
@@ -1117,5 +1119,21 @@
             "label": "Bayar Belakangan",
             "hint": "Let the POS of this outlet sell now and collect payment later."
         }
+    },
+    "kitchenStations": {
+        "title": "Kitchen stations",
+        "add": "Add station",
+        "rename": "Rename station",
+        "renameLabel": "Rename {{name}}",
+        "deleteLabel": "Delete station {{name}}",
+        "name": "Station name",
+        "default": "Built-in",
+        "empty": "No stations yet",
+        "deleteTitle": "Delete station {{name}}?",
+        "deleteConfirm": "Its products move to {{default}}. Items already in the kitchen stay where they are.",
+        "created": "Station added",
+        "renamed": "Station renamed",
+        "deleted": "Station deleted",
+        "failed": "Could not save the station"
     }
 }

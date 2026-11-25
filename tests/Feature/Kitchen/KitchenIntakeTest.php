@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -288,6 +289,47 @@ class KitchenIntakeTest extends TestCase
         $this->assertSame(1, KitchenItem::count());
     }
 
+    // REQ-006 AC-02, AC-03, AC-04 (writing half): the item is given its station once, when it enters the kitchen.
+    public function test_item_gets_the_station_of_its_product_and_unmapped_goes_to_the_default(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $drink = $this->product('Es teh', flagged: true);
+        $drink->update(['kitchen_station_id' => $bar->id]);
+        $food = $this->product('Nasi goreng', flagged: true);
+
+        $this->paidSale([$drink, $food]);
+
+        $items = KitchenItem::orderBy('id')->get();
+        $this->assertSame([$drink->id, $food->id], $items->pluck('product_id')->all());
+        $this->assertSame([$bar->id, $this->defaultStationId()], $items->pluck('kitchen_station_id')->all());
+    }
+
+    public function test_a_product_still_pointing_at_a_deleted_station_goes_to_the_default_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $drink = $this->product('Es teh', flagged: true);
+        $drink->update(['kitchen_station_id' => $bar->id]);
+        $bar->delete(); // deleted in a race: the product was not moved yet
+
+        $this->paidSale([$drink]);
+
+        $this->assertSame($this->defaultStationId(), KitchenItem::sole()->kitchen_station_id);
+    }
+
+    public function test_moving_the_product_later_does_not_change_the_item(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $grill = KitchenStation::create(['name' => 'Grill']);
+        $dish = $this->product('Sate', flagged: true);
+        $dish->update(['kitchen_station_id' => $bar->id]);
+        $transaction = $this->paidSale([$dish]);
+
+        $dish->update(['kitchen_station_id' => $grill->id]);
+        app(KitchenIntakeService::class)->intake($transaction->fresh()); // a retry writes nothing new
+
+        $this->assertSame($bar->id, KitchenItem::sole()->kitchen_station_id);
+    }
+
     public function test_retry_after_failed_payment_records_kitchen_items_once(): void
     {
         $this->enableMidtrans();
@@ -398,6 +440,20 @@ class KitchenIntakeTest extends TestCase
         $this->warehouse->products()->attach($product->id, ['stock' => 100]);
 
         return $product;
+    }
+
+    private function defaultStationId(): int
+    {
+        return KitchenStation::where('is_default', true)->value('id');
+    }
+
+    /** A sale of $products that has just turned paid: the model hook runs the kitchen intake. */
+    private function paidSale(array $products): Transaction
+    {
+        $transaction = $this->pendingSale('cash', $products, 'INV-STATION');
+        $transaction->update(['payment_status' => 'paid']);
+
+        return $transaction;
     }
 
     private function addToCart(Product $product, int $qty = 1): void
