@@ -7,12 +7,10 @@ import { xlsxText } from '../../support/xlsx.js';
 const expect = baseExpect.configure({ timeout: 45_000 });
 test.use({ actionTimeout: 60_000, navigationTimeout: 60_000 });
 
-// Both imports are broken today, so both steps are fixme with a bug issue; each needs its cleanup once fixed.
 test.describe('imports', () => {
     test.setTimeout(240_000);
 
-    // Bug #155: a plain CSV is refused ("must be a file of type: xlsx, xls, csv") and the page shows nothing.
-    test.fixme('a CSV of customers is imported and shows in the export', async ({ page, arrange, uniq }, testInfo) => {
+    test('a CSV of customers is imported and shows in the export', async ({ page, arrange, uniq }, testInfo) => {
         const { email } = arrange('platform.user');
         const name = uniq('Pelanggan Impor');
         const csv = testInfo.outputPath('customer.csv');
@@ -31,16 +29,25 @@ test.describe('imports', () => {
         }
     });
 
-    // Bug #154: importing any product answers HTTP 500 (duplicate primary key), even with the file the app exported.
-    test.fixme('the exported product workbook can be imported again without duplicating products', async ({ page, arrange }) => {
+    test('the exported product workbook can be imported again without duplicating products', async ({ page, arrange }) => {
         const { email } = arrange('platform.user');
         await signIn(page, email);
         await page.goto('/dashboard/products');
 
-        const [download] = await Promise.all([page.waitForEvent('download'), page.locator('a[href$="/export/products"]').click()]);
+        // The page shows no message after a product import, so compare the export before and after instead.
+        const exportFile = async () => {
+            const [download] = await Promise.all([page.waitForEvent('download'), page.locator('a[href$="/export/products"]').click()]);
+            return download.path();
+        };
+        const rows = async (file) => (xlsxText(await readFile(file)).match(/<row /g) ?? []).length;
+
+        const file = await exportFile();
+        const before = await rows(file);
+        expect(before).toBeGreaterThan(1);
         const done = page.waitForResponse((response) => response.url().endsWith('/import/products') && response.request().method() === 'POST');
-        await page.locator('#import-products-input').setInputFiles(await download.path());
+        await page.locator('#import-products-input').setInputFiles(file);
         expect((await done).status()).toBeLessThan(400);
-        await expect(page.getByText(/Import selesai/)).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        expect(await rows(await exportFile())).toBe(before);
     });
 });

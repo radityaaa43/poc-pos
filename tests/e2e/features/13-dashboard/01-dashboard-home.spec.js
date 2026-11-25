@@ -35,8 +35,7 @@ test.describe('dashboard home', () => {
         }
     });
 
-    // Bug #100: the subtitle shows the raw ":done" and ":total" placeholders.
-    test.fixme('the setup checklist counts the finished steps', async ({ page, arrange }) => {
+    test('the setup checklist counts the finished steps', async ({ page, arrange }) => {
         const { email } = arrange('platform.user');
         await signIn(page, email);
         await page.goto('/dashboard');

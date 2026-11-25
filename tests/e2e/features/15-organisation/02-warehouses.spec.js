@@ -45,8 +45,9 @@ test.describe('warehouses', () => {
         await expect(row(page, name)).toBeHidden();
     });
 
-    // Bug #142: the page gets only id, code, name and active flag; saving an edit fails with "The type field is
-    // required.", type, phone and order are blank, and inactive rows vanish.
+    // #142 is fixed (the list shows type, phone, order and inactive rows), but an inactive warehouse cannot be
+    // deleted: OutletAccessService::canUseWarehouse() is false for it, so destroy (and update) answer 404 and
+    // the step cannot clean up after itself.
     test.fixme('the list shows each warehouse type, phone and order, and keeps inactive ones', async ({ page, arrange, uniq }) => {
         const { email } = arrange('platform.user');
         const code = uniq('wh').toUpperCase().slice(0, 12);

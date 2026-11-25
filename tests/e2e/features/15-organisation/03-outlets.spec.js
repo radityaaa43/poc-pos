@@ -96,17 +96,42 @@ test.describe('outlets', () => {
         await savePrinter();
     });
 
-    // Bug #151: the page keeps the previous outlet's values after the switch (only a reload shows the right ones).
-    test.fixme('the settings page shows the new outlet right after the switch, without a reload', async ({ page, arrange }) => {
+    test('the settings page shows the new outlet right after the switch, without a reload', async ({ page, arrange }) => {
         const admin = arrange('platform.user', { role: 'super-admin' });
         const picker = page.getByRole('banner').getByRole('combobox');
 
+        const paper = () => page.getByRole('combobox').last();
+        // Wait for each request and the page it redirects back to: acting before they land would save to the wrong outlet.
+        const printerPage = () => page.waitForResponse((response) => response.url().endsWith('/settings/printer') && response.request().method() === 'GET');
+        const switchTo = async (label) => {
+            const switched = page.waitForResponse((response) => response.url().endsWith('/dashboard/outlet') && response.request().method() === 'POST');
+            const loaded = printerPage();
+            await picker.selectOption({ label });
+            await switched;
+            await loaded;
+        };
+        const savePrinter = async () => {
+            const saved = page.waitForResponse((response) => response.url().endsWith('/settings/printer') && response.request().method() === 'POST');
+            const loaded = printerPage();
+            await page.getByRole('button', { name: 'Simpan Pengaturan' }).click();
+            await saved;
+            await loaded;
+        };
+
         await signIn(page, admin.email);
         await page.goto('/dashboard/settings/printer');
-        await picker.selectOption({ label: 'PUSAT - Gudang Pusat' });
-        await page.getByRole('combobox').last().selectOption('58mm');
-        await page.getByRole('button', { name: 'Simpan Pengaturan' }).click();
-        await picker.selectOption({ label: 'E2E - Outlet E2E' });
-        await expect(page.getByRole('combobox').last()).toHaveValue('80mm');
+        await page.waitForLoadState('networkidle');
+        await switchTo('PUSAT - Gudang Pusat');
+        await paper().selectOption('58mm');
+        await savePrinter();
+
+        // No reload: the page already shows the E2E outlet's own paper size.
+        await switchTo('E2E - Outlet E2E');
+        await expect(paper()).toHaveValue('80mm');
+
+        // Put PUSAT back as it was.
+        await switchTo('PUSAT - Gudang Pusat');
+        await paper().selectOption('80mm');
+        await savePrinter();
     });
 });

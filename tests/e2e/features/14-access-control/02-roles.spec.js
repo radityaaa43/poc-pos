@@ -76,8 +76,7 @@ test.describe('roles', () => {
         await expect(page.frameLocator('iframe').getByText('Role super-admin tidak dapat dihapus.')).toBeVisible();
     });
 
-    // Bug #156: the form posts permission ids, the audit log expects names: HTTP 500 after the role is stored.
-    test.fixme('a role is created with permissions picked in the form', async ({ page, arrange, uniq }) => {
+    test('a role is created with permissions picked in the form', async ({ page, arrange, uniq }) => {
         const admin = arrange('platform.user', { role: 'super-admin' });
         const name = uniq('peran');
         await page.setViewportSize({ width: 1280, height: 2600 });
