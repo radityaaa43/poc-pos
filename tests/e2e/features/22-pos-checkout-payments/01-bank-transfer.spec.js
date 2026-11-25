@@ -1,4 +1,5 @@
 import { test, expect } from '../../support/fixtures.js';
+import { login } from '../../support/login.js';
 import { roles } from '../../support/roles.js';
 import { addToCart, chooseCustomer, finish, openPos, rupiah, total } from '../../support/pos.js';
 
@@ -8,7 +9,7 @@ const manager = roles.find((role) => role.key === 'manager');
 test.describe('POS checkout: bank transfer', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('a transfer needs an account, waits for payment, and a manager confirms it', async ({ asRole, arrange, uniq }) => {
+    test('a transfer needs an account, waits for payment, and a manager confirms it', async ({ asRole, arrange, uniq, browser }) => {
         const product = arrange('product', { title: uniq('transfer'), stock: 10 });
         const customer = arrange('pos.customer', { name: uniq('Dewi') });
         const bank = arrange('pos.bank-account', { bank: uniq('BCA') });
@@ -42,13 +43,16 @@ test.describe('POS checkout: bank transfer', () => {
         await expect(page.getByRole('button', { name: 'Konfirmasi Bayar' })).toHaveCount(0);
 
         // A manager sees the same receipt with the confirm button, and confirming marks it paid.
-        const boss = await asRole(manager);
+        // A fresh manager login: the password step-up below must not leak into the shared saved session,
+        // or later steps that expect the step-up (61-price-lists) see none.
+        const boss = await (await browser.newContext({ locale: 'id-ID', serviceWorkers: 'block' })).newPage();
+        await login(boss, manager.email);
+        await expect(boss).toHaveURL(/\/dashboard/);
         await boss.goto(`/dashboard/transactions/${invoice}/print`);
         await expect(boss.getByText('Menunggu', { exact: true })).toBeVisible();
         await boss.getByRole('button', { name: 'Konfirmasi Bayar' }).click();
         await boss.getByRole('button', { name: 'Konfirmasi Lunas' }).click();
-        // Confirming is an admin action: unless the manager's password was confirmed in the last 15 minutes (an
-        // earlier step of the same saved session may have), the app asks for it again (step-up) first.
+        // Confirming is an admin action: the fresh session has no recent password, so the app may ask for it (step-up).
         const stepUp = boss.getByRole('heading', { name: 'Konfirmasi Password' });
         await expect(stepUp.or(boss.getByText('Lunas', { exact: true }))).toBeVisible();
         if (await stepUp.isVisible()) {

@@ -27,7 +27,8 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
         await payLaterToggle(page).check();
         await expect(page.getByText('Tanggal Jatuh Tempo')).toBeVisible();
         await expect(page.getByText('Pembayaran Tunai')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: /^Pilih Pelanggan$/ })).toBeDisabled();
+        // Pay-later is the one case that needs a customer (#133).
+        await expect(page.getByRole('button', { name: 'Pilih Pelanggan untuk Nota Barang' })).toBeDisabled();
 
         // With a customer but no due date the sale is refused on the spot.
         await chooseCustomer(page, customer.name);

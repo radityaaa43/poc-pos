@@ -22,9 +22,9 @@ test.describe('POS checkout: cash with change', () => {
         await expect(page.getByText('Rp 10.000 × 3')).toBeVisible();
         await expect(total(page)).toHaveText(rupiah(30000));
 
-        // The sale needs a customer, then the exact amount.
-        const submit = page.getByRole('button', { name: /^(Pilih Pelanggan|Kurang|Selesaikan)/ });
-        await expect(submit).toHaveText('Pilih Pelanggan');
+        // A cash sale needs no customer (walk-in, #133); the button asks for the amount first.
+        const submit = page.getByRole('button', { name: /^(Kurang|Selesaikan)/ });
+        await expect(submit).toHaveText(`Kurang ${rupiah(30000)}`);
         await expect(submit).toBeDisabled();
         await chooseCustomer(page, customer.name);
         await expect(submit).toHaveText(`Kurang ${rupiah(30000)}`);
