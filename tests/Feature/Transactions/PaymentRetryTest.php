@@ -521,7 +521,7 @@ class PaymentRetryTest extends TestCase
 
     public function test_payment_attempt_migration_rolls_back(): void
     {
-        $migration = require database_path('migrations/2026_11_29_200001_add_payment_attempt_to_transactions_table.php');
+        $migration = require database_path('migrations/2026_11_30_200001_add_payment_attempt_to_transactions_table.php');
 
         $migration->down();
         $this->assertFalse(Schema::hasColumn('transactions', 'payment_attempt'));
