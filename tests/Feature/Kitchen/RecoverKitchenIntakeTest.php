@@ -191,7 +191,7 @@ class RecoverKitchenIntakeTest extends TestCase
 
         $this->assertEqualsCanonicalizing([$first->id, $last->id], KitchenItem::pluck('transaction_id')->all());
         Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'kitchen down');
-        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 1]);
+        Log::shouldHaveReceived('info')->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 1])->once();
     }
 
     public function test_the_window_is_30_minutes_29_recovered_31_skipped(): void
@@ -265,8 +265,8 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->assertEqualsCanonicalizing([$credit->id, $dineBill->id], KitchenItem::pluck('transaction_id')->all());
         $this->assertSame(2, KitchenItem::count());
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, KitchenItem::where('transaction_id', $credit->id)->value('status'));
-        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0]);
-        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 0, 'failed' => 0]);
+        Log::shouldHaveReceived('info')->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0])->once();
+        Log::shouldHaveReceived('info')->with('kitchen:recover-intake', ['recovered' => 0, 'failed' => 0])->once();
     }
 
     public function test_a_pay_later_sale_is_recovered_in_every_payment_state(): void
@@ -324,7 +324,7 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->artisan('kitchen:recover-intake')->assertSuccessful();
 
         $this->assertEqualsCanonicalizing([$plain->id, $partlyReturned->id], KitchenItem::pluck('transaction_id')->all());
-        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0]);
+        Log::shouldHaveReceived('info')->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0])->once();
     }
 
     // #360 TC-3
