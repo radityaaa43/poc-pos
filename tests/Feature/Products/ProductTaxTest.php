@@ -4,6 +4,7 @@ namespace Tests\Feature\Products;
 
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\User;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
@@ -112,5 +113,14 @@ class ProductTaxTest extends TestCase
         $this->post(route('products.store'), $this->validPayload([
             'tax_rate' => '150',
         ]))->assertSessionHasErrors('tax_rate');
+    }
+
+    public function test_new_product_form_starts_at_the_store_default_tax_rate(): void
+    {
+        Setting::set('tax_default_rate', '12.5');
+
+        $this->get(route('products.create'))->assertInertia(fn ($page) => $page
+            ->component('Dashboard/Products/Create')
+            ->where('default_tax_rate', 12.5));
     }
 }

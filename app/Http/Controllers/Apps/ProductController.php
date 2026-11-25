@@ -12,6 +12,7 @@ use App\Services\AuditLogService;
 use App\Services\InventoryCostService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
+use App\Services\TaxService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -69,6 +70,7 @@ class ProductController extends Controller
             'categories' => $categories,
             'products' => $this->componentCandidates($request),
             'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
+            'default_tax_rate' => app(TaxService::class)->getDefaultRate($this->outletAccessService->activeOutlet($request)),
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
         ]);
     }

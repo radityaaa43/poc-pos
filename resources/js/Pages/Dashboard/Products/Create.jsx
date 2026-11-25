@@ -26,6 +26,7 @@ export default function Create({
     products,
     units = [],
     cost_outlet: costOutlet,
+    default_tax_rate: defaultTaxRate = 11,
 }) {
     const { errors } = usePage().props;
 
@@ -42,7 +43,7 @@ export default function Create({
         min_stock: "",
         max_stock: "",
         tax_type: "exclusive",
-        tax_rate: "11",
+        tax_rate: String(defaultTaxRate),
         is_composite: false,
         is_raw_material: false,
         purchased_by: "",
