@@ -1,5 +1,6 @@
 import { test, expect as baseExpect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
+import { warehouseCell } from '../../support/inventory.js';
 
 const expect = baseExpect.configure({ timeout: 45_000 });
 
@@ -46,7 +47,7 @@ test.describe('53-goods-receiving', () => {
 
         // The central warehouse holds 2.000 g.
         await page.goto(`/dashboard/raw-materials?search=${encodeURIComponent(title)}`);
-        await expect(page.getByRole('row', { name: new RegExp(title) })).toContainText(/2\.000\s*·/);
+        await expect(await warehouseCell(page, page.getByRole('row', { name: new RegExp(title) }), /PUSAT/)).toContainText(/2\.000\s*·/);
 
         // The stock history records 2.000 g in, the global stock going 0 -> 2000.
         await page.goto('/dashboard/stock-mutations');
@@ -69,8 +70,8 @@ test.describe('53-goods-receiving', () => {
         // (4.950 x 250 + 5.000 x 280) / 9.950 = 265,0754: the central warehouse only.
         await page.goto(`/dashboard/raw-materials?search=${encodeURIComponent(title)}`);
         const row = page.getByRole('row', { name: new RegExp(title) });
-        await expect(row).toContainText(/9\.950\s*·\s*Rp\s*265,08/);
-        await expect(row).toContainText(/3\.000\s*·\s*Rp\s*250(?!,)/);
+        await expect(await warehouseCell(page, row, /PUSAT/)).toContainText(/9\.950\s*·\s*Rp\s*265,08/);
+        await expect(await warehouseCell(page, row, /WH-E2E/)).toContainText(/3\.000\s*·\s*Rp\s*250(?!,)/);
 
         // AC-07: the new price is the purchase unit's price and the reference price per gram.
         await row.getByRole('link').first().click();
