@@ -56,6 +56,8 @@ issue, stdlib and native features before new libraries.
   it, and when; (2) what they do and see when it works; (3) the source of truth and who agreed it;
   (4) unusual cases and errors, and what the user sees; (5) where the data comes from. Anything
   unanswered stays `?` and the issue gets `needs-info`. Done-when is derived from the answers.
+  While the maintainer delegates ([`docs/agents/issue-tracker.md` → Delegation](docs/agents/issue-tracker.md#delegation)),
+  Business / PM is the requester for business questions and the Tech Lead for technical ones.
 
 ### Branches, commits, PRs
 

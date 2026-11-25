@@ -30,6 +30,23 @@ All open issues live on the project board
 **Status** and an **Effort**. Four roles move the cards, and a role can be a person or an agent
 session. Until a role is staffed, the maintainer names who covers it.
 
+### Delegation
+
+Since 2026-11-25 the maintainer delegates day-to-day decisions by track:
+
+- **Business / PM decides the business track**: scope, behaviour, edge cases, acceptance criteria,
+  priorities and backlog item status. It acts as the requester for *What good looks like*, records
+  each decision with its date and "Business/PM, delegated by the maintainer", and merges `docs` PRs
+  that only touch `backlog/`.
+- **The Tech Lead decides the technical track**: architecture, database, implementation, skills and
+  tooling, and code review and merge.
+- **Still the maintainer's call**: irreversible or outward-facing actions outside the repo
+  (production data, deploys, paid services, credentials, legal), and weakening a CI gate or a Never
+  rule. The maintainer can overrule any decision.
+
+When a question spans both tracks, Business / PM and the Tech Lead agree it between them and record
+it on the issue.
+
 | Role | Does |
 |---|---|
 | **Maintainer** (`@radityaaa43`) | Makes business decisions (through Business/PM), is the Standards owner, can overrule any role or card |
