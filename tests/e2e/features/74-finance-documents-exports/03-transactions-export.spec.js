@@ -41,8 +41,7 @@ test.describe('exports: transactions workbook', () => {
         expect(all).toEqual(expect.arrayContaining([a1, a2, b1]));
     });
 
-    // Bug #136: Subtotal is grand_total - discount (24000) instead of grand_total + discount (30000).
-    test.fixme('Subtotal adds up: Subtotal - Diskon + Ongkir + PPN = Grand Total', async ({ asRole, arrange }) => {
+    test('Subtotal adds up: Subtotal - Diskon + Ongkir + PPN = Grand Total', async ({ asRole, arrange }) => {
         const { a2 } = arrange('reports.sales');
         const manager = await asRole(role('manager'));
 

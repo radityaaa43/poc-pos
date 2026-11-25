@@ -38,7 +38,7 @@ test.describe('27-sales-returns', () => {
         await expect(page.getByText('Sisa', { exact: true }).locator('xpath=following-sibling::p')).toHaveText(/Rp\s*0/);
     });
 
-    // Bug #114: the return amount multiplies the line total by the returned qty (Rp 30.000 instead of Rp 10.000).
+    // Bug #213: the receivable is not lowered by a partial return of a pay-later sale (Sisa stays Rp 30.000).
     test.fixme('returning one of three items of a pay-later sale lowers the receivable by one unit price', async ({ asRole, arrange, uniq }) => {
         arrange('open-shift', { cashier: 'manager@e2e.test', cash: 100000 });
         const sale = arrange('posops.sale', { cashier: 'manager@e2e.test', qty: 3, left: 7, method: 'pay_later', customer: uniq('Tono') });

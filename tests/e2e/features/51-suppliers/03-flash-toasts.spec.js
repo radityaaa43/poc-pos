@@ -9,8 +9,7 @@ test.describe('51-suppliers', () => {
     test.describe.configure({ timeout: 240_000 }); // a loaded runner needs more than the default 30 s
     test.use({ actionTimeout: 45_000 });
 
-    // Bug #104: the flash prop is never shared, so the supplier page cannot show its confirmation toasts.
-    test.fixme('flash-toasts: saving a supplier and a refused delete both tell the user', async ({ asRole, arrange, uniq }) => {
+    test('flash-toasts: saving a supplier and a refused delete both tell the user', async ({ asRole, arrange, uniq }) => {
         const name = uniq('Toko Toast');
         const page = await asRole(manager);
         await page.goto('/dashboard/suppliers');

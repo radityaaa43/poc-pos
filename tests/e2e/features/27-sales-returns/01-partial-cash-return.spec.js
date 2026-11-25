@@ -54,8 +54,7 @@ test.describe('27-sales-returns', () => {
         await expect(page.getByRole('link', { name: 'Retur', exact: true })).toHaveCount(0);
     });
 
-    // Bug #114: the return amount multiplies the line total by the returned qty (Rp 30.000 instead of Rp 10.000).
-    test.fixme('returning one of three items refunds one unit price', async ({ asRole, arrange, uniq }) => {
+    test('returning one of three items refunds one unit price', async ({ asRole, arrange, uniq }) => {
         arrange('open-shift', { cashier: 'manager@e2e.test', cash: 100000 });
         const sale = arrange('posops.sale', { cashier: 'manager@e2e.test', qty: 3, left: 7, customer: uniq('Budi') });
         const page = await asRole(manager);
