@@ -55,7 +55,7 @@ Never run `--suppress-all` to hide a new error. Trade-off: `no-unused-vars` igno
 - `php artisan test` uses SQLite `:memory:`; avoid database-specific assumptions. For API tests use `Sanctum::actingAs($user, ['*'])` or a real token with the needed abilities.
 - Laravel's scheduler is defined in `routes/console.php`: CRM segment sync (01:00), CRM reminders (01:15), reorder generation (02:00), pending-transaction expiry (hourly), and kitchen intake recovery (`kitchen:recover-intake`, every 5 minutes). Production must invoke `php artisan schedule:run` every minute.
 - Midtrans/Xendit webhooks require a publicly reachable `APP_URL`; product images require `php artisan storage:link`.
-- Dine-in online payment is currently rejected; only `pay_at_counter` is supported.
+- Dine-in online payment is currently rejected; `pay_at_counter` and, when the outlet turns Bayar Belakangan on, `pay_later` are supported.
 - After permission seeding, an existing session may retain stale permissions; log out and back in.
 
 ## Seeding and setup
@@ -90,7 +90,7 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 8. **CRM campaign auto-send** — requires `wa_enabled=true` + connected device in Settings > WhatsApp.
 9. **Version bump on release** — update `APP_VERSION` in `.env` + `.env.example` when tagging.
 10. **Concurrency patterns** — all stock mutations (checkout, transfer, receiving, payment) are wrapped in `DB::transaction` with `lockForUpdate()` on affected rows. Never skip the transaction or lock.
-11. **Dine-in online payment is disabled** — `payment_option=pay_online` returns 422. Only `pay_at_counter` is accepted.
+11. **Dine-in online payment is disabled** — `payment_option=pay_online` returns 422. Only `pay_at_counter` and (setting-gated) `pay_later` are accepted.
 
 ## Release process
 

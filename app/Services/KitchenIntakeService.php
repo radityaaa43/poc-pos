@@ -22,10 +22,13 @@ class KitchenIntakeService
         }
     }
 
-    /** A pay-later sale goes to the kitchen at checkout, unpaid; paying its receivable later records nothing more. */
+    /**
+     * A pay-later sale goes to the kitchen at checkout, or a QR pay-later order at accept, unpaid; paying it later records nothing more.
+     * Marked by the flag, not payment_method: an accepted QR bill is an open_bill, not 'pay_later'.
+     */
     public function intakeUnpaid(Transaction $transaction): void
     {
-        if ($transaction->payment_method === 'pay_later' && $transaction->payment_status === 'unpaid') {
+        if ($transaction->is_pay_later && $transaction->payment_status === 'unpaid') {
             $this->record($transaction);
         }
     }
