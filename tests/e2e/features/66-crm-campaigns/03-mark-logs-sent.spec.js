@@ -19,18 +19,17 @@ test.describe('CRM campaigns: delivery logs', () => {
         await expect(rowA.getByRole('link').nth(1)).toHaveAttribute('href', /https:\/\/wa\.me\//);
 
         // One log left: the campaign stays "ready".
-        await rowA.getByRole('button').click();
+        await rowA.getByRole('button', { name: 'Tandai terkirim' }).click();
         await expect(rowA).toContainText('sent');
         await expect(rowA).not.toContainText('ready_to_send');
         await expect(page.getByText(/status ready/)).toBeVisible();
 
-        await rowB.getByRole('button').click();
+        await rowB.getByRole('button', { name: 'Tandai terkirim' }).click();
         await expect(rowB).not.toContainText('ready_to_send');
         await expect(page.getByText(/status processed/)).toBeVisible();
     });
 
-    // Bug #116: crm-campaign-logs.skip exists (docs: "Mark sent/skip per log") but the page has no way to call it.
-    test.fixme('a log can be skipped from the page', async ({ asRole, arrange, uniq }) => {
+    test('a log can be skipped from the page', async ({ asRole, arrange, uniq }) => {
         const name = uniq('Fani');
         const { customer_id } = arrange('crm.customer', { name });
         const { campaign_id } = arrange('crm.campaign', { name: uniq('Lewati'), customer_ids: String(customer_id) });
