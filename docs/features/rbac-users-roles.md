@@ -39,7 +39,11 @@ Setiap modul memakai permission sendiri, contohnya:
   transaksi, laporan, CRM, diskon), **tanpa** administrasi `users`/`roles`/`permissions`/`outlets`
   dan tanpa update kredensial payment gateway. Dibuat oleh `RoleSeeder::createManagerRole()`.
 - **`cashier`** — transaksi POS, buka/tutup shift, tambah pelanggan, upgrade member, bayar piutang/hutang, dan
-  memproses pesanan dine-in.
+  seluruh alur pesanan dine-in (terima, mulai buat, siap, serahkan, bayar tagihan).
+- **Permission dine-in per langkah** — `dine-orders-process` (terima/tolak, bayar tagihan), `dine-orders-prepare`
+  (Mulai Buat dan Siap, dapur), `dine-orders-handover` (Serahkan ke pelanggan). Tiap langkah punya permission sendiri
+  yang bisa diberikan ke role apa pun di Settings → Roles (mis. role dapur hanya `dine-orders-access` + `dine-orders-prepare`);
+  `cashier` dan `manager` mendapat semuanya. Di production jalankan ulang `PermissionSeeder` lalu `RoleSeeder` (idempoten).
 - Role per modul lain (mis. `products-access`, `transactions-access`) dibuat otomatis dari pola
   permission.
 

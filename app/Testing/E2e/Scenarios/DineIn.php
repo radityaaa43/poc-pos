@@ -103,6 +103,8 @@ class DineIn
                     'payment_method' => $transaction?->payment_method,
                     'cash' => $transaction?->cash,
                     'change' => $transaction?->change,
+                    'preparing' => $order->preparing_at !== null,
+                    'ready' => $order->ready_at !== null,
                     'served' => $order->served_at !== null,
                     'receivables' => $transaction ? Receivable::where('transaction_id', $transaction->id)->count() : 0,
                     'grand_total' => $transaction?->grand_total,
