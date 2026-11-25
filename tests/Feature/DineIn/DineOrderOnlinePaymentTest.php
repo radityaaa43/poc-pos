@@ -650,7 +650,7 @@ class DineOrderOnlinePaymentTest extends TestCase
 
     public function test_failure_reason_migration_rolls_back(): void
     {
-        $migration = require database_path('migrations/2026_12_03_100001_add_payment_failure_reason_to_transactions_table.php');
+        $migration = require database_path('migrations/2026_12_04_200001_add_payment_failure_reason_to_transactions_table.php');
         $this->assertTrue(Schema::hasColumn('transactions', 'payment_failure_reason'));
 
         $migration->down();
