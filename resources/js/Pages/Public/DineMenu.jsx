@@ -5,7 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
-export default function DineMenu({ table, categories, products, selfOrderEnabled, storeName }) {
+export default function DineMenu({ table, categories, products, selfOrderEnabled, payLaterEnabled = false, storeName }) {
     const [cart, setCart] = useState([]);
     const [activeCategory, setActiveCategory] = useState("all");
     const [notes, setNotes] = useState("");
@@ -240,6 +240,21 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                             >
                                 {submitting ? "Mengirim..." : "Pesan — Bayar di Kasir"}
                             </button>
+                            {payLaterEnabled && (
+                                <>
+                                    <button
+                                        onClick={() => {
+                                            document.getElementById("cart-modal")?.close();
+                                            handleSubmit("pay_later");
+                                        }}
+                                        disabled={submitting}
+                                        className="btn border-primary-500 bg-white hover:bg-slate-50 text-primary-600"
+                                    >
+                                        Pesan — Bayar Belakangan
+                                    </button>
+                                    <p className="text-xs text-slate-500 text-center">Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.</p>
+                                </>
+                            )}
                         </div>
                     </div>
                     <form method="dialog" className="modal-backdrop">

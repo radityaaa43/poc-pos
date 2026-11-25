@@ -99,3 +99,11 @@ describe("dine orders queue, view-only user", () => {
         expect(screen.queryAllByRole("button", { name: /mulai buat|siap|serahkan/i })).toHaveLength(0);
     });
 });
+
+describe("dine orders queue, pay later", () => {
+    it("shows staff which payment option the guest chose", () => {
+        render(<Index orders={[{ ...order(7, "Meja Nanti", "submitted", null), payment_option: "pay_later" }]} />);
+
+        expect(screen.getByText("Bayar Belakangan")).toBeTruthy();
+    });
+});

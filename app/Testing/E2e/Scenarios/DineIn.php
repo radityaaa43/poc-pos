@@ -52,7 +52,8 @@ class DineIn
                 ];
             },
 
-            // A submitted guest order: --arg=token=<table token> --arg=product_id=<id> --arg=qty=<n> --arg=notes=<text>.
+            // A submitted guest order: --arg=token=<table token> --arg=product_id=<id> --arg=qty=<n> --arg=notes=<text>
+            // and --arg=option=pay_later (default pay_at_counter), which skips the outlet setting the menu button needs.
             'dine.order' => function (array $options): array {
                 $table = DiningTable::where('token', $options['token'])->firstOrFail();
                 $product = Product::findOrFail($options['product_id']);
@@ -62,7 +63,8 @@ class DineIn
                     'dine_table_id' => $table->id,
                     'status' => DineOrder::STATUS_SUBMITTED,
                     'submitted_at' => now(),
-                    'payment_option' => DineOrder::PAY_AT_COUNTER,
+                    'payment_option' => ($options['option'] ?? DineOrder::PAY_AT_COUNTER) === DineOrder::PAY_LATER
+                        ? DineOrder::PAY_LATER : DineOrder::PAY_AT_COUNTER,
                     'notes' => $options['notes'] ?? null,
                     'subtotal' => (int) $product->sell_price * $qty,
                     'item_count' => $qty,
@@ -94,6 +96,7 @@ class DineIn
                 return [
                     'order_id' => $order->id,
                     'status' => $order->status,
+                    'payment_option' => $order->payment_option,
                     'notes' => $order->notes,
                     'subtotal' => $order->subtotal,
                     'item_count' => $order->item_count,
@@ -107,6 +110,7 @@ class DineIn
                     'ready' => $order->ready_at !== null,
                     'served' => $order->served_at !== null,
                     'receivables' => $transaction ? Receivable::where('transaction_id', $transaction->id)->count() : 0,
+                    'kitchen_items' => $transaction ? $transaction->kitchenItems()->count() : 0,
                     'grand_total' => $transaction?->grand_total,
                     'product_stock' => isset($options['product_id']) ? (int) Product::find($options['product_id'])->stock : null,
                     'warehouse_stock' => isset($options['product_id'])
