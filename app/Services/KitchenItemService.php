@@ -96,7 +96,7 @@ class KitchenItemService
 
     private function hasLinesToMake(Transaction $transaction): bool
     {
-        return $transaction->details()->whereHas('product', fn ($product) => $product->where('needs_preparation', true))->exists();
+        return $transaction->details()->goesToKitchen()->exists();
     }
 
     /**

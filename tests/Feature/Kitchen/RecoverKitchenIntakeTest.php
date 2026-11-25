@@ -198,9 +198,9 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->assertSame([$inside->id], KitchenItem::pluck('transaction_id')->all());
     }
 
-    public function test_a_product_flagged_after_the_sale_is_recovered_while_the_sale_is_inside_the_window(): void
+    public function test_a_line_without_a_snapshot_reads_the_product_flag_while_the_sale_is_inside_the_window(): void
     {
-        // Known limit (docs/features/kitchen-display.md): the flag is read when the job runs.
+        // Sales written before #341 have no snapshot on their lines (as built here), so the flag is read when the job runs.
         $product = $this->product(false);
         $recent = $this->sale([$product]);
         $old = $this->sale([$product]);
@@ -212,6 +212,30 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->artisan('kitchen:recover-intake')->assertSuccessful();
 
         $this->assertSame([$recent->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
+    public function test_a_product_flagged_after_the_sale_is_not_recovered_when_the_line_was_frozen_as_unflagged(): void
+    {
+        $product = $this->product(false);
+        $sale = $this->sale([$product]);
+        $sale->details()->update(['needs_preparation' => false]); // what checkout writes since #341
+
+        $product->update(['needs_preparation' => true]);
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame(0, KitchenItem::count());
+    }
+
+    public function test_a_product_unflagged_after_the_sale_is_still_recovered_when_the_line_was_frozen_as_flagged(): void
+    {
+        $product = $this->product();
+        $sale = $this->sale([$product]);
+        $sale->details()->update(['needs_preparation' => true]);
+
+        $product->update(['needs_preparation' => false]);
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame([$sale->id], KitchenItem::pluck('transaction_id')->all());
     }
 
     public function test_command_is_scheduled_every_five_minutes(): void

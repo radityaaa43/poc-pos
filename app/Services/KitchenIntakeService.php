@@ -57,8 +57,9 @@ class KitchenIntakeService
         // All or nothing: a failure midway must not leave some lines recorded, or the once-only guard above would skip the rest forever.
         DB::transaction(function () use ($transaction, $dineItems, $stations, $defaultStationId) {
             foreach ($transaction->details as $detail) {
-                // The flag is read now: a later product edit must not change items already in the kitchen.
-                if (! $detail->product?->needs_preparation) {
+                // The line's sale-time snapshot decides (the product's flag only for lines written before it existed),
+                // so a later product edit changes neither the items in the kitchen nor a retry's result.
+                if (! $detail->goesToKitchen()) {
                     continue;
                 }
 

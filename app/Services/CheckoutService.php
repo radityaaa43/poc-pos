@@ -210,6 +210,7 @@ class CheckoutService
                 'price' => $lineTotal,
                 'discount_total' => $linePromoDiscount,
                 'cost_total' => $costTotal,
+                'needs_preparation' => $product->needs_preparation, // frozen: intake and self-heal read the sale-time flag
                 'pricing_rule_id' => data_get($pricingItem, 'pricing_rule.id'),
                 'pricing_rule_name' => data_get($pricingItem, 'pricing_rule.name'),
                 'pricing_rule_kind' => data_get($pricingItem, 'pricing_rule.kind'),

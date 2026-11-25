@@ -9,7 +9,7 @@ One screen for the kitchen: every paid order that still has something to prepare
 ## What it shows
 
 - A card per order: the table name for a dine-in order, the invoice number for a POS sale, the order type (Dine-in, Di tempat, Bawa pulang, Diantar), the minutes since it was accepted, and its lines (quantity, product, status).
-- Only lines whose product is flagged `needs_preparation`. In a mixed cart the packaged products are not listed.
+- Only lines whose product was flagged `needs_preparation` when the line was sold (a later flag change does not move a sale already made). In a mixed cart the packaged products are not listed.
 - Only paid sales. A sale waiting for a transfer or gateway payment is added when it is paid (see `KitchenIntakeService`). The card has a **Belum lunas** / "Unpaid" chip for a sale that is in the kitchen but not paid yet (reserved for pay-later orders).
 - Lines that are served leave the queue.
 - Empty queue: "Belum ada pesanan" / "No orders yet". No outlet: "Pilih outlet terlebih dahulu".
@@ -46,7 +46,7 @@ The page asks the server for the order list every 5 seconds (Inertia `usePoll`, 
 
 If the intake step after a payment fails, the payment stays and the error is reported. `kitchen:recover-intake` (every 5 minutes, `routes/console.php`) runs the same idempotent intake for sales paid in the last 30 minutes that have a line needing preparation but no kitchen items. It skips pay-later, cancelled or fully returned sales and sales without a warehouse, never creates a second item for a line, and logs how many sales it recovered and how many failed.
 
-Known limit: the job reads the product flag at the time it runs, so a sale made before a product was flagged "needs preparation" is also sent to the kitchen if it is still inside the 30-minute window. It cannot add anything for an older sale. A sale that keeps failing is reported on every run (every 5 minutes, for the 30 minutes of the window) by design: there is no retry loop and no silent skip.
+Which lines count: each sale line remembers whether its product needed preparation when it was sold (`transaction_details.needs_preparation`, written at checkout and when a dine-in order is accepted), and both the intake and this job read that, so flagging or unflagging a product later changes nothing for sales already made. Known limit: a line written before that column existed has no snapshot and reads the product flag at the time the job runs, so such a sale made before a product was flagged "needs preparation" is also sent to the kitchen if it is still inside the 30-minute window. The job cannot add anything for an older sale. A sale that keeps failing is reported on every run (every 5 minutes, for the 30 minutes of the window) by design: there is no retry loop and no silent skip.
 
 ## Session behaviour
 
