@@ -60,6 +60,7 @@ class Transaction extends Model
         'payment_method',
         'payment_status',
         'payment_attempt',
+        'payment_failure_reason',
         'late_superseded_payment_at',
         'is_pay_later',
         'payment_reference',
