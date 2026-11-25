@@ -569,8 +569,8 @@ class SalesReturnController extends Controller
                     'qty_sold' => (int) $detail->qty,
                     'qty_returned_before' => $qtyReturnedBefore,
                     'qty_return' => $qtyReturn,
-                    'unit_price' => (int) $detail->price,
-                    'subtotal' => $qtyReturn * (int) $detail->price,
+                    'unit_price' => (int) round((int) $detail->price / max(1, (int) $detail->qty)),
+                    'subtotal' => $detail->returnAmount($qtyReturnedBefore, $qtyReturn),
                     'return_reason' => trim($item['return_reason']),
                     'restock_to_inventory' => (bool) ($item['restock_to_inventory'] ?? true),
                 ];

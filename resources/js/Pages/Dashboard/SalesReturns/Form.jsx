@@ -75,7 +75,12 @@ export default function SalesReturnForm({
                 restock_to_inventory: true,
             };
             const qtyReturn = Number(current.qty_return || 0);
-            const subtotal = qtyReturn * Number(detail.price || 0);
+            // detail.price is the line total; mirrors TransactionDetail::returnAmount().
+            const share = (units) =>
+                Math.round((Number(detail.price || 0) * units) / Math.max(1, detail.qty));
+            const returnedBefore = Number(detail.returned_completed_qty || 0);
+            const subtotal =
+                share(returnedBefore + qtyReturn) - share(returnedBefore);
 
             return {
                 ...detail,

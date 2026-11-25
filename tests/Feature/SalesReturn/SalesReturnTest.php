@@ -9,6 +9,7 @@ use App\Models\Product;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -74,6 +75,64 @@ class SalesReturnTest extends TestCase
         $this->assertSame(1, $salesReturn->items()->count());
         $this->assertSame(60000, $salesReturn->total_return_amount);
         $this->assertSame(60000, $salesReturn->refund_amount);
+    }
+
+    public function test_partial_return_refunds_only_the_returned_quantity(): void
+    {
+        $user = $this->createUserWithPermissions(['transactions-access', 'sales-returns-access', 'sales-returns-create']);
+        [$transaction, $detail] = $this->createTransaction($user, qty: 3);
+
+        $this->actingAs($user)->post(route('sales-returns.store', $transaction), [
+            'return_type' => 'refund_cash',
+            'items' => [[
+                'transaction_detail_id' => $detail->id,
+                'qty_return' => 1,
+                'return_reason' => 'Salah ukuran',
+                'restock_to_inventory' => true,
+            ]],
+        ]);
+
+        $salesReturn = SalesReturn::first();
+        $this->assertSame(60000, $salesReturn->total_return_amount);
+        $this->assertSame(60000, $salesReturn->refund_amount);
+        $this->assertSame(60000, $salesReturn->items->first()->unit_price);
+        $this->assertSame(60000, $salesReturn->items->first()->subtotal);
+    }
+
+    public function test_partial_return_on_a_pay_later_sale_lowers_the_receivable_by_the_returned_quantity(): void
+    {
+        $user = $this->createUserWithPermissions([
+            'transactions-access', 'sales-returns-access', 'sales-returns-create', 'sales-returns-complete',
+            'cashier-shifts-access', 'cashier-shifts-open', 'cashier-shifts-close',
+        ]);
+        [$transaction, $detail] = $this->createTransaction(
+            $user, qty: 3, paymentMethod: 'pay_later', paymentStatus: 'unpaid', withReceivable: true
+        );
+        $transaction->receivable->update(['paid' => 0, 'status' => 'unpaid']);
+        $this->openShiftFor($user);
+
+        $this->actingAs($user)->post(route('sales-returns.store', $transaction), [
+            'return_type' => 'refund_cash',
+            'items' => [[
+                'transaction_detail_id' => $detail->id,
+                'qty_return' => 1,
+                'return_reason' => 'Salah ukuran',
+                'restock_to_inventory' => true,
+            ]],
+        ]);
+        $this->actingAs($user)->post(route('sales-returns.complete', SalesReturn::first()));
+
+        $this->assertEquals(120000, $transaction->receivable->fresh()->total);
+        $this->assertSame(0, SalesReturn::first()->refund_amount);
+    }
+
+    public function test_return_amounts_of_a_line_never_add_up_to_more_than_the_line_total(): void
+    {
+        $detail = new TransactionDetail(['qty' => 3, 'price' => 100]);
+
+        // 100 / 3 does not divide: the three single returns must still add up to 100.
+        $this->assertSame(100, $detail->returnAmount(0, 1) + $detail->returnAmount(1, 1) + $detail->returnAmount(2, 1));
+        $this->assertSame(100, $detail->returnAmount(0, 3));
     }
 
     public function test_qty_return_cannot_exceed_remaining_quantity(): void
@@ -555,7 +614,8 @@ class SalesReturnTest extends TestCase
             'product_id' => $product->id,
             'qty' => $qty,
             'conversion_factor' => $conversionFactor,
-            'price' => 60000 * $conversionFactor,
+            // price is the line total (CheckoutService), not the unit price.
+            'price' => 60000 * $conversionFactor * $qty,
         ]);
 
         $transaction->profits()->create([
