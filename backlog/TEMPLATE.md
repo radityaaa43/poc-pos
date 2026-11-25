@@ -27,6 +27,48 @@ Why this is needed, what happens today, and links to designs, issues or docs.
 
 **To-be.** What each role does after this ships, step by step.
 
+## User journey and flow
+
+<!-- Required for every REQ (maintainer, 2026-11-26). Show how each role moves through the feature,
+     not just the end state. A reviewer should be able to walk each journey and find every criterion. -->
+
+### Journeys per role
+
+<!-- One table per journey: setup or one-time steps, the main path, and every failure or
+     unusual path (payment fails, device offline, cancellation, shift close, permission denied...).
+     Each step names the actor, what they see or do, and the AC it maps to. A step with no AC is a gap:
+     add a criterion or say why none is needed. -->
+
+**J1. <journey name>** (<role(s)>, <when>)
+
+| # | Step | Actor | What they see or do | AC | Weak point |
+|---|---|---|---|---|---|
+| 1 | | | | | |
+
+### Flow
+
+<!-- A Mermaid flowchart of the main path and its branches (decisions, failures, retries). -->
+
+```mermaid
+flowchart TD
+    A[Start] --> B{Decision}
+    B -->|yes| C[Step]
+    B -->|no| D[Other step]
+```
+
+### States
+
+<!-- For every thing that changes status (an order, an item, a bill, a job): a Mermaid state diagram
+     with every allowed transition and who or what triggers it. "n/a — <reason>" if nothing has a
+     status. -->
+
+```mermaid
+stateDiagram-v2
+    [*] --> First
+    First --> Second: trigger
+    Second --> [*]
+```
+
 ## Stakeholders
 
 | Party | Role in the flow | What they care about | What they decide |

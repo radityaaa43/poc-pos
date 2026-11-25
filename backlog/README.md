@@ -24,6 +24,8 @@ An item is `ready` only when every section of [`TEMPLATE.md`](TEMPLATE.md) is fi
 `n/a — <reason>`, every edge case in its checklist is covered by a criterion or marked n/a, and no
 open question is left `?`.
 
+The **User journey and flow** section is never n/a. Every role touched by the item has its journeys mapped step by step to criteria (main path and failure paths), with a Mermaid flow, and a state diagram for anything with a status. A journey step with no criterion is a gap to close before `ready`.
+
 ## From backlog item to code
 
 1. Item is `ready` → `/to-spec` files an issue with `Backlog: REQ-<n>` and tags each Done-when
