@@ -18,7 +18,7 @@ import ThermalReceipt, {
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 
 export default function Print({ transaction }) {
     const { storeProfile, printerSettings } = usePage().props;
@@ -312,6 +312,8 @@ export default function Print({ transaction }) {
     return (
         <>
             <Head title="Invoice Penjualan" />
+            {/* This page has no layout, so it renders its own Toaster. */}
+            <Toaster position="top-right" containerClassName="print:hidden" />
 
             <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-8 px-4 print:bg-white print:p-0">
                 <div className="max-w-4xl mx-auto space-y-6">
