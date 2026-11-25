@@ -19,11 +19,14 @@ class DineTableController extends Controller
     public function index(Request $request)
     {
         $outlet = $this->outletAccess->activeOutlet($request);
-        $query = DiningTable::with('area')->whereHas('area', function ($query) use ($outlet) {
-            $query->whereNull('outlet_id');
-            if ($outlet) {
-                $query->orWhere('outlet_id', $outlet->id);
-            }
+        // A table without an area is shared by every outlet, like an area without an outlet.
+        $query = DiningTable::with('area')->where(function ($query) use ($outlet) {
+            $query->whereNull('dine_area_id')->orWhereHas('area', function ($query) use ($outlet) {
+                $query->whereNull('outlet_id');
+                if ($outlet) {
+                    $query->orWhere('outlet_id', $outlet->id);
+                }
+            });
         });
 
         if ($request->filled('area_id')) {

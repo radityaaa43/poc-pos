@@ -92,4 +92,16 @@ class DineTableManagementTest extends TestCase
                 ->where('tables.0.name', 'Nonaktif')
                 ->where('filters.is_active', 'inactive'));
     }
+
+    public function test_index_lists_a_table_saved_without_an_area(): void
+    {
+        $table = DiningTable::create(['name' => 'Tanpa Area', 'is_active' => true]);
+
+        $this->actingAs($this->user)
+            ->get(route('dine-tables.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard/DineIn/Tables/Index')
+                ->has('tables', 1)
+                ->where('tables.0.id', $table->id));
+    }
 }
