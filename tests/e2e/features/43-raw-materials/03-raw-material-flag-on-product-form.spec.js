@@ -16,6 +16,8 @@ test.describe('43-raw-materials', () => {
         await field(page, 'Stok').fill('5000');
         await field(page, 'Persentase Pajak (%)').fill('0');
         await page.getByLabel('Bahan baku (tidak dijual di kasir)').check();
+        // A raw material says who buys it (REQ-002); the form asks as soon as the box is ticked.
+        await page.getByLabel('Dibeli Oleh').selectOption('central');
         await page.getByRole('button', { name: 'Simpan Produk' }).click();
         await expect(page.getByText('Produk berhasil ditambahkan')).toBeVisible();
 
