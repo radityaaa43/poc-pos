@@ -247,7 +247,9 @@ class KitchenReturnTest extends TestCase
 
     public function test_no_other_route_removes_a_kitchen_item(): void
     {
-        $kitchenRoutes = collect(Route::getRoutes()->getRoutes())->filter(fn ($route) => str_contains($route->uri(), 'kitchen'));
+        // Routes that act on a kitchen item: one that binds a KitchenItem, or lives under kitchen/items. Station and print routes are not items.
+        $kitchenRoutes = collect(Route::getRoutes()->getRoutes())->filter(fn ($route) => $route->signatureParameters(['subClass' => KitchenItem::class]) !== []
+            || str_contains($route->uri(), 'kitchen/items'));
 
         $this->assertNotEmpty($kitchenRoutes);
 
