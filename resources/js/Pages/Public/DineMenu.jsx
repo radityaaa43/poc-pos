@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import { IconShoppingCart, IconMinus, IconPlus } from "@tabler/icons-react";
-import toast from "react-hot-toast";
+import toast, { Toaster } from "react-hot-toast";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
@@ -64,8 +64,8 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
             { items: cart, notes, payment_option: paymentOption },
             {
                 onSuccess: () => setSubmitting(false),
-                onError: () => {
-                    toast.error("Gagal mengirim pesanan.");
+                onError: (errors) => {
+                    toast.error(errors.order ?? "Gagal mengirim pesanan.");
                     setSubmitting(false);
                 },
             }
@@ -77,6 +77,8 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
     return (
         <>
             <Head title={`Menu ${table.name} — ${storeName}`} />
+            {/* This page has no layout, so it needs its own Toaster for the order errors. */}
+            <Toaster position="top-center" toastOptions={{ className: "text-sm", duration: 4000 }} />
             <div className="min-h-screen bg-slate-50 flex flex-col">
                 <header className="bg-white border-b border-slate-200 sticky top-0 z-20">
                     <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
