@@ -7,6 +7,7 @@ or comment that lacks a required field is sent back, not acted on. Roles and boa
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
 - [2. Delivery: developer → Tech Lead](#2-delivery-developer--tech-lead)
 - [3. Review: Tech Lead → PR](#3-review-tech-lead--pr)
+- [4. Business track: Business / PM](#4-business-track-business--pm)
 
 ## 1. Task: Tech Lead → developer
 
@@ -138,7 +139,9 @@ Reviews run in a fixed order, and each step starts only when the one before it p
 3. **Merge (Tech Lead).** Both reviews passed and CI is green. The Tech Lead merges and tells
    Business / PM.
 4. **Done (Business / PM).** Business / PM moves the card to Done once every review has passed and
-   the PR is merged.
+   the PR is merged. The board's *Item closed* workflow does this on its own when the merged PR's
+   `Closes #n` closes the issue; Business / PM checks the card landed and moves it by hand only if
+   it didn't.
 
 If business review doesn't pass, Business / PM sends its evaluation to the Tech Lead: the criteria
 not met and what it saw. The Tech Lead turns it into a fix for the developer, and the order starts
@@ -164,3 +167,58 @@ The Tech Lead's technical approval is a **Requirement & AC checklist** comment o
 - Any ✗ or unproven row means **CHANGES**, and there is no merge.
 - On APPROVE, hand the PR to Business / PM (step 2). Merge only when the checklist is all ✓, CI is
   green and Business / PM's AC check is OK. Then tell Business / PM, who moves the card to Done.
+
+## 4. Business track: Business / PM
+
+Rules the maintainer set on 2026-11-25 for the business side. Business / PM decides under the
+delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
+
+1. **Requirements are structured, detailed, complete and comprehensive.** Every REQ follows
+   [`backlog/TEMPLATE.md`](../../backlog/TEMPLATE.md): every section filled or `n/a — <reason>`, every
+   edge case in its checklist covered by a criterion or marked n/a.
+2. **Review before deciding.** Check each business decision against:
+   - earlier decisions: the REQ, the issue body **and every comment**, ADRs, GLOSSARY
+   - the code as it is
+   - the impact on the cashier, the owner's money and stock
+   - the edge-case checklist
+   - per-shop permissions (never a hard-coded role)
+   - the general-POS rule (no tenant names)
+   - reversibility (if it can't be undone, it goes to the maintainer)
+
+   Record it on the issue:
+
+   ```
+   Decision (Business/PM, delegated by the maintainer, YYYY-MM-DD): <what>
+   Why: <reason>
+   Rejected: <alternatives and why>
+   ```
+3. **Review again before Planning.** Before moving a card to Planning, re-read the issue against
+   rules 1–2, verify its claims in the code, fix any gap in the body, and post a comment starting
+   `**Business review before Planning**` that lists what was checked. Only then move the card.
+4. **Keep Planning fed.** Each time the Tech Lead takes cards, prepare the next Backlog items under
+   rule 3. Target: at least two ready items per developer. A REQ ticket waiting on unmerged work can
+   still go to Planning once its REQ is on `main`; the Tech Lead sequences it.
+5. **Shift-left AC check.** When the Tech Lead posts a plan (message `#<n> plan posted`), Business /
+   PM checks it against the criteria and the business rules, including exact REQ wording for UI
+   text, and comments on the issue. It doesn't block: the developer starts at once, and Business /
+   PM messages the Tech Lead only about a missed criterion.
+6. **Questions found while planning.** The Tech Lead proposes a default for each business question
+   and keeps planning with it; Business / PM confirms or corrects it on the issue under rule 2.
+7. **Business review of a PR** (step 2 of section 3) is one PR comment:
+
+   ```markdown
+   **AC check — Business/PM** (REQ-<n> read on `main` YYYY-MM-DD; issue #<n>)
+
+   **Verdict: AC check: OK | changes requested**
+
+   | # | Requirement / AC | Evidence in the diff | Result |
+   |---|---|---|---|
+   | AC-01 | <criterion> | <code, test, e2e tag> | ✅ / ❌ |
+   ```
+
+   - One row per tagged criterion, Done-when item, recorded decision and business rule or edge case.
+   - UI wording must match the REQ terms exactly.
+   - Read the full diff. Never pass a PR on its description alone.
+   - On ❌, send the evaluation to the Tech Lead (section 3).
+8. **After Done.** Update the REQ's *Delivered by* (issues and PRs per criterion). When every
+   criterion has shipped, set the REQ to `done`.

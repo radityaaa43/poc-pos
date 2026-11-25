@@ -82,7 +82,7 @@ it on the issue.
 | Role | Does |
 |---|---|
 | **Maintainer** (`@radityaaa43`) | Makes business decisions (through Business/PM), is the Standards owner, can overrule any role or card |
-| **Business / PM** (also scrum master) | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, keeps the board current, checks feat PRs against their criteria, fills in *Delivered by* |
+| **Business / PM** (also scrum master) | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, keeps the board current, checks feat PRs against their criteria, fills in *Delivered by* ([`handoff.md` → 4](handoff.md#4-business-track-business--pm)) |
 | **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, reviews and merges PRs |
 | **Developer** | Builds a planned ticket test-first, verifies it, opens the PR and fixes review findings |
 
