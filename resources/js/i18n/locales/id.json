@@ -1049,6 +1049,12 @@
             "accepted": "Diterima",
             "preparing": "Sedang dibuat",
             "ready": "Siap"
+        },
+        "actions": {
+            "start": "Mulai buat",
+            "ready": "Siap",
+            "allReady": "Semua siap",
+            "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi"
         }
     },
     "pos": {
