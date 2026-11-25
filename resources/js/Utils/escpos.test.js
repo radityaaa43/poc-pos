@@ -1,10 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+    buildKitchenTicketBytes,
     buildReceiptBytes,
     disconnectPrinter,
     drawerKickBytes,
+    getPrinter,
     hasCachedPrinter,
     printBytes,
+    printerKey,
     printReceipt,
     requestPrinter,
 } from "./escpos";
@@ -184,5 +187,257 @@ describe("printer connection", () => {
             "Gagal mengirim data ke printer. Periksa koneksi printer."
         );
         expect(hasCachedPrinter()).toBe(false);
+    });
+});
+
+describe("buildKitchenTicketBytes", () => {
+    const labels = { type: "Makan di tempat", unpaid: "BELUM LUNAS" };
+    const ticket = (overrides = {}) => ({
+        number: "Meja 5",
+        type: "dine_in",
+        unpaid: false,
+        since: "2026-11-25T14:07:00",
+        items: [{ title: "Nasi Goreng", qty: 2, note: null }],
+        ...overrides,
+    });
+    const bytesOf = (t, paper, l = labels) => Array.from(buildKitchenTicketBytes(t, paper, l));
+    const textOf = (t, paper, l = labels) => new TextDecoder().decode(buildKitchenTicketBytes(t, paper, l));
+    // Strip the ESC/GS formatting commands so the lines can be matched as plain text.
+    const kitchenLines = (t, paper, l = labels) =>
+        textOf(t, paper, l)
+            // eslint-disable-next-line no-control-regex
+            .replace(/\x1b@|\x1bE[\x00\x01]|\x1d![\s\S]|\x1dVB\x00/g, "")
+            .split("\n");
+
+    it("starts with init and ends with the cut command", () => {
+        const bytes = bytesOf(ticket());
+        expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]);
+        expect(bytes.slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x00]);
+    });
+
+    it("prints the number in double size at the top, then resets the size", () => {
+        // eslint-disable-next-line no-control-regex
+        expect(textOf(ticket())).toMatch(/^\x1b@\x1d!\x11Meja 5\n\x1d!\x00/);
+    });
+
+    it("shows the type and the time, right aligned to the paper width", () => {
+        const head = kitchenLines(ticket()).find((l) => l.startsWith("Makan di tempat"));
+        expect(head.endsWith("14:07")).toBe(true);
+        expect(head).toHaveLength(48);
+        expect(kitchenLines(ticket(), "58mm").find((l) => l.includes("14:07"))).toHaveLength(32);
+    });
+
+    it("prints the unpaid label in emphasis only when unpaid", () => {
+        expect(textOf(ticket())).not.toContain("BELUM LUNAS");
+        // eslint-disable-next-line no-control-regex
+        expect(textOf(ticket({ unpaid: true }))).toMatch(/\x1bE\x01BELUM LUNAS\n\x1bE\x00/);
+    });
+
+    it("uses the translated labels it is given", () => {
+        const text = textOf(ticket({ unpaid: true }), "80mm", { type: "Dine in", unpaid: "UNPAID" });
+        expect(text).toContain("Dine in");
+        expect(text).toContain("UNPAID");
+        expect(text).not.toContain("BELUM LUNAS");
+    });
+
+    it("uses rules of 32 characters on 58mm and 48 otherwise", () => {
+        expect(kitchenLines(ticket(), "58mm")).toContain("-".repeat(32));
+        expect(kitchenLines(ticket(), "58mm")).not.toContain("-".repeat(48));
+        expect(kitchenLines(ticket(), "80mm")).toContain("-".repeat(48));
+        expect(kitchenLines(ticket(), undefined)).toContain("-".repeat(48));
+    });
+
+    it("prints each item as qty x title with the note on the following lines", () => {
+        const lines = kitchenLines(
+            ticket({
+                items: [
+                    { title: "Nasi Goreng", qty: 2, note: "tanpa pedas" },
+                    { title: "Es Teh", qty: 1, note: "" },
+                ],
+            })
+        );
+        const i = lines.indexOf("2 x Nasi Goreng");
+        expect(i).toBeGreaterThan(-1);
+        expect(lines[i + 1].trim()).toBe("tanpa pedas");
+        expect(lines[i + 2]).toBe("1 x Es Teh");
+    });
+
+    it("never prints a price", () => {
+        const text = textOf(
+            ticket({ items: [{ title: "Kopi", qty: 1, note: null, price: 25000, subtotal: 25000 }] })
+        );
+        expect(text).not.toMatch(/Rp|25000|25\.000|total/i);
+    });
+
+    it.each([
+        ["58mm", 32],
+        ["80mm", 48],
+    ])("wraps long titles and notes on %s and never cuts them", (paper, width) => {
+        const title = "Nasi Goreng Spesial Dengan Telur Mata Sapi Dan Sambal Terasi Pedas";
+        const note = "tolong jangan terlalu pedas dan tambah kerupuk yang banyak ya";
+        const lines = kitchenLines(ticket({ items: [{ title, qty: 3, note }] }), paper);
+
+        expect(lines.every((l) => l.length <= width)).toBe(true);
+        // Every word of the item and the note is still there, in order.
+        const words = lines.join(" ").split(/\s+/);
+        let at = 0;
+        for (const word of ["3", "x", ...title.split(" "), ...note.split(" ")]) {
+            at = words.indexOf(word, at);
+            expect(at).toBeGreaterThan(-1);
+        }
+    });
+
+    it("splits a single word longer than the paper over lines instead of dropping it", () => {
+        const lines = kitchenLines(
+            ticket({ items: [{ title: "A".repeat(100), qty: 1, note: null }] }),
+            "58mm"
+        );
+        expect(lines.every((l) => l.length <= 32)).toBe(true);
+        expect(lines.join("").replace(/[^A]/g, "")).toHaveLength(100);
+    });
+
+    it("prints an order of 30 items as one ticket with every line", () => {
+        const items = Array.from({ length: 30 }, (_, n) => ({
+            title: `Menu ${n + 1}`,
+            qty: 1,
+            note: null,
+        }));
+        const lines = kitchenLines(ticket({ items }));
+        for (let n = 1; n <= 30; n++) expect(lines).toContain(`1 x Menu ${n}`);
+        expect(bytesOf(ticket({ items })).slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x00]);
+    });
+
+    it("removes control characters so a guest note cannot send printer commands", () => {
+        const kick = "\x1bp\x00\x19\xfa";
+        const bytes = bytesOf(
+            ticket({
+                number: "M\x1b@5",
+                items: [
+                    {
+                        title: "Es\x00 Teh\x7f",
+                        qty: 1,
+                        note: `manis${kick}\x1d!\x11\r\nbanyak\tes`,
+                    },
+                ],
+            })
+        );
+        const text = new TextDecoder().decode(new Uint8Array(bytes));
+
+        expect(text).toContain("1 x Es Teh");
+        expect(text).toContain("manis");
+        expect(text).toContain("banyak es");
+        expect(text).not.toContain("\x7f");
+        expect(text).not.toContain("\x1bp");
+        // Only the builder's own commands remain: one ESC (init) and three GS (size on, off, cut).
+        expect(bytes.filter((b) => b === 0x1b)).toHaveLength(1);
+        expect(bytes.filter((b) => b === 0x1d)).toHaveLength(3);
+        // No bytes below 0x20 other than those commands and the line feeds.
+        expect(bytes.filter((b) => b < 0x20 && ![0x0a, 0x1b, 0x1d].includes(b))).toEqual([
+            0x11, 0x00, 0x00,
+        ]);
+    });
+});
+
+describe("printerKey and getPrinter", () => {
+    const makeDevice = (vendorId, productId, serialNumber) => {
+        const device = {
+            vendorId,
+            productId,
+            serialNumber,
+            opened: false,
+            configuration: {
+                interfaces: [
+                    {
+                        interfaceNumber: 0,
+                        alternates: [
+                            {
+                                interfaceClass: 7,
+                                endpoints: [{ direction: "out", endpointNumber: 2 }],
+                            },
+                        ],
+                    },
+                ],
+            },
+            open: vi.fn(async () => {
+                device.opened = true;
+            }),
+            close: vi.fn(async () => {
+                device.opened = false;
+            }),
+            selectConfiguration: vi.fn(),
+            claimInterface: vi.fn(),
+            transferOut: vi.fn().mockResolvedValue({ status: "ok" }),
+        };
+        return device;
+    };
+    const receipt = () => makeDevice(1, 10, "R1");
+    const kitchen = () => makeDevice(2, 20, "K1");
+    const grant = (...devices) =>
+        vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue(devices) } });
+
+    afterEach(async () => {
+        await disconnectPrinter();
+        localStorage.clear();
+        vi.unstubAllGlobals();
+    });
+
+    it("builds the key from vendor, product and serial", () => {
+        expect(printerKey(receipt())).toBe("1:10:R1");
+        expect(printerKey(makeDevice(2, 20, null))).toBe("2:20:");
+    });
+
+    it("uses the keyed device out of two granted ones", async () => {
+        const [r, k] = [receipt(), kitchen()];
+        grant(r, k);
+
+        await printBytes(new Uint8Array([1]), { deviceKey: printerKey(k) });
+
+        expect(k.transferOut).toHaveBeenCalledTimes(1);
+        expect(r.transferOut).not.toHaveBeenCalled();
+    });
+
+    it("finds no printer when no granted device has the key", async () => {
+        grant(receipt());
+        expect(await getPrinter("9:9:")).toBeNull();
+        await expect(printBytes(new Uint8Array([1]), { deviceKey: "9:9:" })).rejects.toThrow(
+            "Printer belum terhubung."
+        );
+    });
+
+    it("without a key skips the kitchen printer and takes the other one", async () => {
+        const [k, r] = [kitchen(), receipt()];
+        localStorage.setItem("kitchen.printerKey", printerKey(k));
+        grant(k, r);
+
+        await printBytes(new Uint8Array([1]));
+
+        expect(r.transferOut).toHaveBeenCalledTimes(1);
+        expect(k.transferOut).not.toHaveBeenCalled();
+    });
+
+    it("without a key and without a stored kitchen key takes the first device as before", async () => {
+        const [a, b] = [receipt(), kitchen()];
+        grant(a, b);
+
+        expect(await getPrinter()).toBe(a);
+    });
+
+    it("with one device and no kitchen key prints as before", async () => {
+        const only = receipt();
+        grant(only);
+
+        await printBytes(new Uint8Array([1]));
+        expect(only.transferOut).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not hand the cached kitchen printer to a receipt print", async () => {
+        const [r, k] = [receipt(), kitchen()];
+        localStorage.setItem("kitchen.printerKey", printerKey(k));
+        grant(k, r);
+
+        expect(await getPrinter(printerKey(k))).toBe(k);
+        expect(await getPrinter()).toBe(r);
+        expect(await getPrinter(printerKey(k))).toBe(k);
+        expect(k.open).toHaveBeenCalledTimes(1);
     });
 });
