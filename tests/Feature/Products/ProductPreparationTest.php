@@ -97,7 +97,8 @@ class ProductPreparationTest extends TestCase
 
     public function test_store_rejects_a_zero_or_negative_target(): void
     {
-        foreach ([0, -3] as $minutes) {
+        // 65536 is past the smallint column, which SQLite would accept but MySQL rejects with a 500.
+        foreach ([0, -3, 65536] as $minutes) {
             $this->post(route('products.store'), $this->payload(['needs_preparation' => true, 'prep_target_minutes' => $minutes]))
                 ->assertSessionHasErrors('prep_target_minutes');
         }

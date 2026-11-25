@@ -338,7 +338,7 @@ class ProductController extends Controller
     /** The prep target only means something on a product that needs preparation; otherwise null. */
     private function prepTargetMinutes(Request $request): ?int
     {
-        return $request->boolean('needs_preparation') ? $request->input('prep_target_minutes') : null;
+        return $request->boolean('needs_preparation') ? $request->integer('prep_target_minutes') ?: null : null;
     }
 
     private function compositeRules(): array
@@ -347,7 +347,7 @@ class ProductController extends Controller
             'is_composite' => 'nullable|boolean',
             'is_raw_material' => 'nullable|boolean',
             'needs_preparation' => 'nullable|boolean',
-            'prep_target_minutes' => 'exclude_unless:needs_preparation,1,true|nullable|integer|min:1',
+            'prep_target_minutes' => 'exclude_unless:needs_preparation,1,true|nullable|integer|min:1|max:65535',
             'purchased_by' => 'exclude_unless:is_raw_material,1,true|required|in:central,outlet',
             // The form always sends `components: []`; only a composite needs at least one.
             'components' => 'exclude_unless:is_composite,1,true|required|array|min:1',
