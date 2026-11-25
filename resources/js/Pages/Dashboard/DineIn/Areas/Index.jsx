@@ -140,8 +140,9 @@ export default function Index({ areas }) {
                                         <div className="flex gap-2 justify-end">
                                             {canUpdate && (
                                                 <Button
-                                                    type={"edit"}
+                                                    type={"button"}
                                                     icon={<IconPencilCog size={16} strokeWidth={1.5} />}
+                                                    aria-label={`Edit ${area.name}`}
                                                     className={
                                                         "border bg-warning-100 border-warning-200 text-warning-600 hover:bg-warning-200 dark:bg-warning-900/50 dark:border-warning-800 dark:text-warning-400"
                                                     }
