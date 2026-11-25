@@ -17,7 +17,7 @@ class WarehouseController extends Controller
 
     public function index()
     {
-        $warehouses = $this->outletAccessService->warehousesFor(request()->user());
+        $warehouses = $this->outletAccessService->warehousesFor(request()->user(), forManagement: true);
 
         return Inertia::render('Dashboard/Settings/Warehouses', [
             'warehouses' => $warehouses,

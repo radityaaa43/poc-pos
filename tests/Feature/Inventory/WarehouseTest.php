@@ -82,6 +82,24 @@ class WarehouseTest extends TestCase
         }
     }
 
+    public function test_index_lists_inactive_warehouses_with_all_their_fields()
+    {
+        Warehouse::create([
+            'code' => 'CAB-OFF', 'name' => 'Cabang Off', 'type' => 'branch', 'address' => 'Jl. Mawar 1',
+            'phone' => '021-5550123', 'is_active' => false, 'sort_order' => 3,
+        ]);
+
+        $this->get(route('settings.warehouses.index'))->assertInertia(fn ($page) => $page
+            ->component('Dashboard/Settings/Warehouses')
+            ->has('warehouses', 2)
+            ->where('warehouses.1.code', 'CAB-OFF')
+            ->where('warehouses.1.is_active', false)
+            ->where('warehouses.1.type', 'branch')
+            ->where('warehouses.1.address', 'Jl. Mawar 1')
+            ->where('warehouses.1.phone', '021-5550123')
+            ->where('warehouses.1.sort_order', 3));
+    }
+
     public function test_admin_can_create_warehouse()
     {
         $response = $this->from(route('settings.warehouses.index'))

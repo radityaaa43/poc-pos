@@ -54,9 +54,16 @@ class OutletAccessService
             ->values();
     }
 
-    public function warehousesFor(User $user): Collection
+    /**
+     * @param  bool  $forManagement  the settings page lists every warehouse, inactive ones included,
+     *                               with all its fields; everything else gets the active ones only.
+     */
+    public function warehousesFor(User $user, bool $forManagement = false): Collection
     {
-        $query = Warehouse::query()->active()->orderBy('sort_order')->orderBy('code');
+        $query = Warehouse::query()->orderBy('sort_order')->orderBy('code');
+        if (! $forManagement) {
+            $query->active();
+        }
         if (! $user->isSuperAdmin()) {
             $outletIds = $user->outlets()->pluck('outlets.id');
             if ($outletIds->isNotEmpty()) {
@@ -64,7 +71,7 @@ class OutletAccessService
             }
         }
 
-        return $query->with('outlet:id,is_sales_enabled')->get(['id', 'code', 'name', 'outlet_id', 'is_active']);
+        return $query->with('outlet:id,is_sales_enabled')->get($forManagement ? ['*'] : ['id', 'code', 'name', 'outlet_id', 'is_active']);
     }
 
     public function defaultOutlet(User $user): ?Outlet
