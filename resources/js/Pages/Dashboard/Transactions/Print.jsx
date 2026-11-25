@@ -16,11 +16,13 @@ import ThermalReceipt, {
     ThermalReceipt58mm,
 } from "@/Components/Receipt/ThermalReceipt";
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
+import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
+import { LateRefundNotice } from "./LateRefundBadge";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
 
-export default function Print({ transaction }) {
+export default function Print({ transaction, retryable, bankAccounts, paymentGateways }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
     const [printMode, setPrintMode] = useState("invoice"); // 'invoice' | 'thermal80' | 'thermal58'
@@ -48,7 +50,10 @@ export default function Print({ transaction }) {
                     setLiveStatus(data.payment_status);
                     if (data.payment_status === "paid") {
                         toast.success("Pembayaran QRIS diterima!");
-                        router.reload({ only: ["transaction"] });
+                    }
+                    // A failed or expired QRIS brings the retry panel (`retryable`) without a manual reload.
+                    if (["paid", "failed", "expired"].includes(data.payment_status)) {
+                        router.reload({ only: ["transaction", "retryable"] });
                     }
                 }
             } catch {
@@ -668,6 +673,13 @@ export default function Print({ transaction }) {
                                                 )}
                                         </div>
                                     </div>
+                                    <RetryPaymentPanel
+                                        transaction={transaction}
+                                        retryable={retryable}
+                                        bankAccounts={bankAccounts}
+                                        paymentGateways={paymentGateways}
+                                    />
+                                    <LateRefundNotice transaction={transaction} />
                                 </div>
                             </div>
 

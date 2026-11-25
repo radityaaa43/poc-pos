@@ -4,6 +4,8 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import OpenBillPayModal from "@/Components/POS/OpenBillPayModal";
+import LateRefundBadge from "./LateRefundBadge";
+import { useTranslation } from "react-i18next";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -26,6 +28,7 @@ const defaultFilters = {
     start_date: "",
     end_date: "",
     warehouse_id: "",
+    late_payment: "",
 };
 
 const formatCurrency = (value = 0) =>
@@ -88,6 +91,7 @@ const OpenBillStatus = ({ transaction, canPay, onPay }) => (
 
 const History = ({ transactions, filters, warehouses = [], bankAccounts = [], paymentGateways = [] }) => {
     const { can } = useAuthorization();
+    const { t } = useTranslation();
     const canCreateSalesReturn = can("sales-returns-create");
     const canConfirmPayment = can("transactions-confirm-payment");
     const canPayOpenBill = can("dine-orders-process");
@@ -136,6 +140,15 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         });
     };
 
+    // Sales paid twice (a late payment of a superseded attempt) that need a manual refund.
+    const lateOnly = filterData.late_payment === "1";
+    const toggleLatePayment = () =>
+        router.get(
+            route("transactions.history"),
+            { ...filterData, late_payment: lateOnly ? "" : "1" },
+            { preserveScroll: true, preserveState: true }
+        );
+
     const rows = transactions?.data ?? [];
     const links = transactions?.links ?? [];
     const currentPage = transactions?.current_page ?? 1;
@@ -144,7 +157,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         : rows.length || 1;
 
     const hasActiveFilters =
-        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id;
+        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id || lateOnly;
 
     return (
         <>
@@ -166,6 +179,18 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <button
+                            type="button"
+                            aria-pressed={lateOnly}
+                            onClick={toggleLatePayment}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                                lateOnly
+                                    ? "bg-danger-50 border-danger-200 text-danger-700 dark:bg-danger-950/50 dark:border-danger-800 dark:text-danger-400"
+                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {t("transactions.lateRefund.filter")}
+                        </button>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
@@ -399,6 +424,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                             "-"}
                                                     </span>
                                                 )}
+                                                <LateRefundBadge transaction={transaction} />
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center justify-center gap-2">
@@ -530,6 +556,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                             "-"}
                                                     </span>
                                                 )}
+                                                <LateRefundBadge transaction={transaction} />
                                             </div>
                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">
                                                 {formatCurrency(

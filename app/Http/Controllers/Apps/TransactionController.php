@@ -25,6 +25,7 @@ use App\Services\OutletAccessService;
 use App\Services\Payments\PaymentGatewayManager;
 use App\Services\PriceListService;
 use App\Services\PricingService;
+use App\Services\TransactionPaymentRetryService;
 use App\Services\TransactionTenderService;
 use App\Services\UnitConversionService;
 use App\Support\Checkout\CheckoutContext;
@@ -33,6 +34,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -48,6 +50,7 @@ class TransactionController extends Controller
         protected readonly TransactionTenderService $tenderService,
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
+        protected readonly TransactionPaymentRetryService $paymentRetryService,
     ) {}
 
     /**
@@ -755,8 +758,15 @@ class TransactionController extends Controller
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);
 
+        // Pay-another-way choices are only needed while the sale can be retried.
+        $retryable = $this->paymentRetryService->isRetryable($transaction);
+        $outlet = $retryable ? $transaction->warehouse?->outlet : null;
+
         return Inertia::render('Dashboard/Transactions/Print', [
             'transaction' => $transaction,
+            'retryable' => $retryable,
+            'bankAccounts' => $retryable ? BankAccount::active()->forOutlet($outlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']) : [],
+            'paymentGateways' => $retryable ? PaymentSetting::forOutlet($outlet)?->enabledGateways($outlet) ?? [] : [],
         ]);
     }
 
@@ -796,6 +806,7 @@ class TransactionController extends Controller
             'start_date' => $request->input('start_date'),
             'end_date' => $request->input('end_date'),
             'warehouse_id' => $request->input('warehouse_id'),
+            'late_payment' => $request->boolean('late_payment'),
         ];
 
         $query = Transaction::query()
@@ -841,7 +852,9 @@ class TransactionController extends Controller
             })
             ->when($filters['warehouse_id'], function (Builder $builder, $warehouseId) {
                 $builder->where('warehouse_id', $warehouseId);
-            });
+            })
+            // sales whose superseded attempt was paid after a retry: money to refund by hand
+            ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'));
 
         $transactions = $query->paginate($this->perPage())->withQueryString();
         $warehouses = $this->outletAccessService->warehousesFor($request->user());
@@ -948,6 +961,32 @@ class TransactionController extends Controller
         return redirect()
             ->back()
             ->with('success', "Pembayaran untuk invoice {$transaction->invoice} berhasil dikonfirmasi.");
+    }
+
+    /**
+     * Pay a failed or expired POS sale again: the same method (Coba lagi) or another one.
+     */
+    public function retryPayment(Request $request, Transaction $transaction)
+    {
+        $this->ensureTransactionAccess($request, $transaction);
+
+        $data = $request->validate([
+            'payment_method' => ['required', Rule::in(['cash', 'qris', 'midtrans', 'xendit', 'bank_transfer'])],
+            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.(int) $transaction->grand_total],
+            'bank_account_id' => ['exclude_unless:payment_method,bank_transfer', 'required', 'integer', 'exists:bank_accounts,id'],
+        ]);
+
+        $print = redirect()->route('transactions.print', $transaction->invoice);
+
+        try {
+            $sale = $this->paymentRetryService->retry($transaction, $request->user(), $data);
+        } catch (PaymentGatewayException $exception) {
+            return $print->with('error', $exception->getMessage());
+        }
+
+        return $sale->payment_status === 'paid'
+            ? $print->with('success', "Pembayaran untuk invoice {$sale->invoice} berhasil dicatat.")
+            : $print->with('info', "Menunggu pembayaran untuk invoice {$sale->invoice}.");
     }
 
     protected function ensureTransactionAccess(Request $request, Transaction $transaction): void

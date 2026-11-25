@@ -508,7 +508,12 @@
         "noHeldCarts": "Tidak ada transaksi ditahan",
         "searchProduct": "Cari produk (barcode/nama)...",
         "productNotFound": "Produk tidak ditemukan",
-        "stockInsufficient": "Stok tidak mencukupi"
+        "stockInsufficient": "Stok tidak mencukupi",
+        "lateRefund": {
+            "badge": "Bayar ganda — refund manual",
+            "filter": "Perlu refund",
+            "notice": "Pembayaran lama diterima setelah dibayar ulang — perlu refund manual"
+        }
     },
     "receivables": {
         "title": "Piutang",
@@ -1029,6 +1034,21 @@
             "product": "Tambahkan produk pertama",
             "customer": "Daftarkan pelanggan pertama",
             "transaction": "Selesaikan transaksi pertama"
+        }
+    },
+    "pos": {
+        "retryPayment": {
+            "failed": "Pembayaran gagal",
+            "expired": "Pembayaran kedaluwarsa",
+            "retry": "Coba lagi",
+            "other": "Bayar dengan cara lain",
+            "method": "Metode pembayaran",
+            "cash": "Tunai",
+            "qris": "QRIS",
+            "cashReceived": "Uang diterima",
+            "change": "Kembalian",
+            "bankAccount": "Rekening tujuan",
+            "pay": "Bayar"
         }
     }
 }
