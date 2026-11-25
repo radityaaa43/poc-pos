@@ -52,8 +52,8 @@ scan in the POS.
 | `11-account` | `01-password-reset`: mail-log link, mismatch, single use; `02-profile`: name/email/avatar, password change, delete account | any user |
 | `12-shell` | `01-language-switch` (switch itself fixme #99), `02-guided-tours`: auto-start, replay, reset, saved as done; `03-notifications`: low-stock bell, per-user read | manager-like user |
 | `13-dashboard` | `01-dashboard-home`: summary cards, low-stock widget, shortcut; checklist subtitle fixme (#100) | manager-like user |
-| `14-access-control` | `01-users`: create, edit role, delete, sign in (own-delete message fixme #132); `02-roles`: create, edit, access check, delete, super-admin protected; `03-permissions`: page, search (page-size fixme #139) | super-admin, custom role |
-| `15-organisation` | `01-units`, `02-warehouses` (list fields fixme #142), `03-outlets`: create/rename/delete, outlet switch keeps settings per outlet | manager, super-admin |
-| `16-settings` | `01-store-profile` (+ tax rate), `02-sales-target`, `03-printer-loyalty`, `04-payments` (gateway keys, bank accounts), `05-whatsapp`. Real USB printer and real WhatsApp pairing are Manual | manager, super-admin |
+| `14-access-control` | `01-users`: create, edit role, delete, sign in (own-delete message fixme #132); `02-roles`: create/rename/delete, custom-role access, super-admin protected (picking permissions fixme #156); `03-permissions`: page, search (page-size fixme #139) | super-admin, custom role |
+| `15-organisation` | `01-units`, `02-warehouses` (list fields fixme #142), `03-outlets`: create/rename/delete, outlet switch keeps settings per outlet (no-reload view fixme #151) | manager, super-admin |
+| `16-settings` | `01-store-profile` (+ tax rate; new-product default rate fixme #189 in `06`), `02-sales-target`, `03-printer-loyalty`, `04-payments` (gateway keys, bank accounts), `05-whatsapp`. Real USB printer and real WhatsApp pairing are Manual | manager, super-admin |
 | `17-audit-logs` | `01-audit-trail`: entries for user, reset request, bank account; filters; detail page | super-admin |
-| `18-import-export` | `01-products-and-customers`: CSV import, Excel export, re-import by barcode, templates | manager-like user |
+| `18-import-export` | `01-exports-and-templates`: Excel exports, template headers; `02-imports`: both imports fixme (#154 products 500, #155 CSV refused) | manager-like user |

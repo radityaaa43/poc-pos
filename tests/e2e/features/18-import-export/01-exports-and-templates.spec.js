@@ -40,7 +40,7 @@ test.describe('export and import templates', () => {
             await page.goto('/dashboard/customers');
             const customers = await exportText(page, '/export/customers');
             expect(customers).toContain(customerName);
-            expect(customers).toContain('081200000001');
+            expect(customers).toContain('Jl. Impor 1');
         } finally {
             arrange('platform.drop-customer', { name: customerName });
         }

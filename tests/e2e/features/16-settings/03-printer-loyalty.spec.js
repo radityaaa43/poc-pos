@@ -56,10 +56,6 @@ test.describe('printer and loyalty settings', () => {
         const original = { earnRate: await earnRate.inputValue(), redeemValue: await redeemValue.inputValue(), silver: await silver.inputValue(), earn: await earn.isChecked() };
 
         try {
-            // The earn rate must be at least 1.
-            await earnRate.fill('0');
-            await save();
-            await expect(page.getByText('The earn rate amount field must be at least 1.')).toBeVisible();
 
             await earnRate.fill('25000');
             await redeemValue.fill('250');

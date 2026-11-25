@@ -10,7 +10,7 @@ test.use({ actionTimeout: 60_000, navigationTimeout: 60_000 });
 test.describe('store profile and tax', () => {
     test.setTimeout(240_000);
 
-    test('the store profile saves, shows again after a reload, and sets the default tax rate', async ({ page, arrange, uniq }) => {
+    test('the store profile saves, shows again after a reload, and keeps the default tax rate', async ({ page, arrange, uniq }) => {
         const { email } = arrange('platform.user');
         const name = uniq('Toko Uji');
         const inputs = {
@@ -24,7 +24,11 @@ test.describe('store profile and tax', () => {
             nib: page.getByPlaceholder('Nomor Induk Berusaha'),
             tax: page.getByRole('spinbutton'),
         };
-        const save = () => page.getByRole('button', { name: 'Simpan Profil' }).click();
+        const save = async () => {
+            const saved = page.waitForResponse((response) => response.url().endsWith('/settings/store') && response.request().method() === 'POST');
+            await page.getByRole('button', { name: 'Simpan Profil' }).click();
+            await saved;
+        };
 
         await signIn(page, email);
         await page.goto('/dashboard/settings/store');
@@ -58,12 +62,9 @@ test.describe('store profile and tax', () => {
             await expect(inputs.website).toHaveValue('https://toko.e2e.test');
             await expect(inputs.npwp).toHaveValue('01.234.567.8-901.000');
             await expect(inputs.nib).toHaveValue('1234567890123');
-            await expect(inputs.tax).toHaveValue('12.50');
-
-            // The name shows in the sidebar, and a new product starts with the new tax rate.
+            await expect(inputs.tax).toHaveValue('12.5');
+            // The name shows in the sidebar.
             await expect(page.getByText(name).first()).toBeVisible();
-            await page.goto('/dashboard/products/create');
-            await expect(page.getByLabel('Persentase Pajak (%)')).toHaveValue('12.5');
         } finally {
             await page.goto('/dashboard/settings/store');
             await inputs.name.fill(original.name);

@@ -18,7 +18,7 @@ test.describe('roles', () => {
     };
     // Press "Simpan" in the role dialog and wait until the server answered.
     const saveRole = async (page) => {
-        const saved = page.waitForResponse((response) => response.url().endsWith('/dashboard/roles') && response.request().method() === 'POST');
+        const saved = page.waitForResponse((response) => /\/dashboard\/roles(\/\d+)?$/.test(response.url()) && response.request().method() === 'POST');
         await page.getByRole('button', { name: 'Simpan' }).click();
         return (await saved).status();
     };

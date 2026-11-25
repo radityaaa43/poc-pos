@@ -46,7 +46,7 @@ test.describe('audit logs', () => {
         await expect(rows.filter({ hasText: 'auth.password_reset_requested' })).toHaveCount(1);
 
         // The event and module pickers offer what was logged and narrow the list.
-        await page.getByRole('combobox').nth(2).selectOption('user.created');
+        await page.getByRole('main').getByRole('combobox').nth(2).selectOption('user.created');
         await expect(page).toHaveURL(/event=user\.created/);
         await expect(rows.filter({ hasText: 'auth.password_reset_requested' })).toHaveCount(0);
         await search.fill(name);
@@ -54,7 +54,7 @@ test.describe('audit logs', () => {
         await expect(rows.filter({ hasText: 'user.created' })).toHaveCount(1);
 
         // The actor picker: only this admin's entries.
-        await page.getByRole('combobox').nth(0).selectOption({ label: admin.name });
+        await page.getByRole('main').getByRole('combobox').nth(0).selectOption({ label: admin.name });
         await expect(rows.filter({ hasText: 'user.created' })).toHaveCount(1);
 
         // The detail page shows who, what, and the saved values.
