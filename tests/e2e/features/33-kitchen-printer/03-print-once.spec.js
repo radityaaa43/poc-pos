@@ -5,8 +5,8 @@ import { fakePrinter, sentToPrinter, asText } from '../../support/webusb.js';
 
 const cashier = roles.find((role) => role.key === 'cashier');
 
-const isTicketsPoll = (response) => response.request().method() === 'GET' && /\/kitchen\/devices\/\d+\/tickets$/.test(response.url());
-const isPrintRecord = (response) => response.request().method() === 'POST' && /\/kitchen\/devices\/\d+\/prints$/.test(response.url());
+const isTicketsPoll = (response) => response.request().method() === 'GET' && /\/kitchen\/print-devices\/\d+\/tickets$/.test(response.url());
+const isPrintRecord = (response) => response.request().method() === 'POST' && /\/kitchen\/print-devices\/\d+\/prints$/.test(response.url());
 const printsOf = async (page, invoice) => (await sentToPrinter(page)).map(asText).filter((text) => text.includes(invoice));
 
 test.describe('33-kitchen-printer', () => {
