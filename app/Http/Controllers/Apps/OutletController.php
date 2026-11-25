@@ -11,6 +11,7 @@ use App\Models\Setting;
 use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\OutletAccessService;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -28,7 +29,10 @@ class OutletController extends Controller
     {
         $outlets = $this->outletAccessService->accessibleOutlets(request()->user())
             ->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')])
-            ->each(fn (Outlet $outlet) => $outlet->setAttribute('pay_later_enabled', Setting::getBoolForOutlet('pay_later_enabled', $outlet)));
+            ->each(function (Model $model) {
+                /** @var Outlet $model accessibleOutlets() returns an untyped Eloquent collection of outlets */
+                $model->setAttribute('pay_later_enabled', Setting::getBoolForOutlet('pay_later_enabled', $model));
+            });
 
         return Inertia::render('Dashboard/Settings/Outlets/Index', ['outlets' => $outlets]);
     }
