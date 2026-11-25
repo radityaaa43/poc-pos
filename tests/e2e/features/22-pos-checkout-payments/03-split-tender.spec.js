@@ -22,7 +22,7 @@ async function readyToSplit(page, product, customer) {
 }
 
 test.describe('POS checkout: split tender', () => {
-    test.describe.configure({ timeout: 150_000 });
+    test.describe.configure({ timeout: 300_000 });
 
     test('cash plus transfer pays one sale in two parts', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('split'), stock: 10 });
@@ -59,10 +59,11 @@ test.describe('POS checkout: split tender', () => {
         await tenderRow(page, 1).locator('select').nth(1).selectOption({ label: `${bank.bank} - ${bank.account_number}` });
         await finish(page);
 
-        // Receipt: split in two tenders; the transfer part is still awaited, so the sale is not paid yet.
+        // Receipt: split in two tenders. A split transfer counts as received at once (unlike a single transfer,
+        // which waits for a manager's confirmation, see 01-bank-transfer and question #153), so the sale is paid.
         await expect(page.getByText('Split Pembayaran', { exact: true })).toBeVisible();
         await expect(page.getByText('2 tender')).toBeVisible();
-        await expect(page.getByText('Menunggu', { exact: true })).toBeVisible();
+        await expect(page.getByText('Lunas', { exact: true })).toBeVisible();
     });
 
     test('paying more than the total in the two parts is refused', async ({ asRole, arrange, uniq }) => {

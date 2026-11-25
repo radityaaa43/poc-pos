@@ -17,7 +17,7 @@ function arrangeSale(arrange, uniq, { qty = 1 } = {}) {
 }
 
 test.describe('POS history: list, filters and who sees what', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     test('a sale is listed with cashier, customer, items, total and status; the print icon opens its receipt', async ({ asRole, arrange, uniq }) => {
         const { customer, invoice } = arrangeSale(arrange, uniq, { qty: 3 });

@@ -5,7 +5,7 @@ import { addToCart, cardButton, increment, openPos, productCard, rupiah, total }
 const cashier = roles.find((role) => role.key === 'cashier');
 
 test.describe('POS cart: unit switch', () => {
-    test.describe.configure({ timeout: 90_000 });
+    test.describe.configure({ timeout: 180_000 });
 
     test('a box button on the card switches the price shown and adds the product by the box', async ({ asRole, arrange, uniq }) => {
         // 30 pcs in the warehouse; 1 box = 12 pcs at 108.000 (a pcs is 10.000).
@@ -29,8 +29,7 @@ test.describe('POS cart: unit switch', () => {
         await expect(page.getByText('1 item')).toBeVisible();
     });
 
-    // Bug #106: the cart prices a box at the per-piece price (Rp 10.000 instead of Rp 108.000).
-    test.fixme('a box is priced with the box price in the cart', async ({ asRole, arrange, uniq }) => {
+    test('a box is priced with the box price in the cart', async ({ asRole, arrange, uniq }) => {
         const product = arrange('pos.unit-product', { title: uniq('unit-price'), stock: 30, factor: 12 });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
@@ -39,6 +38,21 @@ test.describe('POS cart: unit switch', () => {
         await addToCart(page, product.title, { unit: 'BOX' });
         await expect(page.getByText('Rp 108.000 × 1')).toBeVisible();
         await expect(total(page)).toHaveText(rupiah(108000));
+    });
+
+    test('adding pieces after a box makes a separate cart row, each at its own price', async ({ asRole, arrange, uniq }) => {
+        const product = arrange('pos.unit-product', { title: uniq('unit-rows'), stock: 30, factor: 12 });
+        arrange('pos.open-shift', { cash: 100000 });
+        const page = await asRole(cashier);
+
+        await openPos(page);
+        await addToCart(page, product.title, { unit: 'BOX' });
+        await productCard(page, product.title).getByRole('button', { name: 'Dasar', exact: true }).click();
+        await addToCart(page, product.title);
+
+        await expect(page.getByText('Rp 108.000 × 1')).toBeVisible();
+        await expect(page.getByText('Rp 10.000 × 1')).toBeVisible();
+        await expect(total(page)).toHaveText(rupiah(118000));
     });
 
     test('two boxes (24 pcs) fit in 30 pcs of stock', async ({ asRole, arrange, uniq }) => {

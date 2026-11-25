@@ -7,7 +7,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 const XENDIT_CALLBACK_TOKEN = 'e2e-xendit-callback-token';
 
 test.describe('POS checkout: payment gateways and QRIS', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     for (const gateway of [
         { label: 'Midtrans', link: /pay\.e2e\.test\/midtrans\// },

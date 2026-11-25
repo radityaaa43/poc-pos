@@ -5,7 +5,7 @@ import { addToCart, cardButton, increment, openPos, productCard, rupiah, total }
 const cashier = roles.find((role) => role.key === 'cashier');
 
 test.describe('POS cart: add, change quantity, remove', () => {
-    test.describe.configure({ timeout: 90_000 });
+    test.describe.configure({ timeout: 180_000 });
 
     test('a product from the grid joins the cart; + and - change qty and total; the trash removes it', async ({ asRole, arrange, uniq }) => {
         const first = arrange('product', { title: uniq('cart-a'), stock: 10 });

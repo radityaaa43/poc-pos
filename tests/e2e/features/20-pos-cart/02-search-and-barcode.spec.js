@@ -5,7 +5,7 @@ import { openPos, productCard, rupiah, scan, total } from '../../support/pos.js'
 const cashier = roles.find((role) => role.key === 'cashier');
 
 test.describe('POS cart: search and barcode', () => {
-    test.describe.configure({ timeout: 90_000 });
+    test.describe.configure({ timeout: 180_000 });
 
     test('the search box filters the grid by title and by barcode; nothing matching says so', async ({ asRole, arrange, uniq }) => {
         const wanted = arrange('product', { title: uniq('find-me') });

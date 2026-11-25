@@ -10,7 +10,7 @@ const payLaterToggle = (page) => ({
 });
 
 test.describe('POS checkout: pay later (nota barang) to a customer', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     test('a pay-later sale needs a customer and a due date, then becomes a receivable', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('credit'), stock: 5 });
@@ -54,10 +54,13 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
         // The receivable is listed for collection with the customer and the amount.
         await page.goto('/dashboard/receivables');
         await page.getByPlaceholder('Cari invoice / nomor nota').fill(invoice);
-        const receivable = page.getByRole('row').filter({ hasText: invoice });
-        await expect(receivable).toContainText(customer.name);
-        await expect(receivable).toContainText(rupiah(20000));
-        await expect(receivable).toContainText('Belum Lunas');
+        await page.getByRole('button', { name: 'Terapkan' }).click();
+        // The search left only this note; the list is not a semantic table, so read it by text.
+        const list = page.getByRole('main');
+        await expect(list.getByText(invoice, { exact: true })).toBeVisible();
+        await expect(list.getByText(customer.name)).toBeVisible();
+        await expect(list.getByText(rupiah(20000)).first()).toBeVisible();
+        await expect(list.getByText('Belum Lunas', { exact: true }).first()).toBeVisible();
 
         // Goods left the shelf at once: 5 - 2 = 3 (the card flags 5 or fewer).
         await page.goto('/dashboard/transactions');

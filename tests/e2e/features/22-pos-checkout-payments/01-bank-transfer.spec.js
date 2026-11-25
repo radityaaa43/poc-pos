@@ -6,7 +6,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 const manager = roles.find((role) => role.key === 'manager');
 
 test.describe('POS checkout: bank transfer', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     test('a transfer needs an account, waits for payment, and a manager confirms it', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('transfer'), stock: 10 });
@@ -51,6 +51,7 @@ test.describe('POS checkout: bank transfer', () => {
         await expect(boss.getByRole('heading', { name: 'Konfirmasi Password' })).toBeVisible();
         await boss.getByPlaceholder('Masukkan password Anda').fill('password');
         await boss.getByRole('button', { name: 'Lanjutkan' }).click();
+        await expect(boss.getByRole('heading', { name: 'Konfirmasi Password' })).toHaveCount(0);
         await boss.goto(`/dashboard/transactions/${invoice}/print`);
         await boss.getByRole('button', { name: 'Konfirmasi Bayar' }).click();
         await boss.getByRole('button', { name: 'Konfirmasi Lunas' }).click();

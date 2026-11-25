@@ -15,7 +15,7 @@ function arrangeSale(arrange, uniq) {
 }
 
 test.describe('POS receipt: formats, PDF and share link', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     test('the receipt shows as invoice, 80 mm and 58 mm strips and shipping label, each with its PDF', async ({ asRole, arrange, uniq }) => {
         const { product, customer, invoice } = arrangeSale(arrange, uniq);

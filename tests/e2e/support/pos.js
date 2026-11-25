@@ -12,15 +12,18 @@ export async function openPos(page) {
     await expect(page.getByPlaceholder(/Cari produk atau scan barcode/)).toBeVisible({ timeout: 45_000 });
 }
 
-// Clicks a product card in the grid and waits until the cart page has reloaded. (The "ditambahkan" toast
-// lasts about two seconds, which a busy machine can make a polling assertion miss.)
+// Clicks a product card in the grid and waits for the server to take it. (The "ditambahkan" toast lasts about
+// two seconds, which a busy machine can make a polling assertion miss; a click that lands while the page is
+// still swapping in the previous response is dropped, so press again only when nothing was sent.)
 export async function addToCart(page, title, { unit } = {}) {
     if (unit) {
         await productCard(page, title).getByRole('button', { name: unit, exact: true }).click();
     }
-    const added = page.waitForResponse((response) => response.url().endsWith('/dashboard/transactions') && response.request().method() === 'GET');
-    await cardButton(page, title).click();
-    await added;
+    await expect(async () => {
+        const sent = page.waitForResponse((response) => response.url().endsWith('/addToCart'), { timeout: 10_000 });
+        await cardButton(page, title).click();
+        await sent;
+    }).toPass({ timeout: 45_000 });
 }
 
 // The image button that adds a product; its name is "<title> [Sisa n] + Tambah" (the badge shows at 5 or less).

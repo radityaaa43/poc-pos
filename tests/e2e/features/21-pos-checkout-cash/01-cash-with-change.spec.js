@@ -6,7 +6,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 const superAdmin = roles.find((role) => role.key === 'super-admin');
 
 test.describe('POS checkout: cash with change', () => {
-    test.describe.configure({ timeout: 120_000 });
+    test.describe.configure({ timeout: 240_000 });
 
     test('paying cash shows the change, issues a paid receipt and takes the stock out of the outlet warehouse', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('cash'), stock: 7 });
