@@ -122,14 +122,16 @@ export default function Index({ orders, outlet }) {
                                 {order.items.map((item) => (
                                     <li key={item.id} className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 px-4 py-2">
                                         <div>
-                                            <p className="font-medium text-slate-900 dark:text-white">
+                                            <p className={`font-medium ${item.status === "cancelled" ? "text-slate-500 line-through dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
                                                 {item.qty} × {item.title}
                                             </p>
                                             {item.note && (
                                                 <p className="text-sm italic text-slate-600 dark:text-slate-300">{item.note}</p>
                                             )}
                                         </div>
-                                        <span className="shrink-0 rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/50 dark:text-primary-400">
+                                        <span
+                                            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${item.status === "cancelled" ? "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-400" : "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400"}`}
+                                        >
                                             {t(`kitchen.status.${item.status}`, { defaultValue: item.status })}
                                         </span>
                                         {canPrepare && item.status === "accepted" &&

@@ -11,6 +11,7 @@ use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
+use App\Services\KitchenItemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -193,6 +194,8 @@ class SalesReturnController extends AppsSalesReturnController
                 'items.product',
                 'items.transactionDetail',
             ]);
+
+            app(KitchenItemService::class)->cancelForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([

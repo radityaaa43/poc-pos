@@ -544,7 +544,8 @@
         "refundAmount": "Jumlah Refund",
         "exchangeItem": "Tukar Barang",
         "cashRefund": "Refund Tunai",
-        "storeCredit": "Saldo Toko"
+        "storeCredit": "Saldo Toko",
+        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok"
     },
     "cashierShifts": {
         "title": "Shift Kasir",
@@ -1073,7 +1074,8 @@
         "status": {
             "accepted": "Diterima",
             "preparing": "Sedang dibuat",
-            "ready": "Siap"
+            "ready": "Siap",
+            "cancelled": "Dibatalkan"
         },
         "actions": {
             "start": "Mulai buat",

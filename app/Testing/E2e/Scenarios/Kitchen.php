@@ -9,6 +9,7 @@ use App\Models\DineOrder;
 use App\Models\KitchenItem;
 use App\Models\Product;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CheckoutService;
@@ -117,6 +118,31 @@ class Kitchen
                 KitchenItem::where('transaction_id', $sale['transaction_id'])->delete();
 
                 return $sale;
+            },
+
+            // Moves item --arg=index (default 0) of the sale --arg=invoice to --arg=status=accepted|preparing|ready|served
+            // (default preparing), and sets the sold quantity of its line to --arg=qty when given (the sale line, its
+            // price and the kitchen item together), so a step can start a half-made item or return part of a line.
+            'kitchen.set-item' => function (array $options): array {
+                $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
+                $item = KitchenItem::where('transaction_id', $transaction->id)->orderBy('id')->skip((int) ($options['index'] ?? 0))->firstOrFail();
+                $status = $options['status'] ?? KitchenItem::STATUS_PREPARING;
+                $now = now();
+                $item->forceFill([
+                    'status' => $status,
+                    'preparing_at' => in_array($status, [KitchenItem::STATUS_PREPARING, KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED], true) ? $now : null,
+                    'ready_at' => in_array($status, [KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED], true) ? $now : null,
+                    'served_at' => $status === KitchenItem::STATUS_SERVED ? $now : null,
+                ]);
+                if (isset($options['qty'])) {
+                    $qty = (int) $options['qty'];
+                    $detail = TransactionDetail::findOrFail($item->transaction_detail_id);
+                    $detail->update(['qty' => $qty, 'price' => $detail->unit_price * $qty]);
+                    $item->qty = $qty;
+                }
+                $item->save();
+
+                return ['status' => $item->status, 'qty' => $item->qty];
             },
 
             // Opens the cashier's shift (--arg=cashier=<email>, default cashier@e2e.test), creates products

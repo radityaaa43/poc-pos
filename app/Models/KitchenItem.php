@@ -17,6 +17,15 @@ class KitchenItem extends Model
 
     public const STATUS_SERVED = 'served';
 
+    /** Terminal: set by a completed sales return; its time is `updated_at`, never written again. */
+    public const STATUS_CANCELLED = 'cancelled';
+
+    /** How long the display keeps showing a cancelled item (Dibatalkan) before it leaves the queue. */
+    public const CANCELLED_VISIBLE_MINUTES = 2;
+
+    /** Not yet served or cancelled: still waiting on the kitchen or the pass. */
+    public const OPEN_STATUSES = [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY];
+
     protected $fillable = [
         'transaction_id',
         'transaction_detail_id',
@@ -78,7 +87,7 @@ class KitchenItem extends Model
     /** Not yet served: still waiting on the kitchen or the pass. */
     public function scopeOpen(Builder $query): void
     {
-        $query->whereIn('status', [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY]);
+        $query->whereIn('status', self::OPEN_STATUSES);
     }
 
     /** Every warehouse of the outlet: a shift may sell from any of them, not only the first one. */
@@ -90,5 +99,13 @@ class KitchenItem extends Model
     public function ticketPrints(): HasMany
     {
         return $this->hasMany(KitchenTicketPrint::class);
+    }
+
+    /** What the kitchen display lists: the open items plus the recently cancelled ones. */
+    public function scopeOnDisplay(Builder $query): void
+    {
+        $query->where(fn ($q) => $q->whereIn('status', self::OPEN_STATUSES)->orWhere(fn ($q) => $q
+            ->where('status', self::STATUS_CANCELLED)
+            ->where('updated_at', '>=', now()->subMinutes(self::CANCELLED_VISIBLE_MINUTES))));
     }
 }
