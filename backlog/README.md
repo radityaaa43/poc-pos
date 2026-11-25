@@ -18,6 +18,10 @@ requirement's owner (`@radityaaa43`) changes a backlog item; everyone else reads
 Set `Status:` in the item: `draft` (still being shaped, not ready for issues) → `ready` (criteria
 agreed, issues may be filed) → `done` (every criterion shipped; link the PRs) or `dropped` (say why).
 
+An item is `ready` only when every section of [`TEMPLATE.md`](TEMPLATE.md) is filled, or says
+`n/a — <reason>`, every edge case in its checklist is covered by a criterion or marked n/a, and no
+open question is left `?`.
+
 ## From backlog item to code
 
 1. Item is `ready` → `/to-spec` files an issue with `Backlog: REQ-<n>` and tags each Done-when
