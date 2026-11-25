@@ -38,8 +38,7 @@ test.describe('27-sales-returns', () => {
         await expect(page.getByText('Sisa', { exact: true }).locator('xpath=following-sibling::p')).toHaveText(/Rp\s*0/);
     });
 
-    // Bug #213: the receivable is not lowered by a partial return of a pay-later sale (Sisa stays Rp 30.000).
-    test.fixme('returning one of three items of a pay-later sale lowers the receivable by one unit price', async ({ asRole, arrange, uniq }) => {
+    test('returning one of three items of a pay-later sale lowers the receivable by one unit price', async ({ asRole, arrange, uniq }) => {
         arrange('open-shift', { cashier: 'manager@e2e.test', cash: 100000 });
         const sale = arrange('posops.sale', { cashier: 'manager@e2e.test', qty: 3, left: 7, method: 'pay_later', customer: uniq('Tono') });
         const page = await asRole(manager);
@@ -52,6 +51,8 @@ test.describe('27-sales-returns', () => {
 
         await page.getByRole('button', { name: 'Buat Draft' }).click();
         await page.getByRole('button', { name: 'Selesaikan Retur' }).click();
+        // Navigating away before the completion lands aborts it (#213 was this, not an app bug).
+        await expect(page.getByText('Completed', { exact: true })).toBeVisible({ timeout: 30_000 });
         await page.goto(`/dashboard/receivables/${sale.receivable_id}`);
         await expect(page.getByText('Sisa', { exact: true }).locator('xpath=following-sibling::p')).toHaveText(/Rp\s*20\.000/);
     });
