@@ -27,6 +27,7 @@ class CheckoutService
         private readonly TransactionTenderService $tenderService,
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
+        private readonly KitchenIntakeService $kitchenIntake,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
@@ -123,6 +124,10 @@ class CheckoutService
             }
 
             $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
+
+            // The sale is created already paid, before its lines exist, so the Transaction `updated` hook never sees it.
+            // Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
+            DB::afterCommit(fn () => rescue(fn () => $this->kitchenIntake->intake($transaction)));
 
             Cart::where('cashier_id', $ctx->userId)
                 ->active()
