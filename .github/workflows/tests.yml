@@ -106,6 +106,9 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Static analysis (Larastan)
+        run: composer analyse
+
       # On push to main origin/main is HEAD, so the diff would be empty: PRs only.
       - name: Code style (Pint, changed files)
         if: github.event_name == 'pull_request'
