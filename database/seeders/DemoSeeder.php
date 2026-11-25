@@ -26,6 +26,7 @@ class DemoSeeder extends Seeder
             OperationalCoreSeeder::class,
             FeatureCoverageSeeder::class,
             FeatureDemoSeeder::class,
+            RawMaterialDemoSeeder::class,
         ]);
 
         Setting::set('app_setup_completed', true);
