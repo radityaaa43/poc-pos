@@ -2,7 +2,7 @@
 
 A real browser drives the real app on MySQL. Test data comes from `E2eSeeder` plus
 `php artisan e2e:arrange`; payment gateways and WhatsApp are faked. Design:
-`docs/superpowers/specs/2026-11-20-test-suite-design.md` §7–§8. What is covered: [`COVERAGE.md`](COVERAGE.md).
+`docs/superpowers/specs/2026-11-20-test-suite-design.md` §7–§8. What is covered: each feature folder's own `COVERAGE.md` (steps, roles, Manual checks).
 
 Everything e2e-only is gated to `APP_ENV=e2e` (`app/Testing/E2e/`): the reset and arrange commands
 and `E2eSeeder` refuse to run unless `APP_ENV` is `e2e` and the default connection's database name
@@ -66,7 +66,7 @@ npm run e2e:new -- 08-purchase-orders create-order   # step slug is optional (de
 ```
 
 This creates `features/08-purchase-orders/01-create-order.spec.js` from `support/templates/step.spec.js`
-(a `test.fixme` placeholder: replace it) and appends a row to `COVERAGE.md` (fill it in). Then:
+(a `test.fixme` placeholder: replace it) and the folder's own `COVERAGE.md` (fill it in; one note per folder, so PRs on different features never conflict). Then:
 
 - A step arranges its own data and never depends on another step: call `arrange('open-shift', { cash: 100000 })`
   and use `uniq('product')` for names, so reruns and shards do not collide.

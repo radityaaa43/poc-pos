@@ -1,22 +1,14 @@
 import assert from 'node:assert/strict';
-import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
 import { scaffold } from './new-feature.js';
 
-const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+// Work in a throwaway dir so the real features/ stay untouched.
+const sandbox = () => mkdtempSync(join(tmpdir(), 'e2e-new-'));
 
-// Work on a throwaway copy so the real features/ and COVERAGE.md stay untouched.
-function sandbox() {
-    const dir = mkdtempSync(join(tmpdir(), 'e2e-new-'));
-    cpSync(join(e2eDir, 'COVERAGE.md'), join(dir, 'COVERAGE.md'));
-
-    return dir;
-}
-
-test('creates the step file from the template and appends a coverage row', () => {
+test('creates the step file from the template and the folder coverage note', () => {
     const dir = sandbox();
     try {
         const file = scaffold(dir, '08-purchase-orders', 'create-order');
@@ -25,7 +17,8 @@ test('creates the step file from the template and appends a coverage row', () =>
         assert.match(readFileSync(file, 'utf8'), /test\.describe\('08-purchase-orders'/);
         assert.match(readFileSync(file, 'utf8'), /test\.fixme\('create-order:/);
         assert.match(readFileSync(file, 'utf8'), /\{ tag: \[\] \}/);
-        assert.match(readFileSync(join(dir, 'COVERAGE.md'), 'utf8'), /\| `08-purchase-orders` \| `01-create-order`/);
+        assert.match(readFileSync(join(dir, 'features', '08-purchase-orders', 'COVERAGE.md'), 'utf8'), /^# 08-purchase-orders\n[\s\S]*\| `01-create-order`: TODO \|/);
+        assert.ok(!existsSync(join(dir, 'COVERAGE.md')), 'no shared coverage file');
     } finally {
         rmSync(dir, { recursive: true });
     }
