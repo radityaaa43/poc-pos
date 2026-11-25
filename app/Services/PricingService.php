@@ -169,11 +169,17 @@ class PricingService
         };
     }
 
+    private function isUnitLine(Cart $cart): bool
+    {
+        return (float) ($cart->conversion_factor ?? 1) !== 1.0;
+    }
+
     private function buildPreview(Collection $carts, ?Customer $customer, Collection $rules, ?Outlet $outlet = null): array
     {
         $items = $carts->map(function (Cart $cart) use ($customer, $outlet) {
-            // ponytail: composite unit price = stored cart price / qty (cart price comes from Product::compositeSellPrice())
-            $baseUnitPrice = $cart->product->is_composite
+            // ponytail: composite and non-base-unit (BOX) lines are priced at stored cart price / qty (cart price
+            // comes from Product::compositeSellPrice() / the unit's own sell price); base-unit lines use the price list.
+            $baseUnitPrice = $cart->product->is_composite || $this->isUnitLine($cart)
                 ? (int) round($cart->price / max(1, (int) $cart->qty))
                 : $this->basePriceFor($cart->product, $customer, $outlet);
 
@@ -194,8 +200,10 @@ class PricingService
             ];
         })->keyBy('cart_id');
 
-        $remainingQuantities = $items
-            ->mapWithKeys(fn (array $item, int|string $cartId) => [(int) $cartId => (int) $item['qty']])
+        // Pricing rules count base pieces (a fixed price of 8.000 is per piece), so a unit line takes none:
+        // zero remaining quantity keeps it out of every rule stage below.
+        $remainingQuantities = $carts
+            ->mapWithKeys(fn (Cart $cart) => [(int) $cart->id => $this->isUnitLine($cart) ? 0 : (int) $cart->qty])
             ->all();
 
         $eligibleRules = $rules

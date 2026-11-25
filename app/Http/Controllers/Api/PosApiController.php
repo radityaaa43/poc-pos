@@ -325,6 +325,7 @@ class PosApiController extends Controller
 
         $cart = Cart::with('product')
             ->where('product_id', $validated['product_id'])
+            ->where('unit_id', $unitId)
             ->where('cashier_id', $request->user()->id)
             ->active()
             ->first();
