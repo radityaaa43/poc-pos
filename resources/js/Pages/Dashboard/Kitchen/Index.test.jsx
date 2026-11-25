@@ -140,7 +140,7 @@ describe("Kitchen/Index", () => {
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
 
-    it("runs the print station hook for the page and toggles its panel with a button", async () => {
+    it("runs the print device hook for the page and toggles its panel with a button", async () => {
         const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
         render(<Index orders={orders} outlet={outlet} />);
         expect(useKitchenPrintDevice).toHaveBeenCalledWith(outlet);

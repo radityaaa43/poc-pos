@@ -15,6 +15,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -126,13 +127,28 @@ class KitchenTicketTest extends TestCase
         $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $item->id]);
     }
 
-    // #366: the table and column rename keeps what was printed, in both directions.
+    // #366: the table and column rename keeps what was printed, and the keys that guard it, in both directions.
     public function test_the_print_device_rename_keeps_rows_and_keys_both_ways(): void
     {
         $item = $this->kitchenItem($this->sale('INV-RENAME'), acceptedAt: now()->subMinute());
+        $spare = $this->kitchenItem($this->sale('INV-RENAME-2'), acceptedAt: now()->subMinute());
         $device = $this->device('Dapur 1');
         $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [$item->id]])->assertNoContent();
         $migration = require database_path('migrations/2026_12_06_100001_rename_kitchen_print_stations_to_devices.php');
+
+        // The keys behind "one name per outlet" and "printed once per device": a lost one would fail silently.
+        // The cascade is run on a throwaway device, so the real row stays for the next step.
+        $assertKeys = function (string $devices, string $column) use ($device, $spare) {
+            $this->assertTrue(Schema::hasIndex($devices, ['outlet_id', 'name'], 'unique'), "$devices: unique outlet + name");
+            $this->assertTrue(Schema::hasIndex('kitchen_ticket_prints', [$column, 'kitchen_item_id'], 'unique'), "kitchen_ticket_prints: unique $column + item");
+            $this->assertContains($devices, collect(Schema::getForeignKeys('kitchen_ticket_prints'))->pluck('foreign_table')->all());
+            $this->assertContains('outlets', collect(Schema::getForeignKeys($devices))->pluck('foreign_table')->all());
+
+            $temp = DB::table($devices)->insertGetId(['outlet_id' => $device->outlet_id, 'name' => 'Cascade', 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('kitchen_ticket_prints')->insert([$column => $temp, 'kitchen_item_id' => $spare->id]);
+            DB::table($devices)->where('id', $temp)->delete();
+            $this->assertDatabaseMissing('kitchen_ticket_prints', ['kitchen_item_id' => $spare->id]);
+        };
 
         $migration->down();
 
@@ -140,16 +156,18 @@ class KitchenTicketTest extends TestCase
         $this->assertFalse(Schema::hasTable('kitchen_print_devices'));
         $this->assertDatabaseHas('kitchen_print_stations', ['id' => $device->id, 'name' => 'Dapur 1']);
         $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_station_id' => $device->id, 'kitchen_item_id' => $item->id]);
+        $assertKeys('kitchen_print_stations', 'kitchen_print_station_id');
 
         $migration->up();
 
         $this->assertTrue(Schema::hasTable('kitchen_print_devices'));
+        $this->assertFalse(Schema::hasTable('kitchen_print_stations'));
         $this->assertDatabaseHas('kitchen_print_devices', ['id' => $device->id, 'name' => 'Dapur 1']);
         $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $item->id]);
-        $this->assertSame([], $this->tickets($device), 'the item is still known as printed');
-        $this->assertContains('kitchen_print_devices', collect(Schema::getForeignKeys('kitchen_ticket_prints'))->pluck('foreign_table')->all());
-        $this->assertNotEmpty(Schema::getForeignKeys('kitchen_print_devices'));
-        // The cascade still works: removing the device removes its print log.
+        $this->assertSame([], $this->tickets($device), 'the printed item is still known as printed');
+        $assertKeys('kitchen_print_devices', 'kitchen_print_device_id');
+
+        // And through the app: deleting the device removes its print log.
         $device->delete();
         $this->assertDatabaseCount('kitchen_ticket_prints', 0);
     }
