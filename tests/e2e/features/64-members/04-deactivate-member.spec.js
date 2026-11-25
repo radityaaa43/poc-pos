@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { roleOf } from '../../support/crm.js';
 
 test.describe('members: deactivate', () => {
-    // Bug #138: the edit form sends no_telp as a number and the controller demands a string, so nothing can be saved.
-    test.fixme('a manager deactivates a member; the default list hides them, the full list keeps them', async ({ asRole, arrange, uniq }) => {
+    test('a manager deactivates a member; the default list hides them, the full list keeps them', async ({ asRole, arrange, uniq }) => {
         const name = uniq('Member Aktif');
         const { customer_id } = arrange('crm.customer', { name, member: 1, region: 1 });
         arrange('crm.regions');
