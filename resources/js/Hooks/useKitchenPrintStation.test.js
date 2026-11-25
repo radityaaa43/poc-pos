@@ -311,6 +311,17 @@ describe("useKitchenPrintStation: settings", () => {
         expect(JSON.parse(localStorage.getItem("kitchen.station"))).toEqual({ id: 9, name: "Bar" });
     });
 
+    it("naming another station forgets the old station's unconfirmed ids, naming the same one keeps them", () => {
+        setStorage({ "kitchen.unconfirmed": "[11,12]" });
+        const { result } = mount();
+
+        act(() => result.current.setStation({ id: 5, name: "Dapur 1" }));
+        expect(unconfirmed()).toEqual([11, 12]);
+
+        act(() => result.current.setStation({ id: 9, name: "Bar" }));
+        expect(unconfirmed()).toEqual([]);
+    });
+
     it("defaults to 80 mm, auto-print off, no station", () => {
         const { result } = mount();
         expect(result.current).toMatchObject({ station: null, printerKey: "", paper: "80mm", autoPrint: false });

@@ -49,6 +49,8 @@ export function useKitchenPrintStation(outlet) {
     const [autoPrint, setAutoPrintState] = useState(() => localStorage.getItem(AUTO_PRINT) === "true");
 
     const setStation = useCallback((value) => {
+        // Unconfirmed ids belong to the old station: posting them to the new one would 404 and halt printing.
+        if (readJson(STATION, null)?.id !== value?.id) localStorage.removeItem(UNCONFIRMED);
         localStorage.setItem(STATION, JSON.stringify(value));
         setStationState(value);
     }, []);
