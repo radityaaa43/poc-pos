@@ -304,6 +304,7 @@
             "salesTarget": "Sales Target",
             "priceLists": "Price Lists",
             "warehouses": "Warehouses / Branches",
+            "outlets": "Outlets",
             "units": "Units",
             "whatsApp": "WhatsApp"
         },
@@ -359,7 +360,6 @@
             "loyalty": "Loyalty",
             "salesTarget": "Sales Target",
             "warehouses": "Warehouses",
-            "outlets": "Outlets",
             "whatsapp": "WhatsApp",
             "printers": "Printers",
             "taxSettings": "Tax"
