@@ -25,7 +25,7 @@ Nothing goes directly to `main`. Workflow skills come from
 | 2b. Plan | Tech Lead: technical plan on the issue, Effort, `Builder:`, then `ready-for-*` | `superpowers:writing-plans` |
 | 3. Branch | `git switch main && git pull && git switch -c <type>/<issue>-<slug>` | — |
 | 4. Build | Test-first, in thin vertical slices | `/implement` → `/tdd` |
-| 5. Verify | Static checks and tests locally, then test the change by hand | — |
+| 5. Verify | Fast static checks locally; PHPUnit and e2e run **only on CI**; then test the change by hand | — |
 | 6. Review | Review the diff against the issue, the standards and `REVIEW.md` | `/code-review` |
 | 7. PR | A PR that closes the issue, with manual test, docs, and green CI | `/pr` |
 
@@ -113,19 +113,23 @@ issue, stdlib and native features before new libraries.
 
 ## Verify: run the checks, test by hand
 
+**PHPUnit and e2e are not run during development** (maintainer, 2026-11-26). Write the tests, push the
+branch and let CI run them. Every PR passes through the same full suites, which saves the local
+machine's CPU and memory. Locally, run only the fast checks:
+
 ```bash
 # laravel
 docker compose exec -T app vendor/bin/pint --test --diff=main
-docker compose exec -T app php artisan test --compact
-# CI also runs the suite on MySQL 8.4 (Backend job)
 # frontend
 npm test
 npm run build
-# e2e (Playwright; setup and adding a feature: tests/e2e/README.md)
-npm run e2e:up && npm run test:e2e
 ```
 
-- **CI is the gate.** Merge only with CI green; link the run in the PR.
+CI runs PHPUnit (SQLite and MySQL 8.4) and the full e2e regression suite (Playwright;
+`tests/e2e/README.md`) on every PR. A red run is fixed and pushed again.
+
+- **CI is the gate.** Merge only with CI green; link the run in the PR. The CI run is the evidence for
+  PHPUnit and e2e.
 - **Test it by hand** as the affected role(s) before the PR, and write what you tried and saw under
   *Manual test*.
 - **Tests for what the change touches**, derived from Done-when: add tests for new behavior, update
@@ -154,7 +158,7 @@ In Claude Code, `.claude/hooks/guard.py` enforces these (it blocks the edit or c
 first) and `.claude/settings.json` denies reads of secret files. Other agents and humans aren't
 covered by the hook; review and CI still apply.
 
-- Commit secrets: `.env*` (except `*.example`), keys and certificates (`*.pem`, `*.key`), credentials files,
+- Commit secrets: `.env*` (except `*.example`), keys and certificates (`*.pem`, `*.key`; keep them outside the repo, `secrets/` is ignored), credentials files,
   database dumps (`*.sql`, `*.sql.gz`, `*.dump`).
 - Edit `storage/`: Runtime logs and uploads; may hold customer data. Never edit or commit by hand.
 - Edit `public/build/`: Vite build output; regenerate with npm run build, never edit.

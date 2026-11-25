@@ -72,7 +72,8 @@ class Platform
 
             // The newest password reset link in the mail log (MAIL_MAILER=log) for --arg=email.
             'platform.reset-link' => function (array $options): array {
-                $files = glob(storage_path('logs/*.log')) ?: [];
+                // Only the app log: CI also writes storage/logs/serve.log, which can be the newest file.
+                $files = glob(storage_path('logs/laravel*.log')) ?: [];
                 usort($files, fn ($a, $b) => filemtime($b) <=> filemtime($a));
                 $log = $files === [] ? '' : (string) file_get_contents($files[0]);
                 $log = quoted_printable_decode(substr($log, -400000));

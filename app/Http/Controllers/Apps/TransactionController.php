@@ -26,6 +26,7 @@ use App\Services\OutletAccessService;
 use App\Services\Payments\PaymentGatewayManager;
 use App\Services\PriceListService;
 use App\Services\PricingService;
+use App\Services\TransactionPaymentRetryService;
 use App\Services\TransactionTenderService;
 use App\Services\UnitConversionService;
 use App\Support\Checkout\CheckoutContext;
@@ -50,6 +51,7 @@ class TransactionController extends Controller
         protected readonly TransactionTenderService $tenderService,
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
+        protected readonly TransactionPaymentRetryService $paymentRetryService,
     ) {}
 
     /**
@@ -770,8 +772,15 @@ class TransactionController extends Controller
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);
 
+        // Pay-another-way choices are only needed while the sale can be retried.
+        $retryable = $this->paymentRetryService->isRetryable($transaction);
+        $outlet = $retryable ? $transaction->warehouse?->outlet : null;
+
         return Inertia::render('Dashboard/Transactions/Print', [
             'transaction' => $transaction,
+            'retryable' => $retryable,
+            'bankAccounts' => $retryable ? BankAccount::active()->forOutlet($outlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']) : [],
+            'paymentGateways' => $retryable ? PaymentSetting::forOutlet($outlet)?->enabledGateways($outlet) ?? [] : [],
         ]);
     }
 
@@ -811,6 +820,7 @@ class TransactionController extends Controller
             'start_date' => $request->input('start_date'),
             'end_date' => $request->input('end_date'),
             'warehouse_id' => $request->input('warehouse_id'),
+            'late_payment' => $request->boolean('late_payment'),
         ];
 
         $query = Transaction::query()
@@ -856,7 +866,9 @@ class TransactionController extends Controller
             })
             ->when($filters['warehouse_id'], function (Builder $builder, $warehouseId) {
                 $builder->where('warehouse_id', $warehouseId);
-            });
+            })
+            // sales whose superseded attempt was paid after a retry: money to refund by hand
+            ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'));
 
         $transactions = $query->paginate($this->perPage())->withQueryString();
         $warehouses = $this->outletAccessService->warehousesFor($request->user());
