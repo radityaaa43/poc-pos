@@ -3,7 +3,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, Link, router } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
-import { IconArrowLeft, IconBrandWhatsapp, IconChecks, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
+import { IconArrowLeft, IconBrandWhatsapp, IconChecks, IconPlayerPlay, IconPlayerSkipForward, IconPlayerStop } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 
 const formatDateTime = (value) =>
@@ -110,10 +110,23 @@ export default function Show({ campaign }) {
                                                     {log.status !== "sent" && (
                                                         <button
                                                             type="button"
+                                                            aria-label="Tandai terkirim"
+                                                            title="Tandai terkirim"
                                                             onClick={() => router.post(route("crm-campaign-logs.mark-sent", log.id))}
                                                             className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-primary-50 text-primary-600 hover:bg-primary-100 dark:bg-primary-950/30 dark:text-primary-300"
                                                         >
                                                             <IconChecks size={16} />
+                                                        </button>
+                                                    )}
+                                                    {log.status !== "sent" && log.status !== "skipped" && (
+                                                        <button
+                                                            type="button"
+                                                            aria-label="Lewati"
+                                                            title="Lewati"
+                                                            onClick={() => router.post(route("crm-campaign-logs.skip", log.id))}
+                                                            className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300"
+                                                        >
+                                                            <IconPlayerSkipForward size={16} />
                                                         </button>
                                                     )}
                                                 </div>
