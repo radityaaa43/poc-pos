@@ -176,7 +176,7 @@ class CustomerVoucherController extends Controller
             && (float) $validated['discount_value'] > 100
         ) {
             $request->validate([
-                'discount_value' => ['max:100'],
+                'discount_value' => ['numeric', 'max:100'],
             ]);
         }
 
