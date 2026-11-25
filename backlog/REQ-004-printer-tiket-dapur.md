@@ -7,8 +7,8 @@
 
 ## User story
 
-Sebagai staf dapur di kedai yang memakai kertas, saya ingin setiap pesanan yang masuk dapur
-langsung tercetak di printer dapur, agar saya bisa membuat menu tanpa harus melihat layar.
+Sebagai staf dapur di kedai yang bekerja dengan kertas, saya ingin setiap pesanan yang masuk dapur
+langsung tercetak di printer dapur, agar saya bisa memasak dari tiket tanpa terus menatap layar.
 
 Sebagai kasir, saya ingin pesanan yang sudah saya terima tidak perlu saya sampaikan lagi ke dapur,
 agar antrean kasir tidak tertahan.
@@ -27,9 +27,11 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 **Keputusan** (Business/PM, didelegasikan pemilik, 2026-11-26; pemilik menyetujui urutan A → B → C
 → D):
 
-1. **Perangkat Layar Dapur adalah stasiun cetak.** Pesanan dicetak dari perangkat yang membuka Layar
-   Dapur, dengan printer yang terhubung lewat USB ke perangkat itu.
-   - Ditolak: mencetak dari perangkat kasir, karena pesanan QR meja tidak lewat kasir.
+1. **Stasiun cetak adalah perangkat yang membuka Layar Dapur**, dengan printer yang terhubung lewat
+   USB ke perangkat itu. Perangkatnya bisa tablet atau PC di dapur, atau PC kasir yang membuka Layar
+   Dapur di tab terpisah dengan printer kedua di dekat jendela dapur. Semua pesanan, termasuk QR meja,
+   masuk Layar Dapur, sehingga semuanya tercetak.
+   - Ditolak: mencetak dari layar checkout kasir, karena pesanan QR meja tidak lewat checkout.
    - Ditolak: printer jaringan (LAN), karena server di cloud tidak bisa menjangkau jaringan toko.
 2. **Satu tiket per pesanan setiap kali item masuk dapur.** Waktunya sama dengan aturan REQ-003:
    *Bayar sekarang* saat lunas, *Bayar Belakangan* langsung.
@@ -53,6 +55,13 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
    - **iPad dan perangkat tanpa WebUSB:** tidak didukung.
    - Ditolak: menjanjikan semua printer di Windows, karena Windows mengunci banyak printer struk ke
      driver bawaannya.
+9. **Printer melengkapi Layar Dapur, tidak menggantikannya.**
+   - Langkah *Siap* dan *Serahkan* (REQ-003) tetap ditekan di Layar Dapur. Tiket memuat nomor pesanan
+     yang besar supaya pesanan mudah dicari di layar.
+   - Kalau stasiunnya PC kasir, kasir atau pelayan yang berizin menekan *Semua siap* saat makanan
+     diambil dari jendela dapur.
+   - Ditolak: menandai siap otomatis saat tiket tercetak. Pesanan akan terlihat siap padahal belum
+     dimasak, dan data kecepatan REQ-003 menjadi salah.
 
 ## Process
 
@@ -70,6 +79,86 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 3. Pesanan tambahan dicetak sebagai tiket TAMBAHAN, dan pembatalan sebagai tiket DIBATALKAN.
 4. Kalau printer gagal, Layar Dapur menampilkan peringatan dan pesanan tetap tampil. Staf bisa
    menekan *Cetak ulang* setelah printer kembali.
+
+## User journey and flow
+
+### Perjalanan per peran
+
+**J1. Menyiapkan stasiun cetak** (sekali per perangkat; staf dapur atau pemilik)
+
+| # | Langkah | Yang dilihat atau dilakukan | AC | Titik rawan |
+|---|---|---|---|---|
+| 1 | Buka **Layar Dapur** di tablet atau PC | Antrean dapur outlet (REQ-003) | — | Perlu izin memasak atau menyerahkan |
+| 2 | Buka **Pengaturan printer dapur**, beri nama stasiun ("Dapur 1") | Form nama stasiun | AC-07 | Nama ganda: catatan cetak tercampur, jadi nama harus unik per outlet |
+| 3 | **Hubungkan printer** dan pilih printer USB | Dialog perangkat dari browser | AC-07 | iPad: AC-09. Windows dengan driver bawaan: AC-11 |
+| 4 | Pilih kertas 58/80 mm, lalu **Cetak percobaan** | Tiket contoh keluar | AC-07 | Kertas salah ukuran: teks terpotong |
+| 5 | Nyalakan **Cetak otomatis** | Status "Printer siap" | AC-07, AC-10 | Layar menjaga perangkat tetap menyala |
+
+**J2. Pesanan biasa** (tamu, kasir, dapur, pelayan)
+
+| # | Langkah | Aktor | Yang terjadi | AC |
+|---|---|---|---|---|
+| 1 | Memesan di kasir atau QR meja, memilih *Bayar sekarang* atau *Bayar Belakangan* | Tamu, kasir | Alur REQ-003 | — |
+| 2 | Pesanan lunas, atau Bayar Belakangan diterima | Sistem | Item masuk dapur | REQ-003 AC-02, AC-03 |
+| 3 | Layar Dapur menerima pesanan dalam ≤ 10 detik | Stasiun | Tiket masuk antrean cetak lalu tercetak | AC-01, AC-02 |
+| 4 | Staf mengambil tiket, memasak, lalu menekan *Mulai buat* dan *Siap* atau *Semua siap* | Staf dapur | Waktu buat tercatat | REQ-003 AC-08 |
+| 5 | Pelayan menekan *Serahkan* | Pelayan | Pesanan selesai | REQ-003 AC-09 |
+
+**J3. Pesanan tambahan dan pembatalan**
+
+| # | Kejadian | Yang tercetak | AC |
+|---|---|---|---|
+| 1 | Tamu menambah item (REQ-003 AC-21) | Tiket **TAMBAHAN** dengan nomor pesanan asal | AC-03 |
+| 2 | Item diretur dan returnya selesai (REQ-003 AC-11) | Tiket **DIBATALKAN** berisi menu dan jumlah yang dibatalkan | AC-04 |
+
+**J4. Printer bermasalah** (kertas habis, kabel lepas, printer mati)
+
+| # | Langkah | Yang dilihat | AC |
+|---|---|---|---|
+| 1 | Tiket gagal dicetak | Peringatan **Gagal mencetak — coba lagi**, dan pesanan bertanda **Belum tercetak** | AC-08 |
+| 2 | Staf memperbaiki printer | — | — |
+| 3 | Antrean dicoba lagi otomatis pada pembaruan berikutnya, atau lewat tombol | Tiket yang tertunda tercetak berurutan, masing-masing sekali | AC-05, AC-08 |
+| 4 | Tiket yang sudah tercetak tapi rusak atau hilang | Staf menekan **Cetak ulang**, tiket bertanda CETAK ULANG | AC-06 |
+
+**J5. Perangkat tidur atau tertutup**
+
+| # | Langkah | Yang dilihat | AC |
+|---|---|---|---|
+| 1 | Tab tertutup atau perangkat tidur saat ada pesanan masuk | Begitu dibuka, layar menampilkan **Printer dapur offline atau tab tidur** | AC-10 |
+| 2 | Layar dibuka lagi | Hanya pesanan yang belum tercetak di stasiun ini yang dicetak | AC-05 |
+
+### Alur pesanan sampai tiket
+
+```mermaid
+flowchart TD
+    A[Tamu memesan: POS atau QR meja] --> B{Cara bayar}
+    B -->|Bayar sekarang| C{Lunas?}
+    C -->|Belum atau gagal| C1[Tidak masuk dapur - REQ-003]
+    C -->|Ya| D[Item masuk dapur]
+    B -->|Bayar Belakangan| D
+    D --> E[Layar Dapur menerima dalam 10 detik]
+    E --> F{Sudah tercetak di stasiun ini?}
+    F -->|Ya| G[Tidak dicetak lagi]
+    F -->|Belum| H[Masuk antrean cetak]
+    H --> I{Printer berhasil?}
+    I -->|Ya| J[Tiket keluar dan dicatat di server per stasiun]
+    I -->|Tidak| K[Peringatan dan Belum tercetak, tetap di antrean]
+    K -->|Pembaruan berikutnya atau tombol| H
+    J --> L[Staf memasak lalu menekan Siap di Layar Dapur]
+```
+
+### Status tiket di satu stasiun
+
+```mermaid
+stateDiagram-v2
+    [*] --> Antre: item masuk dapur
+    Antre --> Mencetak: giliran di antrean
+    Mencetak --> Tercetak: printer berhasil
+    Mencetak --> Gagal: printer gagal
+    Gagal --> Antre: coba lagi, otomatis atau tombol
+    Tercetak --> Antre: Cetak ulang, manual dan bertanda
+    Tercetak --> [*]
+```
 
 ## Stakeholders
 
@@ -125,6 +214,8 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 - **Izin:** pengaturan printer dapur memakai izin yang sama dengan membuka Layar Dapur
   (`dine-orders-prepare` atau `dine-orders-handover`). Tidak ada izin baru.
 - **Pengaturan:** per perangkat. Tidak ada pengaturan outlet baru.
+- **Nama stasiun** unik per outlet.
+- **Tiket** memuat nomor pesanan atau nama meja dengan huruf besar di bagian atas.
 - **Sekali cetak:** satu tiket per kejadian (masuk, tambahan, batal) per stasiun, tercatat di server.
   Memuat ulang halaman tidak mencetak ulang. Cetak ulang selalu manual dan bertanda.
 - **Antrean cetak:** tiket dicetak berurutan. Tiket yang gagal tetap di antrean dengan pesan **Gagal
@@ -172,6 +263,7 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 | Layar Dapur tertutup atau perangkat mati | Tidak ada tiket | Layar menampilkan status printer. Pemilik diberi tahu di dokumentasi bahwa perangkat harus tetap membuka Layar Dapur |
 | Dua perangkat sama-sama mencetak | Tiket dobel | Sekali cetak berlaku per perangkat. Pemilik menyalakan *Cetak otomatis* di satu perangkat saja |
 | Printer kehabisan kertas | Tiket tidak keluar | Peringatan *Gagal mencetak* dan tanda *Belum tercetak* (AC-08) |
+| Stasiun di PC kasir, dan *Siap* ditekan saat makanan diambil | Waktu buat ikut menghitung waktu tunggu di jendela dapur | Diterima. Dicatat di dokumentasi laporan kecepatan (REQ-003) |
 
 - Kelayakan dicek Tech Lead (2026-11-26):
   - Android dengan Chrome berjalan.
