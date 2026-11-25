@@ -46,13 +46,21 @@ export async function posPayExact(page) {
     await page.getByRole('button', { name: 'Selesaikan Transaksi' }).click();
 }
 
-// The first and second warehouse cell of a raw material row on the Raw Materials page
-// (the manager's two warehouses, WH-E2E and XFER-B).
+// The cell of a Raw Materials row under the warehouse column whose header matches `header` (a regex on
+// the code, e.g. /WH-E2E/). Other specs leave warehouses behind, so columns come and go: never read the row's text.
+export async function warehouseCell(page, row, header) {
+    await expect(page.getByRole('columnheader', { name: header })).toBeVisible();
+    const index = (await page.getByRole('columnheader').allTextContents()).findIndex((text) => header.test(text));
+
+    return row.getByRole('cell').nth(index);
+}
+
+// The WH-E2E and XFER-B cells of a raw material row on the Raw Materials page (the manager's two warehouses).
 export async function stockCells(page, title) {
     await page.goto(`/dashboard/raw-materials?search=${title}`);
-    const cells = page.getByRole('row').filter({ hasText: title }).getByRole('cell');
+    const row = page.getByRole('row').filter({ hasText: title });
 
-    return [cells.nth(6), cells.nth(7)];
+    return [await warehouseCell(page, row, /WH-E2E/), await warehouseCell(page, row, /XFER-B/)];
 }
 
 // Fills the transfer form WH-E2E to XFER-B for one product and saves the draft; returns the transfer's document number.

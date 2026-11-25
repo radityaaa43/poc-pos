@@ -1,5 +1,6 @@
 import { test, expect as baseExpect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
+import { warehouseCell } from '../../support/inventory.js';
 
 const expect = baseExpect.configure({ timeout: 45_000 });
 
@@ -47,7 +48,7 @@ test.describe('54-supplier-returns', () => {
 
         // AC-10: the warehouse lost 1.000 g, the average cost stayed at Rp 250.
         await page.goto(`/dashboard/raw-materials?search=${encodeURIComponent(title)}`);
-        await expect(page.getByRole('row', { name: new RegExp(title) })).toContainText(/2\.000\s*·\s*Rp\s*250(?!,)/);
+        await expect(await warehouseCell(page, page.getByRole('row', { name: new RegExp(title) }), /WH-E2E/)).toContainText(/2\.000\s*·\s*Rp\s*250(?!,)/);
         await page.goto('/dashboard/stock-mutations');
         await page.locator('select').filter({ hasText: 'Semua Produk' }).selectOption({ label: title });
         await expect(page.getByRole('row', { name: new RegExp(`${title}.* out 1000 3000 → 2000 Gudang E2E`) })).toBeVisible();

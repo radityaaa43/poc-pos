@@ -11,7 +11,7 @@
 |---|---|---|---|
 | US-1 | Sebagai **pemilik**, saya ingin menetapkan batas nominal piutang per pelanggan, agar piutang tidak membengkak tanpa terkendali. | J1 | AC-01, AC-02 |
 | US-2 | Sebagai **kasir**, saya ingin langsung tahu sisa batas piutang pelanggan saat checkout, agar tidak membuat piutang yang melebihi batas. | J2 | AC-03, AC-04 |
-| US-3 | Sebagai **pemilik**, saya ingin pelanggan yang punya piutang lewat jatuh tempo tidak bisa menambah piutang baru, agar tagihan lama dilunasi dulu. | J3 | AC-05 |
+| US-3 | Sebagai **pemilik**, saya ingin pelanggan berbatas yang punya piutang lewat jatuh tempo tidak bisa menambah piutang baru, agar tagihan lama dilunasi dulu. | J3 | AC-05 |
 | US-4 | Sebagai **manajer**, saya ingin bisa memberi pengecualian dengan alasan yang tercatat, agar pelanggan penting tetap terlayani tanpa menghilangkan kontrol. | J4 | AC-06 |
 | US-5 | Sebagai **pemilik**, saya ingin melihat pelanggan yang mendekati atau melewati batas, agar bisa menagih lebih awal. | J5 | AC-07 |
 
@@ -35,8 +35,18 @@ total, terbayar, sisa, jatuh tempo, status).
 3. **Pemakaian piutang** adalah jumlah sisa semua piutang pelanggan yang belum lunas, di semua outlet.
 4. **Bayar Belakangan ditolak** kalau pemakaian ditambah transaksi baru melebihi batas. Kasir melihat
    batas, pemakaian, dan sisa batasnya.
-5. **Piutang lewat jatuh tempo memblokir piutang baru.** Kalau pelanggan punya piutang yang lewat jatuh
-   tempo dan belum lunas, Bayar Belakangan ditolak, walaupun batasnya masih cukup.
+5. **Piutang lewat jatuh tempo memblokir piutang baru untuk pelanggan berbatas.** Kalau pelanggan yang
+   punya batas mempunyai piutang yang lewat jatuh tempo dan belum lunas, Bayar Belakangan ditolak,
+   walaupun batasnya masih cukup.
+   - Pelanggan **Tanpa batas** tidak diblokir. Kasir tetap melihat **Ada piutang lewat jatuh tempo**
+     di panel sebagai peringatan. Pemilik mengaktifkan blokir dengan menetapkan batas.
+   - Diputuskan 2026-11-26 (Business/PM, didelegasikan pemilik; #349 Q1). Pengendalian kredit hanya
+     berlaku untuk pelanggan yang punya profil kredit (batas), seperti praktik umum manajemen kredit.
+     Ini sejalan dengan keputusan 2, yaitu saat rilis tidak ada penjualan kredit berjalan yang tiba-tiba
+     ditolak.
+   - Ditolak: blokir tunggakan untuk semua pelanggan. Pada hari rilis, pelanggan langganan yang punya
+     tunggakan lama langsung tertolak di kasir tanpa pemberitahuan, risiko yang sama dengan yang
+     ditolak di keputusan 2.
 6. **Pengecualian lewat antrean persetujuan**, sama dengan persetujuan diskon yang sudah ada.
    - Transaksi yang ditolak bisa diajukan, lalu ditahan sebagai **Menunggu persetujuan kredit**.
    - Pengguna dengan izin `customers-credit-approve` di outlet itu menyetujui atau menolaknya dari
@@ -91,8 +101,8 @@ total, terbayar, sisa, jatuh tempo, status).
 
 | # | Langkah | Yang terjadi | AC |
 |---|---|---|---|
-| 1 | Pelanggan punya piutang lewat jatuh tempo | Panel menampilkan **Ada piutang lewat jatuh tempo** | AC-05 |
-| 2 | Kasir memilih Bayar Belakangan | Ditolak dengan **Lunasi piutang yang lewat jatuh tempo dulu**, walaupun sisa batas cukup | AC-05 |
+| 1 | Pelanggan punya piutang lewat jatuh tempo | Panel menampilkan **Ada piutang lewat jatuh tempo** (juga untuk pelanggan Tanpa batas, sebagai peringatan) | AC-03, AC-05 |
+| 2 | Kasir memilih Bayar Belakangan | Pelanggan berbatas: ditolak dengan **Lunasi piutang yang lewat jatuh tempo dulu**, walaupun sisa batas cukup. Pelanggan Tanpa batas: piutang dibuat seperti sekarang | AC-05 |
 
 **J4. Pengecualian oleh manajer**
 
@@ -115,11 +125,11 @@ total, terbayar, sisa, jatuh tempo, status).
 flowchart TD
     A[Kasir pilih Bayar Belakangan] --> B{Pelanggan Boleh piutang?}
     B -->|Tidak| B1[Aturan REQ-003: tanpa piutang]
-    B -->|Ya| C{Ada piutang lewat jatuh tempo?}
-    C -->|Ya| X[Ditolak: lunasi tunggakan dulu]
-    C -->|Tidak| D{Batas kosong?}
+    B -->|Ya| D{Batas kosong?}
     D -->|Ya - Tanpa batas| OK[Piutang dibuat]
-    D -->|Tidak| E{Terpakai + total <= batas?}
+    D -->|Tidak| C{Ada piutang lewat jatuh tempo?}
+    C -->|Ya| X[Ditolak: lunasi tunggakan dulu]
+    C -->|Tidak| E{Terpakai + total <= batas?}
     E -->|Ya| OK
     E -->|Tidak| Y[Ditolak: melebihi batas]
     X --> Q[Ajukan: Menunggu persetujuan kredit]
@@ -161,9 +171,9 @@ dibaca dari jatuh tempo, sehingga tidak perlu diagram state baru.
 - **AC-04:** Given Bayar Belakangan untuk pelanggan berbatas, when *Terpakai + total* melebihi batas,
   then transaksi ditolak dengan **Melebihi batas piutang — sisa Rp X**. Kalau tidak melebihi, piutang
   dibuat seperti sekarang (#240).
-- **AC-05:** Given pelanggan dengan piutang lewat jatuh tempo yang belum lunas, when kasir memilih Bayar
-  Belakangan, then transaksi ditolak dengan **Lunasi piutang yang lewat jatuh tempo dulu**, apa pun
-  sisa batasnya.
+- **AC-05:** Given pelanggan **berbatas** dengan piutang lewat jatuh tempo yang belum lunas, when kasir
+  memilih Bayar Belakangan, then transaksi ditolak dengan **Lunasi piutang yang lewat jatuh tempo dulu**,
+  apa pun sisa batasnya. Pelanggan **Tanpa batas** dengan tunggakan tidak ditolak (keputusan 5).
 - **AC-06:** Given transaksi yang ditolak karena AC-04 atau AC-05, when kasir mengajukannya, then
   transaksi ditahan sebagai **Menunggu persetujuan kredit**. Pengguna dengan `customers-credit-approve`
   di outlet itu bisa menyetujui (alasan wajib) atau menolak. Kalau disetujui, transaksi menjadi
@@ -199,7 +209,8 @@ dibaca dari jatuh tempo, sehingga tidak perlu diagram state baru.
   - Pengecualian hanya untuk satu transaksi dan tidak mengubah batas.
 - **Izin:** `customers-credit-approve` untuk batas dan pengecualian. Tidak ada izin baru.
 - **Pengaturan:** batas per pelanggan. Tidak ada pengaturan outlet baru.
-- **Tunggakan:** piutang dengan jatuh tempo sebelum hari ini dan sisa di atas 0.
+- **Tunggakan:** piutang dengan jatuh tempo sebelum hari ini dan sisa di atas 0. Tunggakan memblokir
+  piutang baru hanya untuk pelanggan berbatas (keputusan 5).
 
 ## Non-functional requirements
 
@@ -248,7 +259,7 @@ dibaca dari jatuh tempo, sehingga tidak perlu diagram state baru.
 
 ## Open questions
 
-- Semua terjawab 2026-11-26 (keputusan 6–8).
+- Semua terjawab 2026-11-26 (keputusan 6–8; cakupan blokir tunggakan: keputusan 5, #349 Q1).
 
 ## Delivered by
 
