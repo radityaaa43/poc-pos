@@ -56,7 +56,11 @@ class PosCheckout
             // Turns bank transfer on and adds an active account named --arg=bank=<text> (bank transfer
             // is offered at the POS only with an active account).
             'pos.bank-account' => function (array $options): array {
-                PaymentSetting::forOutletOrCreate(null)->update(['bank_transfer_enabled' => true]);
+                // The POS reads the E2E outlet's own copy of the settings when one exists (opening the settings
+                // page, as an earlier step may have, replicates the global row into it), so switch both on.
+                $outlet = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail()->outlet;
+                PaymentSetting::where(fn ($query) => $query->whereNull('outlet_id')->orWhere('outlet_id', $outlet->id))
+                    ->update(['bank_transfer_enabled' => true]);
 
                 $account = BankAccount::create([
                     'bank_name' => $options['bank'] ?? 'Bank E2E '.Str::upper(Str::random(4)),

@@ -47,14 +47,18 @@ test.describe('POS checkout: bank transfer', () => {
         await expect(boss.getByText('Menunggu', { exact: true })).toBeVisible();
         await boss.getByRole('button', { name: 'Konfirmasi Bayar' }).click();
         await boss.getByRole('button', { name: 'Konfirmasi Lunas' }).click();
-        // Confirming is an admin action: the app asks for the password again (step-up), then the confirm goes through.
-        await expect(boss.getByRole('heading', { name: 'Konfirmasi Password' })).toBeVisible();
-        await boss.getByPlaceholder('Masukkan password Anda').fill('password');
-        await boss.getByRole('button', { name: 'Lanjutkan' }).click();
-        await expect(boss.getByRole('heading', { name: 'Konfirmasi Password' })).toHaveCount(0);
-        await boss.goto(`/dashboard/transactions/${invoice}/print`);
-        await boss.getByRole('button', { name: 'Konfirmasi Bayar' }).click();
-        await boss.getByRole('button', { name: 'Konfirmasi Lunas' }).click();
+        // Confirming is an admin action: unless the manager's password was confirmed in the last 15 minutes (an
+        // earlier step of the same saved session may have), the app asks for it again (step-up) first.
+        const stepUp = boss.getByRole('heading', { name: 'Konfirmasi Password' });
+        await expect(stepUp.or(boss.getByText('Lunas', { exact: true }))).toBeVisible();
+        if (await stepUp.isVisible()) {
+            await boss.getByPlaceholder('Masukkan password Anda').fill('password');
+            await boss.getByRole('button', { name: 'Lanjutkan' }).click();
+            await expect(stepUp).toHaveCount(0);
+            await boss.goto(`/dashboard/transactions/${invoice}/print`);
+            await boss.getByRole('button', { name: 'Konfirmasi Bayar' }).click();
+            await boss.getByRole('button', { name: 'Konfirmasi Lunas' }).click();
+        }
         await expect(boss.getByText('Lunas', { exact: true })).toBeVisible();
         await expect(boss.getByRole('button', { name: 'Konfirmasi Bayar' })).toHaveCount(0);
     });
