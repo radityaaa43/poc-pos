@@ -1,13 +1,17 @@
 import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import { Head, usePoll } from "@inertiajs/react";
+import { Head, router, usePoll } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import { IconClock, IconPrinter, IconWifiOff } from "@tabler/icons-react";
+import toast from "react-hot-toast";
+import { useAuthorization } from "@/Utils/authorization";
 import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
 import PrintStationPanel from "./PrintStationPanel";
 
 const POLL_MS = 5000;
 const STALE_MS = 15000;
+const STEP_BUTTON =
+    "min-h-14 rounded-xl px-5 text-lg font-semibold text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:opacity-50";
 
 export default function Index({ orders, outlet }) {
     const { t } = useTranslation();
@@ -17,6 +21,33 @@ export default function Index({ orders, outlet }) {
     const [panelOpen, setPanelOpen] = useState(false);
     // Runs for the whole page, so tickets print with the panel closed.
     const printStation = useKitchenPrintStation(outlet);
+
+    const [busy, setBusy] = useState(null);
+    const canPrepare = useAuthorization().can("dine-orders-prepare");
+
+    // No offline queue: a tap that cannot reach the server is refused, never replayed later.
+    const step = (key, routeName, id) => {
+        const saveFailed = () => toast.error(t("kitchen.actions.saveFailed"));
+        if (navigator.onLine === false) return saveFailed();
+        setBusy(key);
+        router.post(route(routeName, id), {}, {
+            preserveScroll: true,
+            onError: (errors) => toast.error(errors.item ?? errors.message ?? t("kitchen.actions.saveFailed")),
+            onNetworkError: saveFailed,
+            onFinish: () => setBusy(null),
+        });
+    };
+
+    const stepButton = (key, routeName, id, label, color) => (
+        <button
+            type="button"
+            disabled={busy === key}
+            onClick={() => step(key, routeName, id)}
+            className={`${STEP_BUTTON} ${color}`}
+        >
+            {label}
+        </button>
+    );
 
     usePoll(POLL_MS, {
         only: ["orders"],
@@ -111,7 +142,7 @@ export default function Index({ orders, outlet }) {
                             </header>
                             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
                                 {order.items.map((item) => (
-                                    <li key={item.id} className="flex min-h-[44px] items-center justify-between gap-3 px-4 py-2">
+                                    <li key={item.id} className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 px-4 py-2">
                                         <div>
                                             <p className="font-medium text-slate-900 dark:text-white">
                                                 {item.qty} × {item.title}
@@ -123,9 +154,18 @@ export default function Index({ orders, outlet }) {
                                         <span className="shrink-0 rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/50 dark:text-primary-400">
                                             {t(`kitchen.status.${item.status}`, { defaultValue: item.status })}
                                         </span>
+                                        {canPrepare && item.status === "accepted" &&
+                                            stepButton(`start-${item.id}`, "kitchen.items.start", item.id, t("kitchen.actions.start"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
+                                        {canPrepare && item.status === "preparing" &&
+                                            stepButton(`ready-${item.id}`, "kitchen.items.ready", item.id, t("kitchen.actions.ready"), "bg-success-600 hover:bg-success-700 focus-visible:ring-success-600")}
                                     </li>
                                 ))}
                             </ul>
+                            {canPrepare && order.items.some((item) => item.status === "accepted" || item.status === "preparing") && (
+                                <footer className="border-t border-slate-100 p-4 dark:border-slate-800">
+                                    {stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600")}
+                                </footer>
+                            )}
                         </article>
                     ))}
                 </div>

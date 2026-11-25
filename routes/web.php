@@ -457,6 +457,9 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('/dine-orders/{dineOrder}/pay', [App\Http\Controllers\Apps\DineOrderController::class, 'pay'])->middleware(['permission:dine-orders-process', 'active_shift'])->name('dine-orders.pay');
     Route::post('/dine-orders/{dineOrder}/reject', [App\Http\Controllers\Apps\DineOrderController::class, 'reject'])->middleware('permission:dine-orders-process')->name('dine-orders.reject');
     Route::get('/kitchen', [KitchenController::class, 'index'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.index');
+    Route::post('/kitchen/items/{kitchenItem}/start', [KitchenController::class, 'start'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.start');
+    Route::post('/kitchen/items/{kitchenItem}/ready', [KitchenController::class, 'ready'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.ready');
+    Route::post('/kitchen/orders/{transaction}/all-ready', [KitchenController::class, 'allReady'])->middleware('permission:dine-orders-prepare')->name('kitchen.orders.all-ready');
     Route::post('/kitchen/stations', [KitchenPrintStationController::class, 'store'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.store');
     Route::get('/kitchen/stations/{station}/tickets', [KitchenPrintStationController::class, 'tickets'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.tickets');
     Route::post('/kitchen/stations/{station}/prints', [KitchenPrintStationController::class, 'prints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.prints');

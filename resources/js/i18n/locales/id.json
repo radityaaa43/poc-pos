@@ -1090,6 +1090,12 @@
             "notConnected": "Printer belum terhubung",
             "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
             "unpaid": "BELUM LUNAS"
+        },
+        "actions": {
+            "start": "Mulai buat",
+            "ready": "Siap",
+            "allReady": "Semua siap",
+            "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi"
         }
     },
     "pos": {

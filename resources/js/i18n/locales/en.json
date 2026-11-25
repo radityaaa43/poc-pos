@@ -1090,6 +1090,12 @@
             "notConnected": "Printer not connected",
             "otherTab": "Tickets are printed from another tab on this device",
             "unpaid": "UNPAID"
+        },
+        "actions": {
+            "start": "Start",
+            "ready": "Ready",
+            "allReady": "All ready",
+            "saveFailed": "Not saved — check the connection and try again"
         }
     },
     "pos": {
