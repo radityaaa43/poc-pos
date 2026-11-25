@@ -78,7 +78,7 @@ class KitchenItemService
 
     private function hasLinesToMake(Transaction $transaction): bool
     {
-        return $transaction->details()->whereHas('product', fn ($product) => $product->where('needs_preparation', true))->exists();
+        return $transaction->details()->goesToKitchen()->exists();
     }
 
     /** One step: valid only from `$from`. The row lock makes the first tap win; a later one is told who did it (AC-23). */

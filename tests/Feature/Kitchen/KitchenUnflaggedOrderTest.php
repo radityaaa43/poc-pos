@@ -106,6 +106,23 @@ class KitchenUnflaggedOrderTest extends TestCase
         $this->assertNull($order->served_at);
     }
 
+    public function test_the_serve_check_reads_the_line_snapshot_not_the_product_flag(): void
+    {
+        // Frozen as unflagged, the product is flagged now: nothing to make, so the paid order is served.
+        $made = $this->openBill([true]);
+        $made->details()->update(['needs_preparation' => false]);
+        $made->update(['payment_status' => 'paid']);
+        $this->assertSame(0, KitchenItem::count());
+        $this->assertSame(DineOrder::STATUS_COMPLETED, $made->dineOrder->fresh()->status);
+
+        // Frozen as flagged, the product is unflagged now: it still goes to the kitchen and the order waits.
+        $plain = $this->openBill([false]);
+        $plain->details()->update(['needs_preparation' => true]);
+        $plain->update(['payment_status' => 'paid']);
+        $this->assertSame(1, KitchenItem::where('transaction_id', $plain->id)->count());
+        $this->assertSame(DineOrder::STATUS_ACCEPTED, $plain->dineOrder->fresh()->status);
+    }
+
     public function test_intake_twice_serves_once(): void
     {
         $sale = $this->openBill([false]);
