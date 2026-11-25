@@ -7,6 +7,7 @@ use App\Models\DineOrder;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -18,6 +19,8 @@ class DineOrderService
         private PricingService $pricingService,
         private StockMutationService $stockMutationService,
         private InventoryCostService $inventoryCostService,
+        private CashierShiftService $cashierShiftService,
+        private TransactionTenderService $tenderService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -66,7 +69,7 @@ class DineOrderService
                 'change' => 0,
                 'discount' => 0,
                 'grand_total' => (int) $order->subtotal,
-                'payment_method' => 'cash',
+                'payment_method' => Transaction::METHOD_OPEN_BILL, // chosen by the cashier when the bill is settled
                 'payment_status' => 'unpaid',
                 'order_type' => 'in_store',
                 'note' => $order->notes,
@@ -205,6 +208,79 @@ class DineOrderService
                 'transaction_id' => $transaction->id,
                 'cashier_id' => $userId,
             ]);
+        });
+    }
+
+    /**
+     * Settle the open bill of an accepted order. Stock was taken at accept, so only the payment is
+     * recorded: on the paying cashier's shift, which is the drawer the money goes into.
+     *
+     * @param  array<int, array<string, mixed>>  $tenderInput
+     */
+    public function pay(DineOrder $order, User $cashier, array $tenderInput): Transaction
+    {
+        return DB::transaction(function () use ($order, $cashier, $tenderInput) {
+            $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
+            $shift->load('warehouse.outlet');
+
+            $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $transaction = $order->transaction_id
+                ? Transaction::with('warehouse')->whereKey($order->transaction_id)->lockForUpdate()->first()
+                : null;
+
+            if ($order->status !== DineOrder::STATUS_ACCEPTED || ! $transaction || $transaction->payment_status !== 'unpaid') {
+                throw ValidationException::withMessages([
+                    'order' => 'Pesanan ini tidak memiliki tagihan yang belum lunas.',
+                ]);
+            }
+
+            if ($transaction->warehouse?->outlet_id !== $shift->warehouse?->outlet_id) {
+                throw ValidationException::withMessages([
+                    'shift' => 'Shift kasir harus berada di outlet yang sama dengan pesanan.',
+                ]);
+            }
+
+            $tenders = $this->tenderService->normalize($tenderInput, (int) $transaction->grand_total, allowEmpty: false, outlet: $shift->warehouse?->outlet);
+
+            // shortcut: gateway tenders need a charge and a webhook that completes the order, so the bill takes cash and bank transfer only; add gateways when a cafe asks
+            if (collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS)->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'tenders' => 'Tagihan dine-in hanya dapat dibayar tunai atau transfer bank.',
+                ]);
+            }
+
+            $transaction->tenders()->createMany($tenders);
+            $transaction->update([
+                'cashier_id' => $cashier->id,
+                'cashier_shift_id' => $shift->id,
+                'cash' => (int) collect($tenders)->sum('cash_received'),
+                'change' => (int) collect($tenders)->sum('change'),
+                'payment_method' => count($tenders) > 1 ? 'split' : $tenders[0]['method'],
+                'payment_status' => $this->tenderService->aggregateStatus($tenders),
+                'bank_account_id' => collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null,
+            ]);
+
+            return $transaction;
+        });
+    }
+
+    /** Staff mark the order as served from the queue. Idempotent. */
+    public function serve(DineOrder $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            if ($order->status !== DineOrder::STATUS_ACCEPTED) {
+                throw ValidationException::withMessages([
+                    'order' => 'Hanya pesanan yang sudah diterima yang dapat ditandai disajikan.',
+                ]);
+            }
+
+            if (! $order->served_at) {
+                $order->update(['served_at' => now()]);
+            }
+
+            $order->completeIfSettled();
         });
     }
 

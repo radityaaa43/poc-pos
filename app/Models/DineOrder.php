@@ -40,6 +40,7 @@ class DineOrder extends Model
         'subtotal',
         'item_count',
         'submitted_at',
+        'served_at',
     ];
 
     protected function casts(): array
@@ -48,6 +49,7 @@ class DineOrder extends Model
             'subtotal' => 'integer',
             'item_count' => 'integer',
             'submitted_at' => 'datetime',
+            'served_at' => 'datetime',
         ];
     }
 
@@ -98,5 +100,13 @@ class DineOrder extends Model
     public function isPending(): bool
     {
         return $this->status === self::STATUS_SUBMITTED;
+    }
+
+    /** Fulfillment and payment are separate: completed only once the order is both served and paid. */
+    public function completeIfSettled(): void
+    {
+        if ($this->status === self::STATUS_ACCEPTED && $this->served_at && $this->transaction?->payment_status === 'paid') {
+            $this->update(['status' => self::STATUS_COMPLETED]);
+        }
     }
 }

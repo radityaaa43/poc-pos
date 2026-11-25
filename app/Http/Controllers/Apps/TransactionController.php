@@ -164,6 +164,18 @@ class TransactionController extends Controller
             'carts' => $carts,
             'carts_total' => $carts_total,
             'heldCarts' => $heldCarts,
+            'openBills' => Transaction::openBills()
+                ->whereIn('warehouse_id', $this->outletAccessService->warehousesFor(auth()->user())->pluck('id'))
+                ->with('dineOrder:id,transaction_id,dine_table_id,served_at', 'dineOrder.table:id,name')
+                ->oldest()
+                ->get(['id', 'invoice', 'grand_total'])
+                ->map(fn (Transaction $bill) => [
+                    'order_id' => $bill->dineOrder->id,
+                    'invoice' => $bill->invoice,
+                    'table' => $bill->dineOrder->table?->name,
+                    'grand_total' => (int) $bill->grand_total,
+                    'served' => (bool) $bill->dineOrder->served_at,
+                ]),
             'customers' => $customers,
             'products' => $products,
             'categories' => $categories,
@@ -792,6 +804,8 @@ class TransactionController extends Controller
                 'cashierShift:id,opened_at,status',
                 'customer:id,name',
                 'receivable',
+                'dineOrder:id,transaction_id,dine_table_id,status',
+                'dineOrder.table:id,name',
             ])
             ->withSum('details as total_items', 'qty')
             ->withSum('profits as total_profit', 'total')
@@ -861,6 +875,8 @@ class TransactionController extends Controller
             'filters' => $filters,
             'salesReturnFeatureReady' => $salesReturnTablesReady,
             'warehouses' => $warehouses,
+            // for the "Bayar" modal on an unpaid dine-in bill
+            'bankAccounts' => BankAccount::active()->forOutlet($this->outletAccessService->activeOutlet($request))->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']),
         ]);
     }
 

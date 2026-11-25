@@ -24,8 +24,10 @@ class DineOrderController extends Controller
             ? null
             : $this->outletAccessService->accessibleOutlets($request->user())->pluck('id')->all();
 
-        $orders = DineOrder::with(['table.area', 'items.product'])
-            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED])
+        // Fulfillment queue: new orders and accepted ones still to serve. Served-but-unpaid bills live in Open Bills.
+        $orders = DineOrder::with(['table.area', 'items.product', 'transaction:id,payment_status'])
+            ->where(fn ($query) => $query->where('status', DineOrder::STATUS_SUBMITTED)
+                ->orWhere(fn ($accepted) => $accepted->where('status', DineOrder::STATUS_ACCEPTED)->whereNull('served_at')))
             ->when($outletIds !== null, function ($query) use ($outletIds, $includeLegacy) {
                 $query->where(function ($query) use ($outletIds, $includeLegacy) {
                     $query->whereHas('table.area', fn ($area) => $area->whereIn('outlet_id', $outletIds));
@@ -48,6 +50,28 @@ class DineOrderController extends Controller
         $this->service->accept($dineOrder);
 
         return back()->with('success', 'Pesanan diterima dan siap diproses di kasir.');
+    }
+
+    public function serve(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->serve($dineOrder);
+
+        return back()->with('success', 'Pesanan ditandai sudah disajikan.');
+    }
+
+    public function pay(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $validated = $request->validate([
+            'tenders' => ['required', 'array'],
+            'tenders.*' => ['array'],
+        ]);
+
+        $transaction = $this->service->pay($dineOrder, $request->user(), $validated['tenders']);
+
+        return to_route('transactions.print', $transaction->invoice)
+            ->with('success', 'Pembayaran pesanan dine-in berhasil.');
     }
 
     public function reject(Request $request, DineOrder $dineOrder)
