@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { field, roleOf } from '../../support/crm.js';
 
 test.describe('customers: phone number', () => {
-    // Bug #129: customers.no_telp is a bigint, so the leading zero is dropped on save.
-    test.fixme('the saved phone number is shown as typed', async ({ asRole, arrange, uniq }) => {
+    test('the saved phone number is shown as typed', async ({ asRole, arrange, uniq }) => {
         const [name, phone] = [uniq('Pelanggan'), `08${Math.floor(1e9 + Math.random() * 9e9)}`];
         const regions = arrange('crm.regions');
 
