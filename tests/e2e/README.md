@@ -74,6 +74,8 @@ This creates `features/08-purchase-orders/01-create-order.spec.js` from `support
   and use `uniq('product')` for names, so reruns and shards do not collide.
 - Specs must not depend on folder order. Shared data created by other specs (outlets, warehouses) may exist,
   so assert on the cell you mean (`warehouseCell` in `support/inventory.js`), not on a whole row's text.
+- A scenario that creates an outlet or warehouse must give it a code that sorts after `E2E` / `WH-E2E`:
+  the super admin's default outlet and the first warehouse are the lowest code, and other features' steps rely on them.
 - Need data no scenario creates? Add a closure to `app/Testing/E2e/Scenarios.php` (name -> options in,
   created ids out) and call it with `arrange('<name>', { ... })`.
 - `asRole(role)` gives a page already signed in as a role from `support/roles.js`. Do not log out

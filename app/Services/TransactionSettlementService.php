@@ -109,6 +109,12 @@ class TransactionSettlementService
             'payment_reference' => null,
             'payment_url' => null,
             'qr_string' => null,
+            // A bill with a payment history (a guest attempt, a retry) moves its counter on every settlement: an older
+            // charge that is paid afterwards is then a late payment (marked, never booked twice), and a gateway charge
+            // made here gets a fresh order id. Attempt 0 bills are written exactly as before.
+            ...($transaction->payment_attempt > 0
+                ? ['payment_attempt' => $transaction->payment_attempt + 1, 'payment_failure_reason' => null]
+                : []),
         ]);
 
         foreach ($tenderModels->whereIn('method', TransactionTenderService::GATEWAY_METHODS) as $tender) {

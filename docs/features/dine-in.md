@@ -224,7 +224,8 @@ satu metode per tagihan:
   Percobaan gateway yang `failed`/`expired` boleh diganti metode lain (tender lamanya diganti).
 - Tender gateway tidak boleh digabung (split) dengan tender lain pada tagihan dine-in.
 - Selama pembayaran gateway/transfer masih `pending`, membayar lagi ditolak (tidak ada charge kedua, tidak ada tender
-  kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk.
+  kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
+  (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
@@ -253,8 +254,28 @@ page ships with the second half of #325; until then only the endpoint and the `p
 - Each press is a new **payment attempt** (`transactions.payment_attempt`, order id `{invoice}-r{n}`): the charge is claimed and
   committed under the bill's row lock, then the gateway is called with **no DB transaction open**, then the result is
   stored only if the bill is still on that attempt. A second press (or a retry after failed/expired) supersedes the
-  first; the old charge's webhook is ignored by the existing guard (a late paid callback is only marked for a manual refund).
-  The existing webhook settles the bill and the existing paid hook sends the flagged items to the kitchen, once.
+  first. The existing webhook settles the bill and the existing paid hook sends the flagged items to the kitchen, once.
+- **The webhook decides under locks** (`PaymentWebhookController::applyNotification`): one short DB transaction, lock order
+  owning shift (shared), dine order, bill (`FOR UPDATE`, re-read), no network call inside. The bill's shift is re-checked under
+  its lock: if a takeover or retry moved the bill meanwhile, the transaction ends and runs once more with the new shift; a second
+  move fails closed (500, nothing booked, the gateway redelivers). `TransactionPaymentRetryService::retry` locks in the same order (shift, then sale).
+  For a **paid** notification:
+  the current attempt books the bill; a repeat of the booked payment (same gateway reference) is ignored; an older
+  attempt, or the failed attempt itself, is a **late payment** and is booked as the payment when the bill is not paid, no **pending or paid** tender holds it
+  (`Transaction::hasBlockingTenders()`; a failed or expired tender never held money) and the amount equals `remainingTotal()` (first payment wins; audit `payment.late_after_failed`, `booked: true`),
+  otherwise it is flagged (`late_superseded_payment_at`, "Bayar ganda — refund manual", audit `payment.late_superseded` or
+  `payment.late_after_failed` with `booked: false`) and never booked. A second payment with another reference on a paid bill is flagged. `late_superseded_payment_at` is only the "needs refund" flag (set once);
+  every distinct gateway reference is audited (`meta.reference`, `meta.order_id`), a redelivery of the same one is not.
+  A failed bill of attempt 0 stays final. A late payment of a sale that was restocked is flagged, not booked.
+- **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
+  pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
+  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::collect`), so the guest's charge is
+  superseded in the same transaction; a failed takeover changes nothing. Nothing is cancelled at the gateway (refund of a guest
+  payment that still arrives stays manual). Audit `dine_order.online_payment_taken_over`. The cashier's own gateway charge on such a
+  bill uses the order id `{invoice}[-{method}]-r{attempt}`, so its settlement is booked.
+- **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
+  `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
+  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an open bill or a gateway sale unpaid at close).
 - A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
 - It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
   transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
