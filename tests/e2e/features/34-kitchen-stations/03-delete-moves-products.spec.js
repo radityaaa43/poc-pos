@@ -21,7 +21,8 @@ test.describe('34-kitchen-stations: delete a station', () => {
         await expect(total(cashier)).toHaveText(rupiah(10000));
         await cashier.getByRole('button', { name: 'Uang pas' }).click();
         const invoice = await finish(cashier);
-        expect(arrange('kitchen.items', { invoice })).toMatchObject({ count: 1, station_names: [bar.name] });
+        expect(arrange('kitchen.items', { invoice })).toMatchObject({ count: 1 });
+        expect(arrange('kitchen.item-stations', { invoice })).toEqual({ station_names: [bar.name] });
 
         const page = await asRole(role('manager'));
         await page.goto('/dashboard/settings/kitchen-stations');
@@ -32,6 +33,6 @@ test.describe('34-kitchen-stations: delete a station', () => {
         await openEdit(page, dish.title);
         await expect(page.getByLabel('Perlu dibuat di dapur')).toBeChecked();
         await expect(page.locator('#kitchen_station_id').locator('option:checked')).toHaveText('Dapur');
-        expect(arrange('kitchen.items', { invoice })).toMatchObject({ count: 1, station_names: [bar.name] });
+        expect(arrange('kitchen.item-stations', { invoice })).toEqual({ station_names: [bar.name] });
     });
 });

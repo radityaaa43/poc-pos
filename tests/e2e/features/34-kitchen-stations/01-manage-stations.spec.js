@@ -12,22 +12,25 @@ test.describe('34-kitchen-stations: manage stations', () => {
         const renamed = `${name}-baru`;
 
         await page.goto('/dashboard/settings/kitchen-stations');
+        // The add and rename forms are the same modal: scope to it, since the page behind it is inert but still in the DOM.
+        const dialog = page.getByRole('dialog');
+
         await page.getByRole('button', { name: 'Tambah stasiun' }).click();
-        await page.getByLabel('Nama stasiun').fill(name);
-        await page.getByRole('button', { name: 'Simpan' }).click();
+        await dialog.getByLabel('Nama stasiun').fill(name);
+        await dialog.getByRole('button', { name: 'Simpan' }).click();
         await expect(stationRow(page, name)).toBeVisible();
 
         // The same name in another case is a duplicate: the message sits under the field and nothing is saved.
         await page.getByRole('button', { name: 'Tambah stasiun' }).click();
-        await page.getByLabel('Nama stasiun').fill(name.toUpperCase());
-        await page.getByRole('button', { name: 'Simpan' }).click();
-        await expect(page.getByText('Stasiun dapur dengan nama ini sudah ada.')).toBeVisible();
-        await page.getByRole('button', { name: 'Batal' }).click();
+        await dialog.getByLabel('Nama stasiun').fill(name.toUpperCase());
+        await dialog.getByRole('button', { name: 'Simpan' }).click();
+        await expect(dialog.getByText('Stasiun dapur dengan nama ini sudah ada.')).toBeVisible();
+        await dialog.getByRole('button', { name: 'Batal' }).click();
         await expect(stationRow(page, name)).toHaveCount(1);
 
         await page.getByRole('button', { name: `Ubah nama ${name}` }).click();
-        await page.getByLabel('Nama stasiun').fill(renamed);
-        await page.getByRole('button', { name: 'Simpan' }).click();
+        await dialog.getByLabel('Nama stasiun').fill(renamed);
+        await dialog.getByRole('button', { name: 'Simpan' }).click();
         await expect(stationRow(page, renamed)).toBeVisible();
         await expect(page.getByRole('button', { name: `Ubah nama ${name}`, exact: true })).toHaveCount(0);
 

@@ -43,16 +43,23 @@ class Kitchen
             // The kitchen items of the sale --arg=invoice=<invoice>: how many, and each one's product and status.
             'kitchen.items' => function (array $options): array {
                 $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
-                $items = KitchenItem::with('kitchenStation')->where('transaction_id', $transaction->id)->orderBy('id')->get();
+                $items = KitchenItem::where('transaction_id', $transaction->id)->orderBy('id')->get();
 
                 return [
                     'count' => $items->count(),
                     'product_ids' => $items->pluck('product_id')->all(),
                     'statuses' => $items->pluck('status')->unique()->values()->all(),
-                    // The station each item was given at intake (a deleted station's name still shows).
-                    'station_names' => $items->map(fn ($item) => $item->kitchenStation?->name)->all(),
                 ];
             },
+
+            // The station name each kitchen item of the sale --arg=invoice=<invoice> was given at intake (a deleted station's name still shows).
+            // Separate from kitchen.items, whose exact output other specs assert.
+            'kitchen.item-stations' => fn (array $options): array => [
+                'station_names' => KitchenItem::with('kitchenStation')
+                    ->where('transaction_id', Transaction::where('invoice', $options['invoice'])->firstOrFail()->id)
+                    ->orderBy('id')->get()
+                    ->map(fn ($item) => $item->kitchenStation?->name)->all(),
+            ],
 
             // Creates the kitchen station --arg=name=<name> and maps the products --arg=products=<id>,<id> to it.
             'kitchen.station' => function (array $options): array {

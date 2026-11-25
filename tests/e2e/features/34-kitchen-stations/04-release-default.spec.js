@@ -32,6 +32,7 @@ test.describe('34-kitchen-stations: release default', () => {
         await page.getByRole('button', { name: 'Uang pas' }).click();
         const invoice = await finish(page);
 
-        expect(arrange('kitchen.items', { invoice })).toMatchObject({ count: 1, station_names: ['Dapur'] });
+        expect(arrange('kitchen.items', { invoice })).toMatchObject({ count: 1 });
+        expect(arrange('kitchen.item-stations', { invoice })).toEqual({ station_names: ['Dapur'] });
     });
 });
