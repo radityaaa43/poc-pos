@@ -9,17 +9,17 @@ test.describe('41-products', () => {
 
         await openEdit(page, title);
         // The target is hidden until the product is flagged.
-        await expect(field(page, 'Target waktu racik (menit)')).toHaveCount(0);
+        await expect(field(page, 'Target waktu buat (menit)')).toHaveCount(0);
 
-        await page.getByLabel('Perlu diracik (dibuat saat dipesan di dapur)').check();
-        await field(page, 'Target waktu racik (menit)').fill('7');
+        await page.getByLabel('Perlu dibuat di dapur').check();
+        await field(page, 'Target waktu buat (menit)').fill('7');
         // The arranged product has no SKU and the form requires one.
         await page.getByPlaceholder('SKU unik').fill(uniq('SKU'));
         await page.getByRole('button', { name: 'Simpan Perubahan' }).click();
         await expect(page.getByText('Produk berhasil diperbarui')).toBeVisible();
 
         await openEdit(page, title);
-        await expect(page.getByLabel('Perlu diracik (dibuat saat dipesan di dapur)')).toBeChecked();
-        await expect(field(page, 'Target waktu racik (menit)')).toHaveValue('7');
+        await expect(page.getByLabel('Perlu dibuat di dapur')).toBeChecked();
+        await expect(field(page, 'Target waktu buat (menit)')).toHaveValue('7');
     });
 });

@@ -421,8 +421,8 @@
             "description": "Mulai dengan menambahkan produk pertama Anda"
         },
         "preparation": {
-            "needsPreparation": "Perlu diracik (dibuat saat dipesan di dapur)",
-            "targetMinutes": "Target waktu racik (menit)"
+            "needsPreparation": "Perlu dibuat di dapur",
+            "targetMinutes": "Target waktu buat (menit)"
         }
     },
     "categories": {
