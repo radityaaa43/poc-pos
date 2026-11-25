@@ -510,7 +510,12 @@
         "noHeldCarts": "No held transactions",
         "searchProduct": "Search product (barcode/name)...",
         "productNotFound": "Product not found",
-        "stockInsufficient": "Insufficient stock"
+        "stockInsufficient": "Insufficient stock",
+        "lateRefund": {
+            "badge": "Paid twice — manual refund",
+            "filter": "Needs refund",
+            "notice": "The old payment was received after the sale was paid again — manual refund needed"
+        }
     },
     "receivables": {
         "title": "Receivables",
@@ -1072,6 +1077,19 @@
         }
     },
     "pos": {
+        "retryPayment": {
+            "failed": "Payment failed",
+            "expired": "Expired",
+            "retry": "Try again",
+            "other": "Pay another way",
+            "method": "Payment method",
+            "cash": "Cash",
+            "qris": "QRIS",
+            "cashReceived": "Cash received",
+            "change": "Change",
+            "bankAccount": "Destination account",
+            "pay": "Pay"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Prepared now, paid later. Marked Belum lunas.",

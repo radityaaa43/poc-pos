@@ -164,6 +164,22 @@ class ExpirePendingTransactionsTest extends TestCase
         ]);
     }
 
+    public function test_retried_sale_is_not_expired_by_its_original_age(): void
+    {
+        // Created 30 h ago, but the cashier retried the payment a few minutes ago (payment attempt 1).
+        $retried = $this->makePendingTransaction('INV-RETRIED', now()->subHours(30));
+        $retried->forceFill(['payment_attempt' => 1, 'updated_at' => now()->subMinutes(5)])->saveQuietly();
+        // Same age, retried 30 h ago: the retry itself went stale, so it expires as before.
+        $stale = $this->makePendingTransaction('INV-RETRIED-STALE', now()->subHours(40));
+        $stale->forceFill(['payment_attempt' => 1, 'updated_at' => now()->subHours(30)])->saveQuietly();
+
+        \Artisan::call('transactions:expire');
+
+        $this->assertEquals('pending', $retried->fresh()->payment_status);
+        $this->assertDatabaseMissing(StockMutation::class, ['reference_type' => 'transaction_expire', 'reference_id' => $retried->id]);
+        $this->assertEquals('failed', $stale->fresh()->payment_status);
+    }
+
     public function test_fresh_pending_transaction_is_untouched(): void
     {
         $transaction = $this->makePendingTransaction('INV-FRESH-1', now()->subHours(2));

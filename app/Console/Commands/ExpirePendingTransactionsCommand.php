@@ -24,7 +24,11 @@ class ExpirePendingTransactionsCommand extends Command
             ->whereIn('payment_method', ['midtrans', 'xendit', 'qris', 'bank_transfer'])
             ->where('payment_status', 'pending')
             ->whereDoesntHave('dineOrder') // a dine-in bill is created at accept and paid later: its age says nothing about abandonment
-            ->where('created_at', '<', $cutoff)
+            // A retried payment (payment_attempt > 0) is as old as its last retry, not as the sale: a retry late in a
+            // long shift must not be expired and restocked minutes after the new charge was created.
+            ->where(fn ($query) => $query
+                ->where(fn ($q) => $q->where('payment_attempt', 0)->where('created_at', '<', $cutoff))
+                ->orWhere(fn ($q) => $q->where('payment_attempt', '>', 0)->where('updated_at', '<', $cutoff)))
             ->with(['details.product.components', 'details.batchAllocations'])
             ->orderBy('id')
             ->get();

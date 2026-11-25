@@ -8,6 +8,7 @@ use App\Models\Receivable;
 use App\Models\ReceivablePayment;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
+use App\Services\AuditLogService;
 use App\Services\TransactionTenderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,11 @@ class PaymentWebhookController extends Controller
                 ]);
 
                 return response()->json(['status' => 'error', 'message' => 'Transaction not found'], 404);
+            }
+
+            $paidNotification = $this->mapMidtransStatus((string) $request->input('transaction_status'), $request->input('fraud_status')) === 'paid';
+            if ($this->ignoreSupersededAttempt($transaction, $orderId, 'midtrans', $paidNotification, $request->input('gross_amount'))) {
+                return response()->json(['status' => 'success']);
             }
 
             // Idempotency guard: ignore late/duplicate webhooks for terminal transactions
@@ -189,6 +195,11 @@ class PaymentWebhookController extends Controller
                 ]);
 
                 return response()->json(['status' => 'error', 'message' => 'Transaction not found'], 404);
+            }
+
+            $paidNotification = $this->mapXenditStatus($status) === 'paid';
+            if ($this->ignoreSupersededAttempt($transaction, $externalId, 'xendit', $paidNotification, $request->input('paid_amount') ?? $request->input('amount'))) {
+                return response()->json(['status' => 'success']);
             }
 
             // Idempotency guard: ignore late/duplicate webhooks for terminal transactions
@@ -321,8 +332,54 @@ class PaymentWebhookController extends Controller
         };
     }
 
+    /**
+     * A retried sale is charged again under "{invoice}-r{n}" (n = its payment attempt). A callback for any other
+     * attempt must not touch the sale: a late paid one is only marked and audited, so the owner can refund it by
+     * hand and the sale is never booked twice; a late failed one is ignored. Returns true when it was handled here.
+     */
+    private function ignoreSupersededAttempt(Transaction $transaction, string $providerId, string $gateway, bool $paid, mixed $amount): bool
+    {
+        if ($this->attemptOf($providerId) === (int) $transaction->payment_attempt) {
+            return false;
+        }
+
+        // First paid callback only: a duplicate delivery matches no row, so it is not audited twice.
+        // Marker and audit commit together: if the audit fails, the redelivery must still find the marker unset.
+        $marked = $paid && DB::transaction(function () use ($transaction, $providerId, $gateway, $amount) {
+            $marked = Transaction::whereKey($transaction->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
+
+            if ($marked) {
+                app(AuditLogService::class)->log(
+                    event: 'payment.late_superseded',
+                    module: 'transactions',
+                    auditable: $transaction,
+                    description: "Pembayaran lama invoice {$transaction->invoice} diterima setelah dibayar ulang; perlu refund manual.",
+                    meta: ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
+                );
+            }
+
+            return (bool) $marked;
+        });
+
+        Log::info(ucfirst($gateway).' Webhook: superseded payment attempt, ignoring', [
+            'provider' => $gateway,
+            'order_id' => $providerId,
+            'payment_attempt' => $transaction->payment_attempt,
+            'late_paid_marked' => (bool) $marked,
+        ]);
+
+        return true;
+    }
+
+    private function attemptOf(string $providerId): int
+    {
+        return preg_match('/-r(\d+)$/', $providerId, $matches) ? (int) $matches[1] : 0;
+    }
+
     private function baseInvoice(string $providerId): string
     {
+        $providerId = preg_replace('/-r\d+$/', '', $providerId);
+
         foreach (TransactionTenderService::GATEWAY_METHODS as $method) {
             $suffix = '-'.$method;
             if (str_ends_with($providerId, $suffix)) {
