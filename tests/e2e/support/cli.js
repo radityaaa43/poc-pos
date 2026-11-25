@@ -1,12 +1,12 @@
 // Runs `php artisan ...` where the e2e app lives: inside the `app-e2e` container locally,
 // plain `php` in CI (the app runs on the runner). Usable as a script: node cli.js e2e:reset
+// E2E_PHP overrides it for a second worktree's own container: "docker exec -i <container> php".
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export function artisan(args) {
-    const [cmd, ...head] = process.env.CI
-        ? ['php']
-        : ['docker', 'compose', 'exec', '-T', 'app-e2e', 'php'];
+    const [cmd, ...head] = process.env.E2E_PHP?.split(' ')
+        ?? (process.env.CI ? ['php'] : ['docker', 'compose', 'exec', '-T', 'app-e2e', 'php']);
 
     return execFileSync(cmd, [...head, 'artisan', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 }
