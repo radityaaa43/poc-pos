@@ -190,7 +190,9 @@ class DocumentController extends Controller
         $this->ensureFontDirectory();
 
         $payable->load(['supplier', 'payments.bankAccount', 'payments.user', 'purchaseOrder.warehouse.outlet']);
-        $this->ensureWarehouseAccess($payable->purchaseOrder?->warehouse);
+        if ($payable->purchaseOrder) {
+            $this->ensureWarehouseAccess($payable->purchaseOrder->warehouse);
+        }
 
         $pdf = Pdf::loadView('pdf.payable', [
             'payable' => $payable,
