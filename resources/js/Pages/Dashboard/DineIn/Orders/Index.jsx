@@ -188,7 +188,6 @@ export default function Index({ orders }) {
                                                     onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
                                                 />
                                             )}
-                                            )}
                                             {canProcess && order.status === "submitted" && (
                                                 <>
                                                     <Button

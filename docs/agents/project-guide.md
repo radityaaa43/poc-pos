@@ -30,8 +30,13 @@ accounts. The optional WhatsApp gateway runs separately: `cd whatsapp-service &&
 
 Run focused tests with PHPUnit's `--filter`
 (`docker compose exec -T app php artisan test --filter=TestName`). Frontend tests run with Vitest: `npm test`
-(`npm run test:watch` while editing; tests sit next to the file as `*.test.js(x)`). There is no
-frontend lint or typecheck script in the root `package.json`.
+(`npm run test:watch` while editing; tests sit next to the file as `*.test.js(x)`). Lint the frontend
+with `npm run lint` (ESLint 9, `react-hooks` rules; there is no typecheck script). Existing findings are
+baselined in `eslint-suppressions.gen.json`, so only new errors fail; do not fix or edit them in an unrelated PR.
+After fixing suppressed findings, shrink the baseline with
+`npx eslint resources/js --suppressions-location eslint-suppressions.gen.json --prune-suppressions`.
+Never run `--suppress-all` to hide a new error. Trade-off: `no-unused-vars` ignores capitalised names
+(JSX components, as there is no `react` plugin), so an unused capitalised const slips through.
 
 ## Structure and references
 
