@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: PUPPETEER_SKIP_DOWNLOAD=true npm ci --no-audit --no-fund
 
+      - name: Lint (ESLint)
+        run: npm run lint
+
       - name: Run frontend tests with coverage
         run: npm run test:coverage
 
@@ -154,7 +157,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1]
+        shard: [1, 2, 3]
     services:
       mysql:
         image: mysql:8.4
