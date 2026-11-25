@@ -75,6 +75,7 @@ class RoleSeeder extends Seeder
             'cashier-shifts-close',
             'customers-access',
             'customers-create',
+            'customers-upgrade-member',
             'receivables-access',
             'receivables-pay',
             'payables-access',

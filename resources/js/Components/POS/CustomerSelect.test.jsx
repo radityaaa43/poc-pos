@@ -2,11 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
-import { router } from "@inertiajs/react";
+import { router, usePage } from "@inertiajs/react";
+import toast from "react-hot-toast";
 import CustomerSelect from "./CustomerSelect";
 
 vi.mock("axios", () => ({ default: { post: vi.fn() } }));
-vi.mock("@inertiajs/react", () => ({ router: { reload: vi.fn() } }));
+vi.mock("@inertiajs/react", () => ({
+    router: { reload: vi.fn() },
+    usePage: vi.fn(),
+}));
 vi.mock("react-hot-toast", () => ({
     default: { success: vi.fn(), error: vi.fn() },
 }));
@@ -44,6 +48,9 @@ const renderSelect = (props = {}) => {
 describe("CustomerSelect", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        usePage.mockReturnValue({
+            props: { auth: { permissions: { "customers-upgrade-member": true } } },
+        });
     });
 
     afterEach(() => {
@@ -185,6 +192,45 @@ describe("CustomerSelect", () => {
             expect(axios.post).toHaveBeenCalledWith(expect.any(String), {
                 loyalty_tier: "regular",
             });
+        });
+
+        it("hides the upgrade button without a member-upgrade permission", () => {
+            usePage.mockReturnValue({
+                props: { auth: { permissions: { "customers-create": true } } },
+            });
+            renderSelect({ selected: budi });
+
+            expect(
+                screen.queryByRole("button", { name: "Upgrade member" })
+            ).not.toBeInTheDocument();
+        });
+
+        it("still shows the upgrade button to customers-edit holders", () => {
+            usePage.mockReturnValue({
+                props: { auth: { permissions: { "customers-edit": true } } },
+            });
+            renderSelect({ selected: budi });
+
+            expect(
+                screen.getByRole("button", { name: "Upgrade member" })
+            ).toBeInTheDocument();
+        });
+
+        it("shows an error toast when the upgrade fails", async () => {
+            const user = userEvent.setup();
+            axios.post.mockRejectedValue({
+                response: { data: { message: "Tidak diizinkan" } },
+            });
+            const { onSelect } = renderSelect({ selected: budi });
+
+            await user.click(
+                screen.getByRole("button", { name: "Upgrade member" })
+            );
+
+            await waitFor(() =>
+                expect(toast.error).toHaveBeenCalledWith("Tidak diizinkan")
+            );
+            expect(onSelect).not.toHaveBeenCalled();
         });
 
         it("has no upgrade button for a member", () => {

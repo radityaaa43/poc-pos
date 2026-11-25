@@ -5,6 +5,8 @@ namespace Tests\Feature\Members;
 use App\Models\Customer;
 use App\Models\User;
 use App\Services\LoyaltyService;
+use Database\Seeders\PermissionSeeder;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -175,6 +177,33 @@ class MemberManagementTest extends TestCase
         $this->assertFalse($customer->is_loyalty_member);
         $this->assertSame($memberCode, $customer->member_code);
         $this->assertTrue($customer->loyalty_member_since?->equalTo($memberSince));
+    }
+
+    public function test_cashier_role_can_upgrade_a_customer_without_customers_edit(): void
+    {
+        $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+        $cashier = User::factory()->create();
+        $cashier->assignRole('cashier');
+        $customer = Customer::create(['name' => 'Calon Member', 'no_telp' => '62814002', 'address' => 'Jl. Calon']);
+
+        $this->assertFalse($cashier->can('customers-edit'));
+
+        $this->actingAs($cashier)
+            ->postJson(route('customers.upgrade-member', $customer), ['loyalty_tier' => LoyaltyService::TIER_REGULAR])
+            ->assertOk()
+            ->assertJsonPath('customer.is_loyalty_member', true);
+    }
+
+    public function test_upgrade_is_forbidden_without_the_permission(): void
+    {
+        $user = $this->createUserWithPermissions(['customers-access', 'customers-create']);
+        $customer = Customer::create(['name' => 'Calon Member', 'no_telp' => '62814003', 'address' => 'Jl. Calon']);
+
+        $this->actingAs($user)
+            ->postJson(route('customers.upgrade-member', $customer))
+            ->assertForbidden();
+
+        $this->assertFalse($customer->refresh()->is_loyalty_member);
     }
 
     private function createUserWithPermissions(array $permissions): User
