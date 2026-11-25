@@ -39,4 +39,16 @@ describe("locale files", () => {
 
         expect(empty).toEqual([]);
     });
+
+    // i18next fills {{name}}; a Laravel-style :name stays literal on screen (#100).
+    it.each([
+        ["id", id],
+        ["en", en],
+    ])("%s has no Laravel-style :placeholders", (_name, dict) => {
+        const laravelStyle = Object.entries(dict)
+            .filter(([, v]) => typeof v === "string" && /(^| ):[a-z_]+/.test(v))
+            .map(([k]) => k);
+
+        expect(laravelStyle).toEqual([]);
+    });
 });
