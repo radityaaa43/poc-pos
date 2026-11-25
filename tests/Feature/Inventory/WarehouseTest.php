@@ -11,6 +11,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Route;
 use Tests\TestCase;
 
 class WarehouseTest extends TestCase
@@ -70,6 +71,15 @@ class WarehouseTest extends TestCase
         $this->actingAs($user)
             ->get(route('settings.warehouses.index'))
             ->assertForbidden();
+    }
+
+    public function test_unit_and_warehouse_have_no_create_or_edit_routes()
+    {
+        // The forms are modals on the index page; the routes had no controller method (500).
+        foreach (['units', 'warehouses'] as $resource) {
+            $this->assertFalse(Route::has("settings.{$resource}.create"));
+            $this->assertFalse(Route::has("settings.{$resource}.edit"));
+        }
     }
 
     public function test_admin_can_create_warehouse()
