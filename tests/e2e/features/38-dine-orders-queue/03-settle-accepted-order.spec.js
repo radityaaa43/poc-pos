@@ -61,7 +61,7 @@ test.describe('38-dine-orders-queue', () => {
         await expect(guest.getByTestId('dine-status')).toHaveText('Sedang dibuat');
 
         await card.getByRole('button', { name: 'Siap', exact: true }).click();
-        await page.getByRole('button', { name: 'Serah-terima', exact: true }).click();
+        await page.getByRole('button', { name: 'Penyerahan', exact: true }).click();
         await expect(card.getByRole('button', { name: 'Serahkan' })).toBeVisible();
         await guest.reload();
         await expect(guest.getByTestId('dine-status')).toHaveText('Siap');

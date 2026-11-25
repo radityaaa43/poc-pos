@@ -45,7 +45,7 @@ Aturan:
 - Siapa yang menjalankan tiap langkah ditentukan lewat permission di Settings → Roles, bukan role tetap.
 - Antrean staff punya tampilan: **Baru** (`submitted`), **Menunggu Pembayaran** (`accepted` dan belum lunas, juga tampil di
   POS Tagihan Terbuka dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
-  **Serah-terima** (`ready`). Pesanan yang belum lunas tidak muncul di Dapur. `completed` hilang dari antrean.
+  **Penyerahan** (`ready`). Pesanan yang belum lunas tidak muncul di Dapur. `completed` hilang dari antrean.
 
 Tagihan terbuka (*open bill*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
 metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.

@@ -62,7 +62,7 @@ describe("dine orders queue", () => {
         await user.click(screen.getByRole("button", { name: "Menunggu Pembayaran" }));
         expect(shown()).toEqual(["Meja Tunggu", "Meja Transfer"]);
 
-        await user.click(screen.getByRole("button", { name: "Serah-terima" }));
+        await user.click(screen.getByRole("button", { name: "Penyerahan" }));
         expect(shown()).toEqual(["Meja Siap"]);
     });
 
@@ -80,5 +80,16 @@ describe("dine orders queue", () => {
         expect(screen.queryByRole("button", { name: "Mulai Buat" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
         expect(screen.getByRole("button", { name: "Terima" })).toBeTruthy();
+    });
+});
+
+describe("dine orders queue, view-only user", () => {
+    it("shows no Terima or Tolak button, and no tab name that contains them", () => {
+        permissions = ["dine-orders-access"];
+        render(<Index orders={orders} />);
+
+        // Playwright matches button names as case-insensitive substrings, so mirror that here (a "Serah-terima" tab once matched "Terima").
+        expect(screen.queryAllByRole("button", { name: /terima|tolak/i })).toHaveLength(0);
+        expect(screen.queryAllByRole("button", { name: /mulai buat|siap|serahkan/i })).toHaveLength(0);
     });
 });

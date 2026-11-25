@@ -36,7 +36,7 @@ const VIEWS = [
     { key: "new", label: "Baru", match: (order) => order.status === "submitted" },
     { key: "waiting", label: "Menunggu Pembayaran", match: isWaitingForPayment },
     { key: "kitchen", label: "Dapur", match: (order) => (order.status === "accepted" && isPaid(order)) || order.status === "preparing" },
-    { key: "handover", label: "Serah-terima", match: (order) => order.status === "ready" },
+    { key: "handover", label: "Penyerahan", match: (order) => order.status === "ready" },
 ];
 
 const PAY_CONFIG = {
