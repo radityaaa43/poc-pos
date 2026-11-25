@@ -12,6 +12,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\KitchenSpeedReportService;
+use App\Services\KitchenStationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -307,7 +308,8 @@ class KitchenSpeedReportTest extends TestCase
         $this->assertSame($bar->id, $props['filters']['station_id']);
         $this->assertCount(1, $props['rows']);
         $row = $props['rows'][0];
-        $this->assertSame(['Kopi', $bar->id, 'Bar', false, 2, 3.0, 100.0], [
+        // assertEquals for the floats: the page props went through JSON, which writes 3.0 as 3 on every database.
+        $this->assertEquals(['Kopi', $bar->id, 'Bar', false, 2, 3.0, 100.0], [
             $row['title'], $row['station_id'], $row['station'], $row['station_deleted'], $row['count_rows'], $row['make_median'], $row['within_target_pct'],
         ]);
         $this->assertFalse($props['empty']);
@@ -350,7 +352,8 @@ class KitchenSpeedReportTest extends TestCase
         $old = $this->station('Bar');
         $kopi = $this->product('Kopi');
         $this->item($kopi, ['station' => $old->id]);
-        $old->delete();
+        // Through the service, as production does: it sets deleted_key, which frees the name for reuse (MySQL enforces the unique key).
+        app(KitchenStationService::class)->delete($old);
         $new = $this->station('Bar');
         $this->item($kopi, ['station' => $new->id]);
 
@@ -369,7 +372,7 @@ class KitchenSpeedReportTest extends TestCase
         $this->item($kopi, ['station' => $bar->id, 'prep' => 1, 'ready' => 3]);
         $this->item($kopi, ['prep' => 1, 'ready' => 11]);
 
-        $this->assertSame(
+        $this->assertEquals(
             [['Bar', 2, 2.0], ['Dapur', 1, 10.0]],
             collect($this->page()['rows'])->map(fn ($row) => [$row['station'], $row['count_rows'], $row['make_median']])->all(),
         );
@@ -414,7 +417,7 @@ class KitchenSpeedReportTest extends TestCase
 
         $all = $this->page();
 
-        $this->assertSame(['orders' => 1, 'avg_minutes' => 12.0], $all['orders']);
+        $this->assertEquals(['orders' => 1, 'avg_minutes' => 12.0], $all['orders']);
         $this->assertSame($all['orders'], $this->page(['station_id' => $bar->id])['orders']);
         $this->assertSame($all['orders'], $this->page(['station_id' => $pastry->id])['orders']);
     }
