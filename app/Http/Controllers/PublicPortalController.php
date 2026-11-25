@@ -65,7 +65,13 @@ class PublicPortalController extends Controller
             return back()->with('error', 'Gateway pembayaran belum dikonfigurasi.');
         }
 
-        $response = $paymentGateway->createPayment($transaction, $gateway, $paymentSetting);
+        // Charge what the customer still owes, never the invoice total (it may be partly paid).
+        $amount = (int) round($receivable->remaining);
+        if ($amount <= 0) {
+            return back()->with('error', 'Piutang ini sudah lunas.');
+        }
+
+        $response = $paymentGateway->createPayment($transaction, $gateway, $paymentSetting, $amount);
 
         if (isset($response['payment_url'])) {
             $transaction->update([

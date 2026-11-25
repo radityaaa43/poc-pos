@@ -12,6 +12,7 @@ Pelanggan bisa melihat invoice, status pembayaran, dan membayar piutang secara o
 - **Status pembayaran** — Lunas, Menunggu, Belum Lunas
 - **Riwayat transaksi** — untuk customer yang sama (via token akses)
 - **Bayar piutang online** — jika status `pay_later` dan belum Lunas, ada tombol "Bayar Sekarang" yang mengarah ke payment gateway
+- **Jumlah yang ditagih** — sisa piutang (`receivable.remaining` = total − sudah dibayar), bukan total invoice; tidak pernah lebih dari yang masih terutang. Piutang yang sudah lunas tidak ditagih lagi (muncul pesan "Piutang ini sudah lunas.")
 - **Token-based access** — URL unik per transaksi, tidak bisa ditebak (UUID v4)
 - **Guest layout** — halaman publik, tidak perlu login
 - **Share button** — di halaman print transaksi, copy link portal ke clipboard
