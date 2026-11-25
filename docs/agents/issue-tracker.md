@@ -92,8 +92,8 @@ it on the issue.
 | **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
 | **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → In review |
-| **In review** | Tech Lead | The Tech Lead approved, CI is green and, for a `feat` PR, Business / PM commented that the criteria are met | Tech Lead merges → Done |
-| **Done** | — | — | Automatic when the issue closes |
+| **In review** | Tech Lead, then Business / PM | The Tech Lead's technical review approved, then (for a `feat` PR or any PR with criteria) Business / PM's review passed, and CI is green | Tech Lead merges; Business / PM → Done |
+| **Done** | Business / PM | — | Business / PM, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
 
 New issues land in Backlog. Dependencies stay as `Blocked by #<n>` and sub-issues; there is no
 Blocked column.
@@ -105,7 +105,9 @@ left; exactly one `module:*` label; every Done-when item is tagged with its crit
 **Technical plan.** A comment on the issue before coding, sized to the ticket: what changes in the
 database, backend and frontend, the files and hotspot files touched, migration order, risks, and the
 tests per criterion, ending with `Builder: <developer>` (e.g. `Builder: dev1`). Large decisions also
-get an ADR in `docs/adr/`.
+get an ADR in `docs/adr/`. The exact formats for the plan and the assignment message, the
+developer's delivery with evidence, and the Tech Lead's review checklist are in
+[`handoff.md`](handoff.md).
 
 **One GitHub login.** While every session uses the same account, the assignee can't tell developers
 apart and GitHub refuses a self-requested review. So the `Builder:` line in the plan names who builds
