@@ -20,7 +20,13 @@ import {
 } from "@tabler/icons-react";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 
-export default function Edit({ categories, product, products = [], units = [] }) {
+export default function Edit({
+    categories,
+    product,
+    products = [],
+    units = [],
+    cost_outlet: costOutlet,
+}) {
     const { errors } = usePage().props;
 
     const { data, setData, post, processing } = useForm({
@@ -170,15 +176,20 @@ export default function Edit({ categories, product, products = [], units = [] })
           }, 0)
         : data.sell_price;
 
-    // HPP per porsi dari bahan/komponen (harga beli × takaran)
-    const estimatedCost = data.components.reduce((total, c) => {
-        const product = products.find(
-            (p) => p.id === Number(c.component_product_id)
-        );
-        return product
-            ? total + (product.buy_price || 0) * (Number(c.qty) || 0)
-            : total;
-    }, 0);
+    // HPP per porsi: biaya per satuan stok tiap komponen di outlet aktif × takaran
+    // (sama dengan HPP yang dibekukan saat dijual di outlet itu).
+    const estimatedCost = Math.round(
+        data.components.reduce((total, c) => {
+            const product = products.find(
+                (p) => p.id === Number(c.component_product_id)
+            );
+            return product
+                ? total + (product.unit_cost || 0) * (Number(c.qty) || 0)
+                : total;
+        }, 0)
+    );
+    // Resep tidak punya harga beli sendiri: biayanya dari komponen.
+    const costPrice = data.is_composite ? estimatedCost : data.buy_price;
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -409,16 +420,18 @@ export default function Edit({ categories, product, products = [], units = [] })
                                 </span>
                             </label>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <Input
-                                    type="number"
-                                    label="Harga Beli"
-                                    value={data.buy_price}
-                                    onChange={(e) =>
-                                        setData("buy_price", e.target.value)
-                                    }
-                                    errors={errors.buy_price}
-                                    placeholder="0"
-                                />
+                                {!data.is_composite && (
+                                    <Input
+                                        type="number"
+                                        label="Harga Beli"
+                                        value={data.buy_price}
+                                        onChange={(e) =>
+                                            setData("buy_price", e.target.value)
+                                        }
+                                        errors={errors.buy_price}
+                                        placeholder="0"
+                                    />
+                                )}
                                 <Input
                                     type="number"
                                     label="Harga Jual"
@@ -543,8 +556,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                             </div>
 
                             {/* Profit Estimation */}
-                            {!data.is_composite &&
-                                data.buy_price > 0 &&
+                            {costPrice > 0 &&
                                 data.sell_price > 0 && (
                                 <div className="mt-4 p-4 rounded-xl bg-success-50 dark:bg-success-950/30 border border-success-200 dark:border-success-900">
                                     <div className="flex items-center justify-between">
@@ -556,7 +568,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                                 + Rp{" "}
                                                 {(
                                                     data.sell_price -
-                                                    data.buy_price
+                                                    costPrice
                                                 ).toLocaleString("id-ID")}
                                             </p>
                                         </div>
@@ -567,8 +579,8 @@ export default function Edit({ categories, product, products = [], units = [] })
                                             <p className="text-xl font-bold text-success-600 dark:text-success-500 mt-1">
                                                 {(
                                                     ((data.sell_price -
-                                                        data.buy_price) /
-                                                        data.buy_price) *
+                                                        costPrice) /
+                                                        costPrice) *
                                                     100
                                                 ).toFixed(1)}
                                                 %
@@ -691,7 +703,7 @@ export default function Edit({ categories, product, products = [], units = [] })
                                     </div>
                                     {estimatedCost > 0 && (
                                         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400">
-                                            HPP per porsi, estimasi (harga referensi):{" "}
+                                            HPP per porsi{costOutlet ? ` (${costOutlet})` : ""}:{" "}
                                             <span className="font-semibold text-slate-700 dark:text-slate-200">
                                                 Rp{" "}
                                                 {estimatedCost.toLocaleString(

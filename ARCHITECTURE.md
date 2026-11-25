@@ -355,7 +355,8 @@ Untuk coffee shop/F&B: menu dibuat sebagai produk komposit (`is_composite`) deng
 
 - **Harga jual**: `Product::compositeSellPrice()` memakai `sell_price` menu bila diisi. Jika 0, harga dihitung dari total harga komponen (perilaku paket/bundle).
 - **Stok tersedia**: `Product::stockIn($warehouseId)` menghitung porsi yang bisa dibuat dari bahan paling sedikit di gudang itu. POS hanya menampilkan menu dengan porsi > 0.
-- **Penjualan**: `CheckoutService` memotong stok tiap bahan (per gudang, dengan mutasi stok) dan menghitung HPP dari harga beli bahan × takaran.
+- **Penjualan**: `CheckoutService` memotong stok tiap bahan (per gudang, dengan mutasi stok) dan menghitung HPP dari biaya per satuan stok bahan × takaran (`InventoryCostService::unitCost`: rata-rata gudang penjual, lalu rata-rata gudang pusat, lalu `buy_price` referensi).
+- **Biaya resep**: resep tidak punya harga beli sendiri (`buy_price` disimpan 0). Form produk, daftar produk, API, dan ekspor menampilkan HPP per porsi yang dihitung dengan aturan yang sama di gudang outlet aktif (`OutletAccessService::costWarehouseId`); form menamai outlet di labelnya.
 - **Bahan baku** tidak tampil di POS, scan barcode, API POS, maupun menu dine-in, dan ditolak saat masuk keranjang/checkout. Bahan tetap bisa dibeli lewat PO, di-opname, dan ditransfer seperti produk biasa.
 - Stok masih bilangan bulat, sehingga takaran desimal (mis. 18,5 g) tidak didukung. Gunakan satuan terkecil.
 

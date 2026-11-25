@@ -117,6 +117,24 @@ class OutletAccessService
         return $outlets->firstWhere('id', $selectedId) ?? $outlets->first() ?? $this->defaultOutlet($user);
     }
 
+    /** The warehouse an outlet's costs are read from: its first active one, same order as the warehouse pickers. */
+    public function outletWarehouseId(?Outlet $outlet): ?int
+    {
+        return $outlet
+            ? Warehouse::active()->where('outlet_id', $outlet->id)->orderBy('sort_order')->orderBy('code')->value('id')
+            : null;
+    }
+
+    /** outletWarehouseId() of the active outlet, resolved once per request because lists ask for it per row. */
+    public function costWarehouseId(Request $request): ?int
+    {
+        if (! $request->attributes->has('cost_warehouse_id')) {
+            $request->attributes->set('cost_warehouse_id', $this->outletWarehouseId($this->activeOutlet($request)));
+        }
+
+        return $request->attributes->get('cost_warehouse_id');
+    }
+
     public function hasActiveShiftInOtherOutlet(User $user, Outlet $outlet): bool
     {
         return (bool) CashierShift::query()

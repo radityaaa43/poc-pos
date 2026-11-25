@@ -7,3 +7,4 @@ row here (`npm run e2e:new` does both). Design: `docs/superpowers/specs/2026-11-
 |---|---|---|
 | `00-smoke` | `01-login-each-role`: login lands on the right page per role, guest redirect, wrong password, logout | super-admin, manager, cashier, stock-opname, dine-orders |
 | `20-po-purchased-by` | `01-outlet-rejects-central-material`: an outlet manager adds a central-bought material, picks the outlet warehouse, the page stops offering it and saving is rejected on that line | manager |
+| `09-recipe-cost` | `01-edit-form`: recipe edit form shows "HPP per porsi (<outlet>)" from component averages and no Harga Beli, a plain product still has it, the product list shows the same cost | manager |
