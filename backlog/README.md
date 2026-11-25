@@ -1,7 +1,9 @@
 # Backlog
 
 The source of requirements for this repo (`CONTRIBUTING.md` → Requirements and backlog). Only the
-requirement's owner (`@radityaaa43`) changes a backlog item; everyone else reads it and asks.
+requirement's owner (`@radityaaa43`), or Business / PM on the owner's behalf while the delegation
+in [`docs/agents/issue-tracker.md` → Delegation](../docs/agents/issue-tracker.md#delegation) holds,
+changes a backlog item; everyone else reads it and asks.
 
 ## Files
 
