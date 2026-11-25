@@ -63,6 +63,25 @@ Operasi transaksional tertentu juga mewajibkan middleware `active_shift`.
 5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi
 6. user diarahkan ke dokumen print / invoice
 
+## Retry a failed payment
+
+When an online payment (QRIS, Midtrans, Xendit, bank transfer) of a POS sale is `failed` or `expired`, the cashier
+recovers the sale from its receipt (`transactions.print`) instead of cancelling it:
+
+- **Coba lagi** starts the same method again. **Bayar dengan cara lain** offers cash, QRIS, a gateway or bank transfer.
+- Requires `transactions-access` and an open cashier shift in the sale's outlet (route `transactions.retry-payment`,
+  `TransactionPaymentRetryService`). The sale then counts in the shift where the retry happens.
+- Each retry is a new *payment attempt* (`transactions.payment_attempt`). The gateway order id is `{invoice}-r{n}`,
+  so the webhook can tell attempts apart. A callback for any attempt but the current one never changes the sale:
+  a late *paid* one sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded` and shows
+  "Bayar ganda — refund manual" in the transactions history (filter "Perlu refund"); the refund itself is manual.
+- Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
+  cannot be retried; the cashier is told to make a new sale.
+- A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
+- A retry moves the sale to the retrying cashier's shift (`cashier_shift_id`) but keeps `cashier_id`: that is who made the sale.
+- A split sale that already has a paid part is not retried (a retry replaces every tender).
+- Web POS only; the mobile API does not retry.
+
 ## Integrasi Data
 
 - `transactions`
