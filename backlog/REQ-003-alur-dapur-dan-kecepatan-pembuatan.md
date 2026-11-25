@@ -160,6 +160,10 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
   pengguna mengubahnya, then audit log mencatat siapa, kapan, nilai lama, dan nilai baru.
 - **AC-26:** Given laporan kecepatan dapur, when pemilik memilih rentang waktu, then periode dihitung
   menurut waktu lokal outlet, dan item yang dibatalkan atau *tidak diambil* tidak ikut dihitung.
+- **AC-27:** Given beberapa kasir dengan shift masing-masing di outlet yang sama, when satu kasir
+  menutup shift, then aturan AC-12, AC-13, dan AC-20 hanya berlaku untuk pesanan yang transaksinya
+  tercatat di shift itu (`cashier_shift_id`; dine-in: shift yang menerima pesanan). Pesanan shift lain
+  tidak menahan dan tidak ikut dibatalkan. (Business/PM, didelegasikan pemilik, 2026-11-25.)
 
 ## Proses
 
