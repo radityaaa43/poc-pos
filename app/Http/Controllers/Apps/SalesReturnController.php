@@ -611,7 +611,8 @@ class SalesReturnController extends Controller
             $currentTotal = (int) $transaction->receivable->total;
             $paid = (int) $transaction->receivable->paid;
             $receivableTotalAfter = max(0, $currentTotal - $totalReturnAmount);
-            $settlementAmount = max(0, $paid - $receivableTotalAfter);
+            // Only the overpayment this return adds: earlier returns already settled paid - currentTotal.
+            $settlementAmount = max(0, $paid - $receivableTotalAfter) - max(0, $paid - $currentTotal);
 
             if ($resolvedReturnType === 'store_credit') {
                 $creditedAmount = $settlementAmount;

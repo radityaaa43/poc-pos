@@ -126,6 +126,43 @@ class SalesReturnTest extends TestCase
         $this->assertSame(0, SalesReturn::first()->refund_amount);
     }
 
+    public function test_repeated_partial_returns_of_a_part_paid_pay_later_sale_never_refund_more_than_was_paid(): void
+    {
+        $user = $this->createUserWithPermissions([
+            'transactions-access', 'sales-returns-access', 'sales-returns-create', 'sales-returns-complete',
+            'cashier-shifts-access', 'cashier-shifts-open', 'cashier-shifts-close',
+        ]);
+        [$transaction, $detail] = $this->createTransaction(
+            $user, qty: 3, paymentMethod: 'pay_later', paymentStatus: 'unpaid', withReceivable: true
+        );
+        $transaction->receivable->update(['paid' => 100000, 'status' => 'partial']);
+        $this->openShiftFor($user);
+
+        $refunds = [];
+        $totals = [];
+        foreach ([1, 2, 3] as $unused) {
+            $this->actingAs($user)->post(route('sales-returns.store', $transaction), [
+                'return_type' => 'refund_cash',
+                'items' => [[
+                    'transaction_detail_id' => $detail->id,
+                    'qty_return' => 1,
+                    'return_reason' => 'Salah ukuran',
+                    'restock_to_inventory' => true,
+                ]],
+            ]);
+            $salesReturn = SalesReturn::latest('id')->first();
+            $this->actingAs($user)->post(route('sales-returns.complete', $salesReturn));
+
+            $refunds[] = (int) $salesReturn->fresh()->refund_amount;
+            $totals[] = (int) $transaction->receivable->fresh()->total;
+        }
+
+        // Receivable 180.000, paid 100.000: it only starts to overpay once the total drops under 100.000.
+        $this->assertSame([120000, 60000, 0], $totals);
+        $this->assertSame([0, 40000, 60000], $refunds);
+        $this->assertSame('paid', $transaction->receivable->fresh()->status);
+    }
+
     public function test_return_amounts_of_a_line_never_add_up_to_more_than_the_line_total(): void
     {
         $detail = new TransactionDetail(['qty' => 3, 'price' => 100]);
