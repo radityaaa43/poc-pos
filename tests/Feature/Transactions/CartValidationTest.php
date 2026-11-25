@@ -127,7 +127,7 @@ class CartValidationTest extends TestCase
                 'qty' => 1,
                 'unit_id' => $box->id,
             ])
-            ->assertSessionHas('error', 'Satuan tidak valid untuk produk ini.');
+            ->assertSessionHasErrors(['message' => 'Satuan tidak valid untuk produk ini.']);
 
         $this->assertDatabaseCount('carts', 0);
     }
@@ -156,8 +156,7 @@ class CartValidationTest extends TestCase
         ]);
 
         $this->patch(route('transactions.updateCart', $cart->id), ['qty' => 1])
-            ->assertStatus(422)
-            ->assertJson(['success' => false, 'message' => 'Stok tidak mencukupi. Tersedia: 10']);
+            ->assertSessionHasErrors(['message' => 'Stok tidak mencukupi. Tersedia: 10']);
     }
 
     public function test_update_cart_uses_unit_sell_price(): void

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Cart extends Model
 {
@@ -36,6 +37,19 @@ class Cart extends Model
     public function scopeActive($query)
     {
         return $query->whereNull('hold_id');
+    }
+
+    /**
+     * Pieces of a product already in the cashier's active cart, across every unit row. BOX and PCS
+     * rows draw on the same stock, so a stock check must count them together.
+     */
+    public static function baseQtyInCart(int $cashierId, int $productId, ?int $exceptCartId = null): int
+    {
+        return (int) round((float) static::active()
+            ->where('cashier_id', $cashierId)
+            ->where('product_id', $productId)
+            ->when($exceptCartId, fn ($query) => $query->whereKeyNot($exceptCartId))
+            ->sum(DB::raw('qty * conversion_factor')));
     }
 
     public function scopeHeld($query)

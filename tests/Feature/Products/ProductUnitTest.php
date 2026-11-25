@@ -243,7 +243,7 @@ class ProductUnitTest extends TestCase
                 'qty' => 1,
                 'unit_id' => $box->id,
             ])
-            ->assertSessionHas('error');
+            ->assertSessionHasErrors('message');
 
         $this->assertDatabaseMissing('carts', ['product_id' => $product->id]);
     }

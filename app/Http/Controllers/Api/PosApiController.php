@@ -280,6 +280,7 @@ class PosApiController extends Controller
         $warehouseId = $shift->warehouse_id;
 
         $product = Product::find($validated['product_id']);
+        $inCart = Cart::baseQtyInCart($request->user()->id, (int) $validated['product_id']);
 
         if (! $product) {
             return $this->notFound('Produk tidak ditemukan.');
@@ -292,7 +293,7 @@ class PosApiController extends Controller
         if ($product->is_composite) {
             $product->load('components');
             foreach ($product->components as $component) {
-                $needed = (float) $component->pivot->qty * $validated['qty'];
+                $needed = (float) $component->pivot->qty * ($validated['qty'] + $inCart);
                 $avail = (int) ($component->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0);
                 if ($avail < $needed) {
                     return $this->error("Stok {$component->title} tidak mencukupi.", 422);
@@ -314,7 +315,7 @@ class PosApiController extends Controller
                 ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
                 : (int) $product->stock;
 
-            if ($availableStock < $baseQty) {
+            if ($availableStock < $baseQty + $inCart) {
                 return $this->error("Stok tidak mencukupi. Tersedia: {$availableStock}", 422);
             }
 
@@ -380,8 +381,9 @@ class PosApiController extends Controller
             ? (int) ceil($validated['qty'])
             : $this->unitConversionService->toBaseUnit($product, $cart->unit_id, $validated['qty']);
         $availableStock = $product->stockIn($warehouseId);
+        $otherRows = Cart::baseQtyInCart($request->user()->id, $cart->product_id, $cart->id);
 
-        if ($availableStock < $baseQty) {
+        if ($availableStock < $baseQty + $otherRows) {
             return $this->error("Stok tidak mencukupi. Tersedia: {$availableStock}", 422);
         }
 
