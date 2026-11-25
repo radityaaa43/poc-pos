@@ -16,7 +16,7 @@ test.describe('42-recipes', () => {
         await expect(page.getByRole('heading', { name: `${prefix} Croissant` })).toBeVisible();
         await expect(page.getByRole('heading', { name: bean })).toHaveCount(0);
 
-        // Not accepted: the add-to-cart request a stale client or a scanner would send gets a refusal. The page
+        // Not accepted: the add-to-cart request a stale client or a scanner would send is refused with a reason. The page
         // sends it as an Inertia visit, so the same call is made from the page.
         const refused = await page.evaluate(async (productId) => {
             const xsrf = decodeURIComponent(document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN=')).split('=')[1]);
@@ -26,10 +26,10 @@ test.describe('42-recipes', () => {
                 body: JSON.stringify({ product_id: productId, qty: 1 }),
             });
 
-            return response.ok;
+            return (await response.json()).props?.errors?.message;
         }, bean_id);
-        // The cashier is not told why: the flash never reaches the page (issue #135), so the empty cart is the proof.
-        expect(refused).toBe(true);
+        // The refusal reaches the page as an error the POS toasts (#135 shared the flash; #163 moved cart refusals to the error bag).
+        expect(refused).toBe('Bahan baku tidak dapat dijual.');
         await page.reload();
         await expect(page.getByText('Keranjang kosong', { exact: true })).toBeVisible();
 
