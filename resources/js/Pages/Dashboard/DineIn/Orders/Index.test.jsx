@@ -66,18 +66,24 @@ describe("dine orders queue", () => {
         expect(shown()).toEqual(["Meja Siap"]);
     });
 
-    it("offers Mulai Buat only on a paid accepted order", () => {
-        render(<Index orders={orders} />);
-
-        expect(screen.getAllByRole("button", { name: "Mulai Buat" })).toHaveLength(1);
-        expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
-    });
-
-    it("shows each step button only with its permission", () => {
-        permissions = ["dine-orders-process"];
+    it("has no Mulai Buat or Siap button: the kitchen display owns those steps", () => {
         render(<Index orders={orders} />);
 
         expect(screen.queryByRole("button", { name: "Mulai Buat" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Siap" })).toBeNull();
+        expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
+    });
+
+    it("still offers Serahkan on a ready order", () => {
+        render(<Index orders={orders} />);
+
+        expect(screen.getAllByRole("button", { name: "Serahkan" })).toHaveLength(1);
+    });
+
+    it("shows Serahkan only with its permission", () => {
+        permissions = ["dine-orders-process"];
+        render(<Index orders={orders} />);
+
         expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
         expect(screen.getByRole("button", { name: "Terima" })).toBeTruthy();
     });

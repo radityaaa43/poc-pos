@@ -66,6 +66,16 @@ class KitchenItem extends Model
         return $this->belongsTo(Warehouse::class);
     }
 
+    public function preparingUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'preparing_by');
+    }
+
+    public function readyUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'ready_by');
+    }
+
     /**
      * withTrashed: an item keeps showing the name of a station deleted after it entered the kitchen.
      *

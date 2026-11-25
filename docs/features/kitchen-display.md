@@ -4,7 +4,7 @@ Back to the docs index: `docs/README.md`
 
 ## Purpose
 
-One screen for the kitchen: every paid order that still has something to prepare, in one queue, oldest first. It is read-only. Dine-in (QR) orders and POS sales land in the same list.
+One screen for the kitchen: every paid order that still has something to prepare, in one queue, oldest first. Dine-in (QR) orders and POS sales land in the same list, and the kitchen moves each line forward from here (see Actions).
 
 ## What it shows
 
@@ -18,6 +18,17 @@ One screen for the kitchen: every paid order that still has something to prepare
 
 - Page: `/dashboard/kitchen` (route `kitchen.index`), menu entry "Layar Dapur" / "Kitchen display" in the dine-in group.
 - Permission: `dine-orders-prepare` **or** `dine-orders-handover`. There is no kitchen permission of its own. Anyone else gets 403 and no menu entry.
+
+## Actions
+
+- **Mulai buat** / "Start" on a line moves it `accepted` to `preparing`. **Siap** / "Ready" moves it `preparing` to `ready`. **Semua siap** / "All ready" on a card readies every line that is not ready yet; a line that was never started gets its `preparing` time and user at the same moment.
+- Each step records the server time and the user on the line (`preparing_at`/`preparing_by`, `ready_at`/`ready_by`). Steps only go forward; a cancelled line has no buttons.
+- Who may: `dine-orders-prepare` (cashier and manager by default, configurable per shop). Without it the buttons are not drawn and a direct POST gets 403. A line of another outlet is refused too.
+- First tap wins: when two people tap the same step, the second gets "Sudah diproses oleh {name}" (the server message, Indonesian in both languages) and the card redraws with the real state.
+- No offline queue: a tap that cannot reach the server shows "Gagal menyimpan — periksa koneksi, lalu coba lagi" / "Not saved — check the connection and try again" and nothing is replayed later. The next refresh shows the truth.
+- A dine-in order's own status follows its lines: the first line `preparing` makes the order `preparing`, all lines `ready` makes it `ready` (with the same time and user), so the guest status page keeps working. The old per-order routes `dine-orders.prepare` / `dine-orders.ready` delegate to the same steps. Serahkan (hand over) is still on the dine-in Orders page.
+- [BR-1] A dine-in order whose items are all unflagged never reaches the kitchen: it is served when paid and completes at once (Pay now here; the Pay-later half lands in ticket #279). A mixed order waits only for its flagged items.
+- Routes: `kitchen.items.start`, `kitchen.items.ready`, `kitchen.orders.all-ready` (service: `app/Services/KitchenItemService.php`).
 
 ## Outlet scope
 
@@ -44,7 +55,7 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 ## Central files
 
 - `app/Http/Controllers/Apps/KitchenController.php`
-- `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
+- `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Services/KitchenItemService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
 - `resources/js/Pages/Dashboard/Kitchen/Index.jsx`
 - E2E: `tests/e2e/features/32-kitchen-display/`
 

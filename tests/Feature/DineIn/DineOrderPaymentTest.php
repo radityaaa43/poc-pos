@@ -58,6 +58,7 @@ class DineOrderPaymentTest extends TestCase
             'title' => 'Rujak', 'sku' => 'SKU-PAY-1', 'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 20,
             'image' => 'products/t.jpg', 'barcode' => 'BC-PAY-1', 'description' => 'x', 'tax_rate' => 0,
             'category_id' => $category->id,
+            'needs_preparation' => true, // unflagged products skip the kitchen (BR-1), and these tests walk the kitchen steps
         ]);
         $this->product->warehouses()->attach($this->warehouse->id, ['stock' => 20]);
     }
@@ -308,7 +309,7 @@ class DineOrderPaymentTest extends TestCase
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
         $post = fn (string $step) => $this->actingAs($this->cashier)->post(route("dine-orders.$step", $order));
 
-        $post('ready')->assertSessionHasErrors('order');
+        // `ready` on an accepted order with kitchen items acts as "Semua siap" (#237, KitchenStepsTest), so only `serve` is refused here
         $post('serve')->assertSessionHasErrors('order');
         $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
 
