@@ -1,0 +1,233 @@
+{
+  "resources/js/Components/Dashboard/AuthDropdown.jsx": {
+    "no-unused-vars": {
+      "count": 5
+    }
+  },
+  "resources/js/Components/Dashboard/Barcode.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Dashboard/Button.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Dashboard/Navbar.jsx": {
+    "no-prototype-builtins": {
+      "count": 2
+    }
+  },
+  "resources/js/Components/Dashboard/Pagination.jsx": {
+    "react-hooks/rules-of-hooks": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Dashboard/Sidebar.jsx": {
+    "no-prototype-builtins": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Dashboard/Table.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Dashboard/Widget.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/POS/BarcodeScanner.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/Receipt/ThermalReceipt.jsx": {
+    "no-undef": {
+      "count": 1
+    }
+  },
+  "resources/js/Components/TextInput.jsx": {
+    "react-hooks/rules-of-hooks": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Aging/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/CashierShifts/Show.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Categories/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Customers/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/DineIn/Areas/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/DineIn/Orders/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/DiscountApprovals.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/GoodsReceivings/Create.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Index.jsx": {
+    "no-unused-vars": {
+      "count": 8
+    }
+  },
+  "resources/js/Pages/Dashboard/Payables/Show.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Products/Index.jsx": {
+    "no-unused-vars": {
+      "count": 3
+    }
+  },
+  "resources/js/Pages/Dashboard/Products/UnitFocus.test.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/PurchaseOrders/Create.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/PurchaseOrders/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Receivables/Show.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Reports/Insights.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Reports/Sales.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Settings/Printer.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Settings/Target.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Settings/Whatsapp.jsx": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 4
+    }
+  },
+  "resources/js/Pages/Dashboard/StockTransfers/Create.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/StockTransfers/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Suppliers/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Transactions/History.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Transactions/Index.jsx": {
+    "no-unused-vars": {
+      "count": 9
+    }
+  },
+  "resources/js/Pages/Dashboard/Transactions/Print.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Dashboard/Users/Index.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Public/DineMenu.test.jsx": {
+    "no-undef": {
+      "count": 1
+    }
+  },
+  "resources/js/Pages/Public/DineOrderStatus.jsx": {
+    "no-empty": {
+      "count": 1
+    },
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/Utils/Menu.test.jsx": {
+    "no-undef": {
+      "count": 1
+    }
+  },
+  "resources/js/Utils/Permission.jsx": {
+    "react-hooks/rules-of-hooks": {
+      "count": 1
+    }
+  },
+  "resources/js/Utils/tours.test.js": {
+    "no-undef": {
+      "count": 2
+    }
+  },
+  "resources/js/app.jsx": {
+    "no-unused-vars": {
+      "count": 1
+    }
+  },
+  "resources/js/i18n/locales.test.js": {
+    "no-undef": {
+      "count": 1
+    }
+  }
+}

@@ -125,6 +125,10 @@ class DineIn
                 ];
             },
 
+            // How many dine areas have a blank (empty or whitespace) name, so a step checks its own claim instead of
+            // counting rows that other steps in the shared e2e database add.
+            'dine.blank-areas' => fn (): array => ['count' => DineArea::whereRaw("TRIM(name) = ''")->count()],
+
             // A user holding only the listed permissions (password 'password'), in the E2E outlet:
             // --arg=email=<email> --arg=permissions=dine-orders-access,dine-tables-access.
             'dine.user' => function (array $options): array {

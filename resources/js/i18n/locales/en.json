@@ -287,6 +287,7 @@
             "dineAreas": "Dine-In Areas",
             "dineTables": "Dine-In Tables",
             "dineOrders": "Dine-In Orders",
+            "kitchenDisplay": "Kitchen display",
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
@@ -1049,6 +1050,42 @@
             "product": "Add your first product",
             "customer": "Register your first customer",
             "transaction": "Complete your first transaction"
+        }
+    },
+    "kitchen": {
+        "title": "Kitchen display",
+        "empty": "No orders yet",
+        "noOutlet": "Select an outlet first",
+        "unpaid": "Unpaid",
+        "minutes": "{{count}} min",
+        "connectionLost": "Connection lost — retrying…",
+        "types": {
+            "dine_in": "Dine-in",
+            "in_store": "In store",
+            "takeaway": "Takeaway",
+            "delivery": "Delivery"
+        },
+        "status": {
+            "accepted": "Accepted",
+            "preparing": "Preparing",
+            "ready": "Ready"
+        }
+    },
+    "pos": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Prepared now, paid later. Marked Belum lunas.",
+            "offline": "Bayar Belakangan is not available offline",
+            "dueDate": "Due date",
+            "noteLabel": "Note (required for a guest)",
+            "notePlaceholder": "Who is it for? At least 2 characters",
+            "noteRequired": "Add a note of at least 2 characters for a guest"
+        }
+    },
+    "outlets": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Let the POS of this outlet sell now and collect payment later."
         }
     }
 }

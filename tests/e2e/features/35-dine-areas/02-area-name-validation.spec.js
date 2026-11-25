@@ -15,18 +15,16 @@ async function submitBlankName(page) {
 }
 
 test.describe('35-dine-areas', () => {
-    test('a blank area name is refused: the user is told, the form stays open, nothing is created', async ({ asRole }) => {
+    test('a blank area name is refused: the user is told, the form stays open, nothing is created', async ({ asRole, arrange }) => {
         const page = await asRole(manager);
-        await page.goto('/dashboard/dine-areas');
-        const before = await page.getByRole('row').count();
 
         const dialog = await submitBlankName(page);
         await expect(page.getByText('Gagal menyimpan area.')).toBeVisible();
         await expect(dialog).toBeVisible();
 
         await dialog.getByRole('button', { name: 'Batal' }).click();
-        await page.reload();
-        await expect(page.getByRole('row')).toHaveCount(before);
+        // Own state, not a row count: other steps create areas in the shared e2e database.
+        expect(arrange('dine.blank-areas').count).toBe(0);
     });
 
     test('the blank-name error is shown next to the field', async ({ asRole }) => {

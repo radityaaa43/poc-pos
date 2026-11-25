@@ -5,7 +5,9 @@ namespace Tests\Feature\Transactions;
 use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\Category;
+use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -62,11 +64,12 @@ class WalkInCustomerTest extends TestCase
         $this->assertNull($transaction->customer_id);
     }
 
-    public function test_pay_later_without_customer_is_rejected(): void
+    public function test_pay_later_without_customer_or_note_is_rejected(): void
     {
         $cashier = $this->createCashier();
-        $this->openShiftFor($cashier);
+        $shift = $this->openShiftFor($cashier);
         $product = $this->createProduct();
+        $this->enablePayLater($shift);
 
         Cart::create([
             'cashier_id' => $cashier->id,
@@ -86,15 +89,16 @@ class WalkInCustomerTest extends TestCase
             ]);
 
         $response->assertRedirect(route('transactions.index'));
-        $response->assertSessionHas('error', 'Nota barang memerlukan pelanggan.');
+        $response->assertSessionHasErrors('note');
         $this->assertDatabaseCount('transactions', 0);
     }
 
-    public function test_api_pay_later_without_customer_fails_validation(): void
+    public function test_api_pay_later_without_customer_or_note_fails_validation(): void
     {
         $cashier = $this->createCashier();
-        $this->openShiftFor($cashier);
+        $shift = $this->openShiftFor($cashier);
         $product = $this->createProduct();
+        $this->enablePayLater($shift);
 
         $response = $this
             ->actingAs($cashier)
@@ -106,7 +110,7 @@ class WalkInCustomerTest extends TestCase
             ]);
 
         $response->assertStatus(422);
-        $response->assertJsonValidationErrors(['customer_id']);
+        $response->assertJsonValidationErrors(['note']);
         $this->assertDatabaseCount('transactions', 0);
     }
 
@@ -129,6 +133,16 @@ class WalkInCustomerTest extends TestCase
             'expected_cash' => 100000,
             'status' => 'open',
         ]);
+    }
+
+    /** Pay later is off by default: give the shift an outlet that has switched it on. */
+    private function enablePayLater(CashierShift $shift): void
+    {
+        $outlet = Outlet::create(['code' => 'OUT-1', 'name' => 'Outlet 1', 'is_active' => true]);
+        $warehouse = Warehouse::where('type', 'main')->firstOrFail();
+        $warehouse->update(['outlet_id' => $outlet->id]);
+        $shift->update(['warehouse_id' => $warehouse->id]);
+        Setting::setForOutlet('pay_later_enabled', '1', $outlet);
     }
 
     private function createProduct(): Product

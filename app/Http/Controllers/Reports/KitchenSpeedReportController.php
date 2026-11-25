@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Models\Outlet;
 use App\Models\Warehouse;
 use App\Services\KitchenSpeedReportService;
 use App\Services\OutletAccessService;
@@ -26,6 +27,7 @@ class KitchenSpeedReportController extends Controller
             'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
         ]);
 
+        /** @var Outlet|null $outlet accessibleOutlets() returns an untyped Eloquent collection of outlets */
         $outlet = isset($input['outlet_id'])
             ? $outlets->firstWhere('id', (int) $input['outlet_id'])
             : $outletAccessService->activeOutlet($request);

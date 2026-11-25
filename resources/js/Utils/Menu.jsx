@@ -43,6 +43,7 @@ IconRulerMeasure,
     IconToolsKitchen2,
     IconWheat,
     IconStopwatch,
+    IconChefHat,
 } from "@tabler/icons-react";
 import hasAnyPermission from "./Permission";
 import React from "react";
@@ -286,6 +287,13 @@ export default function Menu() {
                     active: url.startsWith("/dashboard/dine-orders"),
                     icon: <IconToolsKitchen2 size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["dine-orders-access"]),
+                },
+                {
+                    title: t("sidebar.items.kitchenDisplay"),
+                    href: route("kitchen.index"),
+                    active: url.startsWith("/dashboard/kitchen"),
+                    icon: <IconChefHat size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["dine-orders-prepare", "dine-orders-handover"]),
                 },
             ],
         },

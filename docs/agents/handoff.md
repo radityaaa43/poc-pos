@@ -4,10 +4,85 @@ How work moves between the Tech Lead and the developers. These are the only thre
 or comment that lacks a required field is sent back, not acted on. Roles and board columns:
 [`issue-tracker.md` → Board and roles](issue-tracker.md#board-and-roles).
 
+- [0. Flow rules: pull, limits, priorities](#0-flow-rules-pull-limits-priorities)
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
 - [2. Delivery: developer → Tech Lead](#2-delivery-developer--tech-lead)
 - [3. Review: Tech Lead → PR](#3-review-tech-lead--pr)
 - [4. Business track: Business / PM](#4-business-track-business--pm)
+
+## 0. Flow rules: pull, limits, priorities
+
+Set by the maintainer on 2026-11-26 to keep three developers busy without waiting on anyone. These
+rules come before sections 1–4.
+
+### 0a. Pull, don't wait
+
+- **A developer pulls their own work.** When they have no ticket In progress, they take the next card in
+  Todo whose plan names them (`Builder: devN`) and whose `Blocked by` issues are all merged. They move
+  it to In progress, then tell the Tech Lead they started. They don't wait for an assignment message.
+- **Stacking.** A ticket whose only open blocker is in the same developer's chain, and is already built
+  on a branch, can be pulled too. The developer stacks it on that branch and opens its PR only after
+  the blocker merges.
+- **Nothing of their own is ready:** they take any unblocked `low` card in Todo, or the top test-fix or
+  flaky-test issue, and say so.
+- **Nothing at all is ready:** they tell the Tech Lead "idle" once, and the Tech Lead plans their next
+  ticket first.
+- A session that restarts reads the board and its memory and carries on. It doesn't ask what to do.
+
+- **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are flaky-test fixes,
+  CI and tooling changes, dependency upgrades and refactors: `Backlog: none`, with no change a user
+  sees.
+  - The Tech Lead files them straight into Todo, with a plan and a `Builder`.
+  - They get the technical review only.
+  - If such a change does alter what a user sees, it goes through Backlog and Business / PM as usual.
+
+### 0b. Finish before starting
+
+Everyone takes work in this order:
+
+1. **Unblock merges:** a red `main`, a flaky test, a PR waiting for a review you owe.
+2. **Finish your In progress work.**
+3. **Pull new work.**
+
+The Tech Lead reviews before planning. Business / PM reviews before preparing new tickets.
+
+### 0c. Column limits
+
+| Column | Limit | Owner when it's off |
+|---|---|---|
+| Planning | at least 2 per developer, ready to plan | Business / PM prepares more (section 4, rule 4) |
+| Todo | at least 1 per developer with blockers merged | Tech Lead plans more |
+| In progress | 1 main ticket per developer, plus 1 stacked next-in-chain ticket, plus up to 2 `low` | The developer finishes before pulling |
+| Technical review | at most 3 | The Tech Lead stops planning and reviews |
+| Business review | at most 2 | Business / PM reviews before anything else |
+
+### 0d. Quality that costs no waiting
+
+- **Before Technical review,** the developer runs `/code-review` (low, in a sonnet subagent) on their
+  diff, fixes what it finds and pastes the result in the PR. The Evidence table (2a) is complete, with
+  one row per AC, BR and TC, plus the screenshots. The Tech Lead's review confirms; it doesn't discover.
+- **Flaky tests:** a test that fails and then passes on re-run gets a `test(...)` issue the same day.
+  It goes to the next free developer ahead of feature work. A PR is re-run at most once for a known
+  flake.
+- **E2E is the full regression suite** (maintainer, 2026-11-26).
+  - CI runs **every** feature's e2e on every PR. Shards split the same full suite and never run a subset.
+  - **Every feature or change PR writes its own e2e in the same PR.** It goes in the feature's folder
+    under `tests/e2e/features/`, with one test per AC tagged `@REQ-<n>-AC-<n>` that proves the AC as
+    written. A PR without it isn't reviewed.
+  - That test joins the regression suite for good, so every later PR re-proves the feature, and a new
+    feature can't silently break an older one.
+  - An e2e test is never skipped, `fixme`'d or deleted to get a PR green. A test changes only when its
+    behaviour is changed on purpose, and the PR names the AC or decision behind the change.
+  - A flaky test gets fixed, not silenced.
+- **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
+  isn't cancelled and restarted.
+
+### 0e. Talk less, show more
+
+- **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
+  and 3, plus "idle", "blocked" and "question". There's no status chatter.
+- **Changes to these rules** go into one Standards PR per day, at most. Each one rests on the daily
+  flow report (Business / PM): time per column, rework rounds, CI cancelled or failed, stuck PRs.
 
 ## 1. Task: Tech Lead → developer
 

@@ -287,6 +287,7 @@
             "dineAreas": "Area Dine-In",
             "dineTables": "Meja Dine-In",
             "dineOrders": "Pesanan Dine-In",
+            "kitchenDisplay": "Layar Dapur",
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
@@ -1049,6 +1050,42 @@
             "product": "Tambahkan produk pertama",
             "customer": "Daftarkan pelanggan pertama",
             "transaction": "Selesaikan transaksi pertama"
+        }
+    },
+    "kitchen": {
+        "title": "Layar Dapur",
+        "empty": "Belum ada pesanan",
+        "noOutlet": "Pilih outlet terlebih dahulu",
+        "unpaid": "Belum lunas",
+        "minutes": "{{count}} menit",
+        "connectionLost": "Koneksi terputus — mencoba lagi…",
+        "types": {
+            "dine_in": "Dine-in",
+            "in_store": "Di tempat",
+            "takeaway": "Bawa pulang",
+            "delivery": "Diantar"
+        },
+        "status": {
+            "accepted": "Diterima",
+            "preparing": "Sedang dibuat",
+            "ready": "Siap"
+        }
+    },
+    "pos": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
+            "offline": "Bayar belakangan tidak tersedia saat offline",
+            "dueDate": "Tanggal Jatuh Tempo",
+            "noteLabel": "Catatan (wajib untuk tamu)",
+            "notePlaceholder": "Untuk siapa? Minimal 2 karakter",
+            "noteRequired": "Isi catatan minimal 2 karakter untuk pelanggan tamu"
+        }
+    },
+    "outlets": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
         }
     }
 }
