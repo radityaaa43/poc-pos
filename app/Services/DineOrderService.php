@@ -73,6 +73,7 @@ class DineOrderService
                 'grand_total' => (int) $order->subtotal,
                 'payment_method' => Transaction::METHOD_OPEN_BILL, // chosen by the cashier when the bill is settled
                 'payment_status' => 'unpaid',
+                'is_pay_later' => $order->payment_option === DineOrder::PAY_LATER, // no receivable: the guest settles at the counter
                 'order_type' => 'in_store',
                 'note' => $order->notes,
             ]);
@@ -212,6 +213,15 @@ class DineOrderService
                 'transaction_id' => $transaction->id,
                 'cashier_id' => $userId,
             ]);
+
+            // Money first: a kitchen failure is reported, never allowed to roll back the accept. Both steps share one rescue,
+            // so a failed intake never leaves "no kitchen items" to be read as "nothing to make".
+            if ($transaction->is_pay_later) {
+                DB::afterCommit(fn () => rescue(function () use ($transaction) {
+                    app(KitchenIntakeService::class)->intakeUnpaid($transaction);
+                    $this->kitchenItemService->serveIfNoKitchenItems($transaction); // BR-10: nothing to make is served now, completed once paid
+                }));
+            }
         });
     }
 

@@ -1127,6 +1127,12 @@
             "hint": "Let the POS of this outlet sell now and collect payment later."
         }
     },
+    "dineMenu": {
+        "payLater": {
+            "button": "Order — Pay later",
+            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave."
+        }
+    },
     "kitchenStations": {
         "title": "Kitchen stations",
         "add": "Add station",

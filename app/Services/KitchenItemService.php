@@ -120,7 +120,7 @@ class KitchenItemService
 
     /**
      * The dine order's own status and trail follow its items: the first item preparing starts the order,
-     * every item ready completes it. Direct updates: items exist only for a paid bill, so the pay-first gate holds.
+     * every item ready completes it. Direct updates: items exist for a paid bill, or for a pay-later one (#279), which skips the pay-first gate by design.
      */
     private function syncDineOrder(Transaction $transaction): void
     {
