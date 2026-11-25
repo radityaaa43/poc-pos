@@ -24,6 +24,8 @@ class Product extends Model
         'max_stock' => 'integer',
         'is_composite' => 'boolean',
         'is_raw_material' => 'boolean',
+        'needs_preparation' => 'boolean',
+        'prep_target_minutes' => 'integer',
     ];
 
     protected $fillable = [
@@ -42,6 +44,8 @@ class Product extends Model
         'max_stock',
         'is_composite',
         'is_raw_material',
+        'needs_preparation',
+        'prep_target_minutes',
         'purchased_by',
     ];
 

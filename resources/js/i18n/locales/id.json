@@ -419,6 +419,10 @@
         "empty": {
             "title": "Belum Ada Produk",
             "description": "Mulai dengan menambahkan produk pertama Anda"
+        },
+        "preparation": {
+            "needsPreparation": "Perlu dibuat di dapur",
+            "targetMinutes": "Target waktu buat (menit)"
         }
     },
     "categories": {
