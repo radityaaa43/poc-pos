@@ -37,6 +37,7 @@ Aturan:
 - **Pembayaran dulu.** "Mulai Buat" (`accepted → preparing`) ditolak kecuali `payment_status` transaksi `paid`. `pending`
   (transfer menunggu konfirmasi, gateway menunggu webhook) belum dianggap lunas. Gerbang dicek di server, di dalam
   transaksi DB yang sama dengan perubahan status dan dengan baris transaksi terkunci (`lockForUpdate`), bukan hanya di UI.
+- [BR-1] An order whose items are all unflagged (no `needs_preparation`) skips the kitchen: it is served when paid and completes at once (served_by stays empty); the Pay-later half lands in ticket #279.
 - Setiap langkah pesanan hanya sah dari status sebelumnya; status yang salah ditolak (error `order`), langkah yang sudah
   diambil diulang = tidak berbuat apa-apa.
 - Karena sudah lunas sebelum dibuat, `served` langsung menjadi `completed` pada saat "Serahkan". Keadaan "disajikan tapi
@@ -194,6 +195,7 @@ Dikontrol via `Setting` table:
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
 - Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
+- Kitchen steps moved to the kitchen display (`docs/features/kitchen-display.md`): Mulai Buat / Siap are no longer on the Orders page, and the order's `preparing` / `ready` status and trail now follow its kitchen items. Serahkan stays here
 - Bayar: lihat "Pembayaran tagihan belum lunas" di bawah
 
 ## Pembayaran

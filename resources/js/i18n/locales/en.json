@@ -1074,6 +1074,12 @@
             "accepted": "Accepted",
             "preparing": "Preparing",
             "ready": "Ready"
+        },
+        "actions": {
+            "start": "Start",
+            "ready": "Ready",
+            "allReady": "All ready",
+            "saveFailed": "Not saved — check the connection and try again"
         }
     },
     "pos": {

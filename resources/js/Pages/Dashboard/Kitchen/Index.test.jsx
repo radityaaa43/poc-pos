@@ -1,13 +1,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, act } from "@testing-library/react";
-import { usePoll } from "@inertiajs/react";
+import userEvent from "@testing-library/user-event";
+import toast from "react-hot-toast";
+import { usePoll, router } from "@inertiajs/react";
 import i18n from "@/i18n";
 import Index from "./Index";
+
+let permissions = { "dine-orders-prepare": true };
 
 vi.mock("@inertiajs/react", () => ({
     Head: () => null,
     usePoll: vi.fn(),
+    router: { post: vi.fn() },
+    usePage: () => ({ props: { auth: { permissions } } }),
 }));
+vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
 
 const NOW = new Date("2026-11-25T10:00:00Z");
@@ -42,10 +49,15 @@ beforeEach(async () => {
     vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
     vi.setSystemTime(NOW);
     vi.clearAllMocks();
+    permissions = { "dine-orders-prepare": true };
+    vi.spyOn(navigator, "onLine", "get").mockReturnValue(true);
     await i18n.changeLanguage("id");
 });
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+});
 
 describe("Kitchen/Index", () => {
     it("lists the orders in prop order with number, type, items and note", () => {
@@ -121,5 +133,123 @@ describe("Kitchen/Index", () => {
 
         act(() => pollOptions().onSuccess());
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+});
+
+describe("Kitchen/Index steps", () => {
+    const stepOrders = [
+        ...orders,
+        {
+            id: 11,
+            number: "Meja 9",
+            type: "dine_in",
+            unpaid: false,
+            since: minutesAgo(1),
+            items: [
+                { id: 4, title: "Kopi", qty: 1, note: null, status: "ready" },
+                { id: 5, title: "Roti", qty: 1, note: null, status: "cancelled" },
+            ],
+        },
+    ];
+    const cards = () => screen.getAllByRole("article");
+    const lastOptions = () => router.post.mock.calls.at(-1)[2];
+    const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    it("offers Mulai buat on accepted items and Siap on preparing items only", () => {
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        const [first, , ready] = cards();
+        const rows = within(first).getAllByRole("listitem");
+        expect(within(rows[0]).getByRole("button", { name: "Mulai buat" })).toBeInTheDocument();
+        expect(within(rows[0]).queryByRole("button", { name: "Siap" })).not.toBeInTheDocument();
+        expect(within(rows[1]).getByRole("button", { name: "Siap" })).toBeInTheDocument();
+        expect(within(rows[1]).queryByRole("button", { name: "Mulai buat" })).not.toBeInTheDocument();
+        expect(within(ready).queryByRole("button", { name: /Mulai buat|^Siap$/ })).not.toBeInTheDocument();
+    });
+
+    it("shows Semua siap on an order while any item is not ready", () => {
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        const [first, second, done] = cards();
+        expect(within(first).getByRole("button", { name: "Semua siap" })).toBeInTheDocument();
+        expect(within(second).getByRole("button", { name: "Semua siap" })).toBeInTheDocument();
+        expect(within(done).queryByRole("button", { name: "Semua siap" })).not.toBeInTheDocument();
+    });
+
+    it("has no step buttons on a cancelled item", () => {
+        const onlyCancelled = [{ ...stepOrders[2], items: [stepOrders[2].items[1]] }];
+        render(<Index orders={onlyCancelled} outlet={outlet} />);
+
+        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("shows no buttons without dine-orders-prepare", () => {
+        permissions = {};
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    });
+
+    it("posts each step to its route and keeps the scroll position", async () => {
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+        const [first] = cards();
+
+        await user.click(within(first).getByRole("button", { name: "Mulai buat" }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.items.start", {}, expect.objectContaining({ preserveScroll: true }));
+        act(() => lastOptions().onFinish());
+
+        await user.click(within(first).getByRole("button", { name: "Siap" }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.items.ready", {}, expect.objectContaining({ preserveScroll: true }));
+        act(() => lastOptions().onFinish());
+
+        await user.click(within(first).getByRole("button", { name: "Semua siap" }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", {}, expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it("disables the tapped button while its request runs and frees it afterwards", async () => {
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+        const [first] = cards();
+        const button = within(first).getByRole("button", { name: "Mulai buat" });
+
+        await user.click(button);
+        expect(button).toBeDisabled();
+        await user.click(button);
+        expect(router.post).toHaveBeenCalledTimes(1);
+
+        act(() => lastOptions().onFinish());
+        expect(button).toBeEnabled();
+    });
+
+    it("shows the server message in an error toast", async () => {
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Mulai buat" }));
+        act(() => lastOptions().onError({ item: "Sudah diproses oleh Sari" }));
+
+        expect(toast.error).toHaveBeenCalledWith("Sudah diproses oleh Sari");
+    });
+
+    it("shows the save error on a network failure", async () => {
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Mulai buat" }));
+        act(() => lastOptions().onNetworkError(new Error("Network Error")));
+
+        expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan — periksa koneksi, lalu coba lagi");
+    });
+
+    it("posts nothing and shows the save error when offline", async () => {
+        vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Mulai buat" }));
+
+        expect(router.post).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan — periksa koneksi, lalu coba lagi");
     });
 });

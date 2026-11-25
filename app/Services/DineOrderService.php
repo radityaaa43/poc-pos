@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\CashierShift;
 use App\Models\DineOrder;
+use App\Models\KitchenItem;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
@@ -21,6 +22,7 @@ class DineOrderService
         private InventoryCostService $inventoryCostService,
         private CashierShiftService $cashierShiftService,
         private TransactionSettlementService $settlementService,
+        private KitchenItemService $kitchenItemService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -260,12 +262,36 @@ class DineOrderService
     /** Kitchen starts making an accepted order, but only once its bill is paid. */
     public function startPreparing(DineOrder $order): void
     {
+        // Paid orders with kitchen items (#236): the items carry the trail, the order status follows them (#237).
+        if ($this->hasKitchenItems($order)) {
+            // One transaction, items locked and re-read as accepted: a double tap or a cook who took one item first
+            // leaves the rest to start, not a half-started order plus an error.
+            DB::transaction(function () use ($order) {
+                $items = KitchenItem::where('transaction_id', $order->transaction_id)
+                    ->where('status', KitchenItem::STATUS_ACCEPTED)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($items as $item) {
+                    $this->kitchenItemService->start($item, auth()->user());
+                }
+            });
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing');
     }
 
     /** Kitchen marks a preparing order ready. */
     public function markReady(DineOrder $order): void
     {
+        if ($this->hasKitchenItems($order)) {
+            $this->kitchenItemService->allReady(Transaction::findOrFail($order->transaction_id), auth()->user());
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready');
     }
 
@@ -273,6 +299,11 @@ class DineOrderService
     public function serve(DineOrder $order): void
     {
         $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served');
+    }
+
+    private function hasKitchenItems(DineOrder $order): bool
+    {
+        return $order->transaction_id && KitchenItem::where('transaction_id', $order->transaction_id)->exists();
     }
 
     /** One fulfillment step: valid only from the previous status; repeating a step already taken is a no-op. */

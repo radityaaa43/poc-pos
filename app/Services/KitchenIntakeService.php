@@ -76,5 +76,10 @@ class KitchenIntakeService
                 ]);
             }
         });
+
+        // BR-1 for Pay now only: a pay-later sale (unpaid here) is served at accept in #279.
+        if ($transaction->payment_status === 'paid') {
+            app(KitchenItemService::class)->serveIfNoKitchenItems($transaction);
+        }
     }
 }
