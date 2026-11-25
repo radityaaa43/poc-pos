@@ -87,8 +87,8 @@ Set by the maintainer on 2026-11-26. Developers **use subagents to build faster*
 - **Inside one ticket, split independent parts across subagents**: for example backend with its
   PHPUnit, frontend with its Vitest, and the e2e per AC. The developer merges the parts in one branch
   and owns the result.
-- **The developer stays accountable.** They read every subagent diff, run the checks locally (Pint,
-  PHPUnit, Vitest, build, the touched feature's e2e), run `/code-review` on the combined diff and
+- **The developer stays accountable.** They read every subagent diff, run the fast checks locally
+  (Pint, Vitest, build; PHPUnit and e2e run only on CI), run `/code-review` on the combined diff and
   write the Evidence table themselves. A subagent never pushes, opens a PR, merges or moves a card.
 - **Subagents get the full context they need in their brief:**
   - the issue number
