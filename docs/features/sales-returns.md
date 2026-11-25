@@ -54,6 +54,17 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - `receivables`
 - `stock_mutations`
 
+## Kitchen items
+
+Completing a return (`sales-returns-complete`, web and API, in the return's own transaction) takes the returned lines off the kitchen (`KitchenItemService::cancelForReturn`). A draft touches nothing.
+
+- A partial return lowers the kitchen item's quantity; the item is *Dibatalkan* (cancelled) only when its whole quantity is returned, and keeps its last quantity.
+- A served item is a normal return and the kitchen queue is not touched.
+- The kitchen row is locked before any stock row, so a return and a start tap on the same item cannot deadlock: the return wins and the tap is told "Sudah dibatalkan".
+- The restock default of a line follows its kitchen status when the form opens: on for *accepted* (and served or without a kitchen item), off for *preparing* or *ready* (with a hint). The person can change it; a saved draft keeps its own choice.
+- Money and stock code are unchanged: a refund for a paid sale, a lower receivable for pay later.
+- A dine order becomes cancelled only when every sale line is fully returned. Returning just the dishes cancels their kitchen items, but the order still owes its plain lines, so it is served and completed as usual (BR-11, Business 2026-11-26).
+
 ## Efek Bisnis Penting
 
 - retur completed bisa menambah stok kembali

@@ -116,7 +116,7 @@ class KitchenStepsTest extends TestCase
         $item = $this->kitchenItem($this->sale('INV-4'), status: 'cancelled');
 
         $this->actingAs($this->cook)->post(route('kitchen.items.start', $item))
-            ->assertSessionHasErrors(['item' => 'Langkah tidak valid untuk item ini']);
+            ->assertSessionHasErrors(['item' => 'Sudah dibatalkan']); // #241: a returned item says so, not "invalid step"
 
         $this->assertSame('cancelled', $item->fresh()->status);
         $this->assertNull($item->fresh()->preparing_at);
