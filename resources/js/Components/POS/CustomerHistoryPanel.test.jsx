@@ -174,11 +174,7 @@ describe("CustomerHistoryButton", () => {
 
         expect(await screen.findByText("Riwayat Pelanggan")).toBeInTheDocument();
 
-        // The close button has no title or text; it is the only button without a title (#45).
-        const closeButton = screen
-            .getAllByRole("button")
-            .find((button) => !button.hasAttribute("title"));
-        await user.click(closeButton);
+        await user.click(screen.getByRole("button", { name: "Tutup" }));
 
         expect(screen.queryByText("Riwayat Pelanggan")).not.toBeInTheDocument();
     });

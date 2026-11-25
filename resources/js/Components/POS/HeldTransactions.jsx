@@ -168,6 +168,8 @@ export default function HeldTransactions({
                             <button
                                 onClick={() => handleDelete(hold.hold_id)}
                                 disabled={deletingId === hold.hold_id}
+                                aria-label="Hapus transaksi ditahan"
+                                title="Hapus transaksi ditahan"
                                 className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-600 disabled:opacity-50"
                             >
                                 <IconTrash size={12} />
@@ -219,6 +221,7 @@ export function HoldButton({ hasItems = false, onHold, isHolding = false }) {
                 </button>
                 <button
                     onClick={() => setShowLabelInput(false)}
+                    aria-label="Batal"
                     className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                 >
                     <IconX size={14} className="text-slate-500" />

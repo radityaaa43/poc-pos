@@ -23,11 +23,7 @@ function setup(props = {}) {
             await user.click(screen.getByRole("button", { name: label }));
         }
     };
-    // Backspace and close are icon-only buttons without a title or label (#45).
-    const backspace = () =>
-        utils.container
-            .querySelector(".tabler-icon-backspace")
-            .closest("button");
+    const backspace = () => screen.getByRole("button", { name: "Hapus angka" });
     return { ...utils, user, onClose, onConfirm, display, click, backspace };
 }
 
@@ -74,6 +70,15 @@ describe("NumpadModal", () => {
 
         await click("C");
         expect(display()).toHaveTextContent(/^0$/);
+    });
+
+    it("the Tutup button closes without confirming", async () => {
+        const { user, onClose, onConfirm } = setup();
+
+        await user.click(screen.getByRole("button", { name: "Tutup" }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(onConfirm).not.toHaveBeenCalled();
     });
 
     it("a digit beyond maxValue is ignored", async () => {

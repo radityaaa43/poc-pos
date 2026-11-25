@@ -35,9 +35,10 @@ describe("HeldTransactions", () => {
         return { user, ...utils };
     }
 
-    // The delete button is icon-only and has no title or label (#45).
     const deleteButton = (index) =>
-        document.querySelectorAll(".tabler-icon-trash")[index].closest("button");
+        screen.getAllByRole("button", { name: "Hapus transaksi ditahan" })[
+            index
+        ];
 
     it("renders nothing without held carts", () => {
         const { container, rerender } = render(<HeldTransactions />);
@@ -204,6 +205,20 @@ describe("HoldButton", () => {
         expect(
             screen.getByPlaceholderText("Label (opsional)")
         ).toBeInTheDocument();
+    });
+
+    it("closes the label input with the Batal button without holding", async () => {
+        const onHold = vi.fn();
+        const user = userEvent.setup();
+        render(<HoldButton hasItems onHold={onHold} />);
+
+        await user.click(screen.getByRole("button", { name: "Tahan" }));
+        await user.click(screen.getByRole("button", { name: "Batal" }));
+
+        expect(onHold).not.toHaveBeenCalled();
+        expect(
+            screen.queryByPlaceholderText("Label (opsional)")
+        ).not.toBeInTheDocument();
     });
 
     it("holds with the typed label on Enter", async () => {
