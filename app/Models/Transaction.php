@@ -5,7 +5,9 @@ namespace App\Models;
 use App\Services\KitchenIntakeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -100,7 +102,8 @@ class Transaction extends Model
         'late_superseded_payment_at' => 'datetime',
     ];
 
-    public function details()
+    /** @return HasMany<TransactionDetail, $this> */
+    public function details(): HasMany
     {
         return $this->hasMany(TransactionDetail::class);
     }
@@ -130,7 +133,8 @@ class Transaction extends Model
         return $this->belongsTo(CashierShift::class);
     }
 
-    public function warehouse()
+    /** @return BelongsTo<Warehouse, $this> */
+    public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
     }
@@ -145,12 +149,8 @@ class Transaction extends Model
         return $this->belongsTo(BankAccount::class);
     }
 
-    /**
-     * profits
-     *
-     * @return void
-     */
-    public function profits()
+    /** @return HasMany<Profit, $this> */
+    public function profits(): HasMany
     {
         return $this->hasMany(Profit::class);
     }
@@ -160,7 +160,8 @@ class Transaction extends Model
         return $this->hasOne(Receivable::class);
     }
 
-    public function dineOrder()
+    /** @return HasOne<DineOrder, $this> */
+    public function dineOrder(): HasOne
     {
         return $this->hasOne(DineOrder::class);
     }

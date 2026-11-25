@@ -42,6 +42,7 @@ class KitchenItem extends Model
         'served_at' => 'datetime',
     ];
 
+    /** @return BelongsTo<Transaction, $this> */
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
@@ -52,6 +53,7 @@ class KitchenItem extends Model
         return $this->belongsTo(TransactionDetail::class, 'transaction_detail_id');
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
