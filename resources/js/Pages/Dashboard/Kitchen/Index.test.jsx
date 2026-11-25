@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
 import { usePoll, router } from "@inertiajs/react";
 import i18n from "@/i18n";
-import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
+import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
 import Index from "./Index";
 
 let permissions = { "dine-orders-prepare": true };
@@ -18,8 +18,8 @@ vi.mock("@inertiajs/react", () => ({
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
 // Printing has its own tests; this file only checks the display and the panel toggle.
-vi.mock("@/Hooks/useKitchenPrintStation", () => ({ useKitchenPrintStation: vi.fn(() => ({ station: null })) }));
-vi.mock("./PrintStationPanel", () => ({ default: () => <div data-testid="print-panel" /> }));
+vi.mock("@/Hooks/useKitchenPrintDevice", () => ({ useKitchenPrintDevice: vi.fn(() => ({ station: null })) }));
+vi.mock("./PrintDevicePanel", () => ({ default: () => <div data-testid="print-panel" /> }));
 
 const NOW = new Date("2026-11-25T10:00:00Z");
 const minutesAgo = (m) => new Date(NOW.getTime() - m * 60000).toISOString();
@@ -143,7 +143,7 @@ describe("Kitchen/Index", () => {
     it("runs the print station hook for the page and toggles its panel with a button", async () => {
         const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
         render(<Index orders={orders} outlet={outlet} />);
-        expect(useKitchenPrintStation).toHaveBeenCalledWith(outlet);
+        expect(useKitchenPrintDevice).toHaveBeenCalledWith(outlet);
         expect(screen.queryByTestId("print-panel")).not.toBeInTheDocument();
 
         const toggle = screen.getByRole("button", { name: "Pengaturan printer dapur" });

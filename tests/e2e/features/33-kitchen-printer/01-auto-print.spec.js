@@ -1,6 +1,6 @@
 import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
-import { sentWith, setUpPrintStation } from '../../support/kitchen.js';
+import { sentWith, setUpPrintDevice } from '../../support/kitchen.js';
 import { fakePrinter, asText, INIT, CUT } from '../../support/webusb.js';
 
 const cashier = roles.find((role) => role.key === 'cashier');
@@ -13,7 +13,7 @@ test.describe('33-kitchen-printer', () => {
         const page = await asRole(cashier);
         await fakePrinter(page);
         // The print device is named first: it prints only what reaches the kitchen after it was named.
-        await setUpPrintStation(page, uniq('Dapur'));
+        await setUpPrintDevice(page, uniq('Dapur'));
 
         const note = uniq('tanpa-gula');
         const sale = arrange('kitchen-sale', { prefix: uniq('Ctk'), dine: 1, note });

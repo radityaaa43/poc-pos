@@ -58,7 +58,7 @@ A device that has the kitchen display open can print a ticket for every new orde
 - A ticket has the table name or invoice number in large type, the order type and the time (`HH:MM`), then `qty x product` per line with its note. There are no prices. A pay-later order says **BELUM LUNAS** / "UNPAID". Ticket labels follow the device's current language.
 - Printing never changes the order: it is still "Diterima" / accepted on the screen until the kitchen moves it.
 - Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Failure warnings, reprint and the Windows driver steps are not part of this first version.
-- Routes: `kitchen.stations.store`, `kitchen.stations.tickets`, `kitchen.stations.prints` (same permission as the display). Tables: `kitchen_print_stations`, `kitchen_ticket_prints` (one row per station and item).
+- Routes: `kitchen.print-devices.store`, `kitchen.print-devices.tickets`, `kitchen.print-devices.prints` (`/kitchen/print-devices`) (same permission as the display). Tables: `kitchen_print_devices`, `kitchen_ticket_prints` (one row per station and item).
 
 ## Language
 
@@ -68,8 +68,8 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 
 - `app/Http/Controllers/Apps/KitchenController.php`
 - `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Services/KitchenItemService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
-- `app/Http/Controllers/Apps/KitchenPrintStationController.php`, `app/Services/KitchenTicketService.php`
-- `resources/js/Pages/Dashboard/Kitchen/Index.jsx`, `PrintStationPanel.jsx`, `resources/js/Hooks/useKitchenPrintStation.js`, `resources/js/Utils/printQueue.js`
+- `app/Http/Controllers/Apps/KitchenPrintDeviceController.php`, `app/Services/KitchenTicketService.php`
+- `resources/js/Pages/Dashboard/Kitchen/Index.jsx`, `PrintDevicePanel.jsx`, `resources/js/Hooks/useKitchenPrintDevice.js`, `resources/js/Utils/printQueue.js`
 - E2E: `tests/e2e/features/32-kitchen-display/`, `tests/e2e/features/33-kitchen-printer/`
 
 ## Kitchen stations

@@ -5,8 +5,8 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import i18n from "@/i18n";
 import { requestPrinter, disconnectPrinter, printerKey, printBytes, buildKitchenTicketBytes } from "@/Utils/escpos";
-import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
-import PrintStationPanel from "./PrintStationPanel";
+import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
+import PrintDevicePanel from "./PrintDevicePanel";
 
 vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
@@ -23,12 +23,12 @@ vi.mock("@/Utils/printQueue", () => ({
 
 // The page owns the hook and hands it to the panel; this wrapper does the same with the real hook.
 function Harness() {
-    const printStation = useKitchenPrintStation({ id: 1 });
-    return <PrintStationPanel printStation={printStation} />;
+    const printDevice = useKitchenPrintDevice({ id: 1 });
+    return <PrintDevicePanel printDevice={printDevice} />;
 }
 
 const saved = () => JSON.parse(localStorage.getItem("kitchen.station"));
-const withStation = () => localStorage.setItem("kitchen.station", JSON.stringify({ id: 5, name: "Dapur 1" }));
+const withDevice = () => localStorage.setItem("kitchen.station", JSON.stringify({ id: 5, name: "Dapur 1" }));
 
 beforeEach(async () => {
     vi.clearAllMocks();
@@ -39,7 +39,7 @@ beforeEach(async () => {
     printerKey.mockReturnValue("1:2:abc");
 });
 
-describe("PrintStationPanel", () => {
+describe("PrintDevicePanel", () => {
     it("starts with only the name form usable", () => {
         render(<Harness />);
 
@@ -49,7 +49,7 @@ describe("PrintStationPanel", () => {
         expect(screen.getByRole("status")).toHaveTextContent("Printer belum terhubung");
     });
 
-    it("saves the station name, shows it and keeps it on the device", async () => {
+    it("saves the device name, shows it and keeps it on the device", async () => {
         const user = userEvent.setup();
         axios.post.mockResolvedValue({ data: { id: 5, name: "Dapur 1" } });
         render(<Harness />);
@@ -57,7 +57,7 @@ describe("PrintStationPanel", () => {
         await user.type(screen.getByLabelText("Nama perangkat cetak"), "  Dapur 1 ");
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
-        expect(axios.post).toHaveBeenCalledWith("/kitchen.stations.store", { name: "Dapur 1" });
+        expect(axios.post).toHaveBeenCalledWith("/kitchen.print-devices.store", { name: "Dapur 1" });
         await waitFor(() => expect(saved()).toEqual({ id: 5, name: "Dapur 1" }));
         expect(screen.getByRole("button", { name: "Hubungkan printer" })).toBeEnabled();
         expect(screen.getByRole("switch", { name: "Cetak otomatis" })).toBeEnabled();
@@ -80,7 +80,7 @@ describe("PrintStationPanel", () => {
     });
 
     it("says another tab prints when this tab does not hold the print lock", async () => {
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.autoPrint", "true");
         Object.defineProperty(navigator, "locks", { value: { request: vi.fn(() => new Promise(() => {})) }, configurable: true });
 
@@ -100,7 +100,7 @@ describe("PrintStationPanel", () => {
 
     it("connects the printer and stores its key", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         render(<Harness />);
 
         await user.click(screen.getByRole("button", { name: "Hubungkan printer" }));
@@ -112,7 +112,7 @@ describe("PrintStationPanel", () => {
 
     it("shows the printer error and changes nothing when the device dialog is closed", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         requestPrinter.mockRejectedValue(new Error("No device selected."));
         render(<Harness />);
 
@@ -125,7 +125,7 @@ describe("PrintStationPanel", () => {
 
     it("disconnects the printer and forgets its key", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.printerKey", "1:2:abc");
         render(<Harness />);
 
@@ -148,7 +148,7 @@ describe("PrintStationPanel", () => {
 
     it("test print needs a connected printer and prints a TEST ticket in the chosen width", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.paper", "58mm");
         const { unmount } = render(<Harness />);
         expect(screen.getByRole("button", { name: "Cetak percobaan" })).toBeDisabled();
@@ -164,7 +164,7 @@ describe("PrintStationPanel", () => {
 
     it("shows the printer error when the test print fails", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.printerKey", "1:2:abc");
         printBytes.mockRejectedValue(new Error("Printer belum terhubung."));
         render(<Harness />);
@@ -176,7 +176,7 @@ describe("PrintStationPanel", () => {
 
     it("switches auto-print on and off, and reports the printer as ready only when both hold", async () => {
         const user = userEvent.setup();
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.printerKey", "1:2:abc");
         render(<Harness />);
         const auto = screen.getByRole("switch", { name: "Cetak otomatis" });
@@ -195,7 +195,7 @@ describe("PrintStationPanel", () => {
     });
 
     it("restores every setting from localStorage", () => {
-        withStation();
+        withDevice();
         localStorage.setItem("kitchen.printerKey", "1:2:abc");
         localStorage.setItem("kitchen.paper", "58mm");
         localStorage.setItem("kitchen.autoPrint", "true");
@@ -222,7 +222,7 @@ describe("PrintStationPanel", () => {
     });
 
     it("keeps every button at least 44 px high", () => {
-        withStation();
+        withDevice();
         render(<Harness />);
 
         [...screen.getAllByRole("button"), screen.getByRole("switch")].forEach((el) => expect(el.className).toMatch(/min-h-\[44px\]/));

@@ -6,7 +6,7 @@ use App\Services\OutletAccessService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class StoreKitchenPrintStationRequest extends FormRequest
+class StoreKitchenPrintDeviceRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -27,7 +27,7 @@ class StoreKitchenPrintStationRequest extends FormRequest
         return [
             'name' => [
                 'required', 'string', 'max:60',
-                Rule::unique('kitchen_print_stations', 'name')->where('outlet_id', $outlet?->id),
+                Rule::unique('kitchen_print_devices', 'name')->where('outlet_id', $outlet?->id),
             ],
         ];
     }

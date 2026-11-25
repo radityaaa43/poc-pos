@@ -10,13 +10,13 @@ class KitchenTicketPrint extends Model
     // printed_at is filled by the column default: rows are written with insertOrIgnore, which skips model timestamps.
     public $timestamps = false;
 
-    protected $fillable = ['kitchen_print_station_id', 'kitchen_item_id'];
+    protected $fillable = ['kitchen_print_device_id', 'kitchen_item_id'];
 
     protected $casts = ['printed_at' => 'datetime'];
 
-    public function station(): BelongsTo
+    public function device(): BelongsTo
     {
-        return $this->belongsTo(KitchenPrintStation::class, 'kitchen_print_station_id');
+        return $this->belongsTo(KitchenPrintDevice::class, 'kitchen_print_device_id');
     }
 
     public function item(): BelongsTo

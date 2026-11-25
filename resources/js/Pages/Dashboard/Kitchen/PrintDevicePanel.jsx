@@ -12,13 +12,13 @@ const FIELD =
     "min-h-[44px] w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white";
 const LABEL = "mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300";
 
-// The settings of this device's print station. `printStation` is the useKitchenPrintStation() result
+// The settings of this device's print device. `printDevice` is the useKitchenPrintDevice() result
 // from the page, so the panel and the background printing share one state.
-export default function PrintStationPanel({ printStation }) {
+export default function PrintDevicePanel({ printDevice }) {
     const { t } = useTranslation();
-    const { station, printerKey, paper, autoPrint, otherTab, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint } =
-        printStation;
-    const [name, setName] = useState(station?.name ?? "");
+    const { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint } =
+        printDevice;
+    const [name, setName] = useState(device?.name ?? "");
     const [nameError, setNameError] = useState(null);
     const [busy, setBusy] = useState(false);
 
@@ -33,13 +33,13 @@ export default function PrintStationPanel({ printStation }) {
         }
     };
 
-    const saveStation = (e) => {
+    const saveDevice = (e) => {
         e.preventDefault();
         setNameError(null);
         return run(async () => {
             try {
-                const { data } = await axios.post(route("kitchen.stations.store"), { name: name.trim() });
-                setStation({ id: data.id, name: data.name });
+                const { data } = await axios.post(route("kitchen.print-devices.store"), { name: name.trim() });
+                setDevice({ id: data.id, name: data.name });
                 setName(data.name);
             } catch (error) {
                 if (error.response?.status !== 422) throw error;
@@ -68,20 +68,20 @@ export default function PrintStationPanel({ printStation }) {
             aria-label={t("kitchen.print.open")}
             className="mb-6 max-w-lg space-y-5 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900"
         >
-            <form onSubmit={saveStation} noValidate>
-                <label htmlFor="kitchen-station-name" className={LABEL}>
-                    {t("kitchen.print.stationName")}
+            <form onSubmit={saveDevice} noValidate>
+                <label htmlFor="kitchen-device-name" className={LABEL}>
+                    {t("kitchen.print.deviceName")}
                 </label>
                 <div className="flex gap-2">
                     <input
-                        id="kitchen-station-name"
+                        id="kitchen-device-name"
                         type="text"
                         maxLength={60}
                         value={name}
                         onChange={(e) => setName(e.target.value)}
-                        placeholder={t("kitchen.print.stationPlaceholder")}
+                        placeholder={t("kitchen.print.devicePlaceholder")}
                         aria-invalid={nameError ? "true" : undefined}
-                        aria-describedby={nameError ? "kitchen-station-name-error" : undefined}
+                        aria-describedby={nameError ? "kitchen-device-name-error" : undefined}
                         className={FIELD}
                     />
                     <button type="submit" disabled={busy || name.trim() === ""} className={`${PRIMARY} shrink-0`}>
@@ -89,14 +89,14 @@ export default function PrintStationPanel({ printStation }) {
                     </button>
                 </div>
                 {nameError && (
-                    <p id="kitchen-station-name-error" role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
+                    <p id="kitchen-device-name-error" role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
                         {nameError}
                     </p>
                 )}
-                {station && (
+                {device && (
                     <p className="mt-2 inline-flex items-center gap-1 text-sm text-slate-600 dark:text-slate-300">
                         <IconCheck size={16} aria-hidden="true" />
-                        {station.name}
+                        {device.name}
                     </p>
                 )}
             </form>
@@ -107,7 +107,7 @@ export default function PrintStationPanel({ printStation }) {
                         {t("kitchen.print.disconnect")}
                     </button>
                 ) : (
-                    <button type="button" onClick={connect} disabled={busy || !station} className={PRIMARY}>
+                    <button type="button" onClick={connect} disabled={busy || !device} className={PRIMARY}>
                         {t("kitchen.print.connect")}
                     </button>
                 )}
@@ -137,7 +137,7 @@ export default function PrintStationPanel({ printStation }) {
                 type="button"
                 role="switch"
                 aria-checked={autoPrint}
-                disabled={!station}
+                disabled={!device}
                 onClick={() => setAutoPrint(!autoPrint)}
                 className="flex min-h-[44px] items-center gap-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300"
             >
