@@ -1,9 +1,9 @@
 # REQ-001: Produk resep dan penanda bahan baku
 
-- **Status:** ready
+- **Status:** done
 - **Owner:** @radityaaa43
 - **Module:** module:inventory
-- **Updated:** 2026-11-20
+- **Updated:** 2026-11-25
 - **Renamed:** in #9 (the former ID is recorded there; closed issue #7 and PR #8 use it)
 
 ## User story
@@ -53,4 +53,8 @@ satuan supplier dan HPP rata-rata per gudang adalah item terpisah (belum dibuat)
 
 ## Delivered by
 
-- Issue dan PR: diisi saat PR dibuka.
+- Issue: #7 · PR: #8 (semua AC; dibangun sebelum proses backlog).
+- Bukti e2e per AC (`tests/e2e/features/`): AC-01, AC-06 `42-recipes/03` · AC-02 `42-recipes/01` ·
+  AC-03, AC-04 `42-recipes/02` · AC-05 `42-recipes/04` (#246) · AC-07 `42-recipes/05` · AC-08
+  `43-raw-materials/03` (#186).
+- Ditutup oleh #269 (Business/PM, didelegasikan pemilik, 2026-11-25).
