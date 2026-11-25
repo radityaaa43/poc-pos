@@ -1,5 +1,5 @@
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import {
@@ -19,6 +19,7 @@ import Checkbox from "@/Components/Dashboard/Checkbox";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
 import Swal from "sweetalert2";
+import toast from "react-hot-toast";
 
 // User Card for Grid View
 function UserCard({
@@ -126,7 +127,7 @@ function UserCard({
 }
 
 export default function Index() {
-    const { users } = usePage().props;
+    const { users, flash } = usePage().props;
     const { can } = useAuthorization();
     const [viewMode, setViewMode] = useState("grid");
     const canCreateUsers = can("users-create");
@@ -150,6 +151,12 @@ export default function Index() {
         setData("selectedUser", items);
     };
 
+    // The server decides the outcome (it refuses your own account and the last super-admin).
+    useEffect(() => {
+        if (flash?.success) toast.success(flash.success);
+        if (flash?.error) toast.error(flash.error);
+    }, [flash]);
+
     const deleteData = async (id) => {
         Swal.fire({
             title: "Hapus Pengguna?",
@@ -163,13 +170,6 @@ export default function Index() {
         }).then((result) => {
             if (result.isConfirmed) {
                 destroy(route("users.destroy", [id]));
-                Swal.fire({
-                    title: "Berhasil!",
-                    text: "Data berhasil dihapus!",
-                    icon: "success",
-                    showConfirmButton: false,
-                    timer: 1500,
-                });
                 setData("selectedUser", []);
             }
         });

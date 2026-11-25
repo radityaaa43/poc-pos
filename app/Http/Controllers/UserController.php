@@ -250,8 +250,7 @@ class UserController extends Controller
             User::whereIn('id', $users->pluck('id'))->delete();
         });
 
-        // render view
-        return back();
+        return back()->with('success', 'Pengguna berhasil dihapus.');
     }
 
     protected function userPayload(User $user, array $roles, bool $avatarChanged): array

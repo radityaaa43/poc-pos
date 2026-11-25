@@ -80,7 +80,8 @@ class PrivilegeGuardTest extends TestCase
         $this->actingAs($admin)
             ->withSession($this->recentlyConfirmedSession())
             ->delete(route('users.destroy', $target->id))
-            ->assertRedirect();
+            ->assertRedirect()
+            ->assertSessionHas('success');
 
         $this->assertDatabaseMissing('users', ['id' => $target->id]);
     }
