@@ -185,7 +185,7 @@ class Kitchen
             // --arg=pay_later=1 sells it on "Bayar belakangan" instead (unpaid, a guest, with the note the rule needs).
             // --arg=dine=1 instead has a guest order on a new table accepted and paid in cash, flagged lines only;
             // --arg=note=<text> is then the note on every dine-in line (it reaches the kitchen item).
-            // Returns the invoice (or table_name for dine), and the flagged and plain titles.
+            // Returns the invoice (or table_name and the guest page's access_token for dine), and the flagged and plain titles.
             // --arg=station=<name> maps the LAST flagged product to that station (created if missing) before the sale
             // and adds `station` to the result; the others stay on the default station.
             'kitchen-sale' => function (array $options): array {
@@ -248,7 +248,7 @@ class Kitchen
         $service->accept($order);
         $service->pay($order->fresh(), $cashier, [['method' => 'cash', 'amount' => (int) $order->subtotal]]);
 
-        return ['table_name' => $table['table_name'], 'order_id' => $order->id];
+        return ['table_name' => $table['table_name'], 'order_id' => $order->id, 'access_token' => $order->access_token];
     }
 
     /** One POS sale of one unit of each product: paid in cash, a bank transfer left pending, or on pay-later (unpaid). */

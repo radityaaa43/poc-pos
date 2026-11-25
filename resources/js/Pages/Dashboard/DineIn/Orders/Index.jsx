@@ -48,7 +48,6 @@ export default function Index({ orders }) {
     const { auth } = usePage().props;
     const { can } = useAuthorization();
     const canProcess = can("dine-orders-process");
-    const canHandover = can("dine-orders-handover");
     const [view, setView] = useState("all");
     const visibleOrders = orders.filter(VIEWS.find((item) => item.key === view).match);
 
@@ -60,19 +59,6 @@ export default function Index({ orders }) {
             {
                 onSuccess: () => toast.success("Pesanan diterima."),
                 onError: () => toast.error("Gagal menerima pesanan."),
-            }
-        );
-    };
-
-    // Hand over: the kitchen steps (start, ready) live on the kitchen display.
-    const handleStep = (order, routeName, successMessage) => {
-        router.post(
-            route(routeName, order.id),
-            {},
-            {
-                preserveScroll: true,
-                onSuccess: () => toast.success(successMessage),
-                onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal menandai pesanan."),
             }
         );
     };
@@ -161,15 +147,6 @@ export default function Index({ orders }) {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canHandover && order.status === "ready" && (
-                                                <Button
-                                                    type={"button"}
-                                                    label={"Serahkan"}
-                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
-                                                    className={"bg-primary-500 hover:bg-primary-600 text-white"}
-                                                    onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
-                                                />
-                                            )}
                                             {canProcess && order.status === "submitted" && (
                                                 <>
                                                     <Button

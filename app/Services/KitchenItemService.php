@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
-use App\Models\KitchenStation;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Transaction;
@@ -48,15 +47,7 @@ class KitchenItemService
 
             $items = KitchenItem::where('transaction_id', $transaction->id)
                 ->whereIn('status', [KitchenItem::STATUS_ACCEPTED, KitchenItem::STATUS_PREPARING])
-                ->when($stationIds !== null, fn ($query) => $query->where(function ($stations) use ($stationIds) {
-                    $stations->whereIn('kitchen_station_id', $stationIds);
-
-                    // The Dapur display also shows work of a removed station (or none), so its button must cover it (B1).
-                    if (in_array(KitchenStation::where('is_default', true)->value('id'), array_map('intval', $stationIds), true)) {
-                        $stations->orWhereNull('kitchen_station_id')
-                            ->orWhereNotIn('kitchen_station_id', KitchenStation::query()->select('id'));
-                    }
-                }))
+                ->when($stationIds !== null, fn ($query) => $query->inStations($stationIds)) // the Dapur button also covers removed stations (B1)
                 ->lockForUpdate()
                 ->get();
 
@@ -69,6 +60,38 @@ class KitchenItemService
                     'ready_by' => $user->id,
                 ]);
             }
+
+            $this->syncDineOrder($transaction);
+        });
+    }
+
+    /** Serahkan: ready -> served. */
+    public function handOver(KitchenItem $item, User $user): void
+    {
+        $this->step($item, KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED, $user);
+    }
+
+    /**
+     * Serahkan semua: only the sale's ready items are served; the others stay where they are.
+     * $stationIds limits it to those stations' items, as in allReady (a Bar display must not hand over Dapur's food); null = all.
+     *
+     * @param  array<int, int>|null  $stationIds
+     */
+    public function handOverAll(Transaction $transaction, User $user, ?array $stationIds = null): void
+    {
+        DB::transaction(function () use ($transaction, $user, $stationIds) {
+            $now = now();
+
+            KitchenItem::where('transaction_id', $transaction->id)
+                ->where('status', KitchenItem::STATUS_READY)
+                ->when($stationIds !== null, fn ($query) => $query->inStations($stationIds))
+                ->lockForUpdate()
+                ->get()
+                ->each(fn (KitchenItem $item) => $item->update([
+                    'status' => KitchenItem::STATUS_SERVED,
+                    'served_at' => $now,
+                    'served_by' => $user->id,
+                ]));
 
             $this->syncDineOrder($transaction);
         });
@@ -216,6 +239,17 @@ class KitchenItemService
                 'ready_at' => $last->ready_at ?? now(),
                 'ready_by' => $last?->ready_by,
             ]);
+        }
+
+        // Every item served: the order is served; it completes only once paid (a pay-later order waits for the paid hook).
+        if ($order->status === DineOrder::STATUS_READY && $items->isNotEmpty() && $items->every(fn (KitchenItem $item) => $item->status === KitchenItem::STATUS_SERVED)) {
+            $last = $items->sortBy([['served_at', 'desc'], ['id', 'desc']])->first(); // id breaks a same-second tie
+            $order->update([
+                'status' => DineOrder::STATUS_SERVED,
+                'served_at' => $last->served_at,
+                'served_by' => $last->served_by,
+            ]);
+            $order->completeIfSettled();
         }
     }
 }

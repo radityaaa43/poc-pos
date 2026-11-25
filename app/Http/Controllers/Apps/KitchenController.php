@@ -67,6 +67,26 @@ class KitchenController extends Controller
         return back();
     }
 
+    public function handOver(Request $request, KitchenItem $kitchenItem, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $kitchenItem->warehouse_id);
+        $service->handOver($kitchenItem, $request->user());
+
+        return back();
+    }
+
+    public function handOverAll(Request $request, Transaction $transaction, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $transaction->warehouse_id);
+        $data = $request->validate([
+            'station_ids' => ['sometimes', 'array'],
+            'station_ids.*' => ['integer'],
+        ]);
+        $service->handOverAll($transaction, $request->user(), $data['station_ids'] ?? null);
+
+        return back();
+    }
+
     /** The display only works on the current outlet's items. */
     private function ensureOutlet(Request $request, int $warehouseId): void
     {

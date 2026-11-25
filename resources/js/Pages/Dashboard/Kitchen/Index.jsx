@@ -38,7 +38,9 @@ export default function Index({ orders, outlet, stations = [] }) {
     const printStation = useKitchenPrintStation(outlet);
 
     const [busy, setBusy] = useState(null);
-    const canPrepare = useAuthorization().can("dine-orders-prepare");
+    const { can } = useAuthorization();
+    const canPrepare = can("dine-orders-prepare");
+    const canHandOver = can("dine-orders-handover");
     // shortcut: two tabs on one device do not sync until reload; add a storage listener if a shop needs it.
     const [selected, setSelected] = useState(readSaved);
 
@@ -241,14 +243,18 @@ export default function Index({ orders, outlet, stations = [] }) {
                                             stepButton(`start-${item.id}`, "kitchen.items.start", item.id, t("kitchen.actions.start"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
                                         {canPrepare && item.status === "preparing" &&
                                             stepButton(`ready-${item.id}`, "kitchen.items.ready", item.id, t("kitchen.actions.ready"), "bg-success-600 hover:bg-success-700 focus-visible:ring-success-600")}
+                                        {canHandOver && item.status === "ready" &&
+                                            stepButton(`hand-over-${item.id}`, "kitchen.items.hand-over", item.id, t("kitchen.actions.handOver"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
                                     </li>
                                 ))}
                             </ul>
-                            {canPrepare && order.items.some((item) => item.status === "accepted" || item.status === "preparing") && (
-                                <footer className="border-t border-slate-100 p-4 dark:border-slate-800">
-                                    {stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600", showAll ? {} : { station_ids: chosen })}
-                                </footer>
-                            )}
+                            {/* empty:hidden drops the footer when no button applies */}
+                            <footer className="flex flex-col gap-3 border-t border-slate-100 p-4 empty:hidden dark:border-slate-800">
+                                {canPrepare && order.items.some((item) => item.status === "accepted" || item.status === "preparing") &&
+                                    stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600", showAll ? {} : { station_ids: chosen })}
+                                {canHandOver && order.items.some((item) => item.status === "ready") &&
+                                    stepButton(`hand-over-all-${order.id}`, "kitchen.orders.hand-over-all", order.id, t("kitchen.actions.handOverAll"), "w-full bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500", showAll ? {} : { station_ids: chosen })}
+                            </footer>
                         </article>
                     ))}
                 </div>

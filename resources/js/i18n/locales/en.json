@@ -1099,7 +1099,9 @@
             "start": "Start",
             "ready": "Ready",
             "allReady": "All ready",
-            "saveFailed": "Not saved — check the connection and try again"
+            "saveFailed": "Not saved — check the connection and try again",
+            "handOver": "Hand over",
+            "handOverAll": "Hand over all"
         },
         "stations": {
             "label": "Station",

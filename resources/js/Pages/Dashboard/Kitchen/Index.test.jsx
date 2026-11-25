@@ -580,6 +580,31 @@ describe("Kitchen/Index stations", () => {
         });
     });
 
+    describe("Serahkan semua", () => {
+        const handOverAll = (card) => within(card).getByRole("button", { name: "Serahkan semua" });
+
+        it("posts an empty body on Semua stasiun", async () => {
+            permissions = { "dine-orders-handover": true };
+            const user = setup();
+            renderIndex();
+
+            await user.click(handOverAll(cards()[0]));
+
+            expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.hand-over-all", {}, expect.anything());
+        });
+
+        it("posts the chosen station ids when the display is filtered, like Semua siap", async () => {
+            permissions = { "dine-orders-handover": true };
+            const user = setup();
+            renderIndex();
+
+            await user.click(chip("Bar"));
+            await user.click(handOverAll(cards()[0]));
+
+            expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.hand-over-all", { station_ids: [2] }, expect.anything());
+        });
+    });
+
     it("keeps the chips but shows no step buttons for a handover-only user", async () => {
         permissions = {};
         const user = setup();
@@ -607,5 +632,127 @@ describe("Kitchen/Index stations", () => {
         expect(chip("Pastry")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Bar" })).not.toBeInTheDocument();
         expect(within(cards()[0]).getAllByText("Barista").length).toBeGreaterThan(0);
+    });
+});
+
+describe("Kitchen/Index hand over", () => {
+    const handOverOrders = [
+        {
+            id: 11,
+            number: "Meja 9",
+            type: "dine_in",
+            unpaid: false,
+            since: minutesAgo(1),
+            items: [
+                { id: 4, title: "Kopi", qty: 1, note: null, status: "ready" },
+                { id: 5, title: "Roti", qty: 1, note: null, status: "preparing" },
+                { id: 6, title: "Teh", qty: 1, note: null, status: "cancelled" },
+            ],
+        },
+        {
+            id: 12,
+            number: "Meja 2",
+            type: "dine_in",
+            unpaid: false,
+            since: minutesAgo(2),
+            items: [{ id: 7, title: "Soto", qty: 1, note: null, status: "preparing" }],
+        },
+    ];
+    const cards = () => screen.getAllByRole("article");
+    const lastOptions = () => router.post.mock.calls.at(-1)[2];
+    const setup = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+
+    beforeEach(() => {
+        permissions = { "dine-orders-handover": true };
+    });
+
+    it("offers Serahkan on ready items only", () => {
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        const rows = within(cards()[0]).getAllByRole("listitem");
+        expect(within(rows[0]).getByRole("button", { name: "Serahkan" })).toBeInTheDocument();
+        expect(within(rows[1]).queryByRole("button", { name: "Serahkan" })).not.toBeInTheDocument();
+        expect(within(rows[2]).queryByRole("button", { name: "Serahkan" })).not.toBeInTheDocument();
+        expect(within(cards()[1]).queryByRole("button", { name: "Serahkan" })).not.toBeInTheDocument();
+    });
+
+    it("shows Serahkan semua on an order while any item is ready", () => {
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        expect(within(cards()[0]).getByRole("button", { name: "Serahkan semua" })).toBeInTheDocument();
+        expect(within(cards()[1]).queryByRole("button", { name: "Serahkan semua" })).not.toBeInTheDocument();
+    });
+
+    it("gives a hand-over-only role no Mulai buat, Siap or Semua siap", () => {
+        render(<Index orders={[...orders, ...handOverOrders]} outlet={outlet} />);
+
+        expect(screen.queryByRole("button", { name: /Mulai buat|^Siap$|Semua siap/ })).not.toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: "Serahkan" })).toHaveLength(1);
+    });
+
+    it("gives a prepare-only role no Serahkan or Serahkan semua", () => {
+        permissions = { "dine-orders-prepare": true };
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        expect(screen.queryByRole("button", { name: /Serahkan/ })).not.toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: "Siap" })).toHaveLength(2);
+    });
+
+    it("posts each hand-over to its route and keeps the scroll position", async () => {
+        const user = setup();
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+        const [first] = cards();
+
+        await user.click(within(first).getByRole("button", { name: "Serahkan" }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.items.hand-over", {}, expect.objectContaining({ preserveScroll: true }));
+        act(() => lastOptions().onFinish());
+
+        await user.click(within(first).getByRole("button", { name: "Serahkan semua" }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.hand-over-all", {}, expect.objectContaining({ preserveScroll: true }));
+    });
+
+    it("disables the tapped Serahkan while its request runs and frees it afterwards", async () => {
+        const user = setup();
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+        const button = within(cards()[0]).getByRole("button", { name: "Serahkan" });
+
+        await user.click(button);
+        expect(button).toBeDisabled();
+        await user.click(button);
+        expect(router.post).toHaveBeenCalledTimes(1);
+
+        act(() => lastOptions().onFinish());
+        expect(button).toBeEnabled();
+    });
+
+    it("shows the server message in an error toast", async () => {
+        const user = setup();
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Serahkan" }));
+        act(() => lastOptions().onError({ item: "Sudah diproses oleh Sari" }));
+
+        expect(toast.error).toHaveBeenCalledWith("Sudah diproses oleh Sari");
+    });
+
+    it("shows the save error on a network failure", async () => {
+        const user = setup();
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Serahkan semua" }));
+        act(() => lastOptions().onNetworkError(new Error("Network Error")));
+
+        expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan — periksa koneksi, lalu coba lagi");
+    });
+
+    it("posts nothing and shows the save error when offline", async () => {
+        vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+        const user = setup();
+        render(<Index orders={handOverOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Serahkan" }));
+
+        expect(router.post).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith("Gagal menyimpan — periksa koneksi, lalu coba lagi");
     });
 });

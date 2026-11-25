@@ -175,6 +175,63 @@ class KitchenStationDisplayTest extends TestCase
         $this->assertSame(['dapur' => $ready, 'bar' => $open, 'null' => $ready, 'gone' => $ready], $statuses($items));
     }
 
+    // #238: Serahkan semua follows the same station rule as Semua siap, through the shared KitchenItem::scopeInStations.
+    public function test_hand_over_all_scopes_by_station_and_never_leaks_into_another_sale(): void
+    {
+        $this->cook->givePermissionTo('dine-orders-handover');
+        $dapur = KitchenStation::where('is_default', true)->firstOrFail();
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $gone = KitchenStation::create(['name' => 'Sementara']);
+
+        $build = function () use ($dapur, $bar, $gone) {
+            $sale = $this->sale();
+            $items = [
+                'dapur' => $this->item($sale, $dapur),
+                'bar' => $this->item($sale, $bar),
+                'null' => tap($this->item($sale, $dapur))->update(['kitchen_station_id' => null]),
+                'gone' => $this->item($sale, $gone),
+            ];
+            KitchenItem::where('transaction_id', $sale->id)->update(['status' => KitchenItem::STATUS_READY]);
+
+            return [$sale, $items];
+        };
+        [$sale, $items] = $build();
+        [$other, $otherItems] = $build();
+        $gone->delete();
+
+        $statuses = fn (array $set) => array_map(fn (KitchenItem $item) => $item->fresh()->status, $set);
+        $ready = KitchenItem::STATUS_READY;
+        $served = KitchenItem::STATUS_SERVED;
+
+        // The Dapur display hands over Dapur's items, those with no station and those of a removed one; Bar's stays.
+        $this->actingAs($this->cook)->post(route('kitchen.orders.hand-over-all', $sale), ['station_ids' => [$dapur->id]])->assertSessionHasNoErrors();
+        $this->assertSame(['dapur' => $served, 'bar' => $ready, 'null' => $served, 'gone' => $served], $statuses($items));
+        $this->assertSame(['dapur' => $ready, 'bar' => $ready, 'null' => $ready, 'gone' => $ready], $statuses($otherItems));
+
+        // A Bar display on the other sale hands over only Bar, and the first sale is not touched again.
+        $this->actingAs($this->cook)->post(route('kitchen.orders.hand-over-all', $other), ['station_ids' => [$bar->id]])->assertSessionHasNoErrors();
+        $this->assertSame(['dapur' => $ready, 'bar' => $served, 'null' => $ready, 'gone' => $ready], $statuses($otherItems));
+        $this->assertSame(['dapur' => $served, 'bar' => $ready, 'null' => $served, 'gone' => $served], $statuses($items));
+
+        // Without station ids (the display shows every station) everything ready goes.
+        $this->actingAs($this->cook)->post(route('kitchen.orders.hand-over-all', $other))->assertSessionHasNoErrors();
+        $this->assertSame(['dapur' => $served, 'bar' => $served, 'null' => $served, 'gone' => $served], $statuses($otherItems));
+    }
+
+    public function test_hand_over_all_with_an_unknown_station_id_changes_nothing(): void
+    {
+        $this->cook->givePermissionTo('dine-orders-handover');
+        $sale = $this->sale();
+        $item = $this->item($sale, KitchenStation::create(['name' => 'Bar']));
+        $item->update(['status' => KitchenItem::STATUS_READY]);
+
+        $this->actingAs($this->cook)
+            ->post(route('kitchen.orders.hand-over-all', $sale), ['station_ids' => [999999]])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame(KitchenItem::STATUS_READY, $item->fresh()->status);
+    }
+
     public function test_all_ready_with_an_unknown_station_id_changes_nothing(): void
     {
         $sale = $this->sale();

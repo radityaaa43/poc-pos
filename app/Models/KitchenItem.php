@@ -95,10 +95,36 @@ class KitchenItem extends Model
         return $this->belongsTo(KitchenStation::class)->withTrashed();
     }
 
+    public function servedUser(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'served_by');
+    }
+
     /** Not yet served: still waiting on the kitchen or the pass. */
     public function scopeOpen(Builder $query): void
     {
         $query->whereIn('status', self::OPEN_STATUSES);
+    }
+
+    /**
+     * Items of the given kitchen stations. The Dapur display also shows work of a removed station (or none), so when the
+     * default station is asked for, those items are included too (B1). One grouped where, so it can sit next to other filters.
+     *
+     * @param  Builder<KitchenItem>  $query
+     * @param  array<int, int|string>  $stationIds
+     */
+    public function scopeInStations(Builder $query, array $stationIds): void
+    {
+        $ids = array_map('intval', $stationIds);
+
+        $query->where(function ($stations) use ($ids) {
+            $stations->whereIn('kitchen_station_id', $ids);
+
+            if (in_array(KitchenStation::where('is_default', true)->value('id'), $ids, true)) {
+                $stations->orWhereNull('kitchen_station_id')
+                    ->orWhereNotIn('kitchen_station_id', KitchenStation::query()->select('id'));
+            }
+        });
     }
 
     /** Every warehouse of the outlet: a shift may sell from any of them, not only the first one. */

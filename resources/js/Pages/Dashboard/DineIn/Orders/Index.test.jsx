@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { router } from "@inertiajs/react";
 import Index from "./Index";
 
 const granted = ["dine-orders-process", "dine-orders-prepare", "dine-orders-handover"];
@@ -74,18 +75,25 @@ describe("dine orders queue", () => {
         expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
     });
 
-    it("still offers Serahkan on a ready order", () => {
-        render(<Index orders={orders} />);
-
-        expect(screen.getAllByRole("button", { name: "Serahkan" })).toHaveLength(1);
-    });
-
-    it("shows Serahkan only with its permission", () => {
-        permissions = ["dine-orders-process"];
+    it("has no Serahkan button even for a role with the hand-over permission: the kitchen display owns it", () => {
         render(<Index orders={orders} />);
 
         expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Terima" })).toBeTruthy();
+        expect(screen.getByText("Meja Siap")).toBeTruthy();
+    });
+
+    it("still accepts and rejects a submitted order", async () => {
+        const user = userEvent.setup();
+        vi.stubGlobal("confirm", () => true);
+        vi.stubGlobal("prompt", () => "Habis");
+        render(<Index orders={orders} />);
+
+        await user.click(screen.getByRole("button", { name: "Terima" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.accept", {}, expect.any(Object));
+
+        await user.click(screen.getByRole("button", { name: "Tolak" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.reject", expect.any(Object), expect.any(Object));
+        vi.unstubAllGlobals();
     });
 });
 

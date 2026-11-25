@@ -1099,7 +1099,9 @@
             "start": "Mulai buat",
             "ready": "Siap",
             "allReady": "Semua siap",
-            "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi"
+            "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi",
+            "handOver": "Serahkan",
+            "handOverAll": "Serahkan semua"
         },
         "stations": {
             "label": "Stasiun",
