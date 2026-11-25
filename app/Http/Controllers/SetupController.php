@@ -189,6 +189,6 @@ class SetupController extends Controller
             Setting::set('store_logo', $path, 'Logo toko');
         }
 
-        return redirect()->route('login')->with('success', __('setup.completed'));
+        return redirect()->route('login')->with('status', __('setup.completed'));
     }
 }

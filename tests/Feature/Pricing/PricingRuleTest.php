@@ -80,6 +80,71 @@ class PricingRuleTest extends TestCase
         ]);
     }
 
+    public function test_form_payload_with_blank_rows_of_other_kinds_is_saved_and_previewed(): void
+    {
+        $user = $this->createUserWithPermissions([
+            'pricing-rules-access',
+            'pricing-rules-create',
+            'pricing-rules-update',
+        ]);
+        // The Form.jsx defaults: rows of the kinds that were not chosen are sent blank.
+        $payload = [
+            'name' => 'Diskon Semua',
+            'kind' => PricingRule::KIND_STANDARD_DISCOUNT,
+            'is_active' => true,
+            'priority' => 100,
+            'target_type' => 'all',
+            'customer_scope' => 'all',
+            'discount_type' => 'percentage',
+            'discount_value' => 10,
+            'qty_breaks' => [['min_qty' => '3', 'discount_type' => 'fixed_price', 'discount_value' => '', 'sort_order' => '0']],
+            'bundle_items' => [
+                ['product_id' => '', 'quantity' => '1', 'sort_order' => '0'],
+                ['product_id' => '', 'quantity' => '1', 'sort_order' => '1'],
+            ],
+            'buy_get_items' => [
+                ['product_id' => '', 'role' => 'buy', 'quantity' => '1', 'sort_order' => '0'],
+                ['product_id' => '', 'role' => 'get', 'quantity' => '1', 'sort_order' => '1'],
+            ],
+        ];
+
+        $this->actingAs($user)->post(route('pricing-rules.store'), $payload)
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('pricing-rules.index'));
+        $rule = PricingRule::where('name', 'Diskon Semua')->firstOrFail();
+        $this->assertSame(0, $rule->qtyBreaks()->count());
+
+        $this->actingAs($user)->put(route('pricing-rules.update', $rule), $payload)
+            ->assertSessionHasNoErrors();
+        $this->actingAs($user)->postJson(route('pricing-rules.preview'), $payload)->assertOk();
+
+        // The rows of the chosen kind are still validated.
+        $this->actingAs($user)->post(route('pricing-rules.store'), [...$payload, 'kind' => PricingRule::KIND_QTY_BREAK])
+            ->assertSessionHasErrors('qty_breaks.0.discount_value');
+    }
+
+    public function test_draft_preview_applies_the_discount_to_its_sample_cart(): void
+    {
+        $user = $this->createUserWithPermissions(['pricing-rules-access', 'pricing-rules-create']);
+        // Three products that sort before the target: the sample cart must still be the target.
+        foreach (['A1', 'A2', 'A3'] as $title) {
+            $this->createProduct($title);
+        }
+        $product = $this->createProduct('Z Target');
+
+        $this->actingAs($user)->postJson(route('pricing-rules.preview'), [
+            'name' => 'Diskon Produk',
+            'kind' => PricingRule::KIND_STANDARD_DISCOUNT,
+            'is_active' => true,
+            'priority' => 100,
+            'target_type' => 'product',
+            'product_id' => $product->id,
+            'customer_scope' => 'all',
+            'discount_type' => 'percentage',
+            'discount_value' => 15,
+        ])->assertOk()->assertJsonPath('data.summary.promo_discount_total', 9000);
+    }
+
     public function test_pricing_preview_respects_customer_scope(): void
     {
         $cashier = $this->createUserWithPermissions([

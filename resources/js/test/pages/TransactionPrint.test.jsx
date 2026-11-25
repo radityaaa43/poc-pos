@@ -12,7 +12,7 @@ vi.mock("@inertiajs/react", () => ({
     router: { get: vi.fn(), post: vi.fn(), reload: vi.fn() },
     usePage: () => ({ props: { auth: { super: true }, storeProfile: {}, printerSettings: {} } }),
 }));
-vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }));
 
 import Print from "@/Pages/Dashboard/Transactions/Print";
 
