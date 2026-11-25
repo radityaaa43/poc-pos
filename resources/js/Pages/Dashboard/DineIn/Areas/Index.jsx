@@ -64,7 +64,7 @@ export default function Index({ areas }) {
         if (!confirm(`Hapus area "${area.name}"?`)) return;
         router.delete(route("dine-areas.destroy", area.id), {
             onSuccess: () => toast.success("Area berhasil dihapus."),
-            onError: () => toast.error("Gagal menghapus area."),
+            onError: (errors) => toast.error(errors.area ?? "Gagal menghapus area."),
         });
     };
 
