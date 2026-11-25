@@ -133,7 +133,7 @@ class DineOrderTest extends TestCase
             ->post(route('dine-order.store', $this->table->token), $this->orderPayload([
                 ['product_id' => $product->id, 'qty' => 5],
             ]))
-            ->assertSessionHas('error');
+            ->assertSessionHasErrors(['order' => 'Stok '.$product->title.' tidak mencukupi (tersedia: 3).']);
 
         $this->assertEquals(0, DineOrder::count());
     }
