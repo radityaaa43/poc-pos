@@ -729,6 +729,8 @@ class PosApiController extends Controller
             'transactions.*.due_date' => ['nullable', 'date'],
             'transactions.*.order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
             'transactions.*.note' => ['nullable', 'string', 'max:1000'],
+            'transactions.*.cart_ids' => ['nullable', 'array'],
+            'transactions.*.cart_ids.*' => ['integer'],
             'transactions.*.items' => ['required', 'array', 'min:1'],
             'transactions.*.items.*.product_id' => ['required', 'integer', 'exists:products,id'],
             'transactions.*.items.*.qty' => ['required', 'numeric', 'min:0.01'],
@@ -745,6 +747,10 @@ class PosApiController extends Controller
             if ($existing = Transaction::where('client_uuid', $uuid)->first()) {
                 $existingFingerprint = $existing->sync_fingerprint;
 
+                if (! $existingFingerprint || $existingFingerprint === $fingerprint) {
+                    $this->discardQueuedCarts($request, $payload);
+                }
+
                 $results[] = array_merge([
                     'client_uuid' => $uuid,
                     'status' => ($existingFingerprint && $existingFingerprint !== $fingerprint)
@@ -760,6 +766,10 @@ class PosApiController extends Controller
             }
 
             $response = $this->syncOne($request, $payload, $uuid, $fingerprint);
+
+            if (in_array($response['status'], ['synced', 'pending_approval'], true)) {
+                $this->discardQueuedCarts($request, $payload);
+            }
 
             $results[] = array_merge(['client_uuid' => $uuid], $response);
         }
@@ -918,6 +928,21 @@ class PosApiController extends Controller
             report($e);
 
             return ['status' => 'failed', 'reason' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * The browser's server-side cart rows behind a sale that was queued offline: once the sale
+     * exists they must go, or the cashier would see (and could sell again) the same basket.
+     * Only the ids the queue named, and only this cashier's live carts.
+     */
+    private function discardQueuedCarts(Request $request, array $payload): void
+    {
+        if (! empty($payload['cart_ids'])) {
+            Cart::whereIn('id', $payload['cart_ids'])
+                ->where('cashier_id', $request->user()->id)
+                ->active()
+                ->delete();
         }
     }
 

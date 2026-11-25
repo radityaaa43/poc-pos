@@ -679,4 +679,60 @@ class PosTransactionSyncTest extends TestCase
 
         $this->assertSame(0, Transaction::count());
     }
+
+    // #109: an offline sale is made from the server-side cart; once it syncs, that cart must go.
+    public function test_sync_discards_the_carts_the_queued_sale_was_made_from(): void
+    {
+        Sanctum::actingAs($this->cashier, ['*']);
+        $this->openShift();
+        $queued = $this->makeCart($this->cashier);
+        $unnamed = $this->makeCart($this->cashier);
+        $someoneElses = $this->makeCart(User::factory()->create());
+
+        $this->postJson('/api/v1/pos/transactions/sync', [
+            'transactions' => [$this->syncPayload(['cart_ids' => [$queued->id, $someoneElses->id]])],
+        ])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'synced');
+
+        $this->assertModelMissing($queued);
+        $this->assertModelExists($unnamed);
+        $this->assertModelExists($someoneElses);
+    }
+
+    public function test_sync_keeps_the_carts_when_the_sale_could_not_be_synced(): void
+    {
+        Sanctum::actingAs($this->cashier, ['*']);
+        $queued = $this->makeCart($this->cashier);
+
+        // No open shift: the sale fails and stays in the queue, so its basket stays too.
+        $this->postJson('/api/v1/pos/transactions/sync', [
+            'transactions' => [$this->syncPayload(['cart_ids' => [$queued->id]])],
+        ])->assertJsonPath('data.results.0.status', 'failed');
+
+        $this->assertModelExists($queued);
+    }
+
+    private function openShift(): void
+    {
+        app(CashierShiftService::class)->openShift(
+            cashier: $this->cashier,
+            actor: $this->cashier,
+            openingCash: 100000,
+            notes: null,
+            warehouseId: $this->warehouse->id
+        );
+    }
+
+    private function makeCart(User $cashier): Cart
+    {
+        return Cart::create([
+            'cashier_id' => $cashier->id,
+            'warehouse_id' => $this->warehouse->id,
+            'product_id' => $this->product->id,
+            'unit_id' => null,
+            'conversion_factor' => 1,
+            'qty' => 1,
+            'price' => 10000,
+        ]);
+    }
 }
