@@ -143,7 +143,7 @@ class CheckoutService
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
                 Receivable::create([
-                    'customer_id' => $ctx->customer?->id,
+                    'customer_id' => $ctx->customer->id,
                     'transaction_id' => $transaction->id,
                     'invoice' => $transaction->invoice,
                     'total' => $grandTotal,

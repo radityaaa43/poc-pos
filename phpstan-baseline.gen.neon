@@ -1959,7 +1959,7 @@ parameters:
 		-
 			message: '#^Method App\\Http\\Controllers\\Apps\\TransactionController\:\:store\(\) with return type void returns Illuminate\\Http\\RedirectResponse but should not return anything\.$#'
 			identifier: return.void
-			count: 7
+			count: 6
 			path: app/Http/Controllers/Apps/TransactionController.php
 
 		-
