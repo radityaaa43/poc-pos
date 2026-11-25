@@ -180,9 +180,9 @@ class SalesReturnController extends AppsSalesReturnController
         $this->ensureSalesReturnTablesExist();
 
         $salesReturn = $this->resolveAccessibleSalesReturn($request, $salesReturn->id);
-        $before = $this->salesReturnAuditPayload($salesReturn);
+        $before = [];
 
-        DB::transaction(function () use ($request, $salesReturn) {
+        DB::transaction(function () use ($request, $salesReturn, &$before) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $request->user()->id,
                 lockForUpdate: true
@@ -199,6 +199,9 @@ class SalesReturnController extends AppsSalesReturnController
                 'items.product',
                 'items.transactionDetail',
             ]);
+
+            // The state that is actually completed, for the audit: the locked row, before anything changes.
+            $before = $this->salesReturnAuditPayload($salesReturn);
 
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
 
