@@ -17,6 +17,11 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 5. [`GLOSSARY.md`](GLOSSARY.md) for names. Decisions already in `docs/adr/` or settled in the issue
    are not re-litigated in review.
 
+6. **Business acceptance** (`feat` PRs): before the Tech Lead merges, Business / PM comments on the
+   PR that each criterion on its `Backlog:` line behaves as the issue's *What good looks like* says,
+   or names the criteria that don't. That comment is a check, not an approval; the Tech Lead's
+   review is the approval.
+
 Also check:
 
 - **Size:** over 3000 counted lines, ask for a split instead of reviewing it, unless the

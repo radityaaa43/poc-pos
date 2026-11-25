@@ -20,8 +20,9 @@ Nothing goes directly to `main`. Workflow skills come from
 
 | Step | Do | Skill |
 |---|---|---|
-| 1. Align | Get the requirement unambiguous before writing anything | `/grill-with-docs` |
-| 2. Issue | Publish the spec as an issue; split large work into tickets | `/to-spec`, `/to-tickets` |
+| 1. Align | Business / PM: get the requirement unambiguous before writing anything | `/grill-with-docs` |
+| 2. Issue | Business / PM: publish the spec (PRD) as an issue; split it into tickets | `/to-spec`, `/to-tickets` |
+| 2b. Plan | Tech Lead: technical plan on the issue, Effort, assignee, then `ready-for-*` | `superpowers:writing-plans` |
 | 3. Branch | `git switch main && git pull && git switch -c <type>/<issue>-<slug>` | — |
 | 4. Build | Test-first, in thin vertical slices | `/implement` → `/tdd` |
 | 5. Verify | Static checks and tests locally, then test the change by hand | — |
@@ -29,6 +30,11 @@ Nothing goes directly to `main`. Workflow skills come from
 | 7. PR | A PR that closes the issue, with manual test, docs, and green CI | `/pr` |
 
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
+
+Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress → In
+review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
+and merge), **Developer** (steps 3–7) and the **maintainer** (decides, owns the Standards, overrules).
+Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 
 Optional helpers inside a step (they never replace one): `superpowers:brainstorming` in step 1 for
 large features, `superpowers:writing-plans` in step 4 for multi-step issues, `ponytail-review` in
@@ -43,8 +49,8 @@ issue, stdlib and native features before new libraries.
 - Requirements come from the backlog/ folder in this repo: one file per requirement, backlog/REQ-<n>-<slug>.md, with AC-<n> acceptance criteria. Issues and PRs carry a `Backlog:` line (IDs and
   acceptance-criteria tags, or `none — <reason>`; CI checks the format). When the backlog
   disagrees with the code, the design or the issue, stop and ask the requester; never pick a side.
-- New issues start `needs-triage`; agents only pick up `ready-for-agent`. Only a module Owner or a
-  Standards owner moves an issue to `ready-for-*`; an agent never does it on its own.
+- New issues start `needs-triage`; developers only pick up `ready-for-agent`. Only the Tech Lead (when
+  the plan is on the issue) or the maintainer sets `ready-for-*`; no other agent does it on its own.
 - **Humans steer, agents ask.** An agent never fills in *What good looks like* itself: it interviews
   the requester (`/grill-with-docs`, one question at a time) and records the answers to: (1) who uses
   it, and when; (2) what they do and see when it works; (3) the source of truth and who agreed it;
@@ -66,8 +72,9 @@ issue, stdlib and native features before new libraries.
   joined by `;` (level `low`…`max`, or `unknown`), or `none`. CI checks the format.
 - **PRs** follow `.github/pull_request_template.md`: `Closes #<n>` per finished issue, one per line
   (`Refs` closes nothing), the manual test, and the docs updated. CI's *PR checklist* enforces it.
-  Request review from the module Owner, who reviews and merges. An Owner may merge their own
-  `chore`, `docs`, `ci`, `test` PR once CI is green; every other PR needs another reviewer's approval.
+  Request review from the Tech Lead, who reviews and merges; a `feat` PR also needs Business / PM's
+  comment that its criteria are met. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
+  once CI is green; every other PR needs another reviewer's approval.
   Never push to `main` or force-push a reviewed branch. After any
   post-review change, wait for green CI again.
 - **E2E**: a `feat` PR adds or updates its feature's e2e folder (`npm run e2e:new -- <NN-feature>`;
@@ -82,7 +89,8 @@ issue, stdlib and native features before new libraries.
 ### Working in parallel
 
 - Finish or hand back your assigned issues before claiming more (`gh issue list --assignee @me`;
-  agents check their human's). Claim before starting (`gh issue edit <n> --add-assignee @me`); never
+  agents check their human's). Exception: tickets the Tech Lead rated Effort `low` may run in
+  parallel, up to three, when they touch different files. Claim before starting (`gh issue edit <n> --add-assignee @me`); never
   start on someone else's issue.
 - Small, short-lived PRs: aim under 300 counted lines; over 2000 needs
   another person's approval, over 3000 fails CI unless an Owner adds
