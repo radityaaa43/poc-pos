@@ -124,6 +124,8 @@ class ProductController extends Controller
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
             'is_raw_material' => $request->boolean('is_raw_material'),
+            'needs_preparation' => $request->boolean('needs_preparation'),
+            'prep_target_minutes' => $this->prepTargetMinutes($request),
             'purchased_by' => $this->purchasedBy($request),
         ]);
 
@@ -244,6 +246,8 @@ class ProductController extends Controller
                 'tax_rate' => $request->input('tax_rate', 11.00),
                 'is_composite' => $request->boolean('is_composite'),
                 'is_raw_material' => $request->boolean('is_raw_material'),
+                'needs_preparation' => $request->boolean('needs_preparation'),
+                'prep_target_minutes' => $this->prepTargetMinutes($request),
                 'purchased_by' => $this->purchasedBy($request),
             ]);
 
@@ -273,6 +277,8 @@ class ProductController extends Controller
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
             'is_raw_material' => $request->boolean('is_raw_material'),
+            'needs_preparation' => $request->boolean('needs_preparation'),
+            'prep_target_minutes' => $this->prepTargetMinutes($request),
             'purchased_by' => $this->purchasedBy($request),
         ]);
 
@@ -329,11 +335,19 @@ class ProductController extends Controller
         return $request->boolean('is_raw_material') ? $request->input('purchased_by') : null;
     }
 
+    /** The prep target only means something on a product that needs preparation; otherwise null. */
+    private function prepTargetMinutes(Request $request): ?int
+    {
+        return $request->boolean('needs_preparation') ? $request->input('prep_target_minutes') : null;
+    }
+
     private function compositeRules(): array
     {
         return [
             'is_composite' => 'nullable|boolean',
             'is_raw_material' => 'nullable|boolean',
+            'needs_preparation' => 'nullable|boolean',
+            'prep_target_minutes' => 'exclude_unless:needs_preparation,1,true|nullable|integer|min:1',
             'purchased_by' => 'exclude_unless:is_raw_material,1,true|required|in:central,outlet',
             // The form always sends `components: []`; only a composite needs at least one.
             'components' => 'exclude_unless:is_composite,1,true|required|array|min:1',

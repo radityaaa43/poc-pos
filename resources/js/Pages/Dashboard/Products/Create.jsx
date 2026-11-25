@@ -9,6 +9,7 @@ import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
 import InputSelect from "@/Components/Dashboard/InputSelect";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 import {
     IconPackage,
     IconDeviceFloppy,
@@ -29,6 +30,7 @@ export default function Create({
     default_tax_rate: defaultTaxRate = 11,
 }) {
     const { errors } = usePage().props;
+    const { t } = useTranslation();
 
     const { data, setData, post, processing } = useForm({
         image: "",
@@ -47,6 +49,8 @@ export default function Create({
         is_composite: false,
         is_raw_material: false,
         purchased_by: "",
+        needs_preparation: false,
+        prep_target_minutes: "",
         components: [],
         units: [],
     });
@@ -366,6 +370,43 @@ export default function Create({
                                             )
                                         }
                                         error={errors.purchased_by}
+                                    />
+                                </div>
+                            )}
+                            <label className="flex items-center gap-2 mb-4 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={data.needs_preparation}
+                                    onChange={(e) => {
+                                        setData(
+                                            "needs_preparation",
+                                            e.target.checked
+                                        );
+                                        if (!e.target.checked)
+                                            setData("prep_target_minutes", "");
+                                    }}
+                                    className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
+                                />
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                                    {t("products.preparation.needsPreparation")}
+                                </span>
+                            </label>
+                            {data.needs_preparation && (
+                                <div className="mb-4 max-w-sm">
+                                    <Input
+                                        type="number"
+                                        min="1"
+                                        label={t(
+                                            "products.preparation.targetMinutes"
+                                        )}
+                                        value={data.prep_target_minutes}
+                                        onChange={(e) =>
+                                            setData(
+                                                "prep_target_minutes",
+                                                e.target.value
+                                            )
+                                        }
+                                        errors={errors.prep_target_minutes}
                                     />
                                 </div>
                             )}

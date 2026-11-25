@@ -419,6 +419,10 @@
         "empty": {
             "title": "No Products Yet",
             "description": "Start by adding your first product"
+        },
+        "preparation": {
+            "needsPreparation": "Needs preparation (made to order in the kitchen)",
+            "targetMinutes": "Prep target (minutes)"
         }
     },
     "categories": {
