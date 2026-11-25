@@ -7,7 +7,7 @@ const refused = (response, status, code) => {
 };
 
 // Every refusal below must also leave the bill untouched: no payment attempt, no charge.
-test.describe('48-dine-online-payment', () => {
+test.describe('80-dine-online-payment', () => {
     test('a request without a valid order token is refused', { tag: ['@REQ-005-AC-09'] }, async ({ arrange, page }) => {
         arrange('public.reset-throttle');
         const bill = arrange('dine.bill');

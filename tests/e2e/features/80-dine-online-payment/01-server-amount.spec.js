@@ -1,7 +1,7 @@
 import { test, expect } from '../../support/fixtures.js';
 import { postPay } from '../../support/dine-bill.js';
 
-test.describe('48-dine-online-payment', () => {
+test.describe('80-dine-online-payment', () => {
     // The amount is the bill's remaining total, worked out by the server: a number sent by the phone is never read.
     test('the charge is for the bill total and an amount sent by the phone is ignored', { tag: ['@REQ-005-AC-02'] }, async ({ arrange, page }) => {
         arrange('public.reset-throttle');
