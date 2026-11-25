@@ -79,7 +79,7 @@ class TransactionsExport implements FromCollection, ShouldAutoSize, WithHeadings
                 ? 'Split: '.$transaction->tenders->map(fn ($tender) => $tender->method.' '.$tender->amount)->join(', ')
                 : ($transaction->payment_method ?? ''),
             $transaction->payment_status ?? '',
-            (int) ($transaction->grand_total - $transaction->discount + ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0)),
+            (int) ($transaction->grand_total + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0)),
             (int) ($transaction->discount ?? 0),
             (int) ($transaction->shipping_cost ?? 0),
             (int) ($transaction->tax_total ?? 0),
