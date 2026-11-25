@@ -25,8 +25,7 @@ test.describe('transaction documents: print page', () => {
         await expectPdf(page, await pdfLink(page, 'PDF Struk 58mm').getAttribute('href'), `receipt-${a1}-58.pdf`);
     });
 
-    // Bug #145: receipt_80.blade.php reads an undefined $locale, so the default size answers 500.
-    test.fixme('the 80mm receipt is a PDF named after the invoice', async ({ asRole, arrange }) => {
+    test('the 80mm receipt is a PDF named after the invoice', async ({ asRole, arrange }) => {
         const { a1 } = arrange('reports.sales');
         const page = await asRole(manager);
 
@@ -46,8 +45,7 @@ test.describe('transaction documents: print page', () => {
         await expectPdf(page, await pdfLink(page, 'PDF Resi').getAttribute('href'), `shipping-${a2}.pdf`);
     });
 
-    // Bug #146: the label template reads the customer's address, so a sale without a customer answers 500.
-    test.fixme('the shipping label of a sale without a customer is a PDF named after the invoice', async ({ asRole, arrange }) => {
+    test('the shipping label of a sale without a customer is a PDF named after the invoice', async ({ asRole, arrange }) => {
         const { a1 } = arrange('reports.sales');
         const page = await asRole(manager);
 

@@ -30,8 +30,7 @@ test.describe('finance documents: payable PDF', () => {
         expect((await opname.request.get(`/dashboard/documents/payables/${payable_id}/pdf`)).status()).toBe(403);
     });
 
-    // Bug #141: a payable without a purchase order is hidden and its page and PDF answer 404 with more than one outlet.
-    test.fixme('a payable entered by hand (no purchase order) still prints', async ({ asRole, arrange }) => {
+    test('a payable entered by hand (no purchase order) still prints', async ({ asRole, arrange }) => {
         const { manual_payable_id, manual_document_number } = arrange('reports.payable');
         const page = await asRole(role('manager'));
 
