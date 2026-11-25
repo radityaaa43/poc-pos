@@ -3,6 +3,7 @@ import { Head, router, Link, usePage } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
+import OpenBillPayModal from "@/Components/POS/OpenBillPayModal";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -44,10 +45,37 @@ const formatDateTime = (value) =>
         minute: "2-digit",
     });
 
-const History = ({ transactions, filters, warehouses = [] }) => {
+// Accepted dine-in order whose bill is unsettled: the cashier pays it from here or from the POS "Tagihan Terbuka" section.
+const OpenBillStatus = ({ transaction, canPay, onPay }) => (
+    <span className="inline-flex items-center gap-2">
+        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+            Belum Lunas · {transaction.dine_order.table?.name ?? "Meja"}
+        </span>
+        {canPay && (
+            <button
+                type="button"
+                onClick={() =>
+                    onPay({
+                        order_id: transaction.dine_order.id,
+                        invoice: transaction.invoice,
+                        table: transaction.dine_order.table?.name,
+                        grand_total: transaction.grand_total,
+                    })
+                }
+                className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+            >
+                Bayar
+            </button>
+        )}
+    </span>
+);
+
+const History = ({ transactions, filters, warehouses = [], bankAccounts = [] }) => {
     const { can } = useAuthorization();
     const canCreateSalesReturn = can("sales-returns-create");
     const canConfirmPayment = can("transactions-confirm-payment");
+    const canPayOpenBill = can("dine-orders-process");
+    const [payingBill, setPayingBill] = useState(null);
     const canCreateCrmCampaign = can("crm-campaigns-create");
     const [filterData, setFilterData] = useState({
         ...defaultFilters,
@@ -329,6 +357,14 @@ const History = ({ transactions, filters, warehouses = [] }) => {
                                                         <IconCheck size={12} />
                                                         Lunas
                                                     </span>
+                                                ) : transaction.dine_order &&
+                                                  transaction.payment_status ===
+                                                      "unpaid" ? (
+                                                    <OpenBillStatus
+                                                        transaction={transaction}
+                                                        canPay={canPayOpenBill}
+                                                        onPay={setPayingBill}
+                                                    />
                                                 ) : transaction.payment_status ===
                                                       "pending" &&
                                                   canConfirmPayment ? (
@@ -454,6 +490,14 @@ const History = ({ transactions, filters, warehouses = [] }) => {
                                                         <IconCheck size={12} />
                                                         Lunas
                                                     </span>
+                                                ) : transaction.dine_order &&
+                                                  transaction.payment_status ===
+                                                      "unpaid" ? (
+                                                    <OpenBillStatus
+                                                        transaction={transaction}
+                                                        canPay={canPayOpenBill}
+                                                        onPay={setPayingBill}
+                                                    />
                                                 ) : transaction.payment_status ===
                                                       "pending" &&
                                                   canConfirmPayment ? (
@@ -613,6 +657,10 @@ const History = ({ transactions, filters, warehouses = [] }) => {
             </div>
 
             {/* Confirmation Modal */}
+            {payingBill && (
+                <OpenBillPayModal bill={payingBill} bankAccounts={bankAccounts} onClose={() => setPayingBill(null)} />
+            )}
+
             {confirmModal.open && confirmModal.transaction && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     {/* Backdrop */}

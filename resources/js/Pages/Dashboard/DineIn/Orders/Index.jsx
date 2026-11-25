@@ -43,6 +43,18 @@ export default function Index({ orders }) {
         );
     };
 
+    const handleServe = (order) => {
+        router.post(
+            route("dine-orders.serve", order.id),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success("Pesanan ditandai disajikan."),
+                onError: () => toast.error("Gagal menandai pesanan."),
+            }
+        );
+    };
+
     const handleReject = (order) => {
         const reason = prompt("Alasan penolakan (opsional):");
         if (reason === null) return;
@@ -101,9 +113,23 @@ export default function Index({ orders }) {
                                                 <span>{order.item_count} item</span>
                                                 <span>Subtotal: Rp {Number(order.subtotal ?? 0).toLocaleString("id-ID")}</span>
                                                 <span className={pay.color}>{pay.label}</span>
+                                                {order.status === "accepted" && (
+                                                    <span className={order.transaction?.payment_status === "paid" ? "font-medium text-success-600 dark:text-success-400" : "font-medium text-warning-600 dark:text-warning-400"}>
+                                                        {order.transaction?.payment_status === "paid" ? "Lunas" : "Belum Lunas"}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
+                                            {canProcess && order.status === "accepted" && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Sajikan"}
+                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
+                                                    className={"bg-success-500 hover:bg-success-600 text-white"}
+                                                    onClick={() => handleServe(order)}
+                                                />
+                                            )}
                                             {canProcess && order.status === "submitted" && (
                                                 <>
                                                     <Button

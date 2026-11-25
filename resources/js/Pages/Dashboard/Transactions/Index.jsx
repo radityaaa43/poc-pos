@@ -16,6 +16,7 @@ import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
+import OpenBills from "@/Components/POS/OpenBills";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
@@ -54,6 +55,7 @@ export default function Index({
     carts: serverCarts = [],
     carts_total = 0,
     heldCarts = [],
+    openBills = [],
     customers = [],
     products = [],
     categories = [],
@@ -1055,6 +1057,8 @@ export default function Index({
                             tierOptions={loyaltyTierOptions}
                         />
                     </div>
+
+                    <OpenBills openBills={openBills} bankAccounts={bankAccounts} />
 
                     {/* Held Transactions & Alerts */}
                     {heldCarts.length > 0 && (

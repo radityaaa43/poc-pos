@@ -118,6 +118,7 @@ export default function Print({ transaction }) {
         qris: "QRIS",
         split: "Split Pembayaran",
         pay_later: "Piutang",
+        open_bill: "Belum Dibayar",
     };
     const paymentMethodKey = (
         transaction?.payment_method || "cash"

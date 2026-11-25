@@ -6,7 +6,9 @@ const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", c
 
 const STATUS_CONFIG = {
     submitted: { label: "Menunggu Konfirmasi", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan Anda sedang menunggu konfirmasi dari staff." },
-    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan diterima. Silakan menuju kasir untuk pembayaran." },
+    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan diterima dan sedang disiapkan." },
+    // accepted and served, so only the payment is left (served and paid is completed)
+    served: { label: "Disajikan", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan sudah disajikan. Silakan menuju kasir untuk pembayaran." },
     completed: { label: "Selesai", color: "bg-emerald-100 text-emerald-700", icon: IconCheck, desc: "Pesanan sudah selesai." },
     rejected: { label: "Ditolak", color: "bg-rose-100 text-rose-700", icon: IconX, desc: "Pesanan ditolak oleh staff." },
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500", icon: IconX, desc: "Pesanan dibatalkan." },
@@ -17,7 +19,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
-        if (currentOrder.status === "submitted") {
+        if (["submitted", "accepted"].includes(currentOrder.status)) {
             const interval = setInterval(async () => {
                 setRefreshing(true);
                 try {
@@ -28,7 +30,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
                     if (data.order) {
                         // status-check returns minimal scalar fields — merge so items/product rows from the initial render are kept
                         setCurrentOrder((prev) => ({ ...prev, ...data.order }));
-                        if (data.order.status !== "submitted") {
+                        if (!["submitted", "accepted"].includes(data.order.status)) {
                             clearInterval(interval);
                         }
                     }
@@ -39,7 +41,8 @@ export default function DineOrderStatus({ order, table, storeName }) {
         }
     }, [currentOrder.status, currentOrder.access_token]);
 
-    const status = STATUS_CONFIG[currentOrder.status] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
+    const statusKey = currentOrder.status === "accepted" && currentOrder.served_at ? "served" : currentOrder.status;
+    const status = STATUS_CONFIG[statusKey] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
     const StatusIcon = status.icon;
 
     return (
