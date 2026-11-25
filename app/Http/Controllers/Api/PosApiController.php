@@ -794,7 +794,7 @@ class PosApiController extends Controller
         }
 
         // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
-        if ($payload['pay_later'] ?? false) {
+        if (($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later') {
             return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
         }
 

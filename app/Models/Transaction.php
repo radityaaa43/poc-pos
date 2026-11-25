@@ -22,9 +22,9 @@ class Transaction extends Model
             if ($transaction->wasChanged('payment_status') && $transaction->payment_status === 'paid') {
                 $transaction->dineOrder?->completeIfSettled();
                 // Every paid-by-update path (confirmed transfer, webhooks, split, dine-in pay) reaches the kitchen here.
-                // Not a pay-later sale: its items are recorded at checkout, so paying the receivable later (including a
-                // pre-release one) adds nothing. Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
-                if ($transaction->payment_method !== 'pay_later') {
+                // Not a pay-later sale (marked by the flag, since a later settle can change payment_method): its items are
+                // recorded at checkout, so paying the receivable later (including a pre-release one) adds nothing. Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
+                if (! $transaction->is_pay_later) {
                     DB::afterCommit(fn () => rescue(fn () => app(KitchenIntakeService::class)->intake($transaction)));
                 }
             }

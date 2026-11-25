@@ -323,6 +323,26 @@ class PayLaterTest extends TestCase
         $this->assertSame(50, $this->product->warehouses()->first()->pivot->stock);
     }
 
+    public function test_sync_rejects_pay_later_by_method_without_flag(): void
+    {
+        $this->payLaterOn();
+        Sanctum::actingAs($this->cashier, ['*']);
+
+        // An old client may send the method but not the `pay_later` flag: it must not fall through to a cash sale.
+        $this->postJson('/api/v1/pos/transactions/sync', [
+            'transactions' => [[
+                'client_uuid' => '660e8400-e29b-41d4-a716-446655440098',
+                'payment_method' => 'pay_later',
+                'cash' => 0,
+                'items' => [['product_id' => $this->product->id, 'qty' => 1]],
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.results.0.status', 'failed')
+            ->assertJsonPath('data.results.0.reason', 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online');
+
+        $this->assertSame(0, Transaction::count());
+    }
+
     public function test_revoking_credit_keeps_receivables(): void
     {
         $this->payLaterOn();

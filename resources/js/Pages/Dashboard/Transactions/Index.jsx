@@ -763,16 +763,12 @@ export default function Index({
                 shipping_cost: shipping,
                 grand_total: payable,
                 cash: isCashPayment ? cash : payable,
-                payment_method: payLater
-                    ? "pay_later"
-                    : isCashPayment
-                      ? "cash"
-                      : isBankTransfer
-                        ? "bank_transfer"
-                        : paymentMethod,
+                payment_method: isCashPayment
+                    ? "cash"
+                    : isBankTransfer
+                      ? "bank_transfer"
+                      : paymentMethod,
                 payment_gateway: null,
-                pay_later: payLater,
-                due_date: payLater ? dueDate : null,
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
                 order_type: orderType,
                 note: orderNote || null,
