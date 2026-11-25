@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\DineArea;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DineAreaController extends Controller
@@ -61,7 +62,10 @@ class DineAreaController extends Controller
     {
         abort_unless($this->ownsArea($dineArea, request()), 404);
         if ($dineArea->tables()->exists()) {
-            return back()->with('error', 'Area memiliki meja. Hapus atau pindahkan meja terlebih dahulu.');
+            // A flash would read as success to Inertia (and nothing renders it); an error reaches onError.
+            throw ValidationException::withMessages([
+                'area' => 'Area memiliki meja. Hapus atau pindahkan meja terlebih dahulu.',
+            ]);
         }
 
         $dineArea->delete();
