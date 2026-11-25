@@ -199,6 +199,20 @@ class CustomerSegmentationService
             'inactive_customer' => $this->matchesInactiveCustomer($customer, $config, $at),
             'credit_customer' => $this->matchesCreditCustomer($customer),
             'overdue_customer' => $this->matchesOverdueCustomer($customer),
+            default => $this->matchesCustomRule($customer, $segment, $config, $at),
+        };
+    }
+
+    // A segment made from the form has no built-in slug: evaluate its auto_rule_type and rule_config.
+    // shortcut: purchase_frequency means "frequent buyer"; a custom inactivity rule is not supported.
+    private function matchesCustomRule(Customer $customer, CustomerSegment $segment, array $config, CarbonInterface $at): bool
+    {
+        return match ($segment->auto_rule_type) {
+            CustomerSegment::RULE_SPENDING => (int) $customer->loyalty_total_spent >= (int) ($config['min_total_spent'] ?? 0),
+            CustomerSegment::RULE_PURCHASE_FREQUENCY => $this->matchesFrequentBuyer($customer, $config, $at),
+            CustomerSegment::RULE_RECEIVABLE_BEHAVIOR => ! empty($config['overdue_only'])
+                ? $this->matchesOverdueCustomer($customer)
+                : (! empty($config['require_outstanding_receivable']) && $this->matchesCreditCustomer($customer)),
             default => false,
         };
     }

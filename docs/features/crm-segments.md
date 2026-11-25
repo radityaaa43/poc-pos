@@ -12,6 +12,7 @@ Segmentasi pelanggan, campaign automation, dan reminder untuk meningkatkan engag
 - Manual: admin menambahkan customer ke segment
 - Auto: segment berdasarkan aturan (High Spender, Frequent Buyer, Inactive, Credit Customer, Overdue)
 - Rule config: spending threshold, frequency, last purchase, receivables status
+- Segment auto buatan sendiri dievaluasi dari `auto_rule_type` + `rule_config`: Spending (min total belanja), Purchase Frequency (min transaksi dalam N hari terakhir), Receivable Behavior (piutang outstanding / overdue saja). Aturan inaktivitas khusus belum didukung; gunakan segment bawaan Inactive Customer.
 - Segment membership track: source (manual/auto), matched_at
 
 ### Campaigns
