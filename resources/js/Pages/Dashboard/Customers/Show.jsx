@@ -1,9 +1,13 @@
 import React from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
+import Swal from "sweetalert2";
+import { useTranslation } from "react-i18next";
+import hasAnyPermission from "@/Utils/Permission";
 import {
     IconArrowLeft,
     IconCoins,
+    IconCreditCard,
     IconCrown,
     IconDatabaseOff,
     IconGift,
@@ -45,6 +49,28 @@ export default function Show({
     const hasFrequentProducts = frequentProducts.length > 0;
     const hasVouchers = vouchers.length > 0;
     const hasSegments = segments.length > 0;
+    const { t } = useTranslation();
+    const canApproveCredit = hasAnyPermission(["customers-credit-approve"]);
+    const CreditTag = canApproveCredit ? "button" : "span"; // only approvers can switch the flag
+
+    const toggleCredit = async () => {
+        const next = !customer.may_buy_on_credit;
+        const { isConfirmed } = await Swal.fire({
+            title: t(next ? "customers.credit.confirmGrant" : "customers.credit.confirmRevoke"),
+            icon: "question",
+            showCancelButton: true,
+            confirmButtonText: t("customers.credit.yes"),
+            cancelButtonText: t("customers.credit.cancel"),
+        });
+
+        if (isConfirmed) {
+            router.patch(
+                route("customers.credit", customer.id),
+                { may_buy_on_credit: next },
+                { preserveScroll: true }
+            );
+        }
+    };
 
     const submitSegments = (event) => {
         event.preventDefault();
@@ -95,6 +121,17 @@ export default function Show({
                                 <IconCoins size={14} />
                                 {customer.loyalty_points} poin
                             </span>
+                            <CreditTag
+                                {...(canApproveCredit
+                                    ? { type: "button", role: "switch", onClick: toggleCredit }
+                                    : {})}
+                                aria-checked={canApproveCredit ? !!customer.may_buy_on_credit : undefined}
+                                aria-label={canApproveCredit ? t("customers.credit.label") : undefined}
+                                className={"inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 " + (customer.may_buy_on_credit ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300" : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200")}
+                            >
+                                <IconCreditCard size={14} />
+                                {t("customers.credit.label")}: {t(customer.may_buy_on_credit ? "customers.credit.yes" : "customers.credit.no")}
+                            </CreditTag>
                             {!customer.is_loyalty_member ? (
                                 <Link
                                     href={route(

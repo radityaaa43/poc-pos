@@ -238,6 +238,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::match(['post', 'put'], '/customers/{customer}/upgrade-member', [CustomerController::class, 'upgradeToMember'])
         ->middleware('permission:customers-upgrade-member|customers-edit')
         ->name('customers.upgrade-member');
+    Route::patch('/customers/{customer}/credit', [CustomerController::class, 'updateCredit'])->middleware('permission:customers-credit-approve')->name('customers.credit');
 
     // route customer store via AJAX (no redirect)
     Route::post('/customers/store-ajax', [CustomerController::class, 'storeAjax'])->middleware('permission:customers-create')->name('customers.storeAjax');

@@ -453,7 +453,15 @@
             "platinum": "Platinum"
         },
         "history": "Riwayat Transaksi",
-        "segments": "Segment"
+        "segments": "Segment",
+        "credit": {
+            "label": "Boleh piutang",
+            "yes": "Ya",
+            "no": "Tidak",
+            "confirmGrant": "Izinkan pelanggan ini membeli dengan piutang?",
+            "confirmRevoke": "Cabut izin piutang pelanggan ini?",
+            "cancel": "Batal"
+        }
     },
     "transactions": {
         "title": "Transaksi",
