@@ -25,8 +25,7 @@ test.describe('customer segments: auto segments', () => {
         await expect(badge).toContainText('auto');
     });
 
-    // Bug #115: matchesAutoSegment() only knows the five built-in slugs, so a segment created with its own rule never gets members.
-    test.fixme('a custom spending segment collects the customers above its threshold', async ({ asRole, arrange, uniq }) => {
+    test('a custom spending segment collects the customers above its threshold', async ({ asRole, arrange, uniq }) => {
         const [customerName, segmentName] = [uniq('Pelanggan Besar'), uniq('Belanja 100rb')];
         arrange('crm.customer', { name: customerName, member: 1, spent: 150000 });
 
