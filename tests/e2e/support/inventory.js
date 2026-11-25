@@ -47,7 +47,7 @@ export async function posPayExact(page) {
 }
 
 // The first and second warehouse cell of a raw material row on the Raw Materials page
-// (the manager's two warehouses, WH-E2E and WH-E2E-B).
+// (the manager's two warehouses, WH-E2E and XFER-B).
 export async function stockCells(page, title) {
     await page.goto(`/dashboard/raw-materials?search=${title}`);
     const cells = page.getByRole('row').filter({ hasText: title }).getByRole('cell');
@@ -55,11 +55,11 @@ export async function stockCells(page, title) {
     return [cells.nth(6), cells.nth(7)];
 }
 
-// Fills the transfer form WH-E2E to WH-E2E-B for one product and saves the draft; returns the transfer's document number.
+// Fills the transfer form WH-E2E to XFER-B for one product and saves the draft; returns the transfer's document number.
 export async function draftTransfer(page, product, qty, note) {
     await page.goto('/dashboard/stock-transfers/create');
     await page.locator('select').nth(0).selectOption({ label: 'WH-E2E — Gudang E2E' });
-    await page.locator('select').nth(1).selectOption({ label: 'WH-E2E-B — Gudang E2E B' });
+    await page.locator('select').nth(1).selectOption({ label: 'XFER-B — Gudang Transfer B' });
     await page.getByPlaceholder('Opsional').fill(note);
     await page.getByPlaceholder('Cari produk untuk ditambahkan...').fill(product);
     await page.getByRole('button', { name: new RegExp(product) }).click();

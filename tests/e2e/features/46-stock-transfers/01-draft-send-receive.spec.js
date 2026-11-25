@@ -2,6 +2,9 @@ import { test, expect } from '../../support/fixtures.js';
 import { role, acceptDialogs, stockCells, draftTransfer } from '../../support/inventory.js';
 
 test.describe('46-stock-transfers', () => {
+    // The extra warehouse must not outlive the step: other folders list every active warehouse.
+    test.afterEach(({ arrange }) => arrange('inventory.transfer-done'));
+
     test('a manager moves 4 units: draft, in transit, completed', async ({ asRole, arrange, uniq }) => {
         const page = await asRole(role('manager'));
         const books = await asRole(role('manager'));
@@ -36,7 +39,7 @@ test.describe('46-stock-transfers', () => {
         await books.goto('/dashboard/stock-mutations');
         await books.locator('select').filter({ has: books.locator('option', { hasText: 'Semua Produk' }) }).selectOption({ label: product });
         await expect(books).toHaveURL(/product_id=/);
-        await expect(books.getByRole('row').filter({ hasText: /Transfer ke WH-E2E-B/ })).toContainText('out');
+        await expect(books.getByRole('row').filter({ hasText: /Transfer ke XFER-B/ })).toContainText('out');
         await expect(books.getByRole('row').filter({ hasText: /Transfer dari WH-E2E/ })).toContainText('in');
 
         // The list shows the finished transfer.

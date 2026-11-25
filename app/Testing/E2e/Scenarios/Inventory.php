@@ -144,12 +144,19 @@ class Inventory
             'inventory.transfer' => function (array $options): array {
                 $warehouse = self::warehouse();
                 $second = Warehouse::updateOrCreate(
-                    ['code' => 'WH-E2E-B'],
-                    ['outlet_id' => $warehouse->outlet_id, 'name' => 'Gudang E2E B', 'type' => 'branch', 'is_active' => true, 'sort_order' => 2],
+                    ['code' => 'XFER-B'],
+                    ['outlet_id' => $warehouse->outlet_id, 'name' => 'Gudang Transfer B', 'type' => 'branch', 'is_active' => true, 'sort_order' => 2],
                 );
                 $product = self::product($warehouse, $options['prefix'].' Transfer', (int) ($options['stock'] ?? 10), ['is_raw_material' => true]);
 
                 return ['product' => $product->title, 'product_id' => $product->id, 'from' => $warehouse->code, 'to' => $second->code];
+            },
+
+            // Takes the second warehouse out of use again, so later folders see only WH-E2E (pages list every active warehouse).
+            'inventory.transfer-done' => function (): array {
+                Warehouse::where('code', 'XFER-B')->update(['is_active' => false]);
+
+                return [];
             },
         ];
     }
