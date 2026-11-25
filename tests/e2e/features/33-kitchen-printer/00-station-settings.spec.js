@@ -98,7 +98,9 @@ test.describe('33-kitchen-printer', () => {
         await openPanel(page);
 
         await page.getByTitle('Change Language').click();
-        await page.getByRole('menuitem', { name: /English/ }).click();
+        // Switching the language reloads the page (LanguageSwitcher), which closes the panel: wait for the reload, then open it again.
+        await Promise.all([page.waitForEvent('load'), page.getByRole('menuitem', { name: /English/ }).click()]);
+        await page.getByRole('button', { name: 'Kitchen printer settings' }).click();
         const panel = page.getByRole('region', { name: 'Kitchen printer settings' });
         await expect(panel).toBeVisible();
         await expect(page.getByRole('button', { name: 'Kitchen printer settings' })).toBeVisible();

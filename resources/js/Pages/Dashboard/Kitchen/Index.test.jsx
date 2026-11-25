@@ -156,6 +156,17 @@ describe("Kitchen/Index", () => {
         expect(screen.queryByTestId("print-panel")).not.toBeInTheDocument();
     });
 
+    it("keeps the panel open when the poll brings new orders", async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<Index orders={orders} outlet={outlet} />);
+        await user.click(screen.getByRole("button", { name: "Pengaturan printer dapur" }));
+        expect(screen.getByTestId("print-panel")).toBeInTheDocument();
+
+        rerender(<Index orders={[{ ...orders[0], id: 99 }]} outlet={outlet} />);
+
+        expect(screen.getByTestId("print-panel")).toBeInTheDocument();
+    });
+
     it("has no printer settings button without an outlet", () => {
         render(<Index orders={[]} outlet={null} />);
 
