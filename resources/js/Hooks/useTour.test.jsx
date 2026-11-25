@@ -10,7 +10,8 @@ vi.mock("@inertiajs/react", () => ({ usePage: vi.fn() }));
 vi.mock("driver.js", () => ({
     driver: vi.fn((cfg) => ({
         drive: vi.fn(),
-        destroy: vi.fn(() => cfg.onDestroyed?.()),
+        // driver.js reports reason "api" for a programmatic destroy()
+        destroy: vi.fn(() => cfg.onDestroyed?.(undefined, undefined, { reason: "api" })),
     })),
 }));
 
@@ -124,7 +125,7 @@ describe("useTour", () => {
 
         const { onDestroyed } = vi.mocked(driver).mock.calls[0][0];
         act(() => {
-            onDestroyed();
+            onDestroyed(undefined, undefined, { reason: "done" });
         });
 
         expect(routeSpy).toHaveBeenCalledWith("tours.complete", { tour: "pos" });
@@ -135,6 +136,34 @@ describe("useTour", () => {
             { headers: { Accept: "application/json" } },
         );
         expect(result.current.isActive).toBe(false);
+    });
+
+    it.each(["close", "escape", "overlay"])("closing the tour on purpose (%s) records completion", (reason) => {
+        renderHook(() => useTour("pos"));
+        advance(600);
+
+        const { onDestroyed } = vi.mocked(driver).mock.calls[0][0];
+        act(() => {
+            onDestroyed(undefined, undefined, { reason });
+        });
+
+        expect(axios.post).toHaveBeenCalledTimes(1);
+    });
+
+    it("leaving the page mid-tour does not record completion and the tour shows again", () => {
+        const { unmount } = renderHook(() => useTour("pos"));
+        advance(600);
+        const instance = vi.mocked(driver).mock.results[0].value;
+
+        unmount();
+
+        expect(instance.destroy).toHaveBeenCalledTimes(1);
+        expect(axios.post).not.toHaveBeenCalled();
+
+        renderHook(() => useTour("pos"));
+        advance(600);
+
+        expect(driver).toHaveBeenCalledTimes(2);
     });
 
     it("start() is idempotent while running", () => {
