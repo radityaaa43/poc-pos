@@ -32,7 +32,7 @@ class SplitPaymentApiTest extends TestCase
 
         $response->assertCreated()
             ->assertJsonPath('data.payment_method', 'split')
-            ->assertJsonPath('data.payment_status', 'paid')
+            ->assertJsonPath('data.payment_status', 'pending')
             ->assertJsonCount(2, 'data.tenders');
 
         $transaction = Transaction::latest('id')->first();

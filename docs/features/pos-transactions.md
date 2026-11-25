@@ -26,6 +26,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - resume held cart
 - clear held cart
 - checkout tunai, split payment (maksimal dua tender), bank transfer, Midtrans, Xendit, pay later
+- bagian transfer pada split payment menunggu konfirmasi seperti transfer tunggal: transaksi tetap `pending` ("Menunggu") sampai user dengan izin `transactions-confirm-payment` mengonfirmasi; konfirmasi menandai tender transfer dan transaksi `paid`. Bagian tunai langsung tercatat dan masuk ke kas laci shift
 - print invoice / receipt / shipping label
 - share invoice publik
 - add customer langsung dari POS

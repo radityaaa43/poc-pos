@@ -876,7 +876,9 @@ class TransactionController extends Controller
                 ->with('error', 'Transaksi sudah dibayar.');
         }
 
-        if ($transaction->payment_method !== 'bank_transfer') {
+        $tenderService = app(TransactionTenderService::class);
+
+        if (! $tenderService->hasTransfer($transaction)) {
             return redirect()
                 ->back()
                 ->with('error', 'Hanya transaksi transfer bank yang dapat dikonfirmasi pembayarannya.');
@@ -895,8 +897,9 @@ class TransactionController extends Controller
         }
 
         $beforeStatus = $transaction->payment_status;
+        $newStatus = $tenderService->confirmTransfer($transaction);
         $transaction->update([
-            'payment_status' => 'paid',
+            'payment_status' => $newStatus,
         ]);
 
         $this->auditLogService->log(
@@ -913,7 +916,7 @@ class TransactionController extends Controller
             after: [
                 'invoice' => $transaction->invoice,
                 'payment_method' => $transaction->payment_method,
-                'payment_status' => 'paid',
+                'payment_status' => $newStatus,
                 'bank_account_id' => $transaction->bank_account_id,
             ],
             meta: [

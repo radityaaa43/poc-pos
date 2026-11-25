@@ -5,6 +5,7 @@ namespace Tests\Feature\Transactions;
 use App\Models\BankAccount;
 use App\Models\Cart;
 use App\Models\Category;
+use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
@@ -35,12 +36,72 @@ class SplitPaymentTest extends TestCase
         $transaction = Transaction::latest('id')->first();
 
         $this->assertSame('split', $transaction->payment_method);
-        $this->assertSame('paid', $transaction->payment_status);
+        $this->assertSame('pending', $transaction->payment_status);
         $this->assertSame(6000, $transaction->cash);
         $this->assertSame(1000, $transaction->change);
         $this->assertCount(2, $transaction->tenders);
         $this->assertSame(5000, $transaction->tenders[0]->amount);
         $this->assertSame(5000, $transaction->tenders[1]->amount);
+        $this->assertSame('paid', $transaction->tenders[0]->payment_status);
+        $this->assertSame('pending', $transaction->tenders[1]->payment_status);
+    }
+
+    public function test_confirming_the_transfer_pays_the_split_sale(): void
+    {
+        [$cashier, $product, $bankAccount] = $this->prepareCheckout();
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'tenders' => [
+                ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+                ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $bankAccount->id],
+            ],
+        ]);
+        $transaction = Transaction::latest('id')->first();
+        $this->assertSame('pending', $transaction->payment_status);
+
+        Permission::firstOrCreate(['name' => 'transactions-confirm-payment', 'guard_name' => 'web']);
+        $cashier->givePermissionTo('transactions-confirm-payment');
+
+        $this->actingAs($cashier)
+            ->withSession(['auth.password_confirmed_at' => time()])
+            ->patch(route('transactions.confirm-payment', $transaction))
+            ->assertSessionHas('success');
+
+        $transaction->refresh();
+        $this->assertSame('paid', $transaction->payment_status);
+        $this->assertSame(['paid', 'paid'], $transaction->tenders->pluck('payment_status')->all());
+    }
+
+    public function test_pending_split_counts_only_its_cash_part_in_the_shift_drawer(): void
+    {
+        [$cashier, $product, $bankAccount] = $this->prepareCheckout();
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'tenders' => [
+                ['method' => 'cash', 'amount' => 5000, 'cash_received' => 6000],
+                ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $bankAccount->id],
+            ],
+        ]);
+        $shift = app(CashierShiftService::class)->getActiveShiftForUser($cashier->id);
+
+        $summary = app(CashierShiftService::class)->calculateSummary($shift);
+
+        $this->assertSame(5000, $summary['cash_sales_total']);
+        $this->assertSame(5000, $summary['non_cash_sales_total']);
+        $this->assertSame(5000, $summary['expected_cash']);
+    }
+
+    public function test_single_bank_transfer_stays_pending_until_confirmed(): void
+    {
+        [$cashier, $product, $bankAccount] = $this->prepareCheckout();
+        PaymentSetting::create(['default_gateway' => 'bank_transfer', 'bank_transfer_enabled' => true]);
+        $this->actingAs($cashier)->post(route('transactions.store'), [
+            'payment_gateway' => 'bank_transfer',
+            'bank_account_id' => $bankAccount->id,
+        ]);
+        $transaction = Transaction::latest('id')->first();
+
+        $this->assertSame('bank_transfer', $transaction->payment_method);
+        $this->assertSame('pending', $transaction->payment_status);
+        $this->assertCount(0, $transaction->tenders);
     }
 
     public function test_web_checkout_rejects_tenders_above_two_rows(): void
