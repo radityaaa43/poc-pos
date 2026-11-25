@@ -77,6 +77,30 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 - **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
   isn't cancelled and restarted.
 
+### 0f. Multi-agent: build in parallel
+
+Set by the maintainer on 2026-11-26. Developers **use subagents to build faster**.
+
+- **One subagent and one git worktree per ticket** (`git worktree add ../poc-pos-wt-<issue> …`, each
+  with its own `npm ci`). Up to the 0c limit: 1 main, 1 stacked and 2 `low` tickets in parallel per
+  developer.
+- **Inside one ticket, split independent parts across subagents**: for example backend with its
+  PHPUnit, frontend with its Vitest, and the e2e per AC. The developer merges the parts in one branch
+  and owns the result.
+- **The developer stays accountable.** They read every subagent diff, run the checks locally (Pint,
+  PHPUnit, Vitest, build, the touched feature's e2e), run `/code-review` on the combined diff and
+  write the Evidence table themselves. A subagent never pushes, opens a PR, merges or moves a card.
+- **Subagents get the full context they need in their brief:**
+  - the issue number
+  - its AC, BR and TC lines
+  - the plan sections that apply
+  - the files they own
+  - which files they must not touch
+- **Two subagents never edit the same file at the same time.** Hotspot files (AGENTS.md → Working in
+  parallel) belong to the developer, who edits them after the parts are merged.
+- **Model and effort:** `sonnet` with high effort for building, and `/code-review` low on `sonnet` for
+  the self-review.
+
 ### 0e. Talk less, show more
 
 - **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
