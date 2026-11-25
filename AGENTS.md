@@ -43,6 +43,8 @@ issue, stdlib and native features before new libraries.
 
 ### Issues
 
+- Title: `<type>(<scope>): <summary>`, the same shape as commits; the type becomes the branch type
+  ([`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md) → Conventions).
 - Sections: Background, **What good looks like**, Scope (checklist), Done-when (checkable, incl. the
   tests that must pass). One issue = one independently reviewable change. Exactly one
   `module:*` label (modules and owners: [`CONTRIBUTING.md` → Ownership](CONTRIBUTING.md#ownership)).

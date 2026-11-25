@@ -1,6 +1,7 @@
 ---
 name: Bug
 about: Something that worked, or should work, and doesn't
+title: "fix(<scope>): "
 labels: needs-triage
 ---
 

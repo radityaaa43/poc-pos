@@ -19,6 +19,38 @@ operations. Every change starts from an issue (`AGENTS.md`).
 
 Infer the repo from `git remote -v`; `gh` does this automatically inside a clone.
 
+### Titles
+
+Every issue title follows one standard, matching commits and PR titles. CI's *Issue checklist*
+comments on an issue created on or after the rule's start date (`issue.title_rule_start` in
+`.github/governance.json`) whose title doesn't match; older issues are skipped.
+
+1. **Format:** `<type>(<scope>): <summary>`, the same shape as commits and PR titles.
+2. **Type:** one of the branch types in `AGENTS.md`: `feat`, `fix`, `refactor`, `docs`, `test`,
+   `chore`, plus `ci` for workflow changes (already used in commits). Add `!` after the scope for a
+   breaking change. The issue's type becomes the branch type (`<type>/<issue>-<slug>`) and the PR
+   title's type.
+3. **Scope:** lowercase kebab-case, naming the area the change is about:
+   - preferably the module from `CONTRIBUTING.md` → Ownership (`sales`, `dine-in`, `inventory`,
+     `purchasing`, `pricing-crm`, `platform`, `whatsapp-service`)
+   - otherwise a narrower area already used in the history (`pos`, `products`, `e2e`, `backlog`,
+     `standards`, `governance`, `i18n`, ...)
+   - Never a tenant or shop name.
+4. **Summary:** plain English, lowercase first word, no full stop, under ~80 characters for the whole
+   title.
+   - `feat`, `refactor`, `docs`, `test`, `chore`, `ci`: what the change does, in the imperative.
+     Example: `feat(sales): kitchen display for the outlet's kitchen items`.
+   - `fix`: the wrong behaviour the user sees, so the title describes the bug before a fix is
+     designed. Example: `fix(products): product import shows no result message`.
+5. **Unusual cases:**
+   - A question or decision issue uses the type of the change it will lead to. Example:
+     `chore(pos): decide whether to delete the unused POS components`.
+   - A PRD or umbrella issue uses `feat(<module>)`.
+   - Existing **open** issues are retitled to the standard. Closed issues stay as they are.
+
+The issue templates pre-fill the type (`feat(<scope>): ` / `fix(<scope>): `). The checker does not
+enforce the lowercase first word, because acronyms such as `POS` or `QR` can start a summary.
+
 ## Pull requests as a triage surface
 
 **PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_

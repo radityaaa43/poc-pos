@@ -104,7 +104,7 @@ DEFAULTS: dict = {
         "require_manual_test": True,
         "require_docs_line": True,
     },
-    "issue": {"required_sections": ["Done when"]},
+    "issue": {"required_sections": ["Done when"], "title_types": [], "title_rule_start": "9999-12-31"},
     "ai_used": {"required": True, "rule_start": "1970-01-01"},
     "backlog": {
         "enabled": False,

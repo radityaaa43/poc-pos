@@ -1,7 +1,7 @@
 name: Issue checklist
 
-# Issues can't be blocked like PRs, so a missing section, AI used or Backlog line gets one comment
-# showing the format. Rules and their start dates come from .github/governance.json.
+# Issues can't be blocked like PRs, so a bad title, missing section, AI used or Backlog line gets one
+# comment showing the format. Rules and their start dates come from .github/governance.json.
 on:
   issues:
     types: [opened, edited]
@@ -31,6 +31,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           ISSUE: ${{ github.event.issue.number }}
+          ISSUE_TITLE: ${{ github.event.issue.title }}
           ISSUE_BODY: ${{ github.event.issue.body }}
           ISSUE_CREATED_AT: ${{ github.event.issue.created_at }}
         run: |
