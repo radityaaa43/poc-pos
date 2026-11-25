@@ -52,6 +52,17 @@ class Cart extends Model
             ->sum(DB::raw('qty * conversion_factor')));
     }
 
+    /**
+     * The cart rows behind a sale queued offline: once the sale exists they must go, or the cashier
+     * would see (and could sell again) the same basket. Only the named ids of this cashier's live cart.
+     */
+    public static function discardQueued(array $ids, int $cashierId): void
+    {
+        if ($ids !== []) {
+            static::whereIn('id', $ids)->where('cashier_id', $cashierId)->active()->delete();
+        }
+    }
+
     public function scopeHeld($query)
     {
         return $query->whereNotNull('hold_id');
