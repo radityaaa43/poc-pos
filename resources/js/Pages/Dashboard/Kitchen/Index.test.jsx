@@ -218,10 +218,28 @@ describe("Kitchen/Index steps", () => {
     // The printer settings button is always there; only the step buttons depend on the item and the permission.
     const stepButtons = () => screen.queryAllByRole("button").filter((b) => !b.hasAttribute("aria-controls"));
 
-    it("has no step buttons on a cancelled item", () => {
+    it("shows a cancelled item struck through with the Dibatalkan badge", () => {
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        const row = within(cards()[2]).getAllByRole("listitem")[1];
+        expect(within(row).getByText("Dibatalkan")).toBeInTheDocument();
+        expect(within(row).getByText(/Roti/)).toHaveClass("line-through");
+        expect(within(cards()[2]).getAllByRole("listitem")[0].querySelector(".line-through")).toBeNull();
+    });
+
+    it("shows the English Cancelled badge", async () => {
+        await i18n.changeLanguage("en");
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        expect(within(cards()[2]).getByText("Cancelled")).toBeInTheDocument();
+    });
+
+    it("renders an order whose every item is cancelled with no step buttons", () => {
         const onlyCancelled = [{ ...stepOrders[2], items: [stepOrders[2].items[1]] }];
         render(<Index orders={onlyCancelled} outlet={outlet} />);
 
+        expect(screen.getByText("Meja 9")).toBeInTheDocument();
+        expect(screen.getByText("Dibatalkan")).toBeInTheDocument();
         expect(stepButtons()).toHaveLength(0);
     });
 
@@ -272,6 +290,16 @@ describe("Kitchen/Index steps", () => {
         act(() => lastOptions().onError({ item: "Sudah diproses oleh Sari" }));
 
         expect(toast.error).toHaveBeenCalledWith("Sudah diproses oleh Sari");
+    });
+
+    it("shows Sudah dibatalkan when a tap hits an item the return just cancelled", async () => {
+        const user = setup();
+        render(<Index orders={stepOrders} outlet={outlet} />);
+
+        await user.click(within(cards()[0]).getByRole("button", { name: "Mulai buat" }));
+        act(() => lastOptions().onError({ item: "Sudah dibatalkan" }));
+
+        expect(toast.error).toHaveBeenCalledWith("Sudah dibatalkan");
     });
 
     it("shows the save error on a network failure", async () => {

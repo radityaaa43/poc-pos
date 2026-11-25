@@ -5,6 +5,10 @@ import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import { IconArrowLeft, IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
+
+// Matches the server's restock_default: items already being made are not restocked by default.
+const inKitchen = (item) => ["preparing", "ready"].includes(item.kitchen_status);
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -31,6 +35,7 @@ export default function SalesReturnForm({
     canComplete = false,
     completeRoute = null,
 }) {
+    const { t } = useTranslation();
     const itemDefaults = useMemo(
         () =>
             transaction.details.map((detail) => ({
@@ -38,7 +43,9 @@ export default function SalesReturnForm({
                 qty_return: detail.draft_item?.qty_return ?? 0,
                 return_reason: detail.draft_item?.return_reason ?? "",
                 restock_to_inventory:
-                    detail.draft_item?.restock_to_inventory ?? true,
+                    detail.draft_item?.restock_to_inventory ??
+                    detail.restock_default ??
+                    true,
             })),
         [transaction.details]
     );
@@ -72,7 +79,7 @@ export default function SalesReturnForm({
             const current = itemMap.get(detail.id) ?? {
                 qty_return: 0,
                 return_reason: "",
-                restock_to_inventory: true,
+                restock_to_inventory: detail.restock_default ?? true,
             };
             const qtyReturn = Number(current.qty_return || 0);
             // detail.price is the line total; mirrors TransactionDetail::returnAmount().
@@ -359,8 +366,17 @@ export default function SalesReturnForm({
                                                         event.target.checked
                                                     )
                                                 }
+                                                aria-describedby={canEdit && inKitchen(item) ? `restock-hint-${item.id}` : undefined}
                                                 className="h-4 w-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                             />
+                                            {canEdit && inKitchen(item) && (
+                                                <p
+                                                    id={`restock-hint-${item.id}`}
+                                                    className="mt-1 w-48 whitespace-normal text-xs text-slate-500 dark:text-slate-400"
+                                                >
+                                                    {t("salesReturns.restockKitchenHint")}
+                                                </p>
+                                            )}
                                         </Table.Td>
                                         <Table.Td>
                                             {formatCurrency(item.subtotal)}
