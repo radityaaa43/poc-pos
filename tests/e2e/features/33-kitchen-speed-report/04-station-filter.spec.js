@@ -4,14 +4,14 @@ import { roles } from '../../support/roles.js';
 const manager = roles.find((role) => role.key === 'manager');
 
 // The report adds up the whole period, so each step takes a day of its own that no other step, test or rerun on the
-// same database can share: a year far from the others (2100+), the second the step runs at (about 110 years of
-// distinct days), plus a counter for the second test of the same second. The day is recorded in the test annotations.
-// The station arg of kitchen.speed-items puts its three finished items (and the cancelled / not collected ones the
-// report leaves out) at that station.
+// same database can share: a day in 2034-2037 (no other spec uses those years; TIMESTAMP columns end in 2038 on
+// MySQL), chosen from the second the step runs at plus a counter for a second test in the same second. The day is
+// recorded in the test annotations. The station arg of kitchen.speed-items puts its three finished items (and the
+// cancelled / not collected ones the report leaves out) at that station.
 let taken = 0;
 const freshDay = () => {
-    const offset = (Math.floor(Date.now() / 1000) + taken++) % 40000;
-    const day = new Date(Date.UTC(2100, 0, 1) + offset * 86_400_000).toISOString().slice(0, 10);
+    const offset = (Math.floor(Date.now() / 1000) + taken++) % 1400;
+    const day = new Date(Date.UTC(2034, 0, 1) + offset * 86_400_000).toISOString().slice(0, 10);
     test.info().annotations.push({ type: 'report day', description: day });
 
     return day;
