@@ -17,6 +17,16 @@ role, and what you saw. UI changes: a Before | After table of screenshots, attac
 `gh pr create --attach` (skill `github-upload-image-to-pr`). -->
 
 
+## Evidence
+
+<!-- One row per Done-when line, per AC on the Backlog line, and per plan item. Evidence = a test
+name + result, a command + counts, an e2e spec + @REQ tag, a CI run link, a screenshot, or a manual
+step + what you saw. Format: docs/agents/handoff.md → 2a. -->
+
+| # | Item (Done-when / AC / plan) | Done | Evidence |
+|---|---|---|---|
+| 1 |  |  |  |
+
 ## Checklist
 
 <!-- CI's "PR checklist" checks Closes, Manual test, Docs, E2E on `feat` PRs, an e2e tag or exception per Backlog criterion, and the AI used and Backlog format. See AGENTS.md. -->

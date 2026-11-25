@@ -17,10 +17,17 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 5. [`GLOSSARY.md`](GLOSSARY.md) for names. Decisions already in `docs/adr/` or settled in the issue
    are not re-litigated in review.
 
-6. **Business acceptance** (`feat` PRs): before the Tech Lead merges, Business / PM comments on the
+6. **Business acceptance** (`feat` PRs, and any PR whose `Backlog:` line names criteria): after the
+   Tech Lead's technical review approves and the Tech Lead hands the PR over, and before the merge,
+   Business / PM comments on the
    PR that each criterion on its `Backlog:` line behaves as the issue's *What good looks like* says,
    or names the criteria that don't. That comment is a check, not an approval; the Tech Lead's
    review is the approval.
+7. **Evidence and the Requirement & AC checklist**: the PR's `## Evidence` table has a row with
+   proof for every Done-when line, every `Backlog:` criterion and every plan item. The Tech Lead's
+   approval is a checklist comment that re-checks each row against the REQ text, the plan and the
+   code (format: [`docs/agents/handoff.md`](docs/agents/handoff.md) → 3). A missing row, a row
+   without proof, or UI text that differs from the REQ wording is 🔴.
 
 Also check:
 
