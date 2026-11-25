@@ -8,10 +8,15 @@
 <!-- Every section is required. A section that truly doesn't apply says "n/a — <reason>".
      A REQ is `ready` only when every section is filled or n/a with a reason (README.md → Status). -->
 
-## User story
+## User stories
 
-As a <role (owner, branch manager, cashier, kitchen staff, central warehouse staff)>, I want
-<capability>, so that <outcome>. One story per role that is affected.
+<!-- One story per affected role (owner, branch manager, cashier, waiter, kitchen staff, guest,
+     central warehouse staff...). Each story names the journey it lives in and the criteria that
+     prove it, so story → journey → AC can be followed both ways. -->
+
+| # | Story | Journey | AC |
+|---|---|---|---|
+| US-1 | As a <role>, I want <capability>, so that <outcome>. | J1 | AC-01, AC-02 |
 
 ## Context
 
@@ -26,6 +31,48 @@ Why this is needed, what happens today, and links to designs, issues or docs.
 **As-is.** What each role does today, step by step, and where it goes wrong.
 
 **To-be.** What each role does after this ships, step by step.
+
+## User journey and flow
+
+<!-- Required for every REQ (maintainer, 2026-11-26). Show how each role moves through the feature,
+     not just the end state. A reviewer should be able to walk each journey and find every criterion. -->
+
+### Journeys per role
+
+<!-- One table per journey: setup or one-time steps, the main path, and every failure or
+     unusual path (payment fails, device offline, cancellation, shift close, permission denied...).
+     Each step names the actor, what they see or do, and the AC it maps to. A step with no AC is a gap:
+     add a criterion or say why none is needed. -->
+
+**J1. <journey name>** (<role(s)>, <when>)
+
+| # | Step | Actor | What they see or do | AC | Weak point |
+|---|---|---|---|---|---|
+| 1 | | | | | |
+
+### Flow
+
+<!-- A Mermaid flowchart of the main path and its branches (decisions, failures, retries). -->
+
+```mermaid
+flowchart TD
+    A[Start] --> B{Decision}
+    B -->|yes| C[Step]
+    B -->|no| D[Other step]
+```
+
+### States
+
+<!-- For every thing that changes status (an order, an item, a bill, a job): a Mermaid state diagram
+     with every allowed transition and who or what triggers it. "n/a — <reason>" if nothing has a
+     status. -->
+
+```mermaid
+stateDiagram-v2
+    [*] --> First
+    First --> Second: trigger
+    Second --> [*]
+```
 
 ## Stakeholders
 
