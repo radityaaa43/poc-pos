@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\Product;
 use App\Models\ProductUnit;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
@@ -37,6 +38,10 @@ class PurchaseOrderService
             $user = User::findOrFail($userId);
             $warehouse = Warehouse::findOrFail($warehouseId);
             abort_unless($this->outletAccessService->canUseWarehouse($user, $warehouse), 403);
+
+            if (! $warehouse->isCentral()) {
+                $this->rejectCentralBoughtItems($items);
+            }
         }
 
         return DB::transaction(function () use ($data, $items, $userId) {
@@ -76,6 +81,21 @@ class PurchaseOrderService
 
             return $order;
         });
+    }
+
+    /** Raw materials that central buys cannot be ordered by an outlet (central may order anything). */
+    private function rejectCentralBoughtItems(array $items): void
+    {
+        $centralBought = Product::whereIn('id', array_column($items, 'product_id'))
+            ->where('purchased_by', 'central')->pluck('title', 'id');
+
+        foreach ($items as $index => $item) {
+            if ($centralBought->has($item['product_id'])) {
+                throw ValidationException::withMessages([
+                    "items.$index.product_id" => $centralBought[$item['product_id']].' dibeli oleh pusat; outlet tidak bisa memesannya.',
+                ]);
+            }
+        }
     }
 
     /**

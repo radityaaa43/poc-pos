@@ -12,6 +12,7 @@ Modul pembelian formal dari supplier: Purchase Order, Goods Receiving, dan Suppl
 - Buat PO dengan pilih supplier + item produk
 - Qty dan harga beli per item
 - Satuan beli per item (default: satuan beli utama produk, else satuan dasar); qty dan harga per satuan itu. Faktor konversi dibaca server dari `product_units` dan disimpan di item (`unit_id`, `conversion_factor`); tampil ekuivalen satuan stok ("5 kg = 5.000 g")
+- Gudang non-pusat (outlet `is_sales_enabled` true, atau gudang lama tanpa outlet) tidak bisa memesan bahan baku `purchased_by` = `central`: PO ditolak di baris itu ("<bahan> dibeli oleh pusat; outlet tidak bisa memesannya."), di web, API, dan draft reorder (semua lewat `PurchaseOrderService::createOrder`). Gudang pusat boleh memesan apa saja; `purchased_by` kosong dan PO tanpa gudang tidak dibatasi. Halaman Buat PO menyembunyikan bahan itu dari pencarian produk begitu gudang non-pusat dipilih. Aturan gudang pusat: `Warehouse::isCentral()` / `Warehouse::central()`
 - Auto-generate nomor dokumen (`PO-YYYYmmdd-XXXX`)
 - Draft PO otomatis (`reorder:generate`): per gudang, bahan baku hanya yang `purchased_by`-nya cocok (gudang pusat = outlet `is_sales_enabled` false → `central`; lainnya → `outlet`); produk non-bahan baku tidak berubah. Kebutuhan (max - stok) dikonversi ke satuan beli default, dibulatkan ke atas, dengan harga satuan beli itu (kosong → `buy_price` produk × faktor); tanpa satuan beli tetap satuan stok
 - Status lifecycle: `draft` → `ordered` → `partial_received` / `completed` → `cancelled`

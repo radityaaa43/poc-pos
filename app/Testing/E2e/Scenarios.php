@@ -40,7 +40,8 @@ class Scenarios
                 return ['shift_id' => $shift->id, 'cashier_id' => $cashier->id];
             },
 
-            // Creates a product with --arg=stock=<n> (default 10) and --arg=title=<text> in the E2E warehouse.
+            // Creates a product with --arg=stock=<n> (default 10), --arg=title=<text> and optional --arg=purchased_by=central|outlet
+            // in the E2E warehouse.
             'product' => function (array $options): array {
                 $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
                 $category = Category::where('name', 'E2E Kategori')->firstOrFail();
@@ -56,6 +57,7 @@ class Scenarios
                         'stock' => $stock,
                         'tax_type' => 'exclusive',
                         'tax_rate' => 0,
+                        'purchased_by' => $options['purchased_by'] ?? null,
                     ]);
                     $warehouse->products()->attach($product->id, ['stock' => $stock]);
 

@@ -36,10 +36,13 @@ export default function Create({ suppliers, products, warehouses = [] }) {
     });
 
     const [searchProduct, setSearchProduct] = useState("");
+    // Outlets cannot order materials that central buys (the server rejects them).
+    const isCentral = warehouses.find((w) => String(w.id) === String(data.warehouse_id))?.is_central;
     const filteredProducts = products.filter(
         (p) =>
-            p.title.toLowerCase().includes(searchProduct.toLowerCase()) ||
-            (p.sku && p.sku.toLowerCase().includes(searchProduct.toLowerCase()))
+            (isCentral || !data.warehouse_id || p.purchased_by !== "central") &&
+            (p.title.toLowerCase().includes(searchProduct.toLowerCase()) ||
+                (p.sku && p.sku.toLowerCase().includes(searchProduct.toLowerCase())))
     );
 
     const addItem = (product) => {
@@ -223,6 +226,9 @@ export default function Create({ suppliers, products, warehouses = [] }) {
                                                 <td className="px-3 py-3">
                                                     <p className="font-medium text-slate-800 dark:text-slate-200">{item.product_title}</p>
                                                     <p className="text-xs text-slate-500">{item.product_sku}</p>
+                                                    {errors[`items.${index}.product_id`] && (
+                                                        <p className="mt-1 text-xs text-danger-500">{errors[`items.${index}.product_id`]}</p>
+                                                    )}
                                                 </td>
                                                 <td className="px-3 py-3 text-left">
                                                     {productOf(item)?.units?.length ? (
