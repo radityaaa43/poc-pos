@@ -11,8 +11,7 @@ const flatten = (obj, prefix = "") =>
             : [[`${prefix}${key}`, value]],
     );
 
-// Known mismatch, tracked in #12. The fix PR for #12 empties this list.
-const KNOWN_GAPS = ["sidebar.items.outlets", "sidebar.menu.outlets"]; // #12
+const KNOWN_GAPS = [];
 
 const id = Object.fromEntries(flatten(load("id")));
 const en = Object.fromEntries(flatten(load("en")));
