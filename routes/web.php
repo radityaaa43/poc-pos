@@ -36,6 +36,7 @@ use App\Http\Controllers\Apps\SupplierController;
 use App\Http\Controllers\Apps\SupplierReturnController;
 use App\Http\Controllers\Apps\TransactionController;
 use App\Http\Controllers\Apps\TransactionRetryController;
+use App\Http\Controllers\Apps\TransactionSettleController;
 use App\Http\Controllers\Apps\UnitController;
 use App\Http\Controllers\Apps\WarehouseController;
 use App\Http\Controllers\DashboardController;
@@ -269,6 +270,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     // route transaction store
     Route::post('/transactions/store', [TransactionController::class, 'store'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.store');
+    Route::post('/transactions/{transaction}/settle', TransactionSettleController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.settle');
     // offline queue flush from the browser (session auth); the shift is checked per sale in syncOne()
     Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware('permission:transactions-access')->name('transactions.sync');
     Route::get('/transactions/{invoice}/status', [TransactionController::class, 'status'])->middleware('permission:transactions-access')->name('transactions.status');

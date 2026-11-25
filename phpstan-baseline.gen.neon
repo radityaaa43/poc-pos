@@ -4153,6 +4153,30 @@ parameters:
 			path: app/Services/ThermalPrintService.php
 
 		-
+			message: '#^Access to an undefined property App\\Models\\CashierShift\:\:\$warehouse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TransactionSettlementService.php
+
+		-
+			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$warehouse\.$#'
+			identifier: property.notFound
+			count: 1
+			path: app/Services/TransactionSettlementService.php
+
+		-
+			message: '#^Relation ''warehouse'' is not found in App\\Models\\CashierShift model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/TransactionSettlementService.php
+
+		-
+			message: '#^Relation ''warehouse'' is not found in App\\Models\\Transaction model\.$#'
+			identifier: larastan.relationExistence
+			count: 1
+			path: app/Services/TransactionSettlementService.php
+
+		-
 			message: '#^Access to property \$payment_status on an unknown class App\\Services\\App\\Models\\TransactionTender\.$#'
 			identifier: class.notFound
 			count: 1

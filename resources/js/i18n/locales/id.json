@@ -1078,6 +1078,12 @@
             "noteLabel": "Catatan (wajib untuk tamu)",
             "notePlaceholder": "Untuk siapa? Minimal 2 karakter",
             "noteRequired": "Isi catatan minimal 2 karakter untuk pelanggan tamu"
+        },
+        "unpaidBills": {
+            "title": "Belum Lunas",
+            "pay": "Bayar",
+            "ageMinutes": "{{count}} mnt",
+            "ageHours": "{{count}} j"
         }
     },
     "outlets": {

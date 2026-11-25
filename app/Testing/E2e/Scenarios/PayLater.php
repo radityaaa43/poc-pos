@@ -6,6 +6,8 @@ use App\Models\AuditLog;
 use App\Models\Customer;
 use App\Models\Outlet;
 use App\Models\Receivable;
+use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Database\Seeders\E2eSeeder;
@@ -47,6 +49,32 @@ class PayLater
                 ];
             },
 
+            // A completed return of --arg=qty=<n> units of the sale's first line (--arg=invoice=<invoice>), as the Retur
+            // page ends up: the return and its item are written directly so the step needs no second UI flow.
+            'paylater.return' => function (array $options): array {
+                $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
+                $detail = $transaction->details()->firstOrFail();
+                $qty = (int) ($options['qty'] ?? $detail->qty);
+                $return = SalesReturn::create([
+                    'code' => 'SR-E2E-'.strtoupper(substr(md5((string) microtime(true)), 0, 8)),
+                    'transaction_id' => $transaction->id,
+                    'status' => 'completed',
+                    'total_return_amount' => $qty * (int) $detail->unit_price,
+                ]);
+                SalesReturnItem::create([
+                    'sales_return_id' => $return->id,
+                    'transaction_detail_id' => $detail->id,
+                    'product_id' => $detail->product_id,
+                    'qty_sold' => $detail->qty,
+                    'qty_return' => $qty,
+                    'unit_price' => $detail->unit_price,
+                    'subtotal' => $qty * (int) $detail->unit_price,
+                    'return_reason' => 'E2E',
+                ]);
+
+                return ['invoice' => $transaction->invoice, 'returned' => $qty];
+            },
+
             // The sale --arg=invoice=<invoice>: its payment status and how many receivables it left.
             'paylater.sale-state' => function (array $options): array {
                 $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
@@ -55,6 +83,8 @@ class PayLater
                     'payment_status' => $transaction->payment_status,
                     'payment_method' => $transaction->payment_method,
                     'is_pay_later' => $transaction->is_pay_later,
+                    'cashier_shift_id' => $transaction->cashier_shift_id,
+                    'tenders' => $transaction->tenders()->count(),
                     'receivables' => Receivable::where('transaction_id', $transaction->id)->count(),
                 ];
             },

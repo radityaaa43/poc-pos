@@ -54,7 +54,7 @@ const isOpenBill = (transaction) =>
     (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
         (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"));
 
-// The cashier pays an open bill from here or from the POS "Tagihan Terbuka" section. A pending gateway payment
+// The cashier pays an unpaid bill from here or from the POS "Belum Lunas" section. A pending gateway payment
 // (QRIS) cannot be charged twice: it links to the receipt, which shows the QR, until the webhook marks it paid.
 const OpenBillStatus = ({ transaction, canPay, onPay }) => (
     <span className="inline-flex items-center gap-2">

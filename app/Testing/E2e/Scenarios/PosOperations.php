@@ -69,14 +69,16 @@ class PosOperations
             },
 
             // A finished sale: --arg=qty (default 3) of a new 10.000 product, --arg=left stock after the sale
-            // (default 7), --arg=method=cash|pay_later, --arg=customer=<name>|none. The sale belongs to the
+            // (default 7), --arg=method=cash|pay_later, --arg=customer=<name>|none, --arg=guest=1 (a pay-later guest
+            // bill: no customer, no receivable, a note --arg=note=<text>). The sale belongs to the
             // cashier's open shift when there is one. Stock already reflects the sale.
             'posops.sale' => function (array $options): array {
                 $qty = (int) ($options['qty'] ?? 3);
                 $product = self::product($options['title'] ?? null, (int) ($options['left'] ?? 7));
+                $guest = ($options['guest'] ?? '0') === '1';
                 $customerName = $options['customer'] ?? 'Pelanggan '.Str::upper(Str::random(5));
-                $customer = $customerName === 'none' ? null : self::customer($customerName);
-                $payLater = ($options['method'] ?? 'cash') === 'pay_later';
+                $customer = $guest || $customerName === 'none' ? null : self::customer($customerName);
+                $payLater = $guest || ($options['method'] ?? 'cash') === 'pay_later';
                 $cashier = self::user($options['cashier'] ?? 'cashier@e2e.test');
                 $total = $qty * 10000;
 
@@ -93,6 +95,8 @@ class PosOperations
                     'grand_total' => $total,
                     'payment_method' => $payLater ? 'pay_later' : 'cash',
                     'payment_status' => $payLater ? 'unpaid' : 'paid',
+                    'is_pay_later' => $payLater,
+                    'note' => $guest ? ($options['note'] ?? 'Meja luar 2') : null,
                 ]);
                 $transaction->details()->create([
                     'product_id' => $product['product_id'],
@@ -105,7 +109,7 @@ class PosOperations
                 ]);
                 $transaction->profits()->create(['total' => $qty * 5000]);
 
-                $receivable = $payLater ? Receivable::create([
+                $receivable = $payLater && ! $guest ? Receivable::create([
                     'customer_id' => $customer->id,
                     'transaction_id' => $transaction->id,
                     'invoice' => $transaction->invoice,
