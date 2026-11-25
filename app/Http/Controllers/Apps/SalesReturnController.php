@@ -192,9 +192,11 @@ class SalesReturnController extends Controller
                 lockForUpdate: true
             );
 
-            // Re-read under a row lock: two completions of one draft could both pass an unlocked check and
-            // restock, refund and cancel kitchen items twice (#355). The second one is refused here.
-            $this->ensureDraft(SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail());
+            // Re-read under a row lock, and work on that row from here on: two completions of one draft could both
+            // pass an unlocked check and restock, refund and cancel kitchen items twice (#355), and the copy loaded
+            // before the lock may hold lines or totals an edit has since changed. The second one is refused here.
+            $salesReturn = SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail();
+            $this->ensureDraft($salesReturn);
 
             $salesReturn->load([
                 'transaction.receivable',
