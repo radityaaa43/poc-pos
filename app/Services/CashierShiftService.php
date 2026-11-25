@@ -102,7 +102,7 @@ class CashierShiftService
         $cashSalesTotal += $splitCashTenderTotal;
 
         $nonCashSalesTotal = (int) (clone $transactions)
-            ->where('payment_method', '!=', 'cash')
+            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL]) // an open bill has taken no money yet
             ->sum('grand_total');
 
         // Split payments: non-cash portion = grand_total minus cash tenders.

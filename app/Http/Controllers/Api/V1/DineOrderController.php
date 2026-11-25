@@ -24,7 +24,7 @@ class DineOrderController extends AppsDineOrderController
             : $this->outletAccessService->accessibleOutlets($request->user())->pluck('id')->all();
 
         $orders = DineOrder::with(['table.area', 'items.product'])
-            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED])
+            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY])
             ->when($outletIds !== null, function ($query) use ($outletIds, $includeLegacy) {
                 $query->where(function ($query) use ($outletIds, $includeLegacy) {
                     $query->whereHas('table.area', fn ($area) => $area->whereIn('outlet_id', $outletIds));

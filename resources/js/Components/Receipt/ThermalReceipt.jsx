@@ -64,6 +64,7 @@ export default function ThermalReceipt({
         xendit: "XENDIT",
         qris: "QRIS",
         split: "SPLIT PEMBAYARAN",
+        open_bill: "BELUM DIBAYAR",
     };
     const paymentMethod =
         paymentLabels[transaction?.payment_method?.toLowerCase()] || "TUNAI";

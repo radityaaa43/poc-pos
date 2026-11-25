@@ -7,18 +7,48 @@ Modul dine-in memungkinkan pelanggan memindai QR code di meja untuk melihat menu
 ## Alur Kerja
 
 ```
-Pelanggan scan QR
-  → Lihat menu & pilih item
-  → Pilih metode pembayaran (kasir)
-  → Pesanan terkirim → status: submitted
+Pelanggan scan QR → lihat menu & pilih item → pesanan terkirim (status: submitted)
 
-Staff lihat pesanan di dashboard
-  → Terima (accept) → stok dipotong, lanjut ke kasir
-  → Atau Tolak (reject) dengan alasan
+Staff: Terima (accept) → stok dipotong, transaksi dibuat (belum lunas) / atau Tolak (reject)
 
-Jika bayar di kasir:
-  → Staff proses di halaman kasir seperti biasa
+BAYAR DULU, BARU DIBUAT. Dua siklus berjalan berdampingan, dengan satu gerbang di antaranya:
+
+  SIKLUS PESANAN (dine_orders.status)          SIKLUS PEMBAYARAN (transactions.payment_status)
+  ───────────────────────────────────          ───────────────────────────────────────────────
+  submitted                                     (transaksi belum ada)
+     │ Terima        dine-orders-process
+  accepted  "Menunggu Pembayaran" ────────────► unpaid  (payment_method = open_bill, tanpa piutang)
+     │                                              │ Bayar dari POS "Tagihan Terbuka" atau Riwayat:
+     │                                              │   tunai ................... paid
+     │                                              │   transfer ................ pending → paid (konfirmasi kasir)
+     │                                              │   QRIS / Midtrans / Xendit  pending → paid (webhook)
+     │ Mulai Buat    dine-orders-prepare            ▼
+     │   ▲ GERBANG: hanya bila paid ◄───────────── paid
+  preparing
+     │ Siap          dine-orders-prepare
+  ready
+     │ Serahkan      dine-orders-handover
+  served ── langsung completed (tagihan sudah paid)
+  completed  (keluar dari antrean; tamu melihat "Selesai")
 ```
+
+Aturan:
+
+- **Pembayaran dulu.** "Mulai Buat" (`accepted → preparing`) ditolak kecuali `payment_status` transaksi `paid`. `pending`
+  (transfer menunggu konfirmasi, gateway menunggu webhook) belum dianggap lunas. Gerbang dicek di server, di dalam
+  transaksi DB yang sama dengan perubahan status dan dengan baris transaksi terkunci (`lockForUpdate`), bukan hanya di UI.
+- Setiap langkah pesanan hanya sah dari status sebelumnya; status yang salah ditolak (error `order`), langkah yang sudah
+  diambil diulang = tidak berbuat apa-apa.
+- Karena sudah lunas sebelum dibuat, `served` langsung menjadi `completed` pada saat "Serahkan". Keadaan "disajikan tapi
+  belum lunas" tidak bisa terjadi lagi; `DineOrder::completeIfSettled()` (dipanggil juga dari hook `Transaction`) tinggal
+  jaring pengaman.
+- Siapa yang menjalankan tiap langkah ditentukan lewat permission di Settings → Roles, bukan role tetap.
+- Antrean staff punya tampilan: **Baru** (`submitted`), **Menunggu Pembayaran** (`accepted` dan belum lunas, juga tampil di
+  POS Tagihan Terbuka dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
+  **Penyerahan** (`ready`). Pesanan yang belum lunas tidak muncul di Dapur. `completed` hilang dari antrean.
+
+Tagihan terbuka (*open bill*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
+metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
 ## Database
 
@@ -53,7 +83,7 @@ Header pesanan pelanggan.
 | `dine_table_id` | foreignId | Meja tujuan |
 | `customer_id` | foreignId | (nullable) |
 | `access_token` | uuid | Token unik untuk halaman status |
-| `status` | enum | submitted/accepted/completed/rejected/cancelled |
+| `status` | string | submitted/accepted/preparing/ready/served/completed, plus rejected/cancelled. Sumber kebenaran siklus pesanan; `completed` = served dan transaksi lunas |
 | `notes` | text | Catatan pesanan |
 | `payment_option` | enum | pay_at_counter / pay_online |
 | `payment_method` | string | midtrans/xendit (nullable) |
@@ -64,6 +94,7 @@ Header pesanan pelanggan.
 | `transaction_id` | foreignId | Transaksi terkait (nullable) |
 | `subtotal` | integer | Total pesanan |
 | `item_count` | integer | Jumlah item |
+| `accepted_at`/`accepted_by`, `preparing_at`/`preparing_by`, `ready_at`/`ready_by`, `served_at`/`served_by`, `completed_at` | timestamp / foreignId | Kapan dan siapa (user, nullable, `nullOnDelete`) untuk tiap langkah, diisi dalam transaksi DB yang sama dengan perubahan status dan tidak ditimpa oleh pengulangan. Bahan analisis kecepatan dapur per menu (laporannya issue terpisah). Yang menentukan tahap adalah `status` |
 
 ### Tabel: `dine_order_items`
 Item-item dalam pesanan.
@@ -104,6 +135,10 @@ Dikontrol via `Setting` table:
 | GET | `/dashboard/dine-tables/{table}/qr` | permission:dine-tables-access |
 | GET | `/dashboard/dine-orders` | permission:dine-orders-access |
 | POST | `/dashboard/dine-orders/{order}/accept` | permission:dine-orders-process |
+| POST | `/dashboard/dine-orders/{order}/prepare` | permission:dine-orders-prepare |
+| POST | `/dashboard/dine-orders/{order}/ready` | permission:dine-orders-prepare |
+| POST | `/dashboard/dine-orders/{order}/serve` | permission:dine-orders-handover |
+| POST | `/dashboard/dine-orders/{order}/pay` | permission:dine-orders-process, active_shift |
 | POST | `/dashboard/dine-orders/{order}/reject` | permission:dine-orders-process |
 
 ### Publik
@@ -124,9 +159,11 @@ Dikontrol via `Setting` table:
 | `dine-tables-update` | Edit posisi meja |
 | `dine-tables-delete` | Hapus meja |
 | `dine-orders-access` | Lihat daftar pesanan |
-| `dine-orders-process` | Terima/tolak pesanan |
+| `dine-orders-process` | Terima/tolak pesanan dan terima pembayaran tagihan (Bayar) |
+| `dine-orders-prepare` | Dapur: "Mulai Buat" dan "Siap" |
+| `dine-orders-handover` | "Serahkan": verifikasi pesanan sudah diserahkan ke pelanggan |
 
-**Role cashier** mendapat: `dine-orders-access` + `dine-orders-process`
+**Role cashier dan manager** mendapat semuanya (toko kecil: satu orang menjalankan semua langkah). Toko lain memberi `dine-orders-prepare` ke role dapur dan `dine-orders-handover` ke role yang menyerahkan pesanan lewat Settings → Roles; tidak ada role tetap. Production: jalankan ulang `PermissionSeeder` lalu `RoleSeeder` (idempoten).
 
 ## Fitur Utama
 
@@ -150,23 +187,58 @@ Dikontrol via `Setting` table:
 - Opsi saat ini: Bayar di Kasir (`pay_at_counter`)
 
 ### Polling Status
-- Halaman status auto-refresh setiap 5 detik saat status = submitted
-- Notifikasi visual per status (menunggu/diterima/selesai/ditolak)
+- Halaman status auto-refresh setiap 5 detik selama pesanan belum completed/rejected/cancelled
+- Progres tamu: Diterima → Menunggu Pembayaran → Sedang dibuat → Siap → Disajikan → Selesai. Banner mengikuti `status` dan apakah tagihan sudah lunas: `accepted` belum lunas = "Menunggu Pembayaran", `accepted` lunas = "Diterima", lalu `preparing`, `ready`, `served` (sesaat, langsung `completed`)
 
 ### Konversi Staff
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
-- Konfirmasi dari kasir via halaman POS seperti transaksi biasa
+- Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
+- Bayar: lihat "Pembayaran tagihan terbuka" di bawah
 
 ## Pembayaran
 
 Saat ini endpoint `/dine/{token}/order` hanya menerima `payment_option: pay_at_counter`.
 `pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
 
+### Pembayaran tagihan terbuka
+
+Pesanan yang sudah diterima (accepted sampai ready) dibayar dari dua tempat, keduanya memakai satu endpoint
+(`POST /dashboard/dine-orders/{order}/pay`) dan **memperbarui transaksi yang dibuat saat accept** (tidak ada transaksi baru).
+Pembayaran harus selesai sebelum pesanan dibuat (gerbang "Mulai Buat" di atas):
+
+- **POS** → bagian "Tagihan Terbuka" (pesanan yang belum lunas di outlet kasir).
+- **Riwayat Transaksi** → baris dengan pesanan dine-in yang belum lunas tampil "Belum Lunas · Meja X" (badge amber) dengan tombol "Bayar".
+
+Payload memakai `tenders[]` yang sama dengan checkout POS (`TransactionTenderService::normalize`). Layar bayar menawarkan
+satu metode per tagihan:
+
+- **Tunai** (dengan kembalian) → langsung `paid`.
+- **Transfer bank** → `pending` sampai kasir mengonfirmasi di Riwayat Transaksi (aturan #153), lalu `paid`.
+- **QRIS / Midtrans / Xendit** → tagihan dicharge lewat `PaymentGatewayManager::createTenderPayment` terhadap transaksi
+  yang sama, status `pending`, lalu halaman struk menampilkan QR. Tagihan tetap "Belum Lunas" sampai webhook
+  (`PaymentWebhookController`) menandainya `paid`. Charge gagal = tagihan tetap `unpaid` dan kasir bisa memilih metode lain.
+  Percobaan gateway yang `failed`/`expired` boleh diganti metode lain (tender lamanya diganti).
+- Tender gateway tidak boleh digabung (split) dengan tender lain pada tagihan dine-in.
+- Selama pembayaran gateway/transfer masih `pending`, membayar lagi ditolak (tidak ada charge kedua, tidak ada tender
+  kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk.
+
+Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
+
+- `payment_method`, `cash`, `change`, `bank_account_id` dan tender dicatat.
+- `cashier_id` dan `cashier_shift_id` pindah ke kasir yang menerima uang dan **shift aktifnya**. Kas yang diharapkan shift
+  (`expected_cash`) hanya bertambah saat tunai benar-benar `paid`; tagihan terbuka tidak dihitung sama sekali.
+- Stok tidak dipotong lagi (sudah dipotong saat accept).
+- Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
+- Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
+- Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
+  `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
+- Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
+
 ## Catatan Teknis
 
 - QR generator: `simplesoftwareio/simple-qrcode`
 - Status polling: fetch JSON setiap 5 detik (tanpa broadcast/realtime dependency)
 - Stok dipotong saat `accept` — bukan saat submit
-- Core POS (`TransactionController`) TIDAK dimodifikasi
+- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data Tagihan Terbuka (POS) dan relasi pesanan di Riwayat
 - Cart tetap berbasis `cashier_id` — tidak terpengaruh oleh dine-in

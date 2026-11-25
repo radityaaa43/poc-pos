@@ -10,8 +10,18 @@ class Transaction extends Model
 {
     use HasFactory;
 
+    // Neutral payment_method of an accepted dine-in bill until the cashier settles it.
+    public const METHOD_OPEN_BILL = 'open_bill';
+
     protected static function booted(): void
     {
+        // Whichever way a bill becomes paid (cash, a confirmed transfer, ...) may be what completes a served dine-in order.
+        static::updated(function (Transaction $transaction) {
+            if ($transaction->wasChanged('payment_status') && $transaction->payment_status === 'paid') {
+                $transaction->dineOrder?->completeIfSettled();
+            }
+        });
+
         static::creating(function ($transaction) {
             $transaction->access_token = (string) Str::uuid();
         });
@@ -133,6 +143,21 @@ class Transaction extends Model
     public function receivable()
     {
         return $this->hasOne(Receivable::class);
+    }
+
+    public function dineOrder()
+    {
+        return $this->hasOne(DineOrder::class);
+    }
+
+    /** Statuses of an open bill the cashier may still pay: nothing paid, or a gateway attempt that failed or expired. */
+    public const OPEN_BILL_PAYABLE = ['unpaid', 'failed', 'expired'];
+
+    /** Accepted dine-in orders whose bill is unsettled (a pending gateway or transfer included). Not a credit sale: no receivable. */
+    public function scopeOpenBills($query)
+    {
+        return $query->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+            ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS));
     }
 
     public function salesReturns()

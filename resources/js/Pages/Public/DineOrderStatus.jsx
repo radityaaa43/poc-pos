@@ -4,9 +4,19 @@ import { IconCheck, IconClock, IconX, IconRefresh } from "@tabler/icons-react";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
+const PROGRESS_STEPS = ["Diterima", "Menunggu Pembayaran", "Sedang dibuat", "Siap", "Disajikan", "Selesai"];
+
+// Statuses that can still change, so the page keeps polling.
+const ACTIVE = ["submitted", "accepted", "preparing", "ready", "served"];
+
 const STATUS_CONFIG = {
     submitted: { label: "Menunggu Konfirmasi", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan Anda sedang menunggu konfirmasi dari staff." },
-    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan diterima. Silakan menuju kasir untuk pembayaran." },
+    // payment comes first: the kitchen starts only on a paid bill
+    waiting_payment: { label: "Menunggu Pembayaran", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan diterima. Silakan menuju kasir untuk membayar, setelah itu pesanan mulai dibuat." },
+    accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pembayaran diterima. Pesanan akan segera dibuat." },
+    preparing: { label: "Sedang dibuat", color: "bg-primary-100 text-primary-700", icon: IconClock, desc: "Pesanan Anda sedang dibuat." },
+    ready: { label: "Siap", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan Anda sudah siap." },
+    served: { label: "Disajikan", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan sudah disajikan." },
     completed: { label: "Selesai", color: "bg-emerald-100 text-emerald-700", icon: IconCheck, desc: "Pesanan sudah selesai." },
     rejected: { label: "Ditolak", color: "bg-rose-100 text-rose-700", icon: IconX, desc: "Pesanan ditolak oleh staff." },
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500", icon: IconX, desc: "Pesanan dibatalkan." },
@@ -17,7 +27,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
     const [refreshing, setRefreshing] = useState(false);
 
     useEffect(() => {
-        if (currentOrder.status === "submitted") {
+        if (ACTIVE.includes(currentOrder.status)) {
             const interval = setInterval(async () => {
                 setRefreshing(true);
                 try {
@@ -28,7 +38,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
                     if (data.order) {
                         // status-check returns minimal scalar fields — merge so items/product rows from the initial render are kept
                         setCurrentOrder((prev) => ({ ...prev, ...data.order }));
-                        if (data.order.status !== "submitted") {
+                        if (!ACTIVE.includes(data.order.status)) {
                             clearInterval(interval);
                         }
                     }
@@ -39,7 +49,10 @@ export default function DineOrderStatus({ order, table, storeName }) {
         }
     }, [currentOrder.status, currentOrder.access_token]);
 
-    const status = STATUS_CONFIG[currentOrder.status] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
+    // progress shown once the order is accepted: Diterima, Menunggu Pembayaran, Sedang dibuat, Siap, Disajikan, Selesai
+    const statusKey = currentOrder.status === "accepted" && !currentOrder.is_paid ? "waiting_payment" : currentOrder.status;
+    const stepIndex = { waiting_payment: 1, accepted: 1, preparing: 2, ready: 3, served: 4, completed: 5 }[statusKey];
+    const status = STATUS_CONFIG[statusKey] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
     const StatusIcon = status.icon;
 
     return (
@@ -57,10 +70,25 @@ export default function DineOrderStatus({ order, table, storeName }) {
                         <div className={`flex items-center gap-3 p-4 rounded-xl ${status.color} mb-6`}>
                             <StatusIcon size={24} />
                             <div>
-                                <p className="font-semibold">{status.label}</p>
+                                <p className="font-semibold" data-testid="dine-status">{status.label}</p>
                                 <p className="text-sm opacity-80">{status.desc}</p>
                             </div>
                         </div>
+
+                        {stepIndex !== undefined && (
+                            <ol className="mb-6 grid grid-cols-6 gap-1 text-center text-[11px] leading-tight" aria-label="Progres pesanan">
+                                {PROGRESS_STEPS.map((step, index) => (
+                                    <li
+                                        key={step}
+                                        aria-current={index === stepIndex ? "step" : undefined}
+                                        className={index <= stepIndex ? "font-semibold text-primary-700" : "text-slate-400"}
+                                    >
+                                        <span className={`mx-auto mb-1 block h-1.5 rounded-full ${index <= stepIndex ? "bg-primary-500" : "bg-slate-200"}`} />
+                                        {step}
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
 
                         <div className="space-y-2 mb-4">
                             {(currentOrder.items ?? []).map((item) => (

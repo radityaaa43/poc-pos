@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, usePage, router } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
@@ -17,10 +17,27 @@ import toast from "react-hot-toast";
 const STATUS_CONFIG = {
     submitted: { label: "Menunggu", color: "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400", icon: IconClock },
     accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400", icon: IconCheck },
+    waiting_payment: { label: "Menunggu Pembayaran", color: "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400", icon: IconClock },
+    preparing: { label: "Sedang dibuat", color: "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400", icon: IconClock },
+    ready: { label: "Siap", color: "bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400", icon: IconCheck },
+    served: { label: "Disajikan", color: "bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400", icon: IconCheck },
     completed: { label: "Selesai", color: "bg-success-100 text-success-700 dark:bg-success-900/50 dark:text-success-400", icon: IconCheck },
     rejected: { label: "Ditolak", color: "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-400", icon: IconX },
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", icon: IconX },
 };
+
+// Payment comes first: the kitchen only sees an accepted order once its bill is paid (a pending transfer or gateway is not paid).
+const isPaid = (order) => order.transaction?.payment_status === "paid";
+const isWaitingForPayment = (order) => order.status === "accepted" && !isPaid(order);
+
+// Queue views: the kitchen works paid accepted and preparing orders, the handover desk works ready ones.
+const VIEWS = [
+    { key: "all", label: "Semua", match: () => true },
+    { key: "new", label: "Baru", match: (order) => order.status === "submitted" },
+    { key: "waiting", label: "Menunggu Pembayaran", match: isWaitingForPayment },
+    { key: "kitchen", label: "Dapur", match: (order) => (order.status === "accepted" && isPaid(order)) || order.status === "preparing" },
+    { key: "handover", label: "Penyerahan", match: (order) => order.status === "ready" },
+];
 
 const PAY_CONFIG = {
     pay_at_counter: { label: "Bayar di Kasir", color: "text-slate-600 dark:text-slate-400" },
@@ -30,6 +47,10 @@ export default function Index({ orders }) {
     const { auth } = usePage().props;
     const { can } = useAuthorization();
     const canProcess = can("dine-orders-process");
+    const canPrepare = can("dine-orders-prepare");
+    const canHandover = can("dine-orders-handover");
+    const [view, setView] = useState("all");
+    const visibleOrders = orders.filter(VIEWS.find((item) => item.key === view).match);
 
     const handleAccept = (order) => {
         if (!confirm("Terima pesanan ini dan lanjutkan ke kasir?")) return;
@@ -39,6 +60,19 @@ export default function Index({ orders }) {
             {
                 onSuccess: () => toast.success("Pesanan diterima."),
                 onError: () => toast.error("Gagal menerima pesanan."),
+            }
+        );
+    };
+
+    // Fulfillment steps: kitchen marks ready, then someone verifies the hand over. Each has its own permission.
+    const handleStep = (order, routeName, successMessage) => {
+        router.post(
+            route(routeName, order.id),
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success(successMessage),
+                onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal menandai pesanan."),
             }
         );
     };
@@ -73,10 +107,28 @@ export default function Index({ orders }) {
                 </div>
             </div>
 
-            {orders.length > 0 ? (
+            <div className="mb-4 flex flex-wrap gap-2" role="group" aria-label="Tampilan antrean">
+                {VIEWS.map((item) => (
+                    <button
+                        key={item.key}
+                        type="button"
+                        onClick={() => setView(item.key)}
+                        aria-pressed={view === item.key}
+                        className={`h-9 rounded-full px-4 text-sm font-medium ${
+                            view === item.key
+                                ? "bg-primary-500 text-white"
+                                : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                        }`}
+                    >
+                        {item.label}
+                    </button>
+                ))}
+            </div>
+
+            {visibleOrders.length > 0 ? (
                 <div className="space-y-4">
-                    {orders.map((order) => {
-                        const status = STATUS_CONFIG[order.status] ?? { label: order.status, color: "bg-slate-100 text-slate-500", icon: IconClock };
+                    {visibleOrders.map((order) => {
+                        const status = (isWaitingForPayment(order) ? STATUS_CONFIG.waiting_payment : STATUS_CONFIG[order.status]) ?? { label: order.status, color: "bg-slate-100 text-slate-500", icon: IconClock };
                         const StatusIcon = status.icon;
                         const pay = PAY_CONFIG[order.payment_option] ?? { label: order.payment_option, color: "text-slate-500" };
 
@@ -101,9 +153,42 @@ export default function Index({ orders }) {
                                                 <span>{order.item_count} item</span>
                                                 <span>Subtotal: Rp {Number(order.subtotal ?? 0).toLocaleString("id-ID")}</span>
                                                 <span className={pay.color}>{pay.label}</span>
+                                                {order.status !== "submitted" && (
+                                                    <span className={order.transaction?.payment_status === "paid" ? "font-medium text-success-600 dark:text-success-400" : "font-medium text-warning-600 dark:text-warning-400"}>
+                                                        {order.transaction?.payment_status === "paid" ? "Lunas" : "Belum Lunas"}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
+                                            {canPrepare && order.status === "accepted" && isPaid(order) && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Mulai Buat"}
+                                                    icon={<IconClock size={16} strokeWidth={1.5} />}
+                                                    className={"bg-primary-500 hover:bg-primary-600 text-white"}
+                                                    onClick={() => handleStep(order, "dine-orders.prepare", "Pesanan mulai dibuat.")}
+                                                />
+                                            )}
+                                            {canPrepare && order.status === "preparing" && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Siap"}
+                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
+                                                    className={"bg-success-500 hover:bg-success-600 text-white"}
+                                                    onClick={() => handleStep(order, "dine-orders.ready", "Pesanan ditandai siap.")}
+                                                />
+                                            )}
+                                            {canHandover && order.status === "ready" && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Serahkan"}
+                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
+                                                    className={"bg-primary-500 hover:bg-primary-600 text-white"}
+                                                    onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
+                                                />
+                                            )}
+                                            )}
                                             {canProcess && order.status === "submitted" && (
                                                 <>
                                                     <Button

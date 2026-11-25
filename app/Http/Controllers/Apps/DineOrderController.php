@@ -24,8 +24,10 @@ class DineOrderController extends Controller
             ? null
             : $this->outletAccessService->accessibleOutlets($request->user())->pluck('id')->all();
 
-        $orders = DineOrder::with(['table.area', 'items.product'])
-            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED])
+        // Fulfillment queue: new orders, accepted ones waiting for payment, the kitchen (paid accepted, preparing) and the handover (ready).
+        // The UI splits them by payment_status; an unpaid order is also an Open Bill on the POS.
+        $orders = DineOrder::with(['table.area', 'items.product', 'transaction:id,payment_status'])
+            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY])
             ->when($outletIds !== null, function ($query) use ($outletIds, $includeLegacy) {
                 $query->where(function ($query) use ($outletIds, $includeLegacy) {
                     $query->whereHas('table.area', fn ($area) => $area->whereIn('outlet_id', $outletIds));
@@ -48,6 +50,44 @@ class DineOrderController extends Controller
         $this->service->accept($dineOrder);
 
         return back()->with('success', 'Pesanan diterima dan siap diproses di kasir.');
+    }
+
+    public function prepare(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->startPreparing($dineOrder);
+
+        return back()->with('success', 'Pesanan mulai dibuat.');
+    }
+
+    public function ready(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->markReady($dineOrder);
+
+        return back()->with('success', 'Pesanan ditandai siap.');
+    }
+
+    public function serve(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->serve($dineOrder);
+
+        return back()->with('success', 'Pesanan ditandai sudah diserahkan.');
+    }
+
+    public function pay(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $validated = $request->validate([
+            'tenders' => ['required', 'array'],
+            'tenders.*' => ['array'],
+        ]);
+
+        $transaction = $this->service->pay($dineOrder, $request->user(), $validated['tenders']);
+
+        return to_route('transactions.print', $transaction->invoice)
+            ->with('success', 'Pembayaran pesanan dine-in berhasil.');
     }
 
     public function reject(Request $request, DineOrder $dineOrder)

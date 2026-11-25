@@ -182,6 +182,8 @@ class PermissionSeeder extends Seeder
         $create('dine-tables-delete');
         $create('dine-orders-access');
         $create('dine-orders-process');
+        $create('dine-orders-prepare');
+        $create('dine-orders-handover');
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
