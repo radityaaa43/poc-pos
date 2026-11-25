@@ -14,14 +14,17 @@ use App\Models\TransactionDetail;
 use App\Models\TransactionTender;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
+use RuntimeException;
 use Tests\TestCase;
 
 class PaymentRetryTest extends TestCase
@@ -216,6 +219,33 @@ class PaymentRetryTest extends TestCase
         $this->assertSame(1, $sale->payment_attempt);
     }
 
+    public function test_a_gateway_timeout_fails_the_sale_so_it_can_be_retried_again(): void
+    {
+        $reachable = false;
+        Http::fake(['https://app.sandbox.midtrans.com/*' => function () use (&$reachable) {
+            return $reachable
+                ? Http::response(['redirect_url' => 'https://pay.test', 'qr_string' => 'QR'], 200)
+                : throw new ConnectionException('timed out');
+        }]);
+        $sale = $this->makeSale('qris');
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'qris'])
+            ->assertRedirect(route('transactions.print', $sale->invoice))
+            ->assertSessionHas('error', 'Gagal menghubungi gateway pembayaran. Coba lagi.');
+
+        $sale->refresh();
+        $this->assertSame('failed', $sale->payment_status);
+        $this->assertSame(1, $sale->payment_attempt);
+
+        $reachable = true;
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'qris'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame('pending', $sale->fresh()->payment_status);
+        $this->assertSame(2, $sale->fresh()->payment_attempt);
+    }
+
     public function test_late_failed_callback_of_superseded_attempt_is_ignored(): void
     {
         Http::fake(['https://app.sandbox.midtrans.com/*' => Http::response(['redirect_url' => 'https://pay.test', 'qr_string' => 'QR'], 200)]);
@@ -238,6 +268,24 @@ class PaymentRetryTest extends TestCase
             ->postJson(route('webhooks.xendit'), ['external_id' => $sale->invoice, 'status' => 'EXPIRED', 'id' => 'old'])
             ->assertOk();
         $this->assertSame('pending', $sale->fresh()->payment_status);
+    }
+
+    public function test_a_failed_audit_write_leaves_the_late_payment_unmarked_so_the_redelivery_audits_it(): void
+    {
+        $sale = $this->makeSale('midtrans');
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
+            ->assertSessionHasNoErrors();
+
+        $this->mock(AuditLogService::class, fn ($mock) => $mock->shouldReceive('log')->once()->andThrow(new RuntimeException('audit down')));
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice, 'settlement'))->assertStatus(500);
+        $this->assertNull($sale->fresh()->late_superseded_payment_at);
+
+        $this->app->forgetInstance(AuditLogService::class);
+        $this->app->offsetUnset(AuditLogService::class);
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice, 'settlement'))->assertOk();
+        $this->assertNotNull($sale->fresh()->late_superseded_payment_at);
+        $this->assertSame(1, AuditLog::where('event', 'payment.late_superseded')->count());
     }
 
     public function test_late_paid_callback_of_superseded_attempt_is_audited_not_recorded(): void

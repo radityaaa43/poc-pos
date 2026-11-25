@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Re-opens the payment of a POS sale whose online payment failed or expired, under the next payment attempt.
@@ -132,10 +133,17 @@ class TransactionPaymentRetryService
             $charge = $method === TransactionTender::METHOD_QRIS
                 ? $this->gatewayManager->createQrisPayment($sale, $setting, null, $orderId)
                 : $this->gatewayManager->createPayment($sale, $method, $setting, null, $orderId);
-        } catch (PaymentGatewayException $exception) {
+        } catch (Throwable $exception) {
+            // Any failure (also a timeout): a pending sale without a QR is not retryable, so it must end failed.
             $sale->update(['payment_status' => 'failed']);
 
-            throw $exception;
+            if ($exception instanceof PaymentGatewayException) {
+                throw $exception;
+            }
+
+            report($exception);
+
+            throw new PaymentGatewayException('Gagal menghubungi gateway pembayaran. Coba lagi.', previous: $exception);
         }
 
         $sale->update([

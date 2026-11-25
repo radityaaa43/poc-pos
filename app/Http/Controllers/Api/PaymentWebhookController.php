@@ -344,17 +344,22 @@ class PaymentWebhookController extends Controller
         }
 
         // First paid callback only: a duplicate delivery matches no row, so it is not audited twice.
-        $marked = $paid && Transaction::whereKey($transaction->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
+        // Marker and audit commit together: if the audit fails, the redelivery must still find the marker unset.
+        $marked = $paid && DB::transaction(function () use ($transaction, $providerId, $gateway, $amount) {
+            $marked = Transaction::whereKey($transaction->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
 
-        if ($marked) {
-            app(AuditLogService::class)->log(
-                event: 'payment.late_superseded',
-                module: 'transactions',
-                auditable: $transaction,
-                description: "Pembayaran lama invoice {$transaction->invoice} diterima setelah dibayar ulang; perlu refund manual.",
-                meta: ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
-            );
-        }
+            if ($marked) {
+                app(AuditLogService::class)->log(
+                    event: 'payment.late_superseded',
+                    module: 'transactions',
+                    auditable: $transaction,
+                    description: "Pembayaran lama invoice {$transaction->invoice} diterima setelah dibayar ulang; perlu refund manual.",
+                    meta: ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
+                );
+            }
+
+            return (bool) $marked;
+        });
 
         Log::info(ucfirst($gateway).' Webhook: superseded payment attempt, ignoring', [
             'provider' => $gateway,

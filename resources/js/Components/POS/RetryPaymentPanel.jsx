@@ -8,6 +8,8 @@ import { useAuthorization } from "@/Utils/authorization";
 const buttonClass =
     "h-11 rounded-xl px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
+const SAME_METHOD_RETRY = ["cash", "qris", "midtrans", "xendit"];
+
 const formatPrice = (value = 0) =>
     Number(value || 0).toLocaleString("id-ID", {
         style: "currency",
@@ -25,7 +27,7 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
     const [choosing, setChoosing] = useState(false);
     const [method, setMethod] = useState("cash");
     const [cashReceived, setCashReceived] = useState("");
-    const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
+    const [bankAccountId, setBankAccountId] = useState("");
     const [processing, setProcessing] = useState(false);
     const [errors, setErrors] = useState({});
 
@@ -65,7 +67,7 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
         submit({
             payment_method: method,
             ...(method === "cash" && { cash_amount: Number(cashReceived) }),
-            ...(method === "bank_transfer" && { bank_account_id: Number(bankAccountId) }),
+            ...(method === "bank_transfer" && { bank_account_id: Number(bankAccountId || bankAccounts[0]?.id) }),
         });
     };
 
@@ -76,14 +78,17 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
             </p>
 
             <div className="flex flex-wrap gap-2">
-                <button
-                    type="button"
-                    disabled={processing}
-                    onClick={() => submit({ payment_method: transaction.payment_method })}
-                    className={`${buttonClass} bg-primary-500 text-white hover:bg-primary-600`}
-                >
-                    {t("pos.retryPayment.retry")}
-                </button>
+                {/* Split and bank-transfer sales need more than the method (tenders, an account): they go through "other way". */}
+                {SAME_METHOD_RETRY.includes(transaction.payment_method) && (
+                    <button
+                        type="button"
+                        disabled={processing}
+                        onClick={() => submit({ payment_method: transaction.payment_method })}
+                        className={`${buttonClass} bg-primary-500 text-white hover:bg-primary-600`}
+                    >
+                        {t("pos.retryPayment.retry")}
+                    </button>
+                )}
                 <button
                     type="button"
                     disabled={processing}

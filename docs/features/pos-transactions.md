@@ -77,6 +77,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   "Bayar ganda — refund manual" in the transactions history (filter "Perlu refund"); the refund itself is manual.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
+- A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
+- A retry moves the sale to the retrying cashier's shift (`cashier_shift_id`) but keeps `cashier_id`: that is who made the sale.
 - A split sale that already has a paid part is not retried (a retry replaces every tender).
 - Web POS only; the mobile API does not retry.
 

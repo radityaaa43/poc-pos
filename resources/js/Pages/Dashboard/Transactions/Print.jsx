@@ -53,7 +53,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                     }
                     // A failed or expired QRIS brings the retry panel (`retryable`) without a manual reload.
                     if (["paid", "failed", "expired"].includes(data.payment_status)) {
-                        router.reload({ only: ["transaction", "retryable"] });
+                        router.reload({ only: ["transaction", "retryable", "bankAccounts", "paymentGateways"] });
                     }
                 }
             } catch {

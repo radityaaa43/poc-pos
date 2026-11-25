@@ -1039,7 +1039,7 @@
     "pos": {
         "retryPayment": {
             "failed": "Payment failed",
-            "expired": "Payment expired",
+            "expired": "Expired",
             "retry": "Try again",
             "other": "Pay another way",
             "method": "Payment method",

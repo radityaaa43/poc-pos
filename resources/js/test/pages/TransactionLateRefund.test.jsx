@@ -69,7 +69,8 @@ describe("History late-refund marker", () => {
     });
 
     it("turns the chip off when it is already active", async () => {
-        renderHistory({ late_payment: "1" });
+        // The server sends filters.late_payment as a boolean (Request::boolean).
+        renderHistory({ late_payment: true });
 
         const chip = screen.getByRole("button", { name: "Perlu refund" });
         expect(chip).toHaveAttribute("aria-pressed", "true");

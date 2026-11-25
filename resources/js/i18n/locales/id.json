@@ -1039,7 +1039,7 @@
     "pos": {
         "retryPayment": {
             "failed": "Pembayaran gagal",
-            "expired": "Pembayaran kedaluwarsa",
+            "expired": "Kedaluwarsa",
             "retry": "Coba lagi",
             "other": "Bayar dengan cara lain",
             "method": "Metode pembayaran",

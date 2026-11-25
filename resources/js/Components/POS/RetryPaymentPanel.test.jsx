@@ -57,6 +57,41 @@ describe("RetryPaymentPanel", () => {
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
+    it("names a failed sale Pembayaran gagal and an expired one Kedaluwarsa", () => {
+        const { rerender } = renderPanel();
+        expect(screen.getByText("Pembayaran gagal")).toBeInTheDocument();
+
+        rerender(<RetryPaymentPanel transaction={{ ...failed, payment_status: "expired" }} retryable bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
+        expect(screen.getByText("Kedaluwarsa")).toBeInTheDocument();
+    });
+
+    it("does not offer Coba lagi for a method that cannot be started again (split, bank transfer)", () => {
+        for (const payment_method of ["split", "bank_transfer"]) {
+            const { unmount } = renderPanel({ transaction: { ...failed, payment_method } });
+
+            expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Bayar dengan cara lain" })).toBeEnabled();
+            unmount();
+        }
+    });
+
+    it("uses the bank accounts that arrive after the panel was first shown", async () => {
+        post.mockImplementation(() => {});
+        const { rerender } = renderPanel({ bankAccounts: [], paymentGateways: [] });
+        // The receipt was polled into `failed`: the server now sends the accounts and gateways.
+        rerender(<RetryPaymentPanel transaction={failed} retryable bankAccounts={bankAccounts} paymentGateways={paymentGateways} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Bayar dengan cara lain" }));
+        await userEvent.selectOptions(screen.getByLabelText("Metode pembayaran"), "bank_transfer");
+        await userEvent.click(screen.getByRole("button", { name: "Bayar" }));
+
+        expect(post).toHaveBeenCalledWith(
+            "/transactions.retry-payment",
+            { payment_method: "bank_transfer", bank_account_id: 3 },
+            expect.any(Object)
+        );
+    });
+
     it("Coba lagi posts the same payment method again", async () => {
         renderPanel();
 

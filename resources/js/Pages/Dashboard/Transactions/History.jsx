@@ -141,7 +141,8 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
     };
 
     // Sales paid twice (a late payment of a superseded attempt) that need a manual refund.
-    const lateOnly = filterData.late_payment === "1";
+    // filters.late_payment comes back from the server as a boolean (Request::boolean), the chip sends "1".
+    const lateOnly = [true, "1", 1].includes(filterData.late_payment);
     const toggleLatePayment = () =>
         router.get(
             route("transactions.history"),
