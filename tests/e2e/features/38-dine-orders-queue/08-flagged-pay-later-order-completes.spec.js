@@ -2,16 +2,18 @@ import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
 
 const manager = roles.find((role) => role.key === 'manager');
+const cashier = roles.find((role) => role.key === 'cashier');
 
 // REQ-003 AC-09: a pay-later order with a flagged line has its kitchen item from the accept; paying at the counter
 // adds no second item, and once it is paid and handed over the order completes. The staff steps are the ones on the
-// Orders queue (Mulai Buat, Siap, Serahkan), which work on a paid order.
+// kitchen display (Mulai buat, Siap) and the Orders queue (Serahkan).
 test.describe('38-dine-orders-queue', () => {
     test.describe.configure({ timeout: 240_000 });
 
     test('a flagged pay-later order is paid at the counter and then made and handed over: one kitchen item throughout, then completed', { tag: ['@REQ-003-AC-09'] }, async ({ asRole, page: guest, arrange, uniq }) => {
         const { table_name, token } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
-        const { product_id } = arrange('product', { title: uniq('Pecel'), stock: 5 });
+        const title = uniq('Pecel');
+        const { product_id } = arrange('product', { title, stock: 5 });
         arrange('kitchen.flag', { product_id });
         const { access_token } = arrange('dine.order', { token, product_id, qty: 1, option: 'pay_later' });
         arrange('open-shift', { cashier: manager.email, cash: 100000 });
@@ -38,10 +40,17 @@ test.describe('38-dine-orders-queue', () => {
             status: 'accepted', invoice: accepted.invoice, payment_status: 'paid', served: false, kitchen_items: 1, receivables: 0,
         });
 
-        // Made and handed over from the queue: paid and served, so the order completes.
+        // Made on the kitchen display (it owns Mulai buat and Siap since #326), then handed over from the queue:
+        // paid and served, so the order completes.
+        const kitchen = await asRole(cashier);
+        await kitchen.goto('/dashboard/kitchen');
+        const item = kitchen.locator('article', { hasText: table_name }).getByRole('listitem').filter({ hasText: title });
+        await item.getByRole('button', { name: 'Mulai buat', exact: true }).click();
+        await expect(item).toContainText('Sedang dibuat');
+        await item.getByRole('button', { name: 'Siap', exact: true }).click();
+        await expect(item).toContainText('Siap');
+
         await page.goto('/dashboard/dine-orders');
-        await card.getByRole('button', { name: 'Mulai Buat' }).click();
-        await card.getByRole('button', { name: 'Siap', exact: true }).click();
         await card.getByRole('button', { name: 'Serahkan' }).click();
         await expect(card).toHaveCount(0);
 
