@@ -41,6 +41,7 @@ const VIEWS = [
 
 const PAY_CONFIG = {
     pay_at_counter: { label: "Bayar di Kasir", color: "text-slate-600 dark:text-slate-400" },
+    pay_later: { label: "Bayar Belakangan", color: "text-slate-600 dark:text-slate-400" },
 };
 
 export default function Index({ orders }) {

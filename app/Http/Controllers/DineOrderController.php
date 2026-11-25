@@ -38,8 +38,15 @@ class DineOrderController extends Controller
             'items.*.note' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:500'],
             // Payment is never taken at submit: the guest can pay online only after staff accept (POST dine-order.pay).
-            'payment_option' => ['required', 'in:pay_at_counter'],
+            // So the only options here are the counter and pay later (the outlet's choice, checked below).
+            'payment_option' => ['required', 'in:'.DineOrder::PAY_AT_COUNTER.','.DineOrder::PAY_LATER],
         ]);
+
+        // The menu only hides the button; a menu left open while the owner switched pay later off must still be refused here.
+        if ($validated['payment_option'] === DineOrder::PAY_LATER
+            && ! ($outlet && Setting::getBoolForOutlet('pay_later_enabled', $outlet))) {
+            throw ValidationException::withMessages(['order' => 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.']);
+        }
 
         $items = collect($validated['items']);
         $productIds = $items->pluck('product_id')->toArray();

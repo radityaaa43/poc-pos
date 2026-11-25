@@ -86,7 +86,7 @@ Header pesanan pelanggan.
 | `access_token` | uuid | Token unik untuk halaman status |
 | `status` | string | submitted/accepted/preparing/ready/served/completed, plus rejected/cancelled. Sumber kebenaran siklus pesanan; `completed` = served dan transaksi lunas |
 | `notes` | text | Catatan pesanan |
-| `payment_option` | enum | pay_at_counter / pay_online |
+| `payment_option` | enum | pay_at_counter / pay_later (pay_online ditolak) |
 | `payment_method` | string | midtrans/xendit (nullable) |
 | `payment_status` | string | pending/paid/failed (nullable) |
 | `payment_reference` | string | Reference dari gateway (nullable) |
@@ -186,7 +186,7 @@ Dikontrol via `Setting` table:
 - Pilih kategori & produk
 - Keranjang real-time
 - Catatan opsional per item
-- Opsi saat ini: Bayar di Kasir (`pay_at_counter`)
+- Opsi saat ini: Bayar di Kasir (`pay_at_counter`) dan, bila outlet mengaktifkan Bayar Belakangan, Bayar Belakangan (`pay_later`)
 
 ### Polling Status
 - Halaman status auto-refresh setiap 5 detik selama pesanan belum completed/rejected/cancelled
@@ -201,7 +201,7 @@ Dikontrol via `Setting` table:
 
 ## Pembayaran
 
-Saat ini endpoint `/dine/{token}/order` hanya menerima `payment_option: pay_at_counter`.
+Saat ini endpoint `/dine/{token}/order` menerima `payment_option: pay_at_counter` dan `pay_later`; `pay_later` ditolak server bila setting outlet *Bayar Belakangan* mati (pesan: "Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir."). Menu menampilkan tombol "Pesan — Bayar Belakangan" hanya bila setting aktif. Saat staf menerima pesanan `pay_later`, tagihannya diberi `is_pay_later` (tanpa piutang), item dapur yang perlu dibuat langsung tercatat (Belum lunas), dan pesanan tanpa item dapur langsung `served` lalu `completed` setelah dibayar; pelunasan tetap lewat `dine-orders.pay`.
 `pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
 
 ### Pembayaran tagihan belum lunas
