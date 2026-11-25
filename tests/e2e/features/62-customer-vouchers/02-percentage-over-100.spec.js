@@ -3,8 +3,7 @@ import { roles } from '../../support/roles.js';
 import { field, roleOf } from '../../support/crm.js';
 
 test.describe('customer vouchers: percentage limit', () => {
-    // Bug #102: `max:100` without `numeric` checks the string length, so 150 percent is saved.
-    test.fixme('a percentage voucher above 100 is refused', async ({ asRole, arrange, uniq }) => {
+    test('a percentage voucher above 100 is refused', async ({ asRole, arrange, uniq }) => {
         const { customer_id } = arrange('crm.customer', { name: uniq('Penerima'), member: 1 });
 
         const page = await asRole(roleOf(roles, 'manager'));

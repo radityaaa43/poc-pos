@@ -362,7 +362,7 @@ class PricingRuleController extends Controller
             $validated['discount_type'] === PricingRule::TYPE_PERCENTAGE
             && (float) $validated['discount_value'] > 100
         ) {
-            $request->validate(['discount_value' => ['max:100']]);
+            $request->validate(['discount_value' => ['numeric', 'max:100']]);
         }
 
         $validated['is_active'] = (bool) ($validated['is_active'] ?? false);
