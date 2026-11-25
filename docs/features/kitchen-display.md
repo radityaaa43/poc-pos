@@ -30,6 +30,10 @@ One screen for the kitchen: every paid order that still has something to prepare
 - [BR-1] A dine-in order whose items are all unflagged never reaches the kitchen: it is served when paid and completes at once (Pay now here; the Pay-later half lands in ticket #279). A mixed order waits only for its flagged items.
 - Routes: `kitchen.items.start`, `kitchen.items.ready`, `kitchen.orders.all-ready` (service: `app/Services/KitchenItemService.php`).
 
+## Cancelled items
+
+An item whose sale line was returned (a completed sales return, #241) shows **Dibatalkan**, struck through and without buttons, for 2 minutes after the return (`KitchenItem::onDisplay()`, measured on `updated_at`), then leaves the queue on a later poll. A partial return only lowers the quantity shown. A start or ready tap on a cancelled item answers "Sudah dibatalkan".
+
 ## Outlet scope
 
 The screen shows the current outlet only: the outlet of the user's open shift, otherwise the outlet picked in the outlet switcher. Items of other outlets never appear. Order within the queue: the oldest accepted item first.
