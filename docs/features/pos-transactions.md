@@ -30,6 +30,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - print invoice / receipt / shipping label
 - share invoice publik
 - add customer langsung dari POS
+- penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk pay later (nota barang) dan untuk memakai poin, voucher, atau harga member
 
 ## Halaman dan Route
 
@@ -59,7 +60,7 @@ Operasi transaksional tertentu juga mewajibkan middleware `active_shift`.
 2. jika shift aktif, kasir dapat cari produk dan membangun cart
 3. cart dapat di-hold lalu di-resume
 4. checkout membuat transaksi, detail, profit, dan pengurangan stok
-5. jika `pay_later`, sistem membuat receivable
+5. jika `pay_later`, sistem membuat receivable (pelanggan wajib; tanpa pelanggan checkout ditolak)
 6. user diarahkan ke dokumen print / invoice
 
 ## Integrasi Data
