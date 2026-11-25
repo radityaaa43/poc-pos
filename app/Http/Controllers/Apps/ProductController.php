@@ -100,7 +100,7 @@ class ProductController extends Controller
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             ...$this->compositeRules(),
             ...$this->unitRules(),
-        ]);
+        ], $this->purchasedByMessages());
         // upload image
         $image = $request->file('image');
         $image?->storeAs('public/products', $image->hashName());
@@ -122,6 +122,7 @@ class ProductController extends Controller
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
             'is_raw_material' => $request->boolean('is_raw_material'),
+            'purchased_by' => $this->purchasedBy($request),
         ]);
 
         if ($request->boolean('is_composite')) {
@@ -205,7 +206,7 @@ class ProductController extends Controller
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             ...$this->compositeRules(),
             ...$this->unitRules(),
-        ]);
+        ], $this->purchasedByMessages());
 
         if ($request->boolean('is_composite')) {
             $this->validateComponentProducts($request, $product);
@@ -241,6 +242,7 @@ class ProductController extends Controller
                 'tax_rate' => $request->input('tax_rate', 11.00),
                 'is_composite' => $request->boolean('is_composite'),
                 'is_raw_material' => $request->boolean('is_raw_material'),
+                'purchased_by' => $this->purchasedBy($request),
             ]);
 
             if ($request->boolean('is_composite')) {
@@ -269,6 +271,7 @@ class ProductController extends Controller
             'tax_rate' => $request->input('tax_rate', 11.00),
             'is_composite' => $request->boolean('is_composite'),
             'is_raw_material' => $request->boolean('is_raw_material'),
+            'purchased_by' => $this->purchasedBy($request),
         ]);
 
         if ($request->boolean('is_composite')) {
@@ -313,11 +316,23 @@ class ProductController extends Controller
         return back();
     }
 
+    private function purchasedByMessages(): array
+    {
+        return ['purchased_by.required' => 'Pilih siapa yang membeli bahan ini.'];
+    }
+
+    /** Only a raw material has a buyer; anything else stores null even if the field was sent. */
+    private function purchasedBy(Request $request): ?string
+    {
+        return $request->boolean('is_raw_material') ? $request->input('purchased_by') : null;
+    }
+
     private function compositeRules(): array
     {
         return [
             'is_composite' => 'nullable|boolean',
             'is_raw_material' => 'nullable|boolean',
+            'purchased_by' => 'exclude_unless:is_raw_material,1,true|required|in:central,outlet',
             // The form always sends `components: []`; only a composite needs at least one.
             'components' => 'exclude_unless:is_composite,1,true|required|array|min:1',
             'components.*.component_product_id' => 'required|integer|distinct|exists:products,id',

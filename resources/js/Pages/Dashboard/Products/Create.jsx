@@ -3,6 +3,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
+import { PurchasedBySelect } from "@/Components/Dashboard/Select";
 import UnitRow from "./Partials/UnitRow";
 import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
@@ -44,6 +45,7 @@ export default function Create({
         tax_rate: "11",
         is_composite: false,
         is_raw_material: false,
+        purchased_by: "",
         components: [],
         units: [],
     });
@@ -338,18 +340,34 @@ export default function Create({
                                 <input
                                     type="checkbox"
                                     checked={data.is_raw_material}
-                                    onChange={(e) =>
+                                    onChange={(e) => {
                                         setData(
                                             "is_raw_material",
                                             e.target.checked
-                                        )
-                                    }
+                                        );
+                                        if (!e.target.checked)
+                                            setData("purchased_by", "");
+                                    }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
                                 <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     Bahan baku (tidak dijual di kasir)
                                 </span>
                             </label>
+                            {data.is_raw_material && (
+                                <div className="mb-4 max-w-sm">
+                                    <PurchasedBySelect
+                                        value={data.purchased_by}
+                                        onChange={(e) =>
+                                            setData(
+                                                "purchased_by",
+                                                e.target.value
+                                            )
+                                        }
+                                        error={errors.purchased_by}
+                                    />
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                 {!data.is_composite && (
                                     <Input

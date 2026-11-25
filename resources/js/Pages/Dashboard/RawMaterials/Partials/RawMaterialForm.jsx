@@ -1,39 +1,11 @@
 import React from "react";
 import { Link } from "@inertiajs/react";
 import Input from "@/Components/Dashboard/Input";
+import Select, { PurchasedBySelect } from "@/Components/Dashboard/Select";
 import { IconArrowLeft, IconDeviceFloppy, IconPlus, IconTrash } from "@tabler/icons-react";
-
-const selectClass = (error) =>
-    `h-11 w-full min-w-0 rounded-xl border bg-slate-50 px-4 text-sm text-slate-800 outline-none transition focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 disabled:cursor-not-allowed disabled:text-slate-500 dark:bg-slate-800 dark:text-slate-200 dark:disabled:text-slate-400 ${
-        error ? "border-danger-500" : "border-slate-200 dark:border-slate-700"
-    }`;
 
 const formatCurrency = (value) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 }).format(value);
-
-function Select({ id, label, error, children, ...props }) {
-    return (
-        <div className="flex flex-col gap-2">
-            <label htmlFor={id} className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {label}
-            </label>
-            <select
-                id={id}
-                aria-invalid={Boolean(error)}
-                aria-describedby={error ? `${id}-error` : undefined}
-                className={selectClass(error)}
-                {...props}
-            >
-                {children}
-            </select>
-            {error && (
-                <small id={`${id}-error`} className="text-xs text-danger-500 dark:text-danger-400">
-                    {error}
-                </small>
-            )}
-        </div>
-    );
-}
 
 function Card({ title, hint, children }) {
     return (
@@ -127,17 +99,11 @@ export default function RawMaterialForm({
                             </option>
                         ))}
                     </Select>
-                    <Select
-                        id="purchased_by"
-                        label="Dibeli Oleh"
+                    <PurchasedBySelect
                         value={data.purchased_by}
                         onChange={(e) => setData("purchased_by", e.target.value)}
                         error={errors.purchased_by}
-                    >
-                        <option value="">Pilih pembeli</option>
-                        <option value="central">Pusat (gudang pusat)</option>
-                        <option value="outlet">Outlet (tiap outlet)</option>
-                    </Select>
+                    />
                     <Select
                         id="stock_unit_id"
                         label="Satuan Stok"
