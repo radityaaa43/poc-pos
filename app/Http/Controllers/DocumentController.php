@@ -129,6 +129,7 @@ class DocumentController extends Controller
             'transaction' => $transaction,
             'store' => $this->storeProfile($transaction->warehouse?->outlet),
             'barcode' => $this->barcode($transaction->invoice),
+            'locale' => app()->getLocale(), // receipt_80 reads it
         ])->setPaper([0, 0, $width, 800], 'portrait');
 
         return $pdf->stream("receipt-{$transaction->invoice}-{$size}.pdf");
