@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Models\CustomerCredit;
+use App\Models\KitchenItem;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\SalesReturn;
@@ -15,6 +16,7 @@ use App\Models\TransactionDetail;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
+use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
 use Carbon\Carbon;
@@ -196,6 +198,9 @@ class SalesReturnController extends Controller
                 'items.product',
                 'items.transactionDetail',
             ]);
+
+            // Before any stock row is locked: the kitchen item lock comes first, as in a start tap (#241).
+            app(KitchenItemService::class)->cancelForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -406,6 +411,7 @@ class SalesReturnController extends Controller
     {
         $draftItems = collect($salesReturn?->items ?? [])
             ->keyBy('transaction_detail_id');
+        $kitchenStatuses = KitchenItem::where('transaction_id', $transaction->id)->pluck('status', 'transaction_detail_id');
 
         return [
             'id' => $transaction->id,
@@ -431,13 +437,14 @@ class SalesReturnController extends Controller
                 'status' => $transaction->receivable->status,
                 'remaining' => (int) $transaction->receivable->remaining,
             ] : null,
-            'details' => $transaction->details->map(function (TransactionDetail $detail) use ($draftItems) {
+            'details' => $transaction->details->map(function (TransactionDetail $detail) use ($draftItems, $kitchenStatuses) {
                 $completedReturnedQty = (int) $detail->salesReturnItems
                     ->filter(fn (SalesReturnItem $item) => $item->salesReturn?->status === 'completed')
                     ->sum('qty_return');
 
                 $draftItem = $draftItems->get($detail->id);
                 $qtySold = (int) $detail->qty;
+                $kitchenStatus = $kitchenStatuses->get($detail->id);
 
                 return [
                     'id' => $detail->id,
@@ -452,6 +459,9 @@ class SalesReturnController extends Controller
                     'price' => (int) $detail->price,
                     'returned_completed_qty' => $completedReturnedQty,
                     'remaining_returnable_qty' => max(0, $qtySold - $completedReturnedQty),
+                    'kitchen_status' => $kitchenStatus,
+                    // Already being made (preparing, ready): not put back on the shelf by default (BR-4); the person can change it.
+                    'restock_default' => ! in_array($kitchenStatus, [KitchenItem::STATUS_PREPARING, KitchenItem::STATUS_READY], true),
                     'draft_item' => $draftItem ? [
                         'qty_return' => (int) $draftItem->qty_return,
                         'return_reason' => $draftItem->return_reason,
