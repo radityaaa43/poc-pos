@@ -137,7 +137,7 @@ server props; mocking Inertia props per page would duplicate e2e at high cost.
 tests/e2e/
   playwright.config.js
   README.md                     how to run, how to add a step, conventions
-  COVERAGE.md                   feature → steps → roles, kept current by each PR
+  features/<NN>/COVERAGE.md     that feature's steps → roles, kept current by its PR (#222)
   support/
     fixtures.js                 test fixtures: per-role logged-in pages, arrange(), uniq()
     roles.js                    role list and credentials for the e2e dataset

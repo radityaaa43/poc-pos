@@ -1,5 +1,5 @@
 // A fake WebUSB printer, so the ESC/POS bytes the app sends can be asserted without hardware
-// (real-device printing is a Manual row in COVERAGE.md). Call before the first page.goto().
+// (real-device printing is a Manual note in the feature folder's COVERAGE.md). Call before the first page.goto().
 // `granted`: the printer was already allowed earlier, so navigator.usb.getDevices() lists it (the
 // receipt page re-attaches this way); otherwise only requestDevice() (the Settings button) finds it.
 export const fakePrinter = (page, { granted = false } = {}) => page.addInitScript((granted) => {

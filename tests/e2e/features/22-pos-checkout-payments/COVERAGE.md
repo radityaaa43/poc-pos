@@ -1,0 +1,6 @@
+# 22-pos-checkout-payments
+
+| Steps | Roles |
+|---|---|
+| `01-bank-transfer`: account required, receipt with account and awaiting payment, manager confirms to paid, no confirm for a cashier, transfer hidden without an active account; `02-gateways-and-qris`: Midtrans and Xendit payment links (faked gateway), Xendit webhook turns the sale paid, QRIS sale shows the QR code and flips to paid by polling; `03-split-tender`: cash plus transfer in two tenders, remaining / excess / cash-received / account validations, cancel split | cashier, manager |
+| `01-bank-transfer`: account required, receipt with account and awaiting payment, manager confirms to paid, no confirm for a cashier, transfer hidden without an active account; `02-gateways-and-qris`: Midtrans and Xendit payment links (faked gateway), Xendit webhook turns the sale paid, QRIS sale shows the QR code and flips to paid by polling; `03-split-tender`: cash plus transfer in two tenders (fixme #153: the transfer part will wait for confirmation), remaining / excess / cash-received / account validations, cancel split | cashier, manager |

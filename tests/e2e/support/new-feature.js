@@ -1,6 +1,6 @@
 // npm run e2e:new -- <NN-feature-slug> [first-step-slug]
-// Scaffolds tests/e2e/features/<feature>/01-<step>.spec.js and adds a row to COVERAGE.md.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+// Scaffolds tests/e2e/features/<feature>/01-<step>.spec.js and the folder's own COVERAGE.md.
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,7 +28,8 @@ export function scaffold(e2eDir, feature, step = 'happy-path') {
     const template = readFileSync(join(here, 'templates', 'step.spec.js'), 'utf8');
     mkdirSync(dir, { recursive: true });
     writeFileSync(file, template.replaceAll('__FEATURE__', feature).replaceAll('__STEP__', step));
-    appendFileSync(join(e2eDir, 'COVERAGE.md'), `| \`${feature}\` | \`01-${step}\`: TODO | TODO |\n`);
+    // One note per folder: PRs on different features never edit the same file.
+    writeFileSync(join(dir, 'COVERAGE.md'), `# ${feature}\n\n| Steps | Roles |\n|---|---|\n| \`01-${step}\`: TODO | TODO |\n`);
 
     return file;
 }
@@ -36,7 +37,7 @@ export function scaffold(e2eDir, feature, step = 'happy-path') {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     try {
         const file = scaffold(join(here, '..'), process.argv[2], process.argv[3]);
-        console.log(`Created ${file}\nReplace the test.fixme, fill in the COVERAGE.md row, then run npm run test:e2e.`);
+        console.log(`Created ${file}\nReplace the test.fixme, fill in the folder's COVERAGE.md, then run npm run test:e2e.`);
     } catch (error) {
         console.error(error.message);
         process.exit(1);

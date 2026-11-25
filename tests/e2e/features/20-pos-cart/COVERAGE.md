@@ -1,0 +1,9 @@
+# 20-pos-cart
+
+| Steps | Roles |
+|---|---|
+| `01-add-edit-remove`: add from the grid, same product raises qty, + / - / trash, totals, cart survives reload, stock badge, product without warehouse stock not offered (fixme #110 + at the stock limit, #117 add past the stock); `02-search-and-barcode`: search by title and barcode, no-match message, `/` focus, scanned barcode adds (case-insensitive), unknown or out-of-stock barcode reported; `03-unit-switch`: box button switches the price on the card, adds by the box, base-unit stock check (fixme #106 box priced at the piece price, #110 third box, #131 refused add reports success) | cashier |
+| `01-add-edit-remove`: add from the grid, same product raises qty, + / - / trash, totals, cart survives reload, stock badge, product without warehouse stock not offered (fixme #110 + at the stock limit, #117 add past the stock); `02-search-and-barcode`: search by title and barcode, no-match message, `/` focus, scanned barcode adds (case-insensitive), unknown or out-of-stock barcode reported; `03-unit-switch`: box button switches the price on the card, adds by the box, box line charged the box price, pieces after a box are a separate row, base-unit stock check (fixme #110 third box, #131 refused add reports success) | cashier |
+| `01-add-edit-remove`: add from the grid, same product raises qty, + / - / trash, totals, cart survives reload, stock badge, product without warehouse stock not offered; `02-search-and-barcode`: search by title and barcode, no-match message, `/` focus, scanned barcode adds (case-insensitive), unknown or out-of-stock barcode reported; `03-unit-switch`: box button switches the price on the card, adds by the box, box line charged the box price, pieces after a box are a separate row, base-unit stock check | cashier |
+
+Manual (needs a real device): camera barcode scan in the POS.
