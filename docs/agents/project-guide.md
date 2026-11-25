@@ -53,7 +53,7 @@ Never run `--suppress-all` to hide a new error. Trade-off: `no-unused-vars` igno
 
 - Root `DatabaseSeeder` seeds essential system configuration, not users or the full demo dataset. First-install setup creates the initial admin; demo data is opt-in via `php artisan seed:demo --force`.
 - `php artisan test` uses SQLite `:memory:`; avoid database-specific assumptions. For API tests use `Sanctum::actingAs($user, ['*'])` or a real token with the needed abilities.
-- Laravel's scheduler is defined in `routes/console.php`: CRM segment sync (01:00), CRM reminders (01:15), reorder generation (02:00), and pending-transaction expiry (hourly). Production must invoke `php artisan schedule:run` every minute.
+- Laravel's scheduler is defined in `routes/console.php`: CRM segment sync (01:00), CRM reminders (01:15), reorder generation (02:00), pending-transaction expiry (hourly), and kitchen intake recovery (`kitchen:recover-intake`, every 5 minutes). Production must invoke `php artisan schedule:run` every minute.
 - Midtrans/Xendit webhooks require a publicly reachable `APP_URL`; product images require `php artisan storage:link`.
 - Dine-in online payment is currently rejected; only `pay_at_counter` is supported.
 - After permission seeding, an existing session may retain stale permissions; log out and back in.
