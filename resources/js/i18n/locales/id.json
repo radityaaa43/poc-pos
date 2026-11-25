@@ -1117,5 +1117,11 @@
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
         }
+    },
+    "dineMenu": {
+        "payLater": {
+            "button": "Pesan — Bayar Belakangan",
+            "helper": "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi."
+        }
     }
 }
