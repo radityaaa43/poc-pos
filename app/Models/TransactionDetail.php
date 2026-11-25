@@ -54,6 +54,19 @@ class TransactionDetail extends Model
     }
 
     /**
+     * Refund value of returning $qtyReturn units after $qtyReturnedBefore were already returned.
+     * `price` is the line total, so each unit is a share of it; rounding the running share (not
+     * each return) keeps the returns of a line from adding up to more than the line total.
+     */
+    public function returnAmount(int $qtyReturnedBefore, int $qtyReturn): int
+    {
+        $qty = max(1, (int) $this->qty);
+        $share = fn (int $units) => (int) round((int) $this->price * $units / $qty);
+
+        return $share($qtyReturnedBefore + $qtyReturn) - $share($qtyReturnedBefore);
+    }
+
+    /**
      * Profit to reverse when $qtyReturned units of this line come back:
      * (unit sell price - cost_total / qty) x qty returned, rounded once.
      */

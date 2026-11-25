@@ -101,6 +101,16 @@ class SetupWizardTest extends TestCase
         $this->assertTrue(Setting::getBool('app_setup_completed'));
     }
 
+    public function test_login_page_shows_the_setup_completed_message(): void
+    {
+        $this->post(route('setup.store'), $this->validPayload());
+
+        // Login.jsx renders the `status` prop only.
+        $this->get(route('login'))->assertInertia(fn ($page) => $page
+            ->component('Auth/Login')
+            ->where('status', __('setup.completed')));
+    }
+
     public function test_setup_creates_branch_outlet_and_warehouse(): void
     {
         $this->post(route('setup.store'), $this->validPayload())->assertRedirect(route('login'));

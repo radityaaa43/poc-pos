@@ -4,10 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentSetting;
+use App\Models\Receivable;
+use App\Models\ReceivablePayment;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Services\TransactionTenderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PaymentWebhookController extends Controller
@@ -96,7 +99,9 @@ class PaymentWebhookController extends Controller
                 )]);
             } else {
                 $transaction->update([
-                    'payment_status' => $newStatus,
+                    'payment_status' => $newStatus === 'paid'
+                        ? $this->settleReceivable($transaction, $request->input('gross_amount'), 'midtrans')
+                        : $newStatus,
                     'payment_reference' => $request->input('transaction_id') ?: $transaction->payment_reference,
                 ]);
             }
@@ -217,7 +222,9 @@ class PaymentWebhookController extends Controller
                 )]);
             } else {
                 $transaction->update([
-                    'payment_status' => $newStatus,
+                    'payment_status' => $newStatus === 'paid'
+                        ? $this->settleReceivable($transaction, $request->input('paid_amount') ?? $request->input('amount'), 'xendit')
+                        : $newStatus,
                     'payment_reference' => $paymentId ?: $transaction->payment_reference,
                 ]);
             }
@@ -243,6 +250,44 @@ class PaymentWebhookController extends Controller
 
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * A gateway payment of a pay-later sale settles its receivable like a manual receivable payment:
+     * a ReceivablePayment for the amount actually paid, capped at what is still owed. Returns the
+     * sale's payment_status ('paid' only once nothing is owed). A sale without a receivable is paid.
+     */
+    private function settleReceivable(Transaction $transaction, mixed $paidAmount, string $method): string
+    {
+        return DB::transaction(function () use ($transaction, $paidAmount, $method) {
+            $receivable = Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->first();
+
+            if (! $receivable) {
+                return 'paid';
+            }
+
+            // No amount in the notification: take it as the whole balance.
+            $applied = min((float) ($paidAmount ?: $receivable->remaining), $receivable->remaining);
+
+            if ($applied > 0) {
+                ReceivablePayment::create([
+                    'receivable_id' => $receivable->id,
+                    'paid_at' => now(),
+                    'amount' => $applied,
+                    'method' => $method,
+                    'note' => 'Pembayaran gateway '.$transaction->invoice,
+                ]);
+                $receivable->paid = ($receivable->paid ?? 0) + $applied;
+            }
+
+            $receivable->status = $receivable->remaining <= 0 ? 'paid' : 'partial';
+            if ($receivable->status !== 'paid' && $receivable->due_date && now()->gt($receivable->due_date)) {
+                $receivable->status = 'overdue';
+            }
+            $receivable->save();
+
+            return $receivable->status === 'paid' ? 'paid' : 'unpaid';
+        });
     }
 
     /**

@@ -46,7 +46,7 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
 
 ## Efek Bisnis Penting
 
-- pembayaran receivable ikut memengaruhi `payment_status` transaksi terkait
+- pembayaran receivable ikut memengaruhi `payment_status` transaksi terkait, dan sebaliknya: notifikasi lunas dari gateway (Midtrans/Xendit) mencatat `receivable_payments` sebesar nominal yang dibayar (maksimal sisa piutang)
 - sales return dapat mengoreksi total receivable jika retur berasal dari transaksi piutang
 
 ## Reminder dan Delivery

@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class DineOrderController extends Controller
@@ -21,6 +22,11 @@ class DineOrderController extends Controller
     {
         $table = DiningTable::where('token', $token)->where('is_active', true)->firstOrFail();
         $outlet = $table->area?->outlet;
+
+        // Same global setting the menu page reads; the page only hides the button.
+        if (! Setting::getBool('dine_in_self_order_enabled', true)) {
+            throw ValidationException::withMessages(['order' => 'Fitur pemesanan sementara nonaktif.']);
+        }
 
         $validated = $request->validate([
             'items' => ['required', 'array', 'min:1'],
@@ -63,7 +69,10 @@ class DineOrderController extends Controller
             $available = $this->availableStock($product, $outlet);
 
             if ($available < $baseQty) {
-                return back()->with('error', "Stok {$product->title} tidak mencukupi (tersedia: {$available}).");
+                // A flash would read as success to Inertia (and the public page renders none); an error reaches onError.
+                throw ValidationException::withMessages([
+                    'order' => "Stok {$product->title} tidak mencukupi (tersedia: {$available}).",
+                ]);
             }
 
             $preview = $previews->get($product->id);

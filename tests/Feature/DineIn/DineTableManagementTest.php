@@ -70,6 +70,18 @@ class DineTableManagementTest extends TestCase
         $this->assertDatabaseMissing('dine_tables', ['name' => 'Meja Invalid']);
     }
 
+    public function test_destroy_area_with_tables_is_refused_with_a_validation_error(): void
+    {
+        $area = DineArea::create(['name' => 'Area Test', 'is_active' => true]);
+        DiningTable::create(['dine_area_id' => $area->id, 'name' => 'M1', 'is_active' => true]);
+
+        $this->actingAs($this->user)
+            ->delete(route('dine-areas.destroy', $area))
+            ->assertSessionHasErrors(['area' => 'Area memiliki meja. Hapus atau pindahkan meja terlebih dahulu.']);
+
+        $this->assertDatabaseHas('dine_areas', ['id' => $area->id]);
+    }
+
     public function test_index_filters_active_and_inactive_tables_independently(): void
     {
         $area = DineArea::create(['name' => 'Area Test', 'is_active' => true]);
@@ -91,5 +103,17 @@ class DineTableManagementTest extends TestCase
                 ->has('tables', 1)
                 ->where('tables.0.name', 'Nonaktif')
                 ->where('filters.is_active', 'inactive'));
+    }
+
+    public function test_index_lists_a_table_saved_without_an_area(): void
+    {
+        $table = DiningTable::create(['name' => 'Tanpa Area', 'is_active' => true]);
+
+        $this->actingAs($this->user)
+            ->get(route('dine-tables.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard/DineIn/Tables/Index')
+                ->has('tables', 1)
+                ->where('tables.0.id', $table->id));
     }
 }

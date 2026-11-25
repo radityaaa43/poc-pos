@@ -2,17 +2,21 @@ import React from "react";
 import { usePage, useForm } from "@inertiajs/react";
 import { IconLanguage } from "@tabler/icons-react";
 import { Menu, Transition } from "@headlessui/react";
+import i18n from "@/i18n";
 
 export default function LanguageSwitcher() {
     const { locale } = usePage().props;
-    const { post, processing } = useForm({
+    const { post, processing, transform } = useForm({
         locale: locale?.current || "id",
     });
 
-    const handleChange = (e) => {
-        post(route("language.switch", { locale: e }), {
+    const handleChange = (code) => {
+        transform(() => ({ locale: code }));
+        post(route("language.switch"), {
             preserveScroll: true,
             onSuccess: () => {
+                // The UI text comes from i18next (localStorage), not from the server locale.
+                i18n.changeLanguage(code);
                 window.location.reload();
             },
         });

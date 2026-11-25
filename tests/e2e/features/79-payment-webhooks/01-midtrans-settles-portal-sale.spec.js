@@ -25,8 +25,7 @@ test('a settlement notification marks the sale paid on the customer portal', asy
     await expect(page.getByText('Belum Lunas', { exact: true })).toHaveCount(0);
 });
 
-// Bug #125: the webhook only updates transactions.payment_status; the receivable stays open, so a paid sale still asks for the balance.
-test.fixme('a paid sale no longer asks the customer for the balance', async ({ arrange, page, request }) => {
+test('a paid sale no longer asks the customer for the balance', async ({ arrange, page, request }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'pay_later', gateway: 'midtrans' });
     await request.post('/api/webhooks/midtrans', { data: notification(sale, 'settlement') });
