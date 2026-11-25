@@ -368,7 +368,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     // settings price lists
     Route::resource('/settings/price-lists', PriceListController::class)
         ->except(['create', 'edit'])
-        ->middlewareFor('index', 'permission:price-lists-access')
+        ->middlewareFor(['index', 'show'], 'permission:price-lists-access')
         ->middlewareFor('store', ['permission:price-lists-create', 'step_up'])
         ->middlewareFor('update', ['permission:price-lists-update', 'step_up'])
         ->middlewareFor('destroy', ['permission:price-lists-delete', 'step_up']);
