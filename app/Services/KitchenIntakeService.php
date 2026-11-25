@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DineOrderItem;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 
@@ -45,13 +46,16 @@ class KitchenIntakeService
             return;
         }
 
-        $transaction->load('details.product:id,needs_preparation', 'dineOrder.items');
+        $transaction->load('details.product:id,needs_preparation,kitchen_station_id', 'dineOrder.items');
+        // Active stations in one query; a product pointing at a deleted or no station goes to the default one.
+        $stations = KitchenStation::get(['id', 'is_default']);
+        $defaultStationId = $stations->firstWhere('is_default', true)->id ?? KitchenStation::defaultId();
         // Dine-in lines carry a note ("no sugar"); match each sale line to the first unused order line of the same product and unit.
         /** @var list<DineOrderItem> $dineItems */
         $dineItems = $transaction->dineOrder?->items->all() ?? [];
 
         // All or nothing: a failure midway must not leave some lines recorded, or the once-only guard above would skip the rest forever.
-        DB::transaction(function () use ($transaction, $dineItems) {
+        DB::transaction(function () use ($transaction, $dineItems, $stations, $defaultStationId) {
             foreach ($transaction->details as $detail) {
                 // The flag is read now: a later product edit must not change items already in the kitchen.
                 if (! $detail->product?->needs_preparation) {
@@ -71,6 +75,7 @@ class KitchenIntakeService
                     'transaction_id' => $transaction->id,
                     'product_id' => $detail->product_id,
                     'warehouse_id' => $transaction->warehouse_id,
+                    'kitchen_station_id' => $stations->contains('id', $detail->product->kitchen_station_id) ? $detail->product->kitchen_station_id : $defaultStationId,
                     'qty' => $detail->qty,
                     'note' => $note,
                     'status' => KitchenItem::STATUS_ACCEPTED,

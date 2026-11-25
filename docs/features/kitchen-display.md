@@ -58,3 +58,15 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 - `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Services/KitchenItemService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
 - `resources/js/Pages/Dashboard/Kitchen/Index.jsx`
 - E2E: `tests/e2e/features/32-kitchen-display/`
+
+## Kitchen stations
+
+A kitchen station is a named place in the kitchen (Dapur, Bar, Panggang). Each product that needs preparation goes to one station; the kitchen display does not filter by station yet (REQ-006 S2).
+
+- Page: Settings → "Stasiun dapur" (`/dashboard/settings/kitchen-stations`), permission `products-edit` (403 and no menu entry without it). Stations are shop-wide, not per outlet.
+- **Dapur** is the default station, created by the migration. It can be renamed but not deleted ("Bawaan" badge, no delete button; the server answers 422). Names are unique, ignoring case; a duplicate is refused under the field.
+- Product form: once "Perlu dibuat di dapur" is ticked, a "Stasiun dapur" select appears with Dapur preselected. Dapur is stored as no station (`products.kitchen_station_id = null`), so a product nobody mapped and a product on Dapur read the same. Unticking the flag clears the station.
+- At intake (`KitchenIntakeService`) each kitchen item copies its product's station into `kitchen_items.kitchen_station_id`; a product with no station, or whose station was deleted, gives Dapur. Moving the product later does not change items already in the kitchen.
+- Deleting a station is a soft delete in one transaction: its products go back to Dapur, its kitchen items are untouched and still show its name (`KitchenItem::kitchenStation()` uses `withTrashed()`). A deleted station's name can be used again.
+- Audit log events (module `kitchen_stations`): `kitchen_station.created`, `.updated`, `.deleted` (with the number of products moved).
+- Files: `app/Http/Controllers/Apps/KitchenStationController.php`, `app/Services/KitchenStationService.php`, `app/Models/KitchenStation.php`, `resources/js/Pages/Dashboard/Settings/KitchenStations.jsx`. E2E: `tests/e2e/features/34-kitchen-stations/`.
