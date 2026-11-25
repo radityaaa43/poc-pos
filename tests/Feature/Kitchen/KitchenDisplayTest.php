@@ -94,6 +94,21 @@ class KitchenDisplayTest extends TestCase
             );
     }
 
+    public function test_a_sale_from_the_outlets_second_warehouse_is_shown(): void
+    {
+        $second = Warehouse::create([
+            'outlet_id' => $this->outlet->id, 'code' => 'WH-A2', 'name' => 'Gudang A2', 'type' => 'branch', 'is_active' => true, 'sort_order' => 9,
+        ]);
+        $sale = $this->sale('INV-SECOND', warehouse: $second);
+        $this->kitchenItem($sale, warehouse: $second);
+
+        $this->actingAs($this->cook)->get(route('kitchen.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('orders', 1)
+                ->where('orders.0.id', $sale->id)
+            );
+    }
+
     public function test_user_without_an_outlet_gets_an_empty_queue(): void
     {
         $loner = $this->userWith('dine-orders-prepare');

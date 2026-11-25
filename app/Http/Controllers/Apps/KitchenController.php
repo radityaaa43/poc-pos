@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\KitchenItem;
+use App\Models\Warehouse;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -15,12 +16,11 @@ class KitchenController extends Controller
     public function index(Request $request)
     {
         $outlet = $this->outletAccessService->activeOutlet($request);
-        $warehouseId = $this->outletAccessService->outletWarehouseId($outlet);
-
         // Open items of the current outlet, oldest first. Release rows from the #236 backfill have no accepted_at.
-        $items = $warehouseId
+        // Every warehouse of the outlet: a shift may sell from any of them, not only the first one.
+        $items = $outlet
             ? KitchenItem::open()
-                ->where('warehouse_id', $warehouseId)
+                ->whereIn('warehouse_id', Warehouse::where('outlet_id', $outlet->id)->select('id'))
                 ->with([
                     'transaction:id,invoice,order_type,payment_status,created_at',
                     'transaction.dineOrder:id,transaction_id,dine_table_id',
