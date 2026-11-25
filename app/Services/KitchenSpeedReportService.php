@@ -36,7 +36,7 @@ class KitchenSpeedReportService
 
         $rows = $items->groupBy('product_id')
             ->map(fn (Collection $group, int $productId) => $this->row($products[$productId], $group))
-            ->sortBy('title')
+            ->sortBy('title', SORT_NATURAL | SORT_FLAG_CASE)
             ->values()
             ->all();
         $orders = $this->orders($items->where('status', KitchenItem::STATUS_SERVED)->pluck('transaction_id')->unique());
@@ -77,9 +77,11 @@ class KitchenSpeedReportService
      */
     private function orders(Collection $transactionIds): array
     {
-        $durations = KitchenItem::whereIn('transaction_id', $transactionIds)
-            ->where('status', '!=', 'cancelled')
-            ->get(['transaction_id', 'status', 'accepted_at', 'served_at'])
+        // Chunked: a long period can hold more orders than a prepared statement has placeholders (65,535 on MySQL).
+        $durations = $transactionIds->unique()->chunk(5000)
+            ->flatMap(fn (Collection $ids) => KitchenItem::whereIn('transaction_id', $ids)
+                ->where('status', '!=', 'cancelled')
+                ->get(['transaction_id', 'status', 'accepted_at', 'served_at']))
             ->groupBy('transaction_id')
             ->filter(fn (Collection $order) => $order->every(fn ($item) => $item->status === KitchenItem::STATUS_SERVED))
             ->map(function (Collection $order) {

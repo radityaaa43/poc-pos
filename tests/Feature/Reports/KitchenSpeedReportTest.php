@@ -249,6 +249,14 @@ class KitchenSpeedReportTest extends TestCase
             ->assertJsonValidationErrors('outlet_id');
     }
 
+    public function test_an_end_date_before_the_start_is_rejected(): void
+    {
+        $this->actingAs($this->user)
+            ->getJson(route('reports.kitchen-speed.index', ['start_date' => '2025-04-20', 'end_date' => '2025-04-10']))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('end_date');
+    }
+
     /** The report as the page receives it. */
     private function page(array $query = []): array
     {

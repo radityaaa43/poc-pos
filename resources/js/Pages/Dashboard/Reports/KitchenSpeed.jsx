@@ -14,7 +14,7 @@ const tdClass = "px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-400
 
 const columns = ["orders", "portions", "makeMedian", "makeAvg", "waitMakeMedian", "waitMakeAvg", "target", "withinTarget"];
 
-const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty }) => {
+const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors = {} }) => {
     const { t, i18n } = useTranslation();
     const [filterData, setFilterData] = useState({
         outlet_id: String(filters?.outlet_id ?? ""),
@@ -71,12 +71,15 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty }) => {
                             label={t("reports.kitchenSpeed.startDate")}
                             value={filterData.start_date}
                             onChange={handleChange("start_date")}
+                            errors={errors.start_date}
                         />
                         <Input
                             type="date"
                             label={t("reports.kitchenSpeed.endDate")}
                             value={filterData.end_date}
+                            min={filterData.start_date || undefined}
                             onChange={handleChange("end_date")}
+                            errors={errors.end_date}
                         />
                         <button
                             type="submit"

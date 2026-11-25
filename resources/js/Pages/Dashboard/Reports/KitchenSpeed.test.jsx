@@ -126,6 +126,15 @@ describe("Kitchen speed report page", () => {
         expect(screen.queryByLabelText("Outlet")).not.toBeInTheDocument();
     });
 
+    it("shows a date validation error next to its field and keeps the end date from before the start", () => {
+        render(<KitchenSpeed {...props({ errors: { end_date: "The end date must be a date after or equal to start date." } })} />);
+
+        const end = screen.getByLabelText("Tanggal Akhir");
+        expect(end).toHaveAttribute("aria-invalid", "true");
+        expect(screen.getByText("The end date must be a date after or equal to start date.")).toBeInTheDocument();
+        expect(end).toHaveAttribute("min", "2026-11-01");
+    });
+
     it("sends the chosen outlet and dates as the query", async () => {
         render(<KitchenSpeed {...props()} />);
 

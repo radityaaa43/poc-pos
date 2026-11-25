@@ -15,7 +15,7 @@ test.describe('kitchen speed report: payment to handover', () => {
         await page.getByLabel('Tanggal Akhir').fill(item.date);
         await page.getByRole('button', { name: 'Terapkan' }).click();
 
-        // Three served orders (6, 8 and 4 minutes after their own payment); the cancelled and the not collected
+        // Three served orders (6, 10 and 5 minutes after their own payment); the cancelled and the not collected
         // order are not counted.
         const card = page.getByRole('region', { name: 'Waktu bayar sampai diserahkan' });
         await expect(card).toContainText('7,0 mnt');
