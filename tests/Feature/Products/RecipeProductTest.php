@@ -175,7 +175,7 @@ class RecipeProductTest extends TestCase
         $this->actingAs($this->cashier)
             ->from(route('transactions.index'))
             ->post(route('transactions.addToCart'), ['product_id' => $bean->id, 'qty' => 1])
-            ->assertSessionHas('error');
+            ->assertSessionHasErrors('message');
 
         $this->assertSame(0, Cart::count());
     }

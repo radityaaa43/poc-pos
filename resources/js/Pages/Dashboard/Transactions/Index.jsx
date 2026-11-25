@@ -387,8 +387,8 @@ export default function Index({
                     toast.success(`${product.title}${unit ? ` (${unit.code})` : ""} ditambahkan`);
                     setAddingProductId(null);
                 },
-                onError: () => {
-                    toast.error("Gagal menambahkan produk");
+                onError: (errors) => {
+                    toast.error(errors?.message || "Gagal menambahkan produk");
                     setAddingProductId(null);
                 },
             }

@@ -267,13 +267,14 @@ class TransactionController extends Controller
         $warehouseId = $activeShift?->warehouse_id;
 
         $product = Product::whereId($validated['product_id'])->first();
+        $inCart = Cart::baseQtyInCart(auth()->id(), (int) $validated['product_id']);
 
         if (! $product) {
-            return redirect()->back()->with('error', 'Product not found.');
+            return back()->withErrors(['message' => 'Product not found.']);
         }
 
         if ($product->is_raw_material) {
-            return redirect()->back()->with('error', 'Bahan baku tidak dapat dijual.');
+            return back()->withErrors(['message' => 'Bahan baku tidak dapat dijual.']);
         }
 
         // ponytail: composite branch skips unit logic; null unit_id is fine for composite carts
@@ -283,11 +284,11 @@ class TransactionController extends Controller
         if ($product->is_composite) {
             $product->load('components');
             foreach ($product->components as $component) {
-                $needed = (float) $component->pivot->qty * $validated['qty'];
+                $needed = (float) $component->pivot->qty * ($validated['qty'] + $inCart);
                 $whProduct = $component->warehouses()->where('warehouse_id', $warehouseId)->first();
                 $avail = $whProduct?->pivot->stock ?? 0;
                 if ($avail < $needed) {
-                    return redirect()->back()->with('error', "Stok {$component->title} tidak mencukupi.");
+                    return back()->withErrors(['message' => "Stok {$component->title} tidak mencukupi."]);
                 }
             }
             $sellPrice = $product->compositeSellPrice();
@@ -296,7 +297,7 @@ class TransactionController extends Controller
 
             // Reject an explicitly provided unit that does not belong to this product
             if (! empty($validated['unit_id'] ?? null) && ! $product->units()->whereKey($unitId)->exists()) {
-                return redirect()->back()->with('error', 'Satuan tidak valid untuk produk ini.');
+                return back()->withErrors(['message' => 'Satuan tidak valid untuk produk ini.']);
             }
 
             $unitConversion = app(UnitConversionService::class);
@@ -306,8 +307,8 @@ class TransactionController extends Controller
                 ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
                 : (int) $product->stock;
 
-            if ($availableStock < $baseQty) {
-                return redirect()->back()->with('error', 'Stok tidak mencukupi.');
+            if ($availableStock < $baseQty + $inCart) {
+                return back()->withErrors(['message' => 'Stok tidak mencukupi. Tersedia: '.$availableStock]);
             }
 
             $sellPrice = $unitConversion->getSellPrice($product, $unitId);
@@ -390,19 +391,13 @@ class TransactionController extends Controller
             ->first();
 
         if (! $cart) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Cart item not found',
-            ], 404);
+            return back()->withErrors(['message' => 'Cart item not found']);
         }
 
         $product = $cart->product;
 
         if (! $product) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Produk tidak ditemukan',
-            ], 404);
+            return back()->withErrors(['message' => 'Produk tidak ditemukan']);
         }
 
         if ($product->is_composite) {
@@ -417,11 +412,10 @@ class TransactionController extends Controller
 
         $availableStock = $product->stockIn($warehouseId);
 
-        if ($availableStock < $baseQty) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Stok tidak mencukupi. Tersedia: '.$availableStock,
-            ], 422);
+        $otherRows = Cart::baseQtyInCart(auth()->id(), $cart->product_id, $cart->id);
+
+        if ($availableStock < $baseQty + $otherRows) {
+            return back()->withErrors(['message' => 'Stok tidak mencukupi. Tersedia: '.$availableStock]);
         }
 
         // Update quantity and price (derive price from DB, not from request/global sell_price)
