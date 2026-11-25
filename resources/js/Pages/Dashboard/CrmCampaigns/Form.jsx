@@ -3,9 +3,15 @@ import { Head, useForm } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
 import { IconArrowLeft, IconBroadcast, IconDeviceFloppy } from "@tabler/icons-react";
 
+function InputError({ message }) {
+    if (!message) return null;
+
+    return <p className="mt-1 text-xs text-rose-500">{message}</p>;
+}
+
 export default function Form({ mode = "create", campaign = null, audienceOptions }) {
     const isEdit = mode === "edit";
-    const { data, setData, post, put, processing } = useForm({
+    const { data, setData, post, put, processing, errors } = useForm({
         name: campaign?.name ?? "",
         type: campaign?.type ?? "promo_broadcast",
         channel: campaign?.channel ?? "whatsapp_link",
@@ -74,6 +80,7 @@ export default function Form({ mode = "create", campaign = null, audienceOptions
                                     onChange={(event) => setData("name", event.target.value)}
                                     className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                                 />
+                                <InputError message={errors.name} />
                             </div>
                             <div>
                                 <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Tipe Campaign</label>
@@ -183,6 +190,7 @@ export default function Form({ mode = "create", campaign = null, audienceOptions
                             onChange={(event) => setData("message_template", event.target.value)}
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         />
+                        <InputError message={errors.message_template} />
                     </div>
 
                     <div className="flex flex-col gap-3 border-t border-slate-200 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
