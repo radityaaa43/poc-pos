@@ -341,3 +341,115 @@ describe("useKitchenPrintStation: settings", () => {
         expect(axios.post).not.toHaveBeenCalled();
     });
 });
+
+// A stand-in for navigator.locks: exclusive per name, waiters in order, an abort rejects a waiting request.
+const fakeLocks = () => {
+    const state = { held: false, queue: [] };
+    const next = () => {
+        if (state.held || state.queue.length === 0) return;
+        const entry = state.queue.shift();
+        state.held = true;
+        Promise.resolve(entry.callback())
+            .then(entry.resolve, entry.reject)
+            .finally(() => {
+                state.held = false;
+                next();
+            });
+    };
+    const request = vi.fn(
+        (name, options, callback) =>
+            new Promise((resolve, reject) => {
+                const entry = { callback, resolve, reject };
+                options.signal?.addEventListener("abort", () => {
+                    const at = state.queue.indexOf(entry);
+                    if (at < 0) return;
+                    state.queue.splice(at, 1);
+                    reject(new DOMException("aborted", "AbortError"));
+                });
+                state.queue.push(entry);
+                next();
+            })
+    );
+
+    return { state, request };
+};
+
+describe("useKitchenPrintStation: one tab prints per device", () => {
+    let locks;
+
+    beforeEach(() => {
+        locks = fakeLocks();
+        Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+        setStorage();
+    });
+
+    afterEach(() => {
+        delete navigator.locks;
+    });
+
+    it("a tab without the lock never polls or prints, and says another tab prints", async () => {
+        locks.request("kitchen-print", {}, () => new Promise(() => {})); // another tab is the leader
+        const { result } = mount();
+        await advance(15000);
+
+        expect(result.current.otherTab).toBe(true);
+        expect(axios.get).not.toHaveBeenCalled();
+        expect(printBytes).not.toHaveBeenCalled();
+    });
+
+    it("starts the loop when the lock is granted", async () => {
+        const { result } = mount();
+        await flush();
+
+        expect(locks.request).toHaveBeenCalledWith("kitchen-print", expect.objectContaining({ signal: expect.anything() }), expect.any(Function));
+        expect(result.current.otherTab).toBe(false);
+        expect(printBytes).toHaveBeenCalledTimes(1);
+    });
+
+    it("unmount releases the lock, and a waiting tab's cleanup aborts its request", async () => {
+        const leader = mount();
+        await flush();
+        const waiting = mount();
+        await flush();
+        expect(waiting.result.current.otherTab).toBe(true);
+        expect(locks.state.queue).toHaveLength(1);
+
+        waiting.unmount();
+        expect(locks.state.queue).toHaveLength(0);
+        expect(locks.state.held).toBe(true); // the leader still holds it
+
+        leader.unmount();
+        await flush();
+        expect(locks.state.held).toBe(false);
+    });
+
+    it("turning auto-print off releases the lock", async () => {
+        const { result } = mount();
+        await flush();
+        expect(locks.state.held).toBe(true);
+
+        act(() => result.current.setAutoPrint(false));
+        await flush();
+        expect(locks.state.held).toBe(false);
+    });
+
+    it("two tabs share one lock: a ticket prints once, and the other tab takes over when the leader closes", async () => {
+        axios.post.mockImplementation(async () => {
+            tickets = []; // the server stops offering a ticket once it is confirmed
+            return { status: 204 };
+        });
+        const first = mount();
+        await flush();
+        const second = mount();
+        await advance(10000);
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        expect(second.result.current.otherTab).toBe(true);
+
+        first.unmount();
+        tickets = [ticket(2, [21])];
+        await advance(5000);
+        expect(second.result.current.otherTab).toBe(false);
+        expect(printBytes).toHaveBeenCalledTimes(2);
+    });
+});

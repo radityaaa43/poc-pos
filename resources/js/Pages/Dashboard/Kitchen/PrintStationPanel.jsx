@@ -16,7 +16,7 @@ const LABEL = "mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-3
 // from the page, so the panel and the background printing share one state.
 export default function PrintStationPanel({ printStation }) {
     const { t } = useTranslation();
-    const { station, printerKey, paper, autoPrint, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint } =
+    const { station, printerKey, paper, autoPrint, otherTab, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint } =
         printStation;
     const [name, setName] = useState(station?.name ?? "");
     const [nameError, setNameError] = useState(null);
@@ -89,7 +89,7 @@ export default function PrintStationPanel({ printStation }) {
                     </button>
                 </div>
                 {nameError && (
-                    <p id="kitchen-station-name-error" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
+                    <p id="kitchen-station-name-error" role="alert" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
                         {nameError}
                     </p>
                 )}
@@ -153,7 +153,7 @@ export default function PrintStationPanel({ printStation }) {
             </button>
 
             <p role="status" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                {ready ? t("kitchen.print.ready") : t("kitchen.print.notConnected")}
+                {otherTab ? t("kitchen.print.otherTab") : ready ? t("kitchen.print.ready") : t("kitchen.print.notConnected")}
             </p>
         </section>
     );

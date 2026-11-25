@@ -75,7 +75,19 @@ describe("PrintStationPanel", () => {
         expect(await screen.findByText("Nama stasiun sudah dipakai di outlet ini")).toBeInTheDocument();
         expect(field).toHaveAccessibleDescription("Nama stasiun sudah dipakai di outlet ini");
         expect(field).toBeInvalid();
+        expect(screen.getByRole("alert")).toHaveTextContent("Nama stasiun sudah dipakai di outlet ini");
         expect(localStorage.getItem("kitchen.station")).toBeNull();
+    });
+
+    it("says another tab prints when this tab does not hold the print lock", async () => {
+        withStation();
+        localStorage.setItem("kitchen.autoPrint", "true");
+        Object.defineProperty(navigator, "locks", { value: { request: vi.fn(() => new Promise(() => {})) }, configurable: true });
+
+        render(<Harness />);
+
+        expect(await screen.findByText("Tiket dicetak dari tab lain di perangkat ini")).toBeInTheDocument();
+        delete navigator.locks;
     });
 
     it("does not offer to save an empty name", async () => {

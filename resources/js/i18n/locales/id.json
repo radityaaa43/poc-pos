@@ -1088,6 +1088,7 @@
             "auto": "Cetak otomatis",
             "ready": "Printer siap",
             "notConnected": "Printer belum terhubung",
+            "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
             "unpaid": "BELUM LUNAS"
         }
     },

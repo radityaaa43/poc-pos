@@ -12,6 +12,7 @@ const PAPER = "kitchen.paper";
 const AUTO_PRINT = "kitchen.autoPrint";
 // Item ids printed but not yet confirmed to the server (print first, record after).
 const UNCONFIRMED = "kitchen.unconfirmed";
+const PRINT_LOCK = "kitchen-print";
 
 const readJson = (key, fallback) => {
     try {
@@ -86,8 +87,35 @@ export function useKitchenPrintStation(outlet) {
     const active = Boolean(outlet) && Boolean(station) && autoPrint;
     const stationId = station?.id;
 
+    // Two tabs of one device each keep their own queue and would print a ticket twice (AC-05), so only the tab
+    // holding this lock prints. A waiting tab takes over when the leader closes. Without the Web Locks API
+    // (never with WebUSB in practice) every tab prints, as before.
+    const hasLocks = typeof navigator !== "undefined" && Boolean(navigator.locks);
+    const [leader, setLeader] = useState(!hasLocks);
     useEffect(() => {
-        if (!active) return undefined;
+        if (!active || !hasLocks) return undefined;
+        const abort = new AbortController();
+        let release;
+        navigator.locks
+            .request(PRINT_LOCK, { signal: abort.signal }, () => {
+                setLeader(true);
+                return new Promise((resolve) => {
+                    release = resolve;
+                });
+            })
+            .catch(() => {}); // aborted while waiting
+        return () => {
+            abort.abort();
+            release?.();
+            setLeader(false);
+        };
+    }, [active, hasLocks]);
+
+    const printing = active && leader;
+    const otherTab = active && !leader;
+
+    useEffect(() => {
+        if (!printing) return undefined;
         let halted = false;
         // Items of tickets that are queued (or printing) and not yet in kitchen.unconfirmed.
         const queued = new Set();
@@ -128,7 +156,7 @@ export function useKitchenPrintStation(outlet) {
             clearInterval(timer);
             window.removeEventListener("online", tick);
         };
-    }, [active, stationId]);
+    }, [printing, stationId]);
 
-    return { station, printerKey, paper, autoPrint, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint };
+    return { station, printerKey, paper, autoPrint, otherTab, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint };
 }
