@@ -61,17 +61,19 @@ class PublicPortalPaymentTest extends TestCase
             'invoice' => 'INV-PORTAL-PAY',
             'due_date' => now()->addDays(3),
             'total' => 25000,
-            'paid' => 0,
+            'paid' => 10000,
             'status' => 'partial',
         ]);
 
+        // #126: the charge is the remaining balance (25000 - 10000), not the invoice total.
         $gateway = $this->mock(PaymentGatewayManager::class);
         $gateway->shouldReceive('createPayment')
             ->once()
-            ->withArgs(function ($actualTransaction, $gatewayName, $setting) use ($transaction, $outletA) {
+            ->withArgs(function ($actualTransaction, $gatewayName, $setting, $amount) use ($transaction, $outletA) {
                 return $actualTransaction->is($transaction)
                     && $gatewayName === 'midtrans'
-                    && $setting->outlet_id === $outletA->id;
+                    && $setting->outlet_id === $outletA->id
+                    && $amount === 15000;
             })
             ->andReturn(['payment_url' => 'https://payments.test/portal']);
 
@@ -113,5 +115,39 @@ class PublicPortalPaymentTest extends TestCase
 
         $this->get($page)->assertInertia(fn ($inertia) => $inertia
             ->where('error', 'Gateway pembayaran belum dikonfigurasi.'));
+    }
+
+    // #126: nothing is charged once the receivable has no balance left.
+    public function test_a_settled_receivable_is_not_charged(): void
+    {
+        PaymentSetting::create([
+            'default_gateway' => 'midtrans',
+            'midtrans_enabled' => true,
+            'midtrans_server_key' => 'server-key',
+            'midtrans_client_key' => 'client-key',
+        ]);
+        $transaction = Transaction::create([
+            'cashier_id' => User::factory()->create()->id,
+            'invoice' => 'INV-PORTAL-SETTLED',
+            'cash' => 0,
+            'change' => 0,
+            'discount' => 0,
+            'grand_total' => 25000,
+            'total' => 25000,
+            'payment_method' => 'pay_later',
+            'payment_status' => 'unpaid',
+        ]);
+        $receivable = Receivable::create([
+            'transaction_id' => $transaction->id,
+            'invoice' => 'INV-PORTAL-SETTLED',
+            'due_date' => now()->addDays(3),
+            'total' => 25000,
+            'paid' => 25000,
+            'status' => 'paid',
+        ]);
+        $this->mock(PaymentGatewayManager::class)->shouldNotReceive('createPayment');
+
+        $this->post(route('portal.receivable.pay', ['receivable' => $receivable, 'token' => $transaction->access_token]))
+            ->assertSessionHas('error', 'Piutang ini sudah lunas.');
     }
 }
