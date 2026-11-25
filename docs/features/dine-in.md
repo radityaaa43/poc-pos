@@ -85,7 +85,7 @@ Header pesanan pelanggan.
 | `transaction_id` | foreignId | Transaksi terkait (nullable) |
 | `subtotal` | integer | Total pesanan |
 | `item_count` | integer | Jumlah item |
-| `preparing_at`, `ready_at`, `served_at` | timestamp | Jejak audit kapan tiap langkah diambil (nullable). Yang menentukan tahap adalah `status` |
+| `accepted_at`/`accepted_by`, `preparing_at`/`preparing_by`, `ready_at`/`ready_by`, `served_at`/`served_by`, `completed_at` | timestamp / foreignId | Kapan dan siapa (user, nullable, `nullOnDelete`) untuk tiap langkah, diisi dalam transaksi DB yang sama dengan perubahan status dan tidak ditimpa oleh pengulangan. Bahan analisis kecepatan dapur per menu (laporannya issue terpisah). Yang menentukan tahap adalah `status` |
 
 ### Tabel: `dine_order_items`
 Item-item dalam pesanan.

@@ -294,6 +294,36 @@ class DineOrderPaymentTest extends TestCase
         $this->assertNotNull($order->fresh()->served_at);
     }
 
+    public function test_a_full_run_records_when_and_who_for_every_step_and_a_repeat_does_not_overwrite_it(): void
+    {
+        $order = $this->acceptedOrder(); // accepted by the cashier
+        $kitchen = User::factory()->create();
+        $kitchen->assignRole(Role::create(['name' => 'kitchen'])->givePermissionTo('dine-orders-access', 'dine-orders-prepare'));
+
+        $this->actingAs($kitchen)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->actingAs($kitchen)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+        $this->assertNull($order->fresh()->completed_at); // not paid yet
+
+        // another user repeating a step changes nothing
+        $this->actingAs($this->admin)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
+
+        $order->refresh();
+        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->status);
+        foreach (['accepted_at', 'preparing_at', 'ready_at', 'served_at', 'completed_at'] as $column) {
+            $this->assertNotNull($order->{$column}, $column);
+        }
+        $this->assertSame(
+            [$this->cashier->id, $kitchen->id, $kitchen->id, $this->admin->id],
+            [$order->accepted_by, $order->preparing_by, $order->ready_by, $order->served_by],
+        );
+        $this->assertTrue($order->accepted_at <= $order->preparing_at && $order->preparing_at <= $order->ready_at
+            && $order->ready_at <= $order->served_at && $order->served_at <= $order->completed_at);
+    }
+
     public function test_a_rejected_order_cannot_be_prepared(): void
     {
         $this->acceptedOrder();

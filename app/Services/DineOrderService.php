@@ -209,6 +209,8 @@ class DineOrderService
 
             $order->update([
                 'status' => DineOrder::STATUS_ACCEPTED,
+                'accepted_at' => now(),
+                'accepted_by' => $userId,
                 'transaction_id' => $transaction->id,
                 'cashier_id' => $userId,
             ]);
@@ -301,28 +303,28 @@ class DineOrderService
     /** Kitchen starts making an accepted order. */
     public function startPreparing(DineOrder $order): void
     {
-        $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing_at');
+        $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing');
     }
 
     /** Kitchen marks a preparing order ready. */
     public function markReady(DineOrder $order): void
     {
-        $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready_at');
+        $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready');
     }
 
     /** Someone verifies a ready order was handed to the customer. Completes it at once if it is already paid. */
     public function serve(DineOrder $order): void
     {
-        $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served_at');
+        $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served');
     }
 
     /** One fulfillment step: valid only from the previous status; repeating a step already taken is a no-op. */
-    private function advance(DineOrder $order, string $from, string $to, string $timestamp): void
+    private function advance(DineOrder $order, string $from, string $to, string $step): void
     {
-        DB::transaction(function () use ($order, $from, $to, $timestamp) {
+        DB::transaction(function () use ($order, $from, $to, $step) {
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
-            if ($order->{$timestamp}) {
+            if ($order->{"{$step}_at"}) {
                 return;
             }
 
@@ -332,7 +334,8 @@ class DineOrderService
                 ]);
             }
 
-            $order->update(['status' => $to, $timestamp => now()]);
+            // when and who, in the same transaction as the status change, so kitchen speed can be analysed later
+            $order->update(['status' => $to, "{$step}_at" => now(), "{$step}_by" => auth()->id()]);
             $order->completeIfSettled();
         });
     }

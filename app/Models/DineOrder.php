@@ -49,9 +49,15 @@ class DineOrder extends Model
         'subtotal',
         'item_count',
         'submitted_at',
+        'accepted_at',
+        'accepted_by',
         'preparing_at',
+        'preparing_by',
         'ready_at',
+        'ready_by',
         'served_at',
+        'served_by',
+        'completed_at',
     ];
 
     protected function casts(): array
@@ -60,9 +66,11 @@ class DineOrder extends Model
             'subtotal' => 'integer',
             'item_count' => 'integer',
             'submitted_at' => 'datetime',
+            'accepted_at' => 'datetime',
             'preparing_at' => 'datetime',
             'ready_at' => 'datetime',
             'served_at' => 'datetime',
+            'completed_at' => 'datetime',
         ];
     }
 
@@ -119,7 +127,7 @@ class DineOrder extends Model
     public function completeIfSettled(): void
     {
         if ($this->status === self::STATUS_SERVED && $this->transaction?->payment_status === 'paid') {
-            $this->update(['status' => self::STATUS_COMPLETED]);
+            $this->update(['status' => self::STATUS_COMPLETED, 'completed_at' => now()]);
         }
     }
 }
