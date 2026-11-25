@@ -1074,6 +1074,21 @@
             "accepted": "Accepted",
             "preparing": "Preparing",
             "ready": "Ready"
+        },
+        "print": {
+            "open": "Kitchen printer settings",
+            "stationName": "Station name",
+            "stationPlaceholder": "Kitchen 1",
+            "save": "Save",
+            "nameTaken": "This station name is already used in this outlet",
+            "connect": "Connect printer",
+            "disconnect": "Disconnect",
+            "paper": "Paper size (58 mm / 80 mm)",
+            "test": "Test print",
+            "auto": "Auto-print",
+            "ready": "Printer ready",
+            "notConnected": "Printer not connected",
+            "unpaid": "UNPAID"
         }
     },
     "pos": {
