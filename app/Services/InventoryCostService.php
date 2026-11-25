@@ -4,20 +4,37 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\ProductWarehouse;
+use App\Models\Warehouse;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * Weighted-average cost per warehouse (REQ-002 §6.5). Rupiah per stock unit, kept in
- * product_warehouse.avg_cost; products.buy_price is the reference price and the fallback.
+ * product_warehouse.avg_cost. A product costs: the selling warehouse's average, else the central
+ * warehouse's average (raw materials are bought by central or by the outlet), else the reference
+ * price products.buy_price.
  */
 class InventoryCostService
 {
     public function unitCost(Product $product, ?int $warehouseId): float
     {
-        $avg = $warehouseId
-            ? ProductWarehouse::where(['product_id' => $product->id, 'warehouse_id' => $warehouseId])->value('avg_cost')
-            : null;
+        return $this->unitCosts(new Collection([$product]), $warehouseId)[$product->id];
+    }
 
-        return (float) ($avg ?? $product->buy_price);
+    /**
+     * unitCost() for many products in two queries.
+     *
+     * @return array<int, float> product id => rupiah per stock unit
+     */
+    public function unitCosts(Collection $products, ?int $warehouseId): array
+    {
+        $averages = fn (?int $id) => $id
+            ? ProductWarehouse::where('warehouse_id', $id)->whereIn('product_id', $products->modelKeys())
+                ->whereNotNull('avg_cost')->pluck('avg_cost', 'product_id')
+            : collect();
+        $own = $averages($warehouseId);
+        $central = $warehouseId ? $averages($this->centralWarehouseId()) : collect();
+
+        return $products->mapWithKeys(fn (Product $p) => [$p->id => (float) ($own[$p->id] ?? $central[$p->id] ?? $p->buy_price)])->all();
     }
 
     /**
@@ -27,12 +44,20 @@ class InventoryCostService
     public function lineCost(Product $product, ?int $warehouseId, float $qty, float $factor = 1.0): int
     {
         if ($product->is_composite) {
+            $costs = $this->unitCosts($product->components, $warehouseId);
+
             return (int) round($product->components->sum(
-                fn ($component) => $this->unitCost($component, $warehouseId) * (float) $component->pivot->qty
+                fn ($component) => $costs[$component->id] * (float) $component->pivot->qty
             ) * $qty);
         }
 
         return (int) round($this->unitCost($product, $warehouseId) * $qty * $factor);
+    }
+
+    /** The warehouse of an outlet that does not sell (ReorderService::isCentral); the lowest sort_order, then id, when several. */
+    private function centralWarehouseId(): ?int
+    {
+        return Warehouse::central()->orderBy('sort_order')->orderBy('id')->value('id');
     }
 
     /**

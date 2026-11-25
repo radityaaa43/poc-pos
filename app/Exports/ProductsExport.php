@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Models\Product;
+use App\Services\InventoryCostService;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -10,9 +11,12 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 
 class ProductsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithMapping
 {
+    /** @param  ?int  $warehouseId  Warehouse whose averages cost the recipes (the active outlet's). */
+    public function __construct(private readonly ?int $warehouseId = null) {}
+
     public function collection()
     {
-        return Product::with('category')->orderBy('title')->get();
+        return Product::with('category', 'components')->orderBy('title')->get();
     }
 
     public function headings(): array
@@ -27,7 +31,10 @@ class ProductsExport implements FromCollection, ShouldAutoSize, WithHeadings, Wi
             $product->sku,
             $product->title,
             $product->category?->name ?? '',
-            (int) $product->buy_price,
+            // A recipe has no buy price: export its cost per portion instead.
+            $product->is_composite
+                ? app(InventoryCostService::class)->lineCost($product, $this->warehouseId, 1)
+                : (int) $product->buy_price,
             (int) $product->sell_price,
             (int) $product->stock,
             (int) ($product->min_stock ?? 0),

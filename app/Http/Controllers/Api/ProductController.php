@@ -30,6 +30,7 @@ class ProductController extends Controller
         $products = Product::query()
             ->with([
                 'category',
+                'components',
                 'warehouses' => fn ($query) => $query->whereIn('warehouses.id', $warehouseIds),
             ])
             ->when($request->string('search')->toString(), function ($q, $search) {
@@ -116,6 +117,7 @@ class ProductController extends Controller
         $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
         $product->load([
             'category',
+            'components',
             'warehouses' => fn ($query) => $query->whereIn('warehouses.id', $warehouseIds),
         ]);
 

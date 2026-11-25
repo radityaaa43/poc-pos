@@ -170,14 +170,14 @@ function ProductCard({
                     {/* Buy Price - Subtle */}
                     <div className="flex items-center justify-between mt-1">
                         <p className="text-xs text-slate-400 dark:text-slate-500">
-                            Modal: {formatCurrency(product.buy_price)}
+                            Modal: {formatCurrency(product.cost)}
                         </p>
                         {/* Profit Indicator */}
-                        {product.sell_price > product.buy_price && (
+                        {product.sell_price > product.cost && (
                             <span className="text-xs font-medium text-success-600 dark:text-success-400">
                                 +
                                 {formatCurrency(
-                                    product.sell_price - product.buy_price
+                                    product.sell_price - product.cost
                                 )}
                             </span>
                         )}
@@ -463,7 +463,7 @@ export default function Index({ products }) {
                                             </span>
                                         </Table.Td>
                                         <Table.Td>
-                                            {formatCurrency(product.buy_price)}
+                                            {formatCurrency(product.cost)}
                                         </Table.Td>
                                         <Table.Td className="font-semibold text-primary-600 dark:text-primary-400">
                                             {formatCurrency(product.sell_price)}

@@ -2,6 +2,8 @@
 
 namespace App\Http\Resources;
 
+use App\Services\InventoryCostService;
+use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -22,7 +24,10 @@ class ProductResource extends JsonResource
                 'id' => $this->category->id,
                 'name' => $this->category->name,
             ]),
-            'buy_price' => (float) $this->buy_price,
+            // A recipe has no buy price of its own: report its cost per portion in the active outlet.
+            'buy_price' => $this->is_composite
+                ? (float) app(InventoryCostService::class)->lineCost($this->resource, app(OutletAccessService::class)->costWarehouseId($request), 1)
+                : (float) $this->buy_price,
             'sell_price' => (float) $this->sell_price,
             'stock' => (int) $this->stock,
             'min_stock' => (int) $this->min_stock,

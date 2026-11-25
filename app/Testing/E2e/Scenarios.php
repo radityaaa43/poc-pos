@@ -66,6 +66,41 @@ class Scenarios
 
                 return ['product_id' => $product->id, 'title' => $product->title, 'barcode' => $product->barcode];
             },
+
+            // Creates a recipe --arg=title=<text> of 2 x a component averaging 300 + 3 x one averaging 250 in the E2E
+            // warehouse. Every buy price is 5000 or 6200 on purpose: only the averages can give the returned cost.
+            'recipe' => function (array $options): array {
+                $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
+                $category = Category::where('name', 'E2E Kategori')->firstOrFail();
+
+                $recipe = DB::transaction(function () use ($options, $warehouse, $category) {
+                    $make = fn (string $title, array $attributes) => Product::create($attributes + [
+                        'category_id' => $category->id,
+                        'barcode' => 'E2E-'.Str::upper(Str::random(10)),
+                        'title' => $title,
+                        'sell_price' => 10000,
+                        'tax_type' => 'exclusive',
+                        'tax_rate' => 0,
+                        'stock' => 0,
+                    ]);
+                    $component = function (string $title, int $avg) use ($make, $warehouse) {
+                        $product = $make($title.' '.Str::upper(Str::random(4)), ['buy_price' => 5000, 'stock' => 100, 'is_raw_material' => true]);
+                        $warehouse->products()->attach($product->id, ['stock' => 100, 'avg_cost' => $avg]);
+
+                        return $product;
+                    };
+
+                    $recipe = $make($options['title'] ?? 'Resep E2E '.Str::upper(Str::random(5)), ['buy_price' => 6200, 'sell_price' => 20000, 'is_composite' => true]);
+                    $recipe->components()->attach([
+                        $component('Bahan A', 300)->id => ['qty' => 2],
+                        $component('Bahan B', 250)->id => ['qty' => 3],
+                    ]);
+
+                    return $recipe;
+                });
+
+                return ['product_id' => $recipe->id, 'title' => $recipe->title, 'cost' => 2 * 300 + 3 * 250, 'outlet' => E2eSeeder::OUTLET_CODE];
+            },
         ];
     }
 }

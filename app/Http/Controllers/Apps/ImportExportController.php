@@ -19,9 +19,9 @@ class ImportExportController extends Controller
 {
     public function __construct(private readonly OutletAccessService $outletAccessService) {}
 
-    public function exportProducts()
+    public function exportProducts(Request $request)
     {
-        return Excel::download(new ProductsExport, 'produk.xlsx');
+        return Excel::download(new ProductsExport($this->outletAccessService->costWarehouseId($request)), 'produk.xlsx');
     }
 
     public function exportCustomers()

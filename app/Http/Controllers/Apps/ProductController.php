@@ -9,6 +9,7 @@ use App\Models\ProductWarehouse;
 use App\Models\Unit;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
+use App\Services\InventoryCostService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
 use Closure;
@@ -23,7 +24,8 @@ class ProductController extends Controller
     public function __construct(
         private readonly StockMutationService $stockMutationService,
         private readonly AuditLogService $auditLogService,
-        private readonly OutletAccessService $outletAccessService
+        private readonly OutletAccessService $outletAccessService,
+        private readonly InventoryCostService $inventoryCostService
     ) {}
 
     /**
@@ -35,7 +37,14 @@ class ProductController extends Controller
     {
         $products = Product::when($request->search, function ($products, $search) {
             $products = $products->where('title', 'like', '%'.$search.'%');
-        })->with('category')->latest()->paginate($this->perPage())->withQueryString();
+        })->with('category', 'components')->latest()->paginate($this->perPage())->withQueryString();
+
+        // A recipe's cost is its components' cost in the active outlet; a plain product shows its typed buy price.
+        $warehouseId = $this->outletAccessService->costWarehouseId($request);
+        $products->through(fn (Product $product) => $product->setAttribute(
+            'cost',
+            $product->is_composite ? $this->inventoryCostService->lineCost($product, $warehouseId, 1) : (int) $product->buy_price
+        ));
 
         $warehouses = $this->outletAccessService->warehousesFor($request->user());
 
@@ -50,7 +59,7 @@ class ProductController extends Controller
      *
      * @return Response
      */
-    public function create()
+    public function create(Request $request)
     {
         // get categories
         $categories = Category::all();
@@ -58,7 +67,8 @@ class ProductController extends Controller
         // return inertia
         return Inertia::render('Dashboard/Products/Create', [
             'categories' => $categories,
-            'products' => $this->componentCandidates(),
+            'products' => $this->componentCandidates($request),
+            'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
         ]);
     }
@@ -80,7 +90,7 @@ class ProductController extends Controller
             'title' => 'required',
             'description' => 'nullable|string',
             'category_id' => 'required',
-            'buy_price' => 'required',
+            'buy_price' => 'exclude_if:is_composite,1,true|required',
             'sell_price' => 'required',
             'stock' => 'required|integer|min:0',
             'warehouse_id' => 'nullable|exists:warehouses,id',
@@ -103,7 +113,7 @@ class ProductController extends Controller
             'title' => $request->title,
             'description' => $request->description,
             'category_id' => $request->category_id,
-            'buy_price' => $request->buy_price,
+            'buy_price' => $request->boolean('is_composite') ? 0 : $request->buy_price,
             'sell_price' => $request->sell_price,
             'stock' => $request->stock,
             'min_stock' => $request->min_stock ?? 0,
@@ -154,7 +164,7 @@ class ProductController extends Controller
      * @param  int  $id
      * @return Response
      */
-    public function edit(Product $product)
+    public function edit(Request $request, Product $product)
     {
         // get categories
         $categories = Category::all();
@@ -162,7 +172,8 @@ class ProductController extends Controller
         return Inertia::render('Dashboard/Products/Edit', [
             'product' => $product->load('components', 'units'),
             'categories' => $categories,
-            'products' => $this->componentCandidates($product),
+            'products' => $this->componentCandidates($request, $product),
+            'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
         ]);
     }
@@ -186,7 +197,7 @@ class ProductController extends Controller
             'title' => 'required',
             'description' => 'nullable|string',
             'category_id' => 'required',
-            'buy_price' => 'required',
+            'buy_price' => 'exclude_if:is_composite,1,true|required',
             'sell_price' => 'required',
             'min_stock' => 'nullable|integer|min:0',
             'max_stock' => 'nullable|integer|min:0',
@@ -222,7 +233,7 @@ class ProductController extends Controller
                 'title' => $request->title,
                 'description' => $request->description,
                 'category_id' => $request->category_id,
-                'buy_price' => $request->buy_price,
+                'buy_price' => $request->boolean('is_composite') ? 0 : $request->buy_price,
                 'sell_price' => $request->sell_price,
                 'min_stock' => $request->min_stock ?? 0,
                 'max_stock' => $request->max_stock ?? 0,
@@ -250,7 +261,7 @@ class ProductController extends Controller
             'title' => $request->title,
             'description' => $request->description,
             'category_id' => $request->category_id,
-            'buy_price' => $request->buy_price,
+            'buy_price' => $request->boolean('is_composite') ? 0 : $request->buy_price,
             'sell_price' => $request->sell_price,
             'min_stock' => $request->min_stock ?? 0,
             'max_stock' => $request->max_stock ?? 0,
@@ -316,11 +327,11 @@ class ProductController extends Controller
 
     /**
      * Non-composite products for the component picker: raw materials first, each with its
-     * base-unit symbol (one subquery, no N+1; null when the product has no units).
+     * base-unit symbol (one subquery, no N+1; null when the product has no units) and unit_cost.
      */
-    private function componentCandidates(?Product $except = null)
+    private function componentCandidates(Request $request, ?Product $except = null)
     {
-        return Product::where('is_composite', false)
+        $candidates = Product::where('is_composite', false)
             ->when($except, fn ($query) => $query->where('id', '!=', $except->id))
             ->addSelect(['id', 'title', 'buy_price', 'sell_price', 'is_composite', 'is_raw_material'])
             ->addSelect(['unit_symbol' => DB::table('product_units')
@@ -332,6 +343,11 @@ class ProductController extends Controller
             ->orderByDesc('is_raw_material')
             ->orderBy('title')
             ->get();
+
+        // Each component's cost per stock unit in the active outlet, for the recipe's live HPP.
+        $costs = $this->inventoryCostService->unitCosts($candidates, $this->outletAccessService->costWarehouseId($request));
+
+        return $candidates->each(fn (Product $p) => $p->setAttribute('unit_cost', $costs[$p->id]));
     }
 
     private function validateComponentProducts(Request $request, ?Product $product = null): void
@@ -448,8 +464,9 @@ class ProductController extends Controller
             after: $after
         );
 
+        // A recipe has no buy price of its own, so zeroing a stale one is not a price change.
         if (
-            (int) $before['buy_price'] !== (int) $after['buy_price']
+            (! $product->is_composite && (int) $before['buy_price'] !== (int) $after['buy_price'])
             || (int) $before['sell_price'] !== (int) $after['sell_price']
         ) {
             $this->auditLogService->log(
