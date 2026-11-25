@@ -2,9 +2,11 @@ import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, router, usePoll } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
-import { IconClock, IconWifiOff } from "@tabler/icons-react";
+import { IconClock, IconPrinter, IconWifiOff } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { useAuthorization } from "@/Utils/authorization";
+import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
+import PrintStationPanel from "./PrintStationPanel";
 
 const POLL_MS = 5000;
 const STALE_MS = 15000;
@@ -16,6 +18,10 @@ export default function Index({ orders, outlet }) {
     const [lastOk, setLastOk] = useState(() => Date.now());
     const [now, setNow] = useState(() => Date.now());
     const [offline, setOffline] = useState(() => navigator.onLine === false);
+    const [panelOpen, setPanelOpen] = useState(false);
+    // Runs for the whole page, so tickets print with the panel closed.
+    const printStation = useKitchenPrintStation(outlet);
+
     const [busy, setBusy] = useState(null);
     const canPrepare = useAuthorization().can("dine-orders-prepare");
 
@@ -71,10 +77,26 @@ export default function Index({ orders, outlet }) {
         <>
             <Head title={t("kitchen.title")} />
 
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t("kitchen.title")}</h1>
-                {outlet && <p className="text-sm text-slate-500 dark:text-slate-400">{outlet.name}</p>}
+            <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{t("kitchen.title")}</h1>
+                    {outlet && <p className="text-sm text-slate-500 dark:text-slate-400">{outlet.name}</p>}
+                </div>
+                {outlet && (
+                    <button
+                        type="button"
+                        aria-expanded={panelOpen}
+                        aria-controls="kitchen-print-panel"
+                        onClick={() => setPanelOpen((open) => !open)}
+                        className="inline-flex min-h-[44px] items-center gap-2 rounded-xl border border-slate-300 px-4 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                    >
+                        <IconPrinter size={18} aria-hidden="true" />
+                        {t("kitchen.print.open")}
+                    </button>
+                )}
             </div>
+
+            {panelOpen && <PrintStationPanel printStation={printStation} />}
 
             {connectionLost && (
                 <div

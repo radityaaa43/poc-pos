@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
 import { usePoll, router } from "@inertiajs/react";
 import i18n from "@/i18n";
+import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
 import Index from "./Index";
 
 let permissions = { "dine-orders-prepare": true };
@@ -16,6 +17,9 @@ vi.mock("@inertiajs/react", () => ({
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
+// Printing has its own tests; this file only checks the display and the panel toggle.
+vi.mock("@/Hooks/useKitchenPrintStation", () => ({ useKitchenPrintStation: vi.fn(() => ({ station: null })) }));
+vi.mock("./PrintStationPanel", () => ({ default: () => <div data-testid="print-panel" /> }));
 
 const NOW = new Date("2026-11-25T10:00:00Z");
 const minutesAgo = (m) => new Date(NOW.getTime() - m * 60000).toISOString();
@@ -134,6 +138,40 @@ describe("Kitchen/Index", () => {
         act(() => pollOptions().onSuccess());
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     });
+
+    it("runs the print station hook for the page and toggles its panel with a button", async () => {
+        const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        render(<Index orders={orders} outlet={outlet} />);
+        expect(useKitchenPrintStation).toHaveBeenCalledWith(outlet);
+        expect(screen.queryByTestId("print-panel")).not.toBeInTheDocument();
+
+        const toggle = screen.getByRole("button", { name: "Pengaturan printer dapur" });
+        expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+        await user.click(toggle);
+        expect(screen.getByTestId("print-panel")).toBeInTheDocument();
+        expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+        await user.click(toggle);
+        expect(screen.queryByTestId("print-panel")).not.toBeInTheDocument();
+    });
+
+    it("keeps the panel open when the poll brings new orders", async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(<Index orders={orders} outlet={outlet} />);
+        await user.click(screen.getByRole("button", { name: "Pengaturan printer dapur" }));
+        expect(screen.getByTestId("print-panel")).toBeInTheDocument();
+
+        rerender(<Index orders={[{ ...orders[0], id: 99 }]} outlet={outlet} />);
+
+        expect(screen.getByTestId("print-panel")).toBeInTheDocument();
+    });
+
+    it("has no printer settings button without an outlet", () => {
+        render(<Index orders={[]} outlet={null} />);
+
+        expect(screen.queryByRole("button", { name: "Pengaturan printer dapur" })).not.toBeInTheDocument();
+    });
 });
 
 describe("Kitchen/Index steps", () => {
@@ -176,6 +214,9 @@ describe("Kitchen/Index steps", () => {
         expect(within(done).queryByRole("button", { name: "Semua siap" })).not.toBeInTheDocument();
     });
 
+    // The printer settings button is always there; only the step buttons depend on the item and the permission.
+    const stepButtons = () => screen.queryAllByRole("button").filter((b) => !b.hasAttribute("aria-controls"));
+
     it("shows a cancelled item struck through with the Dibatalkan badge", () => {
         render(<Index orders={stepOrders} outlet={outlet} />);
 
@@ -192,20 +233,20 @@ describe("Kitchen/Index steps", () => {
         expect(within(cards()[2]).getByText("Cancelled")).toBeInTheDocument();
     });
 
-    it("renders an order whose every item is cancelled with no buttons", () => {
+    it("renders an order whose every item is cancelled with no step buttons", () => {
         const onlyCancelled = [{ ...stepOrders[2], items: [stepOrders[2].items[1]] }];
         render(<Index orders={onlyCancelled} outlet={outlet} />);
 
         expect(screen.getByText("Meja 9")).toBeInTheDocument();
         expect(screen.getByText("Dibatalkan")).toBeInTheDocument();
-        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+        expect(stepButtons()).toHaveLength(0);
     });
 
     it("shows no buttons without dine-orders-prepare", () => {
         permissions = {};
         render(<Index orders={stepOrders} outlet={outlet} />);
 
-        expect(screen.queryByRole("button")).not.toBeInTheDocument();
+        expect(stepButtons()).toHaveLength(0);
     });
 
     it("posts each step to its route and keeps the scroll position", async () => {

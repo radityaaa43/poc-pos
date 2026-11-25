@@ -1079,6 +1079,22 @@
             "ready": "Siap",
             "cancelled": "Dibatalkan"
         },
+        "print": {
+            "open": "Pengaturan printer dapur",
+            "stationName": "Nama perangkat cetak",
+            "stationPlaceholder": "Dapur 1",
+            "save": "Simpan",
+            "nameTaken": "Nama perangkat cetak sudah dipakai di outlet ini",
+            "connect": "Hubungkan printer",
+            "disconnect": "Putuskan",
+            "paper": "Ukuran kertas (58 mm / 80 mm)",
+            "test": "Cetak percobaan",
+            "auto": "Cetak otomatis",
+            "ready": "Printer siap",
+            "notConnected": "Printer belum terhubung",
+            "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
+            "unpaid": "BELUM LUNAS"
+        },
         "actions": {
             "start": "Mulai buat",
             "ready": "Siap",
