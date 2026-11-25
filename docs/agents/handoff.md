@@ -29,6 +29,13 @@ rules come before sections 1–4.
   ticket first.
 - A session that restarts reads the board and its memory and carries on. It doesn't ask what to do.
 
+- **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are flaky-test fixes,
+  CI and tooling changes, dependency upgrades and refactors: `Backlog: none`, with no change a user
+  sees.
+  - The Tech Lead files them straight into Todo, with a plan and a `Builder`.
+  - They get the technical review only.
+  - If such a change does alter what a user sees, it goes through Backlog and Business / PM as usual.
+
 ### 0b. Finish before starting
 
 Everyone takes work in this order:
