@@ -126,7 +126,11 @@ class PricingRuleTest extends TestCase
     public function test_draft_preview_applies_the_discount_to_its_sample_cart(): void
     {
         $user = $this->createUserWithPermissions(['pricing-rules-access', 'pricing-rules-create']);
-        $product = $this->createProduct();
+        // Three products that sort before the target: the sample cart must still be the target.
+        foreach (['A1', 'A2', 'A3'] as $title) {
+            $this->createProduct($title);
+        }
+        $product = $this->createProduct('Z Target');
 
         $this->actingAs($user)->postJson(route('pricing-rules.preview'), [
             'name' => 'Diskon Produk',

@@ -483,17 +483,18 @@ class PricingRuleController extends Controller
 
     protected function buildPreviewCarts(PricingRule $rule): Collection
     {
-        $products = match ($rule->kind) {
-            PricingRule::KIND_BUNDLE_PRICE => Product::query()
+        // Bundle and buy-x-get-y list their own products; the other kinds sample their target.
+        $products = match (true) {
+            $rule->kind === PricingRule::KIND_BUNDLE_PRICE => Product::query()
                 ->whereIn('id', $rule->bundleItems->pluck('product_id'))
                 ->get(),
-            PricingRule::KIND_BUY_X_GET_Y => Product::query()
+            $rule->kind === PricingRule::KIND_BUY_X_GET_Y => Product::query()
                 ->whereIn('id', $rule->buyGetItems->pluck('product_id'))
                 ->get(),
-            PricingRule::TARGET_PRODUCT => Product::query()
+            $rule->target_type === PricingRule::TARGET_PRODUCT => Product::query()
                 ->whereKey($rule->product_id)
                 ->get(),
-            PricingRule::TARGET_CATEGORY => Product::query()
+            $rule->target_type === PricingRule::TARGET_CATEGORY => Product::query()
                 ->where('category_id', $rule->category_id)
                 ->orderBy('title')
                 ->limit(3)
