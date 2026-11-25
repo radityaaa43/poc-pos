@@ -70,8 +70,9 @@ class ProductController extends Controller
             'image' => ['nullable', 'string', 'max:255'],
             'is_composite' => ['nullable', 'boolean'],
             'is_raw_material' => ['nullable', 'boolean'],
+            'purchased_by' => ['exclude_unless:is_raw_material,1,true', 'required', 'in:central,outlet'],
             'warehouse_id' => ['nullable', 'integer', 'exists:warehouses,id'],
-        ]);
+        ], ['purchased_by.required' => 'Pilih siapa yang membeli bahan ini.']);
 
         $product = Product::create([
             ...$validated,
@@ -145,7 +146,13 @@ class ProductController extends Controller
             'image' => ['nullable', 'string', 'max:255'],
             'is_composite' => ['nullable', 'boolean'],
             'is_raw_material' => ['nullable', 'boolean'],
-        ]);
+            'purchased_by' => ['exclude_unless:is_raw_material,1,true', 'required', 'in:central,outlet'],
+        ], ['purchased_by.required' => 'Pilih siapa yang membeli bahan ini.']);
+
+        // Unticking raw material drops its buyer; an edit that leaves the flag out keeps it.
+        if ($request->has('is_raw_material') && ! $request->boolean('is_raw_material')) {
+            $validated['purchased_by'] = null;
+        }
 
         $product->update($validated);
 

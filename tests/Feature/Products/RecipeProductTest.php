@@ -263,6 +263,7 @@ class RecipeProductTest extends TestCase
             'warehouse_id' => $this->warehouse->id,
             'tax_rate' => 0,
             'is_raw_material' => '1',
+            'purchased_by' => 'central',
         ])->assertSessionHasNoErrors();
 
         $this->assertTrue(Product::where('sku', 'RAW-SUSU')->firstOrFail()->is_raw_material);
