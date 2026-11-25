@@ -65,29 +65,29 @@ test.describe('POS cart: add, change quantity, remove', () => {
         await expect(total(page)).toHaveText(rupiah(20000));
     });
 
-    // Bug #110: + at the stock limit shows an Inertia plain-JSON error box instead of a toast.
-    test.fixme('pressing + at the stock limit says why and keeps the qty', async ({ asRole, arrange, uniq }) => {
+    test('pressing + at the stock limit says why and keeps the qty', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('cart-limit'), stock: 2 });
         arrange('pos.open-shift', { cash: 100000 });
         arrange('pos.cart', { product_id: product.product_id, qty: 2 });
         const page = await asRole(cashier);
 
         await openPos(page);
+        const refused = expect(page.getByText('Stok tidak mencukupi. Tersedia: 2')).toBeVisible();
         await increment(page);
-        await expect(page.getByText('Stok tidak mencukupi. Tersedia: 2')).toBeVisible();
+        await refused;
         await expect(page.getByText('Rp 10.000 × 2')).toBeVisible();
     });
 
-    // Bug #117: adding from the grid ignores what the cart already holds, so the cart can exceed the stock.
-    test.fixme('adding the same product from the grid past the stock is refused', async ({ asRole, arrange, uniq }) => {
+    test('adding the same product from the grid past the stock is refused', async ({ asRole, arrange, uniq }) => {
         const product = arrange('product', { title: uniq('cart-over'), stock: 2 });
         arrange('pos.open-shift', { cash: 100000 });
         arrange('pos.cart', { product_id: product.product_id, qty: 2 });
         const page = await asRole(cashier);
 
         await openPos(page);
-        await cardButton(page, product.title).click();
-        await expect(page.getByText('Stok tidak mencukupi.')).toBeVisible();
+        const refused = expect(page.getByText('Stok tidak mencukupi. Tersedia: 2')).toBeVisible();
+        await addToCart(page, product.title);
+        await refused;
         await expect(page.getByText('Rp 10.000 × 2')).toBeVisible();
         await expect(total(page)).toHaveText(rupiah(20000));
     });

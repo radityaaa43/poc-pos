@@ -10,6 +10,8 @@ export async function openPos(page) {
     await page.goto('/dashboard/transactions');
     // First load of the Inertia bundle can be slow on a busy machine.
     await expect(page.getByPlaceholder(/Cari produk atau scan barcode/)).toBeVisible({ timeout: 45_000 });
+    // A press right after first paint is answered but its error toast is lost, so let the page settle.
+    await page.waitForLoadState('networkidle');
 }
 
 // Clicks a product card in the grid and waits for the server to take it. (The "ditambahkan" toast lasts about

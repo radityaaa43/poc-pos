@@ -66,8 +66,7 @@ test.describe('POS cart: unit switch', () => {
         await expect(page.getByText(/× 2$/)).toBeVisible();
     });
 
-    // Bug #110: + at the stock limit shows an Inertia plain-JSON error box instead of a toast.
-    test.fixme('a third box (36 pcs) does not fit in 30 pcs: the cart says why and keeps 2', async ({ asRole, arrange, uniq }) => {
+    test('a third box (36 pcs) does not fit in 30 pcs: the cart says why and keeps 2', async ({ asRole, arrange, uniq }) => {
         const product = arrange('pos.unit-product', { title: uniq('unit-limit'), stock: 30, factor: 12 });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
@@ -75,8 +74,11 @@ test.describe('POS cart: unit switch', () => {
         await openPos(page);
         await addToCart(page, product.title, { unit: 'BOX' });
         await increment(page);
+        await expect(page.getByText(/× 2$/)).toBeVisible();
+        await page.waitForLoadState('networkidle');
+        const refused = expect(page.getByText('Stok tidak mencukupi. Tersedia: 30')).toBeVisible();
         await increment(page);
-        await expect(page.getByText('Stok tidak mencukupi. Tersedia: 30')).toBeVisible();
+        await refused;
         await expect(page.getByText(/× 2$/)).toBeVisible();
     });
 
@@ -94,8 +96,7 @@ test.describe('POS cart: unit switch', () => {
         await expect(page.getByText('Keranjang kosong', { exact: true })).toBeVisible();
     });
 
-    // Bug #131: the refusal is reported as "ditambahkan" and its reason never shows (flash is not shared).
-    test.fixme('a refused add says why and does not claim success', async ({ asRole, arrange, uniq }) => {
+    test('a refused add says why and does not claim success', async ({ asRole, arrange, uniq }) => {
         const product = arrange('pos.unit-product', { title: uniq('unit-refused'), stock: 5, factor: 12 });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);

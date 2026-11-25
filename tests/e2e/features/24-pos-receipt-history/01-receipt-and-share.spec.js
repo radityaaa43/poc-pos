@@ -77,8 +77,7 @@ test.describe('POS receipt: formats, PDF and share link', () => {
         expect(noToken.status()).toBeGreaterThanOrEqual(400);
     });
 
-    // Bug #150: the copied link has the site origin twice, so it 404s.
-    test.fixme('a guest can open the link Share copies', async ({ asRole, arrange, uniq, page: guest }) => {
+    test('a guest can open the link Share copies', async ({ asRole, arrange, uniq, page: guest }) => {
         const { product, invoice } = arrangeSale(arrange, uniq);
         const page = await asRole(cashier);
         await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
@@ -104,8 +103,7 @@ test.describe('POS receipt: formats, PDF and share link', () => {
         expect(decodeURIComponent(href)).toContain(`/share/transactions/${invoice}`);
     });
 
-    // Bug #148: the history link drops the access token, so the recipient gets a 404.
-    test.fixme('the history\'s WhatsApp link opens the invoice for a guest', async ({ asRole, arrange, uniq, page: guest }) => {
+    test('the history\'s WhatsApp link opens the invoice for a guest', async ({ asRole, arrange, uniq, page: guest }) => {
         const { invoice } = arrangeSale(arrange, uniq);
         const page = await asRole(cashier);
 
