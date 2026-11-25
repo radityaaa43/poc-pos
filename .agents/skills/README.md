@@ -31,3 +31,19 @@ Copy a third-party skill only when it adds something the plugins don't. Then:
   a network call or its own workflow router that would compete with `AGENTS.md`.
 - Mark it `disable-model-invocation: true` unless it should load on its own.
 - Keep a "Not vendored, and why" table, so the next person doesn't re-evaluate the same skills.
+
+### Vendored (pinned in `skills-lock.json`, git-ignored, restored by `npx skills experimental_install`)
+
+| Skill | Source @ commit | Version | Date | License | Notes from the review |
+|---|---|---|---|---|---|
+| `playwright-best-practices` | `currents-dev/playwright-best-practices-skill` @ `0b75b58` | 1.2 | 2026-11-25 | MIT | Markdown only (58 references), no scripts. Its `npm install` / `npm init playwright` lines are setup examples: here AGENTS.md (no new dependencies) and `tests/e2e/README.md` win |
+| `documentation-and-adrs` | `addyosmani/agent-skills` @ `e997ac5` | — | 2026-11-25 | MIT | One `SKILL.md`, no scripts. Its default `docs/decisions/` yields to the repo's `docs/adr/0000-template.md`, as the skill itself says ("match the existing convention first") |
+
+### Not vendored, and why
+
+| Skill | Source | Why not (2026-11-25, #248) |
+|---|---|---|
+| `playwright` | `bobmatnyc/claude-mpm-skills` | Duplicates `playwright-best-practices`; ships `disable-model-invocation: true`, so it never loads by rule |
+| `e2e-playwright-testing` | `asyrafhussin/agent-skills` | A third Playwright skill, with lower adoption |
+| `software-architecture` | `sickn33/agentic-awesome-skills` | Marked `risk: critical`; its description loads it on every coding task, and it pushes generic architecture over the repo's own (CLAUDE.md §2) |
+| `architecture-decision-records` | `wshobson/agents` | One ADR skill is enough; `documentation-and-adrs` also covers doc drift |

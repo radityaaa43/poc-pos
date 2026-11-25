@@ -78,6 +78,8 @@ inside an AGENTS.md workflow step and never replace one.
 | Inertia pages, `useForm`, shared props, layouts | `laravel-inertia-react` |
 | React components and hooks | `vercel-react-best-practices` |
 | Frontend tests (`*.test.js`, `*.test.jsx`) | `vitest` |
+| E2E tests (`tests/e2e/`, Playwright) | `playwright-best-practices` |
+| An ADR in `docs/adr/`, or the why of a design choice | `documentation-and-adrs` |
 | New or reshaped UI: layout, colour, type, spacing | `ui-ux-pro-max`, `frontend-design` |
 | Reviewing a UI change before the PR | `web-design-guidelines`, `accessibility` |
 | `docker-compose.yml` | `docker-compose-patterns` |

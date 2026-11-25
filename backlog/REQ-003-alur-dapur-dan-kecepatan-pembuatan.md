@@ -135,13 +135,129 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
   dan *Boleh piutang* aktif untuk pelanggan yang pernah punya piutang dan nonaktif untuk pelanggan
   lain.
 
+### Kasus tambahan (keputusan pemilik, 2026-11-25, #249)
+
+- **AC-19:** Given pesanan *Bayar sekarang* dengan QRIS, gateway, atau transfer, when pembayarannya
+  gagal atau kedaluwarsa, then item tidak pernah masuk dapur, dan kasir (atau tamu di QR meja)
+  melihat status *Pembayaran gagal* dengan pilihan coba lagi atau ganti cara bayar.
+- **AC-20:** Given pesanan *Bayar sekarang* yang belum lunas, when shift kasir ditutup, then pesanan
+  dibatalkan otomatis, stoknya dikembalikan, dan pembatalannya tercatat di audit log.
+- **AC-21:** Given pesanan yang itemnya sudah di dapur, when kasir atau tamu menambah item, then
+  item tambahan tercatat sebagai pesanan tambahan dengan nomor pesanan yang sama, mengikuti aturan
+  bayar yang sama (Bayar sekarang: masuk dapur setelah lunas; Bayar Belakangan: langsung), dan
+  tampil di layar dapur sebagai bagian dari pesanan itu.
+- **AC-22:** Given item di dapur, when pengguna ingin menghapusnya dari pesanan, then penghapusan
+  hanya lewat retur penjualan oleh pengguna dengan izin `sales-returns-create` (tidak ada fitur
+  "edit pesanan" terpisah), dengan default kembalikan ke stok mengikuti AC-11.
+- **AC-23:** Given dua pengguna menekan tombol yang sama pada item yang sama hampir bersamaan (*Mulai
+  buat*, *Siap*, atau *Serahkan*), when server menerima keduanya, then hanya yang pertama tercatat
+  (waktu dan pelakunya), dan yang kedua melihat pesan bahwa item sudah diproses orang lain.
+- **AC-24:** Given layar dapur terbuka di tablet atau monitor, when pesanan menjadi lunas (atau
+  langsung untuk Bayar Belakangan), then pesanan tampil paling lambat 10 detik kemudian. Tombolnya
+  besar untuk layar sentuh, layar tetap masuk sepanjang hari kerja tanpa login ulang, dan tersedia
+  dalam bahasa Indonesia dan Inggris.
+- **AC-25:** Given pengaturan Bayar Belakangan outlet atau penanda *Boleh piutang* pelanggan, when
+  pengguna mengubahnya, then audit log mencatat siapa, kapan, nilai lama, dan nilai baru.
+- **AC-26:** Given laporan kecepatan dapur, when pemilik memilih rentang waktu, then periode dihitung
+  menurut waktu lokal outlet, dan item yang dibatalkan atau *tidak diambil* tidak ikut dihitung.
+- **AC-27:** Given beberapa kasir dengan shift masing-masing di outlet yang sama, when satu kasir
+  menutup shift, then aturan AC-12, AC-13, dan AC-20 hanya berlaku untuk pesanan yang transaksinya
+  tercatat di shift itu (`cashier_shift_id`; dine-in: shift yang menerima pesanan). Pesanan shift lain
+  tidak menahan dan tidak ikut dibatalkan. (Business/PM, didelegasikan pemilik, 2026-11-25.)
+
+## Proses
+
+**Sekarang (as-is).**
+- Kasir memasukkan pesanan di POS dan menerima pembayaran, lalu transaksi langsung selesai.
+- Kasir menyampaikan pesanan ke dapur secara lisan atau lewat kertas.
+- Dapur memasak dan pelayan menyerahkan pesanan, tetapi tidak ada catatan kapan dibuat, kapan siap,
+  atau siapa pelakunya.
+- Dine-in QR (#128) sudah punya status penyajian, tetapi masih per pesanan dan di layar terpisah.
+
+**Tujuan (to-be).**
+1. Pembeli memesan lewat POS (di tempat, bawa pulang, diantar) atau QR meja, lalu memilih *Bayar
+   sekarang* atau *Bayar Belakangan* (jika outlet mengaktifkannya).
+2. Item bertanda *Perlu dibuat di dapur* masuk layar dapur. *Bayar sekarang* masuk setelah lunas,
+   *Bayar Belakangan* langsung. Item lain langsung tercatat diserahkan.
+3. Dapur menekan *Mulai buat*, lalu *Siap*, per item (atau *Semua siap*).
+4. Kasir atau pelayan menekan *Serahkan* per item (atau *Serahkan semua*). Pesanan *completed* saat
+   semua item diserahkan dan lunas.
+5. Bayar Belakangan tanpa izin piutang dilunasi sebelum tutup shift; dengan izin piutang menjadi
+   piutang.
+6. Tutup shift: tertahan jika masih ada item belum diserahkan atau tagihan wajib-lunas yang belum
+   lunas; pesanan *Bayar sekarang* yang belum lunas dibatalkan otomatis.
+7. Pemilik membaca laporan kecepatan per menu, outlet, dan periode.
+
+## Stakeholder
+
+| Pihak | Peran dalam alur | Kepentingan | Yang memutuskan |
+|---|---|---|---|
+| Pemilik usaha | Mengatur Bayar Belakangan outlet, target menu, izin peran, membaca laporan | Uang tertagih, menu cepat, data akurat | Semua aturan bisnis REQ ini |
+| Manajer outlet | Memberi *Boleh piutang*, tutup paksa shift | Operasional rapi, risiko piutang | Per kejadian, dalam izinnya |
+| Kasir | Memasukkan pesanan, menerima bayar, menyerahkan, menutup shift | Cepat di counter, tidak tertahan saat tutup | — |
+| Staf dapur | Melihat antrean, *Mulai buat*, *Siap* | Antrean jelas, sedikit klik | — |
+| Pelayan | Menyerahkan pesanan ke meja | Tahu item mana yang siap | — |
+| Pembeli / tamu | Memesan, memilih cara bayar | Pesanan cepat dan benar | — |
+
+## Aturan bisnis
+
+- **Uang:** *Bayar sekarang* hanya diproses setelah lunas (tunai, transfer terkonfirmasi, QRIS,
+  Midtrans, Xendit). Split lunas jika semua bagiannya lunas. Bayar Belakangan tanpa izin piutang
+  tidak menjadi piutang dan wajib lunas sebelum tutup shift; yang belum lunas saat tutup paksa masuk
+  selisih kas.
+- **Stok:** cara dan waktu potong stok tidak berubah (saat penjualan untuk POS, saat accept untuk
+  dine-in). Produk yang stoknya habis tetap ditolak POS seperti sekarang. Pembatalan otomatis (AC-20)
+  dan retur item *accepted* mengembalikan stok; retur item yang sudah dimasak defaultnya tidak.
+- **Izin:** memasak, menyerahkan, memberi izin piutang, tutup paksa, dan retur masing-masing izin
+  tersendiri, diatur per toko; server selalu memeriksa izin, bukan hanya tombol yang disembunyikan.
+- **Pengaturan per outlet:** Bayar Belakangan (default nonaktif, diubah pemilik).
+- **Jejak:** setiap perpindahan status item mencatat waktu server dan pelakunya; tidak bisa diubah
+  sesudahnya.
+
+## Kebutuhan non-fungsional
+
+- **Kecepatan:** pesanan tampil di layar dapur paling lambat 10 detik setelah siap diproses
+  (AC-24). Laporan kecepatan untuk satu outlet dan satu bulan terbuka tanpa menunggu lama.
+- **Keandalan:** layar dapur tetap jalan sepanjang hari kerja; jika koneksi putus, layar memberi
+  tanda dan memperbarui diri setelah tersambung lagi. POS offline mengikuti AC-14.
+- **Keamanan:** semua aksi dicek izinnya di server (AC-10, AC-17); layar dapur hanya menampilkan
+  pesanan outlet pengguna.
+- **Audit:** tutup paksa (AC-13), pembatalan otomatis (AC-20), dan perubahan pengaturan piutang
+  (AC-25) tercatat di audit log.
+- **Bahasa dan aksesibilitas:** Indonesia dan Inggris; tombol layar dapur besar dan kontras tinggi
+  untuk layar sentuh di dapur.
+
+## Data dan integrasi
+
+- **Field baru:** produk (*Perlu dibuat di dapur*, *Target waktu buat*), pelanggan (*Boleh
+  piutang*), pengaturan outlet (*Bayar Belakangan*), item pesanan (status dapur, waktu dan pelaku
+  setiap langkah).
+- **Data lama:** nilai awal sesuai AC-01 dan AC-18. Riwayat sebelum rilis tidak punya waktu dapur
+  dan tidak masuk laporan.
+- **Integrasi:** status lunas dari Midtrans dan Xendit (webhook) serta konfirmasi transfer yang sudah
+  ada; tidak ada integrasi baru.
+
+## Risiko dan asumsi
+
+| Risiko | Dampak | Mitigasi |
+|---|---|---|
+| Dapur lupa menekan tombol | Data kecepatan tidak akurat | Metrik kualitas data 95%; *Semua siap* dan *Serahkan semua* mengurangi klik |
+| Tutup paksa dipakai untuk menutupi tagihan yang tidak dibayar | Uang pemilik hilang | Izin terpisah, catatan wajib, audit log, metrik jumlah tutup paksa |
+| Bayar Belakangan tamu tidak dibayar | Selisih kas | Default nonaktif per outlet; tutup shift tertahan |
+| Polling layar dapur membebani server | Lambat saat ramai | Target 10 detik cukup longgar; Tech Lead memilih cara di plan teknis |
+
+- [asumsi] Tamu QR meja dianggap bukan pelanggan terdaftar kecuali kasir menautkannya ke data
+  pelanggan.
+- [asumsi] Satu layar dapur per outlet cukup; stasiun terpisah di luar cakupan.
+
 ## Metrik sukses
 
 - **Utama:** median waktu buat (*preparing → ready*) per menu per outlet. Bulan pertama sesudah
   rilis adalah baseline; pemilik memasang target per menu sesudahnya. Sumber: waktu per item dari
   AC-08.
-- **Kualitas data:** minimal 95% item dapur punya waktu lengkap sampai *ready*. Sumber: item dapur
-  per outlet per minggu.
+- **Kualitas data:** minimal 95% item dapur punya waktu lengkap sampai *ready*. Rumus: item dapur
+  dengan waktu *ready* ÷ semua item dapur, tanpa item dibatalkan atau *tidak diambil*, per outlet
+  per minggu (waktu lokal outlet).
 - **Kasir:** jumlah shift yang ditutup paksa karena pesanan atau tagihan tertahan (AC-13). Sumber:
   audit log.
 
