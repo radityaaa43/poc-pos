@@ -218,7 +218,9 @@ class DineOrderPaymentTest extends TestCase
         ])->assertSessionHasNoErrors();
 
         $transaction = $order->transaction->fresh();
-        $this->assertEquals('paid', $transaction->payment_status);
+        // a transfer waits for the cashier's confirmation (#153); the order completes when that marks it paid
+        $this->assertEquals('pending', $transaction->payment_status);
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
         $this->assertEquals('bank_transfer', $transaction->payment_method);
         $this->assertEquals($account->id, $transaction->bank_account_id);
     }

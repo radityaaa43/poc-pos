@@ -188,7 +188,7 @@ validasinya dipakai bersama. Gateway (Midtrans/Xendit/QRIS) belum didukung untuk
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
-- `payment_method`, `cash`, `change`, `bank_account_id` dan tender dicatat; `payment_status` jadi `paid`.
+- `payment_method`, `cash`, `change`, `bank_account_id` dan tender dicatat; `payment_status` jadi `paid` (transfer bank: `pending` sampai kasir mengonfirmasi, lalu `paid`).
 - `cashier_id` dan `cashier_shift_id` pindah ke kasir yang menerima uang dan **shift aktifnya**. Kas yang diharapkan shift
   (`expected_cash`) hanya bertambah saat tunai benar-benar dibayar; tagihan terbuka tidak dihitung sama sekali.
 - Stok tidak dipotong lagi (sudah dipotong saat accept).
