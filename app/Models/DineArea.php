@@ -4,8 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property int|null $outlet_id added by a later migration than the create table Larastan reads
+ */
 class DineArea extends Model
 {
     use HasFactory;
@@ -31,7 +35,8 @@ class DineArea extends Model
         return $this->hasMany(DiningTable::class, 'dine_area_id');
     }
 
-    public function outlet()
+    /** @return BelongsTo<Outlet, $this> */
+    public function outlet(): BelongsTo
     {
         return $this->belongsTo(Outlet::class);
     }

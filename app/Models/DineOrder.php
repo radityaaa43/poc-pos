@@ -83,6 +83,7 @@ class DineOrder extends Model
         });
     }
 
+    /** @return BelongsTo<DiningTable, $this> */
     public function table(): BelongsTo
     {
         return $this->belongsTo(DiningTable::class, 'dine_table_id');
