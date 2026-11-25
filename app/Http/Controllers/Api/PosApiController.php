@@ -14,6 +14,7 @@ use App\Models\CustomerVoucher;
 use App\Models\DiscountApprovalLog;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
@@ -527,12 +528,7 @@ class PosApiController extends Controller
     public function checkout(Request $request, PaymentGatewayManager $paymentGatewayManager): JsonResponse
     {
         $validated = $request->validate([
-            'customer_id' => [
-                'nullable',
-                'integer',
-                'exists:customers,id',
-                'required_if:payment_method,pay_later',
-            ],
+            'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
             'discount' => ['nullable', 'integer', 'min:0'],
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
@@ -540,7 +536,7 @@ class PosApiController extends Controller
             'cash' => ['nullable', 'numeric', 'min:0'],
             'payment_method' => ['nullable', 'in:cash,bank_transfer,midtrans,xendit,qris,pay_later'],
             'bank_account_id' => ['nullable', 'integer', 'exists:bank_accounts,id'],
-            'due_date' => ['nullable', 'date', 'required_if:payment_method,pay_later'],
+            'due_date' => ['nullable', 'date'],
             'customer_npwp' => ['nullable', 'string', 'max:50'],
             'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
             'note' => ['nullable', 'string', 'max:1000'],
@@ -564,8 +560,21 @@ class PosApiController extends Controller
         $activeShift?->load('warehouse.outlet');
         $outlet = $activeShift?->warehouse?->outlet;
 
-        if ($isPayLater && ! $request->filled('due_date')) {
-            return $this->error('Tanggal jatuh tempo wajib diisi untuk nota barang.', 422);
+        $customer = isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null;
+
+        if ($isPayLater) {
+            if (! $outlet || ! Setting::getBoolForOutlet('pay_later_enabled', $outlet)) {
+                throw ValidationException::withMessages(['pay_later' => 'Bayar belakangan tidak aktif di outlet ini']);
+            }
+
+            // A guest has no customer record to chase, so the note must say who owes.
+            if (! $customer && mb_strlen(trim((string) ($validated['note'] ?? ''))) < 2) {
+                throw ValidationException::withMessages(['note' => 'Catatan minimal 2 karakter wajib diisi untuk bayar belakangan tanpa pelanggan.']);
+            }
+
+            if ($customer?->may_buy_on_credit && ! $request->filled('due_date')) {
+                return $this->error('Tanggal jatuh tempo wajib diisi untuk nota barang.', 422);
+            }
         }
 
         if ($paymentGateway) {
@@ -582,7 +591,6 @@ class PosApiController extends Controller
 
         $isCashPayment = ! $paymentGateway && ! $isPayLater && ! $useTenders;
         $cashAmount = $isCashPayment ? max(0, (int) $validated['cash'] ?? 0) : 0;
-        $customer = isset($validated['customer_id']) ? Customer::find($validated['customer_id']) : null;
         $voucher = isset($validated['customer_voucher_id']) ? CustomerVoucher::find($validated['customer_voucher_id']) : null;
         $manualDiscount = max(0, (int) ($validated['discount'] ?? 0));
 
@@ -784,6 +792,11 @@ class PosApiController extends Controller
 
         if (! $user) {
             return ['status' => 'failed', 'reason' => 'Tidak terautentikasi.'];
+        }
+
+        // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
+        if ($isPayLater) {
+            return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
         }
 
         // Rebuild cart rows from the offline items, then reuse the normal

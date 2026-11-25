@@ -56,6 +56,7 @@ class Transaction extends Model
         'grand_total',
         'payment_method',
         'payment_status',
+        'is_pay_later',
         'payment_reference',
         'payment_url',
         'qr_string',
@@ -73,6 +74,7 @@ class Transaction extends Model
     ];
 
     protected $casts = [
+        'is_pay_later' => 'boolean',
         'cashier_id' => 'integer',
         'cashier_shift_id' => 'integer',
         'customer_id' => 'integer',

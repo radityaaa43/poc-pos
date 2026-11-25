@@ -517,51 +517,6 @@ class PosTransactionSyncTest extends TestCase
         $this->assertSame(0, Transaction::count());
     }
 
-    public function test_sync_pay_later_creates_receivable_with_due_date(): void
-    {
-        Sanctum::actingAs($this->cashier, ['*']);
-
-        app(CashierShiftService::class)->openShift(
-            cashier: $this->cashier,
-            actor: $this->cashier,
-            openingCash: 100000,
-            notes: null,
-            warehouseId: $this->warehouse->id
-        );
-
-        $customer = Customer::create([
-            'name' => 'Member Sync 5',
-            'no_telp' => '628123456783',
-            'address' => 'Jl. Sync 5',
-        ]);
-
-        $this->postJson('/api/v1/pos/transactions/sync', [
-            'transactions' => [$this->syncPayload([
-                'client_uuid' => '660e8400-e29b-41d4-a716-446655440007',
-                'customer_id' => $customer->id,
-                'pay_later' => true,
-                'due_date' => now()->addDays(7)->toDateString(),
-                'cash' => 0,
-            ])],
-        ])->assertOk()
-            ->assertJsonPath('data.results.0.status', 'synced');
-
-        $transaction = Transaction::where(
-            'client_uuid',
-            '660e8400-e29b-41d4-a716-446655440007'
-        )->first();
-
-        $this->assertNotNull($transaction);
-        $this->assertEquals('pay_later', $transaction->payment_method);
-
-        $receivable = $transaction->receivable;
-        $this->assertNotNull($receivable);
-        $this->assertEquals(
-            now()->addDays(7)->toDateString(),
-            $receivable->due_date->toDateString()
-        );
-    }
-
     public function test_sync_ignores_client_grand_total_and_prices(): void
     {
         Sanctum::actingAs($this->cashier, ['*']);

@@ -6,7 +6,9 @@ use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Customer;
+use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -231,6 +233,10 @@ class PosApiTest extends TestCase
 
     public function test_checkout_pay_later_creates_receivable(): void
     {
+        // Pay later is per outlet and only a customer flagged "Boleh piutang" owes a receivable.
+        $outlet = Outlet::create(['code' => 'OUT-1', 'name' => 'Outlet 1', 'is_active' => true]);
+        $this->warehouse->update(['outlet_id' => $outlet->id]);
+        Setting::setForOutlet('pay_later_enabled', '1', $outlet);
         $this->openShift();
 
         $customer = Customer::create([
@@ -239,6 +245,7 @@ class PosApiTest extends TestCase
             'no_telp' => '08123456789',
             'address' => '',
         ]);
+        $customer->forceFill(['may_buy_on_credit' => true])->save();
 
         $this->postJson('/api/v1/pos/cart', [
             'product_id' => $this->product->id,

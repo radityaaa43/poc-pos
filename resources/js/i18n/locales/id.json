@@ -1030,5 +1030,22 @@
             "customer": "Daftarkan pelanggan pertama",
             "transaction": "Selesaikan transaksi pertama"
         }
+    },
+    "pos": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
+            "offline": "Bayar belakangan tidak tersedia saat offline",
+            "dueDate": "Tanggal Jatuh Tempo",
+            "noteLabel": "Catatan (wajib untuk tamu)",
+            "notePlaceholder": "Untuk siapa? Minimal 2 karakter",
+            "noteRequired": "Isi catatan minimal 2 karakter untuk pelanggan tamu"
+        }
+    },
+    "outlets": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
+        }
     }
 }
