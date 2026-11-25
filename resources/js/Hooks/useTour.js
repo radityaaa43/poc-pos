@@ -13,6 +13,9 @@ const TOURS = {
   reports: reportsTour,
 };
 
+// Leaving the page destroys with reason "api" and must not complete the tour (#21)
+const COMPLETING = new Set(["done", "close", "escape", "overlay"]);
+
 export function useTour(tourName) {
   const { auth } = usePage().props;
   const driverObj = useRef(null);
@@ -38,10 +41,10 @@ export function useTour(tourName) {
     driverObj.current = driver({
       ...base,
       steps,
-      onDestroyed: () => {
+      onDestroyed: (_el, _step, opts) => {
         setIsActive(false);
         driverObj.current = null;
-        markCompleted();
+        if (COMPLETING.has(opts?.reason)) markCompleted();
       },
     });
     setIsActive(true);
