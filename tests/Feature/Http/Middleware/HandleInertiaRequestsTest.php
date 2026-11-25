@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Middleware;
 
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DineArea;
 use App\Models\DineOrder;
@@ -19,6 +20,7 @@ use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class HandleInertiaRequestsTest extends TestCase
@@ -134,7 +136,7 @@ class HandleInertiaRequestsTest extends TestCase
         [$outletA, $warehouseA] = $this->makeOutletWithWarehouse('BAT');
         [, $warehouseB] = $this->makeOutletWithWarehouse('BBT');
 
-        $category = \App\Models\Category::create(['name' => 'Kat', 'image' => '', 'description' => '']);
+        $category = Category::create(['name' => 'Kat', 'image' => '', 'description' => '']);
         $product = Product::create([
             'title' => 'Produk Batch',
             'barcode' => 'BATCH-1',
@@ -283,6 +285,26 @@ class HandleInertiaRequestsTest extends TestCase
                     && $bucket['total'] === 50000)));
     }
 
+    public function test_session_success_and_error_flashes_are_shared_as_flash_prop(): void
+    {
+        [$outlet] = $this->makeOutletWithWarehouse('FLS');
+        $user = $this->makeUserForOutlet($outlet);
+
+        $this->actingAs($user)
+            ->withSession(['success' => 'Tersimpan.', 'error' => 'Ditolak.'])
+            ->get('/dashboard/access')
+            ->assertInertia(fn ($page) => $page
+                ->where('flash.success', 'Tersimpan.')
+                ->where('flash.error', 'Ditolak.'));
+
+        $this->flushSession();
+        $this->actingAs($user)
+            ->get('/dashboard/access')
+            ->assertInertia(fn ($page) => $page
+                ->where('flash.success', null)
+                ->where('flash.error', null));
+    }
+
     public function test_superadmin_sees_all_outlet_data(): void
     {
         [$outletA, $warehouseA] = $this->makeOutletWithWarehouse('SAD');
@@ -293,7 +315,7 @@ class HandleInertiaRequestsTest extends TestCase
 
         $user = User::factory()->create();
         $user->markEmailAsVerified();
-        $role = \Spatie\Permission\Models\Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
+        $role = Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => 'web']);
         $user->assignRole($role);
 
         $response = $this->actingAs($user)->get('/dashboard/access');
