@@ -1010,7 +1010,7 @@
     },
     "setupChecklist": {
         "title": "Checklist Persiapan Toko",
-        "subtitle": ":done dari :total langkah selesai — lengkapi untuk mulai berjualan.",
+        "subtitle": "{{done}} dari {{total}} langkah selesai — lengkapi untuk mulai berjualan.",
         "items": {
             "store_profile": "Lengkapi profil toko",
             "category": "Buat kategori pertama",
