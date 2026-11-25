@@ -55,6 +55,15 @@ class Kitchen
                 return ['invoice' => $transaction->invoice, 'payment_status' => $transaction->payment_status];
             },
 
+            // A paid POS sale with --arg=prefix=<prefix> (one flagged line) whose kitchen intake never happened: sells it
+            // for real, then removes its kitchen items, which is what a failed intake leaves behind. Returns what kitchen-sale does.
+            'kitchen.paid-without-intake' => function (array $options): array {
+                $sale = Scenarios::registry()['kitchen-sale'](['prefix' => $options['prefix'] ?? 'Dapur']);
+                KitchenItem::where('transaction_id', $sale['transaction_id'])->delete();
+
+                return $sale;
+            },
+
             // Opens the cashier's shift (--arg=cashier=<email>, default cashier@e2e.test), creates products
             // "<prefix> Masak <i>" (needs_preparation) x --arg=flagged and "<prefix> Kemasan <i>" x --arg=plain,
             // and sells one of each. --arg=status=paid (default) or pending (a bank transfer nobody confirmed).

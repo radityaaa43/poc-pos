@@ -27,6 +27,10 @@ The screen shows the current outlet only: the outlet of the user's open shift, o
 
 The page asks the server for the order list every 5 seconds (Inertia `usePoll`, only the `orders` prop), so a newly paid order shows within 10 seconds without reloading. When the browser is offline, or no answer has arrived for 15 seconds, a banner says "Koneksi terputus — mencoba lagi…" / "Connection lost — retrying…" and hides itself on the next successful refresh.
 
+## Recovery job
+
+If the intake step after a payment fails, the payment stays and the error is reported. `kitchen:recover-intake` (every 5 minutes, `routes/console.php`) runs the same idempotent intake for sales paid in the last 24 hours that have a line needing preparation but no kitchen items. It skips pay-later, cancelled or fully returned sales and sales without a warehouse, never creates a second item for a line, and logs how many sales it recovered and how many failed.
+
 ## Session behaviour
 
 Every refresh is an authenticated request, so an open display keeps the idle session alive. The 12-hour absolute session limit still applies: when the session ends, the next refresh is redirected to the login page, so the screen asks for a sign-in instead of showing an empty queue.
@@ -38,6 +42,6 @@ Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).
 ## Central files
 
 - `app/Http/Controllers/Apps/KitchenController.php`
-- `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`
+- `app/Models/KitchenItem.php`, `app/Services/KitchenIntakeService.php`, `app/Console/Commands/RecoverKitchenIntakeCommand.php`
 - `resources/js/Pages/Dashboard/Kitchen/Index.jsx`
 - E2E: `tests/e2e/features/32-kitchen-display/`
