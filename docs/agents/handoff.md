@@ -190,7 +190,7 @@ that order, with the tag in the first column (`AC-01`, `BR-1`, `TC-1`).
 |---|---|---|---|
 | 1 | [AC-01] <criterion, in the REQ's words> | ✓ | `ProductPreparationTest::test_store_saves_…` pass; e2e `41-products/04-…` `@REQ-003-AC-01` pass |
 | 2 | Plan: migration reversible | ✓ | `down()` drops both columns; `test_release_backfill_…` runs down → up |
-| 3 | Full suite | ✓ | PHPUnit 831 pass / 0 fail / 1 skip (skips on main too); Vitest 225 pass; `npm run build` ok |
+| 3 | Full suite | ✓ | CI run <link>: PHPUnit 831 pass / 0 fail / 1 skip, e2e all shards green; locally Vitest 225 pass, `npm run build` ok |
 | 4 | CI | ✓ | <link to the green run> |
 | 5 | Manual test as <role> | ✓ | <steps> → <what you saw>; screenshot before / after |
 ```
