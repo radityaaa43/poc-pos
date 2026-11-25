@@ -166,6 +166,27 @@ class IssueBody(unittest.TestCase):
         self.assertEqual(len(check_issue_body.problems(body, cfg=c)), 1)
         self.assertEqual(check_issue_body.problems(body.replace("- [ ] works", "- [ ] [AC-01] works"), cfg=c), [])
 
+    SECTIONS = dict(issue__required_sections=[["Business acceptance criteria", "Done when"]])
+
+    def test_business_acceptance_heading_satisfies_required_section(self):
+        body = "AI used: none\n\n## Business acceptance criteria\n- [ ] [AC-01] x\n"
+        self.assertEqual(check_issue_body.problems(body, cfg=cfg(**self.SECTIONS)), [])
+
+    def test_done_when_still_satisfies_required_section(self):
+        body = "AI used: none\n\n## Done when\n- [ ] works\n"
+        self.assertEqual(check_issue_body.problems(body, cfg=cfg(**self.SECTIONS)), [])
+
+    def test_missing_both_sections_is_flagged(self):
+        found = check_issue_body.problems("AI used: none\n", cfg=cfg(**self.SECTIONS))
+        self.assertEqual(len(found), 1)
+        self.assertIn("## Business acceptance criteria", found[0])
+        self.assertIn("## Done when", found[0])
+
+    def test_backlog_ac_tags_read_from_business_section(self):
+        c = cfg(backlog__enabled=True, backlog__require_ac=True, **self.SECTIONS)
+        body = "AI used: none\nBacklog: PROJ-7\n\n## Business acceptance criteria\n- [ ] [AC-01] x\n"
+        self.assertEqual(check_issue_body.problems(body, cfg=c), [])
+
     TITLE_CFG = dict(issue__title_types=["feat", "fix", "chore"], issue__title_rule_start="2026-11-25")
     TITLE_BODY = "AI used: none\n\n## Done when\n- [ ] works\n"
 
