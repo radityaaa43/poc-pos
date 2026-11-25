@@ -60,6 +60,7 @@ secara global (lihat `docs/configuration.md`), jadi login langsung masuk ke dash
 | `OperationalCoreSeeder` | Shift kasir (histori + aktif), penugasan transaksi ke shift, dan retur penjualan |
 | `FeatureCoverageSeeder` | Profil toko, target, pajak, printer, WhatsApp, loyalty, diskon, bank account, payment setting, alur PO→GR→retur supplier, stock opname, dan audit log |
 | `FeatureDemoSeeder` | Split payment, unit konversi, batch & FEFO, produk komposit, pricing rule, price list, segment & campaign, stock transfer, dine-in, approval diskon, dan loyalty history |
+| `RawMaterialDemoSeeder` | 12 bahan baku kedai kopi (satuan stok gram/ml/pcs, satuan beli default kg/liter/botol/pak/box beserta harga, `Dibeli oleh` pusat atau outlet, stok minimum/maksimum, stok awal dengan harga pokok rata-rata di gudang `PUSAT` dan tiga gudang outlet) dan 5 produk resep (Americano, Cafe Latte, Es Kopi Susu Gula Aren, Matcha Latte, Es Teh Lemon). Pusat membeli biji kopi, susu, sirup, matcha, kakao, red velvet, teh, dan cup; outlet membeli air mineral, gula aren cair, air jeruk nipis, dan es batu. Bubuk Matcha di `PUSAT` dan Air Jeruk Nipis di `WH-MAL` sengaja di bawah stok minimum, sehingga `reorder:generate` membuat draf PO berbeda untuk pusat dan outlet |
 
 ## Data Per Outlet
 
