@@ -33,6 +33,17 @@ class KitchenIntakeService
         }
     }
 
+    /**
+     * Recovery of a pay-later sale whose intake at creation never ran, in whatever payment state it is in now (unpaid, a payment
+     * attempt in flight, failed, expired or paid): the food is owed either way. Once-only like the others.
+     */
+    public function intakePayLater(Transaction $transaction): void
+    {
+        if ($transaction->is_pay_later) {
+            $this->record($transaction);
+        }
+    }
+
     private function record(Transaction $transaction): void
     {
         // A sale with no warehouse (a shift opened without one, or a legacy sale) has no outlet to cook for, and

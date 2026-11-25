@@ -104,13 +104,13 @@ class RecoverKitchenIntakeTest extends TestCase
                 parent::intake($transaction);
             }
 
-            public function intakeUnpaid(Transaction $transaction): void
+            public function intakePayLater(Transaction $transaction): void
             {
                 if (in_array($transaction->id, $this->failFor, true)) {
                     throw new RuntimeException('kitchen down');
                 }
 
-                parent::intakeUnpaid($transaction);
+                parent::intakePayLater($transaction);
             }
         };
         $this->app->instance(KitchenIntakeService::class, $intake);
@@ -269,13 +269,29 @@ class RecoverKitchenIntakeTest extends TestCase
         Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 0, 'failed' => 0]);
     }
 
-    public function test_a_pay_later_sale_paid_within_the_window_but_never_taken_in_is_still_recovered(): void
+    public function test_a_pay_later_sale_is_recovered_in_every_payment_state(): void
     {
-        $paid = $this->payLaterSale('paid');
+        $sales = collect(['unpaid', 'pending', 'failed', 'expired', 'paid'])
+            ->map(fn (string $status) => $this->payLaterSale($status));
 
         $this->artisan('kitchen:recover-intake')->assertSuccessful();
 
-        $this->assertSame([$paid->id], KitchenItem::pluck('transaction_id')->all());
+        $this->assertEqualsCanonicalizing($sales->pluck('id')->all(), KitchenItem::pluck('transaction_id')->all());
+    }
+
+    public function test_a_pay_later_sale_pending_inside_the_window_is_taken_in_even_if_it_is_paid_after_the_window(): void
+    {
+        $sale = $this->payLaterSale('pending');
+        Transaction::whereKey($sale->id)->update(['created_at' => now()->subMinutes(10), 'updated_at' => now()->subMinutes(10)]);
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful(); // still inside the window: taken in while pending
+        $this->assertSame([$sale->id], KitchenItem::pluck('transaction_id')->all());
+
+        $this->travel(40)->minutes();
+        $sale->refresh()->update(['payment_status' => 'paid']); // paid long after the window: the paid hook skips pay-later
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame(1, KitchenItem::count(), 'nothing is added twice');
     }
 
     public function test_the_pay_later_window_runs_on_the_creation_time_not_on_the_payment(): void
@@ -297,9 +313,6 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->payLaterSale(attributes: ['warehouse_id' => null]);
         $this->payLaterSale(products: [$this->product(false)]);        // nothing to make
         $this->salesReturn($this->payLaterSale(), 2);                  // fully returned
-        $this->payLaterSale('pending');                                // an attempt is in flight: picked up when the bill is unpaid or paid again
-        $this->payLaterSale('failed');
-        $this->payLaterSale('expired');
         $outside = $this->payLaterSale();
         Transaction::whereKey($outside->id)->update(['created_at' => now()->subMinutes(31), 'updated_at' => now()->subMinutes(31)]);
 

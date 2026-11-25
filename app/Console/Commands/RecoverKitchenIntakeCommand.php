@@ -26,8 +26,8 @@ class RecoverKitchenIntakeCommand extends Command
             foreach ($sales as $sale) {
                 // A failure is reported and the loop goes on; the next run tries again, so there is no retry in here.
                 $done = rescue(function () use ($intake, $sale) {
-                    // Both are once-only (the unique transaction_detail_id key) and each acts on its own payment state.
-                    $sale->payment_status === 'paid' ? $intake->intake($sale) : $intake->intakeUnpaid($sale);
+                    // Both are once-only (the unique transaction_detail_id key); a pay-later sale is taken in whatever its payment state.
+                    $sale->is_pay_later ? $intake->intakePayLater($sale) : $intake->intake($sale);
 
                     return $sale->kitchenItems()->exists();
                 }, false);
@@ -46,11 +46,11 @@ class RecoverKitchenIntakeCommand extends Command
             ->chunkById(100, $recover);
 
         // Pay later (a POS credit sale, or a QR bill accepted as pay later): its intake belongs to its creation, not to its payment,
-        // so the window runs on created_at. Unpaid, or paid within the window but never taken in: the food is still owed.
-        // The other states (a payment attempt in flight, failed, expired) are picked up when the bill is unpaid or paid again.
+        // so the window runs on created_at and the payment status is ignored (unpaid, a payment attempt in flight, failed, expired
+        // or paid): the food is owed in every state, and a bill paid after the window must not have been left out.
+        // A cancelled bill is fully returned (skipped by missed()); a rejected order has no transaction.
         $this->missed()
             ->where('is_pay_later', true)
-            ->whereIn('payment_status', ['unpaid', 'paid'])
             ->where('created_at', '>=', now()->subMinutes(self::WINDOW_MINUTES))
             ->chunkById(100, $recover);
 
