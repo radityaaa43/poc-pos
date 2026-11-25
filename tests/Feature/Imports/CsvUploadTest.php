@@ -49,9 +49,25 @@ class CsvUploadTest extends TestCase
         $this->actingAs($this->admin())
             ->post(route('import.customers'), ['file' => $this->sniffedAsPlainText('customer.csv')])
             ->assertRedirect()
+            ->assertSessionHas('success', 'Import customer selesai.')
             ->assertSessionHasNoErrors();
 
         $this->assertSame(1, Customer::where('name', 'Budi')->count());
+    }
+
+    public function test_a_product_import_flashes_its_result_message(): void
+    {
+        $file = UploadedFile::fake()->createWithContent(
+            'products.csv',
+            "barcode,nama,kategori,harga_beli,harga_jual,stok,tarif_pajak
+8990001,Kopi Susu,Minuman,8000,15000,10,0
+"
+        );
+
+        $this->actingAs($this->admin())
+            ->post(route('import.products'), ['file' => $file])
+            ->assertRedirect()
+            ->assertSessionHas('success', 'Import selesai. 1 produk diimport.');
     }
 
     public function test_a_file_with_another_extension_is_still_refused(): void

@@ -289,7 +289,7 @@ export default function Index({ products }) {
                                     className="hidden"
                                     onChange={function(e) {
                                         const file = e.target.files && e.target.files[0];
-                                        if (file) router.post(route("import.products"), { file }, { onError: (errors) => toast.error(Object.values(errors)[0]) });
+                                        if (file) router.post(route("import.products"), { file }, { onSuccess: (page) => toast.success(page.props.flash.success), onError: (errors) => toast.error(Object.values(errors)[0]) });
                                     }}
                                 />
                             </>
