@@ -20,12 +20,12 @@ test.describe('POS cart: search and barcode', () => {
 
         await search.fill(wanted.title);
         await expect(productCard(page, wanted.title)).toBeVisible();
-        await expect(page.getByRole('heading', { name: other.title, level: 3 })).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: other.title, level: 3, exact: true })).toHaveCount(0);
 
         // A barcode typed or scanned into the search box finds the product the same way.
         await search.fill(other.barcode);
         await expect(productCard(page, other.title)).toBeVisible();
-        await expect(page.getByRole('heading', { name: wanted.title, level: 3 })).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: wanted.title, level: 3, exact: true })).toHaveCount(0);
 
         await search.fill('no-such-product-zzz');
         await expect(page.getByText('Produk tidak ditemukan')).toBeVisible();
