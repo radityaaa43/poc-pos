@@ -34,13 +34,13 @@ session. Until a role is staffed, the maintainer names who covers it.
 |---|---|
 | **Maintainer** (`@radityaaa43`) | Makes business decisions (through Business/PM), is the Standards owner, can overrule any role or card |
 | **Business / PM** (also scrum master) | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, keeps the board current, checks feat PRs against their criteria, fills in *Delivered by* |
-| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, assigns developers, keeps parallel work from colliding, reviews and merges PRs |
+| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, reviews and merges PRs |
 | **Developer** | Builds a planned ticket test-first, verifies it, opens the PR and fixes review findings |
 
 | Status | Owner | A card moves on when | Moved by |
 |---|---|---|---|
 | **Backlog** | Business / PM | It meets the business Definition of Ready (below) | Business / PM → Planning |
-| **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, a developer is assigned, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
+| **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
 | **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → In review |
 | **In review** | Tech Lead | The Tech Lead approved, CI is green and, for a `feat` PR, Business / PM commented that the criteria are met | Tech Lead merges → Done |
@@ -55,7 +55,18 @@ left; exactly one `module:*` label; every Done-when item is tagged with its crit
 
 **Technical plan.** A comment on the issue before coding, sized to the ticket: what changes in the
 database, backend and frontend, the files and hotspot files touched, migration order, risks, and the
-tests per criterion. Large decisions also get an ADR in `docs/adr/`.
+tests per criterion, ending with `Builder: <developer>` (e.g. `Builder: dev1`). Large decisions also
+get an ADR in `docs/adr/`.
+
+**One GitHub login.** While every session uses the same account, the assignee can't tell developers
+apart and GitHub refuses a self-requested review. So the `Builder:` line in the plan names who builds
+it (the assignee still marks the issue as claimed), review is requested by message, and the Tech
+Lead's `/code-review` result posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
+maintainer). Drop this once each role has its own account.
+
+**Worktrees.** A developer works in their own git worktree with its own `npm ci`. Run PHP for a
+worktree as `tests/e2e/README.md` → *Running compose from a git worktree* describes: `docker compose
+exec -T app` from a worktree runs against the main checkout's code, not the worktree's.
 
 **Effort.** The Tech Lead sets the Effort field (`low`, `medium`, `high`, `xhigh`, `max`, the same
 scale as the `AI used` line). A developer works on one ticket at a time, except that tickets whose

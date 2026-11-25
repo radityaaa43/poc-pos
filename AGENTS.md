@@ -22,7 +22,7 @@ Nothing goes directly to `main`. Workflow skills come from
 |---|---|---|
 | 1. Align | Business / PM: get the requirement unambiguous before writing anything | `/grill-with-docs` |
 | 2. Issue | Business / PM: publish the spec (PRD) as an issue; split it into tickets | `/to-spec`, `/to-tickets` |
-| 2b. Plan | Tech Lead: technical plan on the issue, Effort, assignee, then `ready-for-*` | `superpowers:writing-plans` |
+| 2b. Plan | Tech Lead: technical plan on the issue, Effort, `Builder:`, then `ready-for-*` | `superpowers:writing-plans` |
 | 3. Branch | `git switch main && git pull && git switch -c <type>/<issue>-<slug>` | — |
 | 4. Build | Test-first, in thin vertical slices | `/implement` → `/tdd` |
 | 5. Verify | Static checks and tests locally, then test the change by hand | — |
@@ -72,8 +72,9 @@ issue, stdlib and native features before new libraries.
   joined by `;` (level `low`…`max`, or `unknown`), or `none`. CI checks the format.
 - **PRs** follow `.github/pull_request_template.md`: `Closes #<n>` per finished issue, one per line
   (`Refs` closes nothing), the manual test, and the docs updated. CI's *PR checklist* enforces it.
-  Request review from the Tech Lead, who reviews and merges; a `feat` PR also needs Business / PM's
-  comment that its criteria are met. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
+  The Tech Lead reviews and merges; a `feat` PR also needs Business / PM's comment that its criteria
+  are met. While every session shares one GitHub login, ask for review by message, and the Tech
+  Lead's `/code-review` result posted as a PR comment is its approval. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
   once CI is green; every other PR needs another reviewer's approval.
   Never push to `main` or force-push a reviewed branch. After any
   post-review change, wait for green CI again.
