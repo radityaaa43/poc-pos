@@ -430,6 +430,92 @@ class KitchenIntakeTest extends TestCase
         $this->assertSame(0, KitchenItem::count());
     }
 
+    // #341: the line remembers whether it needed preparation when it was sold.
+    public function test_web_checkout_snapshots_the_flag_on_each_line(): void
+    {
+        $nasi = $this->product('Nasi goreng', flagged: true);
+        $mineral = $this->product('Air mineral', flagged: false);
+        $this->addToCart($nasi);
+        $this->addToCart($mineral);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.store'), ['payment_method' => 'cash', 'cash' => 50000])
+            ->assertSessionHasNoErrors();
+
+        $details = Transaction::firstOrFail()->details->keyBy('product_id');
+        $this->assertTrue($details[$nasi->id]->needs_preparation);
+        $this->assertFalse($details[$mineral->id]->needs_preparation);
+    }
+
+    public function test_api_checkout_snapshots_the_flag(): void
+    {
+        $nasi = $this->product('Nasi goreng', flagged: true);
+        $mineral = $this->product('Air mineral', flagged: false);
+        Sanctum::actingAs($this->cashier, ['*']);
+
+        $this->postJson('/api/v1/pos/cart', ['product_id' => $nasi->id, 'qty' => 1])->assertSuccessful();
+        $this->postJson('/api/v1/pos/cart', ['product_id' => $mineral->id, 'qty' => 1])->assertSuccessful();
+        $this->postJson('/api/v1/pos/checkout', ['payment_method' => 'cash', 'cash' => 50000])->assertCreated();
+
+        $details = Transaction::firstOrFail()->details->keyBy('product_id');
+        $this->assertTrue($details[$nasi->id]->needs_preparation);
+        $this->assertFalse($details[$mineral->id]->needs_preparation);
+    }
+
+    public function test_dine_order_accept_snapshots_the_flag_so_a_change_before_payment_does_not_matter(): void
+    {
+        $rujak = $this->product('Rujak', flagged: true);
+        $order = $this->acceptedDineOrder($rujak);
+        $this->assertTrue($order->transaction->details->sole()->needs_preparation);
+
+        $rujak->update(['needs_preparation' => false]); // changed while the bill is open
+        $this->payAtCounter($order);
+
+        $this->assertSame($rujak->id, KitchenItem::sole()->product_id);
+    }
+
+    public function test_a_product_flagged_after_the_sale_is_not_sent_to_the_kitchen(): void
+    {
+        $mineral = $this->product('Air mineral', flagged: false);
+        $sale = $this->soldSale([$mineral]);
+
+        $mineral->update(['needs_preparation' => true]);
+        $sale->update(['payment_status' => 'paid']); // intake runs now
+        $this->artisan('kitchen:recover-intake')->assertSuccessful(); // and so does the self-heal job
+
+        $this->assertSame(0, KitchenItem::count());
+    }
+
+    public function test_a_product_unflagged_after_the_sale_still_goes_to_the_kitchen(): void
+    {
+        $nasi = $this->product('Nasi goreng', flagged: true);
+        $sale = $this->soldSale([$nasi]);
+
+        $nasi->update(['needs_preparation' => false]);
+        $sale->update(['payment_status' => 'paid']);
+        $this->assertSame([$nasi->id], KitchenItem::pluck('product_id')->all());
+
+        // The self-heal job takes the same decision when the intake never ran.
+        KitchenItem::query()->delete();
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+        $this->assertSame([$nasi->id], KitchenItem::pluck('product_id')->all());
+    }
+
+    public function test_a_line_without_a_snapshot_falls_back_to_the_product_flag(): void
+    {
+        $nasi = $this->product('Nasi goreng', flagged: true);
+        $mineral = $this->product('Air mineral', flagged: false);
+        $frozen = $this->product('Es teh', flagged: true);
+        $sale = $this->pendingSale('cash', [$nasi, $mineral, $frozen]); // written like a pre-release line: no snapshot
+        $this->assertNull($sale->details()->where('product_id', $nasi->id)->firstOrFail()->needs_preparation);
+        $sale->details()->where('product_id', $frozen->id)->update(['needs_preparation' => false]); // one line of the sale has a snapshot
+
+        $sale->update(['payment_status' => 'paid']);
+
+        // Decided per line: the null lines read the product, the frozen line its own snapshot.
+        $this->assertSame([$nasi->id], KitchenItem::pluck('product_id')->all());
+    }
+
     private function product(string $title, bool $flagged): Product
     {
         $product = Product::create([
@@ -440,6 +526,15 @@ class KitchenIntakeTest extends TestCase
         $this->warehouse->products()->attach($product->id, ['stock' => 100]);
 
         return $product;
+    }
+
+    /** A pending cash sale of $products whose lines carry the sale-time snapshot, as a checkout writes it. */
+    private function soldSale(array $products): Transaction
+    {
+        $sale = $this->pendingSale('cash', $products, 'INV-SNAPSHOT');
+        $sale->details()->with('product')->get()->each(fn (TransactionDetail $line) => $line->update(['needs_preparation' => $line->product->needs_preparation]));
+
+        return $sale;
     }
 
     private function defaultStationId(): int
