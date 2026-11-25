@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DineOrderItem;
 use App\Models\KitchenItem;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
@@ -43,6 +44,7 @@ class KitchenIntakeService
 
         $transaction->load('details.product:id,needs_preparation', 'dineOrder.items');
         // Dine-in lines carry a note ("no sugar"); match each sale line to the first unused order line of the same product and unit.
+        /** @var list<DineOrderItem> $dineItems */
         $dineItems = $transaction->dineOrder?->items->all() ?? [];
 
         // All or nothing: a failure midway must not leave some lines recorded, or the once-only guard above would skip the rest forever.

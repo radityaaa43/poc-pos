@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class KitchenItem extends Model
 {
@@ -42,6 +43,7 @@ class KitchenItem extends Model
         'served_at' => 'datetime',
     ];
 
+    /** @return BelongsTo<Transaction, $this> */
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
@@ -52,6 +54,7 @@ class KitchenItem extends Model
         return $this->belongsTo(TransactionDetail::class, 'transaction_detail_id');
     }
 
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
@@ -76,5 +79,16 @@ class KitchenItem extends Model
     public function scopeOpen(Builder $query): void
     {
         $query->whereIn('status', [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY]);
+    }
+
+    /** Every warehouse of the outlet: a shift may sell from any of them, not only the first one. */
+    public function scopeInOutlet(Builder $query, int $outletId): void
+    {
+        $query->whereIn('warehouse_id', Warehouse::where('outlet_id', $outletId)->select('id'));
+    }
+
+    public function ticketPrints(): HasMany
+    {
+        return $this->hasMany(KitchenTicketPrint::class);
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\Warehouse;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
+use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -22,42 +23,15 @@ class KitchenController extends Controller
         // Every warehouse of the outlet: a shift may sell from any of them, not only the first one.
         $items = $outlet
             ? KitchenItem::open()
-                ->whereIn('warehouse_id', Warehouse::where('outlet_id', $outlet->id)->select('id'))
-                ->with([
-                    'transaction:id,invoice,order_type,payment_status,created_at',
-                    'transaction.dineOrder:id,transaction_id,dine_table_id',
-                    'transaction.dineOrder.table:id,name',
-                    'product:id,title',
-                ])
+                ->inOutlet($outlet->id)
+                ->with(KitchenOrders::RELATIONS)
                 ->orderByRaw('COALESCE(accepted_at, created_at)')
                 ->orderBy('id')
                 ->get()
             : collect();
 
-        // groupBy keeps first-seen order, so the order with the oldest item comes first.
-        $orders = $items->groupBy('transaction_id')->map(function ($lines) {
-            $first = $lines->first();
-            $transaction = $first->transaction;
-            $dineOrder = $transaction->dineOrder;
-
-            return [
-                'id' => $transaction->id,
-                'number' => $dineOrder ? $dineOrder->table?->name : $transaction->invoice,
-                'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
-                'unpaid' => $transaction->payment_status !== 'paid',
-                'since' => $first->accepted_at ?? $first->created_at,
-                'items' => $lines->map(fn (KitchenItem $item) => [
-                    'id' => $item->id,
-                    'title' => $item->product?->title,
-                    'qty' => $item->qty,
-                    'note' => $item->note ?? null, // the column arrives with a later #236 change
-                    'status' => $item->status,
-                ])->values(),
-            ];
-        })->values();
-
         return Inertia::render('Dashboard/Kitchen/Index', [
-            'orders' => $orders,
+            'orders' => KitchenOrders::fromItems($items),
             'outlet' => $outlet?->only('id', 'name'),
         ]);
     }

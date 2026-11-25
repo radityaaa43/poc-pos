@@ -88,7 +88,7 @@ class KitchenItemService
             $item = KitchenItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
 
             if ((self::RANK[$item->status] ?? -1) >= self::RANK[$to]) {
-                $who = $item->{"{$to}User"}?->name ?? 'staf lain';
+                $who = $item->{"{$to}User"}->name ?? 'staf lain';
 
                 throw ValidationException::withMessages(['item' => "Sudah diproses oleh {$who}"]);
             }
@@ -131,7 +131,7 @@ class KitchenItemService
             $last = $items->whereNotNull('ready_at')->sortByDesc('ready_at')->first();
             $order->update([
                 'status' => DineOrder::STATUS_READY,
-                'ready_at' => $last?->ready_at ?? now(),
+                'ready_at' => $last->ready_at ?? now(),
                 'ready_by' => $last?->ready_by,
             ]);
         }

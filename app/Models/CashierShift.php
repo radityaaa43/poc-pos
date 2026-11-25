@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CashierShift extends Model
 {
@@ -61,7 +62,8 @@ class CashierShift extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function warehouse()
+    /** @return BelongsTo<Warehouse, $this> */
+    public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
     }

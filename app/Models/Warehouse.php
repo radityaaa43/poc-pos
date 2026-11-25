@@ -38,6 +38,7 @@ class Warehouse extends Model
             ->withTimestamps();
     }
 
+    /** @return BelongsTo<Outlet, $this> */
     public function outlet(): BelongsTo
     {
         return $this->belongsTo(Outlet::class);

@@ -287,7 +287,7 @@ class DineOrderService
     public function markReady(DineOrder $order): void
     {
         if ($this->hasKitchenItems($order)) {
-            $this->kitchenItemService->allReady($order->transaction, auth()->user());
+            $this->kitchenItemService->allReady(Transaction::findOrFail($order->transaction_id), auth()->user());
 
             return;
         }

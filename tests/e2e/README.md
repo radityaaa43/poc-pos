@@ -54,8 +54,10 @@ low bcrypt cost, no SSR. The bot-guard honeypot and token stay on.
 
 `.github/workflows/tests.yml`: `E2E (shard i/N)` jobs run the same suite against a MySQL service
 container (`--shard=i/N`, blob reporter); the `E2E` job merges the blob reports into one HTML report
-artifact and fails if any shard failed. There is one shard today; to add shards, extend the `shard`
-matrix only (the job names and `--shard` both follow it). Each shard job resets its own database.
+artifact and fails if any shard failed. The suite runs in three shards (`shard: [1, 2, 3]`), always the whole
+suite split between them, never a subset; to change the number of shards, edit the `shard` matrix only (the job
+names and `--shard` both follow it). The ruleset requires the aggregate `E2E` check, not the shard jobs. Each
+shard job resets its own database.
 
 ## Adding e2e for a new feature
 

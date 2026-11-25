@@ -17,6 +17,7 @@ use App\Http\Controllers\Apps\DiscountApprovalController;
 use App\Http\Controllers\Apps\GoodsReceivingController;
 use App\Http\Controllers\Apps\ImportExportController;
 use App\Http\Controllers\Apps\KitchenController;
+use App\Http\Controllers\Apps\KitchenPrintStationController;
 use App\Http\Controllers\Apps\MemberController;
 use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PayableController;
@@ -459,6 +460,9 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('/kitchen/items/{kitchenItem}/start', [KitchenController::class, 'start'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.start');
     Route::post('/kitchen/items/{kitchenItem}/ready', [KitchenController::class, 'ready'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.ready');
     Route::post('/kitchen/orders/{transaction}/all-ready', [KitchenController::class, 'allReady'])->middleware('permission:dine-orders-prepare')->name('kitchen.orders.all-ready');
+    Route::post('/kitchen/stations', [KitchenPrintStationController::class, 'store'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.store');
+    Route::get('/kitchen/stations/{station}/tickets', [KitchenPrintStationController::class, 'tickets'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.tickets');
+    Route::post('/kitchen/stations/{station}/prints', [KitchenPrintStationController::class, 'prints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.stations.prints');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
