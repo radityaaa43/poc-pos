@@ -787,7 +787,6 @@ class PosApiController extends Controller
 
     private function syncOne(Request $request, array $payload, string $uuid, string $fingerprint): array
     {
-        $isPayLater = (bool) ($payload['pay_later'] ?? false);
         $user = $request->user();
 
         if (! $user) {
@@ -795,7 +794,7 @@ class PosApiController extends Controller
         }
 
         // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
-        if ($isPayLater) {
+        if ($payload['pay_later'] ?? false) {
             return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
         }
 
@@ -869,11 +868,9 @@ class PosApiController extends Controller
                 $createdCartIds[] = $cart->id;
             }
 
-            // Reuse checkout() with a synthesized request. Offline supports
-            // cash, bank_transfer, and pay_later; interactive gateways
-            // (midtrans/xendit/qris) are validated against payment_method.
-            $isBankTransfer = ! $isPayLater
-                && ($payload['payment_method'] ?? 'cash') === 'bank_transfer';
+            // Reuse checkout() with a synthesized request. Offline supports cash and bank_transfer
+            // (pay later was refused above); interactive gateways (midtrans/xendit/qris) are validated against payment_method.
+            $isBankTransfer = ($payload['payment_method'] ?? 'cash') === 'bank_transfer';
 
             $checkoutRequest = new Request(array_filter([
                 'customer_id' => $payload['customer_id'] ?? null,
@@ -882,9 +879,8 @@ class PosApiController extends Controller
                 'shipping_cost' => $payload['shipping_cost'] ?? 0,
                 'redeem_points' => $payload['redeem_points'] ?? 0,
                 'cash' => $payload['cash'] ?? null,
-                'payment_method' => $isPayLater ? 'pay_later' : ($isBankTransfer ? 'bank_transfer' : 'cash'),
+                'payment_method' => $isBankTransfer ? 'bank_transfer' : 'cash',
                 'bank_account_id' => $payload['bank_account_id'] ?? null,
-                'due_date' => $isPayLater ? ($payload['due_date'] ?? null) : null,
                 'order_type' => $payload['order_type'] ?? null,
                 'note' => $payload['note'] ?? null,
                 'client_uuid' => $uuid,
