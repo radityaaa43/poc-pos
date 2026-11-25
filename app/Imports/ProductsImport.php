@@ -25,7 +25,7 @@ class ProductsImport implements ToModel, WithBatchInserts, WithChunkReading, Wit
 
         $barcode = (string) ($row['barcode'] ?? '');
 
-        return Product::updateOrCreate(
+        Product::updateOrCreate(
             ['barcode' => $barcode],
             [
                 'sku' => $row['sku'] ?? $barcode,
@@ -41,6 +41,9 @@ class ProductsImport implements ToModel, WithBatchInserts, WithChunkReading, Wit
                 'tax_rate' => (float) ($row['tarif_pajak'] ?? 11.00),
             ]
         );
+
+        // Already saved above; returning the model would make the batch insert it a second time.
+        return null;
     }
 
     public function rules(): array
