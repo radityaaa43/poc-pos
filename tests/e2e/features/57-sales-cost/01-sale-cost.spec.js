@@ -1,5 +1,6 @@
 import { test, expect as baseExpect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
+import { warehouseCell } from '../../support/inventory.js';
 
 const expect = baseExpect.configure({ timeout: 45_000 });
 
@@ -63,7 +64,7 @@ test.describe('57-sales-cost', () => {
         // AC-14: 5 kg more arrive at Rp 400 per gram: (9.964 x 250 + 5.000 x 400) / 14.964 = Rp 300,12; the sale stays put.
         arrange('purchasing.po', { material_id: material.material_id, qty: 5, price: 400000, receive: 5 });
         await owner.goto(`/dashboard/raw-materials?search=${encodeURIComponent(material.title)}`);
-        await expect(owner.getByRole('row', { name: new RegExp(material.title) })).toContainText(/14\.964\s*·\s*Rp\s*300,12/);
+        await expect(await warehouseCell(owner, owner.getByRole('row', { name: new RegExp(material.title) }), /WH-E2E/)).toContainText(/14\.964\s*·\s*Rp\s*300,12/);
         await expect(await profit()).toHaveText(/Rp\s*37\.000/);
 
         // AC-15: returning 1 portion reverses its margin at the frozen cost: 20.000 - 4.500 = 15.500 (not at today's Rp 5.400).
