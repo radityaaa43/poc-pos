@@ -1,5 +1,6 @@
-import React from "react";
-import { Head, Link, router } from "@inertiajs/react";
+import React, { useEffect } from "react";
+import { Head, Link, router, usePage } from "@inertiajs/react";
+import toast from "react-hot-toast";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { IconArrowLeft, IconArrowsLeftRight, IconSend, IconCheck, IconX } from "@tabler/icons-react";
 import { useAuthorization } from "@/Utils/authorization";
@@ -22,10 +23,17 @@ const statusBadge = (status) => {
 
 export default function Show({ transfer }) {
     const { can } = useAuthorization();
+    const { flash } = usePage().props;
+
+    useEffect(() => {
+        if (flash?.success) toast.success(flash.success);
+    }, [flash]);
 
     const confirmAction = (action, label) => {
         if (!confirm(`Yakin ingin ${label} transfer ini?`)) return;
-        router.post(route(`stock-transfers.${action}`, transfer.id));
+        router.post(route(`stock-transfers.${action}`, transfer.id), {}, {
+            onError: (errors) => toast.error(errors.transfer || "Transfer gagal diproses."),
+        });
     };
 
     return (
