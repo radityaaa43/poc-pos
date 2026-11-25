@@ -4,8 +4,7 @@ import { roles } from '../../support/roles.js';
 // History lists a cashier's own sales; the scenario sells as cashier@e2e.test.
 const cashier = roles.find((role) => role.key === 'cashier');
 
-// Bug #112: the WhatsApp text links to /share/transactions/<invoice> without ?token=, so a customer gets a 404.
-test.fixme('the WhatsApp share link on the history page carries a working public invoice link', async ({ arrange, asRole, request }) => {
+test('the WhatsApp share link on the history page carries a working public invoice link', async ({ arrange, asRole, request }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'cash', outlet: 'e2e' });
     const page = await asRole(cashier);
