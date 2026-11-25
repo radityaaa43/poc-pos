@@ -9,7 +9,7 @@ labels: needs-triage
 
 **AI used:** <!-- "<agent>, <model>, effort <low|medium|high|xhigh|max|unknown>" per agent that drafted this issue, separated by ";", or "none" -->
 
-**Backlog:** <!-- IDs this covers, and tag each Done-when item with its criterion ("[AC-01]"); or "none — <reason>" -->
+**Backlog:** <!-- IDs this covers, and tag each business acceptance criterion with its REQ criterion ("[AC-01]"); or "none — <reason>" -->
 
 **Expected size:** <!-- S (< 300 changed lines), M (< 2000), or L: split into tickets before building -->
 
@@ -32,9 +32,15 @@ Unanswered → write `?` and add `needs-info`. -->
 
 - [ ]
 
-## Done when
+## Business acceptance criteria
 
-<!-- Checkable criteria derived from "What good looks like", including the tests that must pass. -->
+<!-- Business/PM: one line per criterion `- [ ] [AC-xx] ...` and per business rule or edge case `- [ ] [BR-n] ...`, plus the mandatory evidence lines (docs/agents/handoff.md → 2a). -->
+
+- [ ]
+
+## Technical acceptance criteria
+
+<!-- Tech Lead fills at Planning: `- [ ] [TC-n] ...` (schema/migration, server-side permissions, tests per behaviour, e2e per criterion, screenshots, docs, size). -->
 
 - [ ]
 

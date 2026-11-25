@@ -44,6 +44,10 @@ One row per Done-when line and per AC:
 ### Docs
 GLOSSARY.md, docs/, README rows the change makes stale.
 
+### Technical acceptance criteria
+- [ ] [TC-1] <one checkable line: schema/migration, server-side permissions, tests per behaviour,
+  e2e per criterion, screenshots, docs, size, standards>
+
 ### Decision record
     Decision (Tech Lead, delegated by the maintainer, YYYY-MM-DD): <what>
     Why: <reason, with the rule or code it rests on>
@@ -59,6 +63,13 @@ in-flight tickets.
 _Plan re-review ✓ (YYYY-MM-DD): cited lines still match `origin/main` <sha>; every Done-when line and
 AC maps to a test; no file overlap with other in-flight tickets._
 ```
+
+**Acceptance lists.** The issue holds two checklists, written before any code: **Business acceptance
+criteria** (`[AC-xx]` from the REQ and `[BR-n]` for each business rule or edge case; Business / PM
+writes them in Backlog) and **Technical acceptance criteria** (`[TC-n]`; the Tech Lead writes them in
+the plan's `### Technical acceptance criteria` block and copies the block into the issue body's
+`## Technical acceptance criteria` section, so the issue holds both lists). Tickets already in Todo or
+later keep their current form (Done when).
 
 **Re-review before Todo.** Read the plan again against current `main`. Check that the cited lines
 haven't moved, that the requirement wording is quoted, that every Done-when line has a test, and that
@@ -95,7 +106,9 @@ message**. "Done" without evidence is not done.
 - **Every feature or flow change** has e2e tests, including a backend-only flow, which is asserted through the e2e state query.
 - `E2E: none — <reason>` is allowed only for docs, governance and pure refactors.
 
-One row per Done-when line, per AC on the `Backlog:` line, and per plan item.
+One row per Done-when line, per AC on the `Backlog:` line, and per plan item. When the issue has the
+acceptance lists (section 1a), the rows are exactly its `[AC-xx]`, `[BR-n]` and `[TC-n]` lines, in
+that order, with the tag in the first column (`AC-01`, `BR-1`, `TC-1`).
 
 ```markdown
 | # | Item (Done-when / AC / plan) | Done | Evidence |
@@ -169,6 +182,10 @@ The Tech Lead's technical approval is a **Requirement & AC checklist** comment o
 **Findings** (REVIEW.md severities): 🔴 … · 🟡 … · 🟣 …
 ```
 
+- **Issues with the acceptance lists:** the Tech Lead ticks only the `[TC-n]` lines in the issue,
+  against the Evidence, and posts `Technical: APPROVE (TC-1..n ✓)` or the failing `TC-n` lines with
+  what was seen. There is no free-form re-derivation. A new technical finding is first added as a
+  `[TC-n]` line, then checked. The table above is the form for tickets that predate the lists.
 - Every Evidence row is re-checked against the REQ text, the plan and the code. It is not copied.
 - Any ✗ or unproven row means **CHANGES**, and there is no merge.
 - On APPROVE, hand the PR to Business / PM (step 2). Merge only when the checklist is all ✓, CI is
@@ -223,6 +240,10 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
    ```
 
    - One row per tagged criterion, Done-when item, recorded decision and business rule or edge case.
+   - **Issues with the acceptance lists:** tick only the `[AC-xx]` and `[BR-n]` lines against the
+     Evidence and post `AC check: OK (AC-…, BR-… ✓)`, or name the unticked lines with what was seen. A
+     business rule found at review is first added as a `[BR-n]` line, then checked; if it changes
+     scope, it goes back through Planning.
    - UI wording must match the REQ terms exactly.
    - Read the full diff. Never pass a PR on its description alone.
    - On ❌, send the evaluation to the Tech Lead (section 3).
