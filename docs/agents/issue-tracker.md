@@ -6,7 +6,10 @@ operations. Every change starts from an issue (`AGENTS.md`).
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body-file <file>` (use the templates in
-  `.github/ISSUE_TEMPLATE/`; a heredoc or file for multi-line bodies).
+  `.github/ISSUE_TEMPLATE/`; a heredoc or file for multi-line bodies). `feature.md` has *Business
+  acceptance criteria* and *Technical acceptance criteria*; `bug.md` stays on *Done when*, since bugs
+  carry no REQ criteria. The Issue checklist accepts either `## Business acceptance criteria` or
+  `## Done when`.
 - **Read an issue**: `gh issue view <number> --json number,title,body,labels,assignees,comments`.
 - **List issues**: `gh issue list --state open --label <label> --json number,title,labels,assignees`.
 - **Sub-issues**: `gh issue create --parent <parent> ...`, or `gh issue edit <parent> --add-sub-issue <child>`

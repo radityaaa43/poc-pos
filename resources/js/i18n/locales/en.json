@@ -1050,5 +1050,22 @@
             "preparing": "Preparing",
             "ready": "Ready"
         }
+    },
+    "pos": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Prepared now, paid later. Marked Belum lunas.",
+            "offline": "Bayar Belakangan is not available offline",
+            "dueDate": "Due date",
+            "noteLabel": "Note (required for a guest)",
+            "notePlaceholder": "Who is it for? At least 2 characters",
+            "noteRequired": "Add a note of at least 2 characters for a guest"
+        }
+    },
+    "outlets": {
+        "payLater": {
+            "label": "Bayar Belakangan",
+            "hint": "Let the POS of this outlet sell now and collect payment later."
+        }
     }
 }

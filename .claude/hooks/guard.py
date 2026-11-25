@@ -237,7 +237,7 @@ def branch_decision(command: str, view=gh_json):
     labels = view(["issue", "view", ok.group(1), "--json", "labels"])
     triage = get("triage_labels.needs-triage", "needs-triage")
     if labels and any(l["name"] == triage for l in labels.get("labels", [])):
-        return "ask", (f"Issue #{ok.group(1)} is still {triage}; the Tech Lead moves it to "
+        return "ask", (f"Issue #{ok.group(1)} is still {triage}; its module Owner moves it to "
                        "ready-for-* before work starts"), rule("AGENTS.md → Issues")
     return None
 
@@ -283,21 +283,75 @@ def destructive_decision(command: str):
             return "ask", "Destructive command; run it only on your own local environment", rule("AGENTS.md → Never")
     return None
 
+def local_bash_override_enabled() -> bool:
+    path = os.path.join(
+        ROOT, ".claude", "settings.local.json"
+    )
+
+    try:
+        with open(path, encoding="utf-8") as fh:
+            settings = json.load(fh)
+
+        return (
+            settings.get("env", {}).get(
+                "GOVERNANCE_BASH_MODE"
+            ) == "local-override"
+            and "Bash(*)" in settings.get(
+                "permissions", {}
+            ).get("allow", [])
+        )
+
+    except (OSError, ValueError, AttributeError, TypeError):
+        return False
 
 def bash_decision(command: str):
+    decisions = []
+
     found = attribution_decision(command)
     if found:
-        return found
+        decisions.append(found)
+
     for segment in re.split(r"&&|\|\||[;\n]", command):
         target = merge_target(segment)
+
         if target:
             found = merge_decision(*target)
             if found:
-                return found
-        found = push_decision(segment) or commit_on_default_decision(segment)
+                decisions.append(found)
+
+        for check in (
+            push_decision,
+            commit_on_default_decision,
+        ):
+            found = check(segment)
+            if found:
+                decisions.append(found)
+
+    for check in (
+        secret_decision,
+        destructive_decision,
+        branch_decision,
+    ):
+        found = check(command)
         if found:
-            return found
-    return (secret_decision(command) or destructive_decision(command) or branch_decision(command))
+            decisions.append(found)
+
+    # Deny always takes precedence.
+    for decision in decisions:
+        if decision[0] == "deny":
+            return decision
+
+    # Explicit local override:
+    # delegate ask decisions to Claude permissions.
+    if local_bash_override_enabled():
+        return None
+
+    # Standard governance.
+    for decision in decisions:
+        if decision[0] == "ask":
+            return decision
+
+    return None
 
 
 def decide(tool: str, tool_input: dict):

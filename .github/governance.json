@@ -245,6 +245,7 @@
     "design_plugin": true
   },
   "issue": {
+    "required_sections": [["Business acceptance criteria", "Done when"]],
     "title_types": ["feat", "fix", "refactor", "docs", "test", "chore", "ci"],
     "title_rule_start": "2026-11-25"
   },

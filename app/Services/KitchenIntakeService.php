@@ -15,9 +15,24 @@ class KitchenIntakeService
      */
     public function intake(Transaction $transaction): void
     {
+        if ($transaction->payment_status === 'paid') {
+            $this->record($transaction);
+        }
+    }
+
+    /** A pay-later sale goes to the kitchen at checkout, unpaid; paying its receivable later records nothing more. */
+    public function intakeUnpaid(Transaction $transaction): void
+    {
+        if ($transaction->payment_method === 'pay_later' && $transaction->payment_status === 'unpaid') {
+            $this->record($transaction);
+        }
+    }
+
+    private function record(Transaction $transaction): void
+    {
         // A sale with no warehouse (a shift opened without one, or a legacy sale) has no outlet to cook for, and
         // kitchen_items.warehouse_id is required: skip it, like the release backfill, instead of failing the payment.
-        if ($transaction->payment_status !== 'paid' || $transaction->warehouse_id === null) {
+        if ($transaction->warehouse_id === null) {
             return;
         }
 

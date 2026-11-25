@@ -30,7 +30,7 @@ def issue_problem(body: str, cfg: dict | None = None) -> str | None:
         return f"Fill the Backlog line: {hint}. See {b['see']}."
     if NONE.match(value) or not b.get("require_ac"):
         return None
-    done = gc.section(body, "Done when") or ""
+    done = gc.section(body, "Business acceptance criteria") or gc.section(body, "Done when") or ""
     if not re.search(r"\[[^\]]*" + b["ac_regex"] + r"[^\]]*\]", done, re.I) and not acs.search(done):
         return (f"Backlog names {value}: tag each Done-when item with the acceptance criterion it "
                 f"covers, e.g. `- [ ] [AC-01] ...`. See {b['see']}.")
