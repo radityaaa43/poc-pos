@@ -20,6 +20,9 @@ rules come before sections 1–4.
 - **A developer pulls their own work.** When they have no ticket In progress, they take the next card in
   Todo whose plan names them (`Builder: devN`) and whose `Blocked by` issues are all merged. They move
   it to In progress, then tell the Tech Lead they started. They don't wait for an assignment message.
+- **Stacking.** A ticket whose only open blocker is in the same developer's chain, and is already built
+  on a branch, can be pulled too. The developer stacks it on that branch and opens its PR only after
+  the blocker merges.
 - **Nothing of their own is ready:** they take any unblocked `low` card in Todo, or the top test-fix or
   flaky-test issue, and say so.
 - **Nothing at all is ready:** they tell the Tech Lead "idle" once, and the Tech Lead plans their next
@@ -42,7 +45,7 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 |---|---|---|
 | Planning | at least 2 per developer, ready to plan | Business / PM prepares more (section 4, rule 4) |
 | Todo | at least 1 per developer with blockers merged | Tech Lead plans more |
-| In progress | 1 per developer, plus up to 2 `low` | The developer finishes before pulling |
+| In progress | 1 main ticket per developer, plus 1 stacked next-in-chain ticket, plus up to 2 `low` | The developer finishes before pulling |
 | Technical review | at most 3 | The Tech Lead stops planning and reviews |
 | Business review | at most 2 | Business / PM reviews before anything else |
 
