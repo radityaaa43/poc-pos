@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, useForm, usePage, Link } from "@inertiajs/react";
 import Input from "@/Components/Dashboard/Input";
@@ -108,8 +108,12 @@ export default function Edit({
         setData("units", updateUnitRows(data.units, index, field, value));
     };
 
+    const addUnitRef = useRef(null);
+
     const removeUnitRow = (index) => {
         setData("units", data.units.filter((_, i) => i !== index));
+        // The clicked row is gone; park focus on the add button instead of losing it to <body>.
+        requestAnimationFrame(() => addUnitRef.current?.focus());
     };
 
     const availableUnits = (selectedIndex) =>
@@ -347,11 +351,12 @@ export default function Edit({
                                     </h3>
                                     <button
                                         type="button"
+                                        ref={addUnitRef}
                                         onClick={addUnitRow}
                                         disabled={
                                             data.units.length >= units.length
                                         }
-                                        className="text-sm text-primary-600 hover:text-primary-700 font-medium disabled:opacity-40"
+                                        className="-mr-3 min-h-11 rounded-lg px-3 text-sm font-medium text-primary-600 hover:text-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 disabled:opacity-40 dark:text-primary-400 dark:hover:text-primary-300"
                                     >
                                         + Tambah Satuan
                                     </button>
