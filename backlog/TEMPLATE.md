@@ -8,10 +8,15 @@
 <!-- Every section is required. A section that truly doesn't apply says "n/a — <reason>".
      A REQ is `ready` only when every section is filled or n/a with a reason (README.md → Status). -->
 
-## User story
+## User stories
 
-As a <role (owner, branch manager, cashier, kitchen staff, central warehouse staff)>, I want
-<capability>, so that <outcome>. One story per role that is affected.
+<!-- One story per affected role (owner, branch manager, cashier, waiter, kitchen staff, guest,
+     central warehouse staff...). Each story names the journey it lives in and the criteria that
+     prove it, so story → journey → AC can be followed both ways. -->
+
+| # | Story | Journey | AC |
+|---|---|---|---|
+| US-1 | As a <role>, I want <capability>, so that <outcome>. | J1 | AC-01, AC-02 |
 
 ## Context
 
