@@ -61,7 +61,8 @@ Operasi transaksional tertentu juga mewajibkan middleware `active_shift`.
 3. cart dapat di-hold lalu di-resume
 4. checkout membuat transaksi, detail, profit, dan pengurangan stok
 5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi
-6. user diarahkan ke dokumen print / invoice
+6. tagihan Bayar Belakangan tanpa piutang (tamu atau pelanggan tanpa flag) muncul di bagian **Belum Lunas** POS dengan label (catatan atau nama pelanggan), jumlah, dan umur. Kasir dengan `transactions-access` dan shift aktif di outlet tagihan melunasinya penuh dengan metode apa pun (`POST /dashboard/transactions/{transaction}/settle`); setelah retur sebagian jumlahnya sisa total, tagihan yang diretur penuh tidak tampil, dan bila dua kasir melunasi bersamaan yang pertama menang. Pelunasan dihitung di shift yang menerimanya dan tidak membuat item dapur kedua
+7. user diarahkan ke dokumen print / invoice
 
 ## Retry a failed payment
 

@@ -171,15 +171,21 @@ class TransactionController extends Controller
             'openBills' => Transaction::openBills()
                 ->whereIn('warehouse_id', $this->outletAccessService->warehousesFor(auth()->user())->pluck('id'))
                 ->with('dineOrder:id,transaction_id,dine_table_id,status', 'dineOrder.table:id,name')
+                ->addSelect(['customer_name' => Customer::select('name')->whereColumn('customers.id', 'transactions.customer_id')->limit(1)])
+                ->withSum(['salesReturns' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount')
                 ->oldest()
-                ->get(['id', 'invoice', 'grand_total', 'payment_status'])
+                ->get(['transactions.id', 'invoice', 'grand_total', 'payment_status', 'note', 'transactions.created_at'])
                 ->map(fn (Transaction $bill) => [
-                    'order_id' => $bill->dineOrder->id,
+                    'id' => $bill->id,
+                    'order_id' => $bill->dineOrder?->id,
                     'invoice' => $bill->invoice,
-                    'table' => $bill->dineOrder->table?->name,
+                    'label' => data_get($bill, 'dineOrder.table.name') ?? $bill->getAttribute('customer_name') ?? $bill->note,
+                    'table' => $bill->dineOrder?->table?->name,
                     'grand_total' => (int) $bill->grand_total,
-                    'order_status' => $bill->dineOrder->status,
+                    'amount' => max(0, (int) $bill->grand_total - (int) $bill->getAttribute('sales_returns_sum_total_return_amount')),
+                    'order_status' => $bill->dineOrder?->status,
                     'pending' => $bill->payment_status === 'pending',
+                    'created_at' => $bill->created_at->toIso8601String(),
                 ]),
             'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'customers' => $customers,

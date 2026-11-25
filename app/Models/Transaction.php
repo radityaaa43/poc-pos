@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Services\KitchenIntakeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -172,16 +173,49 @@ class Transaction extends Model
     /** Statuses of an open bill the cashier may still pay: nothing paid, or a gateway attempt that failed or expired. */
     public const OPEN_BILL_PAYABLE = ['unpaid', 'failed', 'expired'];
 
-    /** Accepted dine-in orders whose bill is unsettled (a pending gateway or transfer included). Not a credit sale: no receivable. */
+    /** Unsettled bills a cashier can take payment for: accepted dine-in orders, or guest pay-later sales. Not a credit sale: no receivable. */
     public function scopeOpenBills($query)
     {
-        return $query->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
-            ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS));
+        return $query->where(fn ($bills) => $bills
+            ->where(fn ($dine) => $dine->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+                ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS)))
+            ->orWhere(fn ($posBills) => $posBills->payLaterBills()));
     }
 
-    public function salesReturns()
+    /** POS pay-later sales left unpaid (a pending gateway attempt included): no receivable, no dine order, not fully returned. */
+    public function scopePayLaterBills($query)
+    {
+        return $query->where('is_pay_later', true)
+            ->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+            ->doesntHave('receivable')
+            ->doesntHave('dineOrder')
+            ->notFullyReturned()
+            // A bill-level discount can leave nothing owed while some quantity is unreturned: such a bill can't be paid.
+            ->whereRaw('transactions.grand_total > coalesce((select sum(sr2.total_return_amount) from sales_returns sr2'
+                ." where sr2.transaction_id = transactions.id and sr2.status = 'completed'), 0)");
+    }
+
+    /** Some quantity is still unreturned (no completed return, or returned qty below sold qty). */
+    public function scopeNotFullyReturned($query)
+    {
+        return $query->where(fn ($q) => $q
+            ->whereDoesntHave('salesReturns', fn ($returns) => $returns->where('status', 'completed'))
+            ->orWhereRaw('(select coalesce(sum(sri.qty_return), 0) from sales_return_items sri'
+                .' join sales_returns sr on sr.id = sri.sales_return_id'
+                ." where sr.transaction_id = transactions.id and sr.status = 'completed')"
+                .' < (select coalesce(sum(td.qty), 0) from transaction_details td where td.transaction_id = transactions.id)'));
+    }
+
+    public function salesReturns(): HasMany
     {
         return $this->hasMany(SalesReturn::class);
+    }
+
+    /** What is still owed after partial returns: grand_total minus completed returns' total_return_amount (the sum SalesReturnController::calculateSettlement subtracts from a receivable). */
+    public function remainingTotal(): int
+    {
+        return max(0, (int) $this->grand_total
+            - (int) $this->salesReturns()->where('status', 'completed')->sum('total_return_amount'));
     }
 
     public function tenders()
