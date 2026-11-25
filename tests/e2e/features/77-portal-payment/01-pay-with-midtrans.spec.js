@@ -45,8 +45,7 @@ test('a gateway that is not set up shows an error and nothing is charged', async
     await expect(page.getByText('Belum Lunas', { exact: true })).toBeVisible();
 });
 
-// Bug #124: back()->with('error') is flashed but TransactionDetail.jsx never shows it.
-test.fixme('the portal tells the customer the gateway is not configured', async ({ arrange, page }) => {
+test('the portal tells the customer the gateway is not configured', async ({ arrange, page }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'pay_later', gateway: 'none' });
 

@@ -43,13 +43,13 @@ test('an expired payment shows as not paid and a later settlement is ignored', a
 
     expect((await request.post('/api/webhooks/midtrans', { data: notification(sale, 'expire') })).status()).toBe(200);
     await page.goto(portal(sale));
-    // The portal has no label for a failed payment and prints the raw status.
-    await expect(page.getByText('failed', { exact: true })).toBeVisible();
+    // A failed payment is labelled "Gagal" (#124).
+    await expect(page.getByText('Gagal', { exact: true })).toBeVisible();
 
     // A failed sale is terminal: a late settlement must not flip it (idempotency guard).
     expect((await request.post('/api/webhooks/midtrans', { data: notification(sale, 'settlement') })).status()).toBe(200);
     await page.goto(portal(sale));
-    await expect(page.getByText('failed', { exact: true })).toBeVisible();
+    await expect(page.getByText('Gagal', { exact: true })).toBeVisible();
     await expect(page.getByText('Lunas', { exact: true })).toHaveCount(0);
 });
 
