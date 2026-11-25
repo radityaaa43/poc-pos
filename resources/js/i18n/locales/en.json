@@ -1060,6 +1060,12 @@
             "noteLabel": "Note (required for a guest)",
             "notePlaceholder": "Who is it for? At least 2 characters",
             "noteRequired": "Add a note of at least 2 characters for a guest"
+        },
+        "unpaidBills": {
+            "title": "Unpaid",
+            "pay": "Pay",
+            "ageMinutes": "{{count}} min",
+            "ageHours": "{{count}} h"
         }
     },
     "outlets": {

@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { router } from "@inertiajs/react";
+import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import Modal from "@/Components/Dashboard/Modal";
+import { useOnlineStatus } from "@/Context/OnlineStatusContext";
 
 const formatPrice = (value = 0) =>
     Number(value || 0).toLocaleString("id-ID", {
@@ -14,12 +16,15 @@ const inputClass =
     "w-full h-11 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white";
 
 /**
- * Settles the open bill of an accepted dine-in order. It pays the transaction created at accept
- * (POST dine-orders.pay with the same tenders[] payload as POS checkout), it never creates a new one.
+ * Settles an unpaid bill: a dine-in order's bill (POST dine-orders.pay) or a pay-later POS sale
+ * (POST transactions.settle), with the same tenders[] payload as POS checkout. It never creates a new
+ * transaction, and it is online only (a settle is never queued).
  * Gateway methods (QRIS, Midtrans, Xendit) leave the bill pending and open the receipt with the QR.
- * Used by the POS "Tagihan Terbuka" section and by Transactions History.
+ * Used by the POS "Belum Lunas" section and by Transactions History.
  */
 export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGateways = [], onClose }) {
+    const { t } = useTranslation();
+    const online = useOnlineStatus();
     const [method, setMethod] = useState("cash");
     const [cashReceived, setCashReceived] = useState("");
     const [bankAccountId, setBankAccountId] = useState(bankAccounts[0]?.id ?? "");
@@ -29,7 +34,7 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
         return null;
     }
 
-    const total = Number(bill.grand_total || 0);
+    const total = Number(bill.amount ?? bill.grand_total ?? 0);
     const received = Number(cashReceived || 0);
     const change = Math.max(received - total, 0);
 
@@ -43,7 +48,7 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
 
         setIsSubmitting(true);
         router.post(
-            route("dine-orders.pay", bill.order_id),
+            bill.order_id ? route("dine-orders.pay", bill.order_id) : route("transactions.settle", bill.id),
             {
                 tenders: [
                     {
@@ -55,14 +60,14 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
                 ],
             },
             {
-                onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal membayar tagihan"),
+                onError: (errors) => toast.error(errors.bill ?? Object.values(errors)[0] ?? "Gagal membayar tagihan"),
                 onFinish: () => setIsSubmitting(false),
             }
         );
     };
 
     return (
-        <Modal show onClose={onClose} title={`Bayar ${bill.table ?? "Meja"} · ${bill.invoice}`} maxWidth="md">
+        <Modal show onClose={onClose} title={`${t("pos.unpaidBills.pay")} ${bill.label ?? bill.table ?? "Meja"} · ${bill.invoice}`} maxWidth="md">
             <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800">
                     <span className="text-sm text-slate-500 dark:text-slate-400">Total tagihan</span>
@@ -130,10 +135,10 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
                     </button>
                     <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || !online}
                         className="h-11 rounded-xl bg-primary-500 px-5 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50"
                     >
-                        Bayar
+                        {t("pos.unpaidBills.pay")}
                     </button>
                 </div>
             </form>

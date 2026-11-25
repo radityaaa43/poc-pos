@@ -23,6 +23,7 @@ class ExpirePendingTransactionsCommand extends Command
         $transactions = Transaction::query()
             ->whereIn('payment_method', ['midtrans', 'xendit', 'qris', 'bank_transfer'])
             ->where('payment_status', 'pending')
+            ->where('is_pay_later', false) // a pay-later bill settled by gateway and left pending: the food is already made, never restock it
             ->whereDoesntHave('dineOrder') // a dine-in bill is created at accept and paid later: its age says nothing about abandonment
             ->where('created_at', '<', $cutoff)
             ->with(['details.product.components', 'details.batchAllocations'])

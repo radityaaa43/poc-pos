@@ -74,7 +74,7 @@ test.describe('38-dine-orders-queue', () => {
         await expect(guest.getByTestId('dine-status')).toHaveText('Selesai');
     });
 
-    test('pay from the POS open bills, then the kitchen takes it: Tagihan Terbuka shows Menunggu Pembayaran until it is paid', async ({ asRole, page: guest, arrange, uniq }) => {
+    test('pay from the POS open bills, then the kitchen takes it: Belum Lunas shows Menunggu Pembayaran until it is paid', async ({ asRole, page: guest, arrange, uniq }) => {
         const { table_name, token } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
         const { product_id } = arrange('product', { title: uniq('Pisang'), stock: 5 });
         const { access_token } = arrange('dine.order', { token, product_id, qty: 1 });
@@ -88,7 +88,7 @@ test.describe('38-dine-orders-queue', () => {
         await expect(card.getByRole('button', { name: 'Mulai Buat' })).toHaveCount(0);
 
         await page.goto('/dashboard/transactions');
-        await page.getByRole('button', { name: /Tagihan Terbuka/ }).click();
+        await page.getByRole('button', { name: /Belum Lunas/ }).click();
         const bill = page.getByTestId('open-bills').getByRole('listitem').filter({ hasText: table_name });
         await expect(bill).toContainText('Menunggu Pembayaran');
         await bill.getByRole('button', { name: 'Bayar' }).click();
