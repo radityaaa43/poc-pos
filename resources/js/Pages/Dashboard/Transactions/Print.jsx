@@ -123,6 +123,10 @@ export default function Print({ transaction }) {
         transaction?.payment_method || "cash"
     ).toLowerCase();
     const paymentMethodLabel = paymentLabels[paymentMethodKey] ?? "Tunai";
+    // A split sale with a transfer part also waits for the transfer to be confirmed.
+    const hasTransfer =
+        paymentMethodKey === "bank_transfer" ||
+        transaction?.tenders?.some((tender) => tender.method === "bank_transfer");
     const tenderLabels = {
         cash: "Tunai",
         bank_transfer: "Transfer Bank",
@@ -440,7 +444,7 @@ export default function Print({ transaction }) {
                             </button>
 
                             {/* Confirm Payment Button - Only for pending bank_transfer */}
-                            {paymentMethodKey === "bank_transfer" &&
+                            {hasTransfer &&
                                 paymentStatusKey === "pending" &&
                                 canConfirmPayment && (
                                     <button
@@ -667,7 +671,7 @@ export default function Print({ transaction }) {
                             </div>
 
                             {/* Bank Transfer Info */}
-                            {paymentMethodKey === "bank_transfer" &&
+                            {hasTransfer &&
                                 transaction.bank_account && (
                                     <div className="mx-6 mb-6 p-4 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">

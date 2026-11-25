@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\CustomerVoucher;
 use App\Models\Outlet;
 use App\Models\Transaction;
+use App\Services\TransactionTenderService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -195,7 +196,9 @@ class TransactionController extends AppsTransactionController
             return $this->error('Transaksi sudah dibayar.', 422);
         }
 
-        if ($transaction->payment_method !== 'bank_transfer') {
+        $tenderService = app(TransactionTenderService::class);
+
+        if (! $tenderService->hasTransfer($transaction)) {
             return $this->error('Hanya transaksi transfer bank yang dapat dikonfirmasi pembayarannya.', 422);
         }
 
@@ -208,8 +211,9 @@ class TransactionController extends AppsTransactionController
         }
 
         $beforeStatus = $transaction->payment_status;
+        $newStatus = $tenderService->confirmTransfer($transaction);
         $transaction->update([
-            'payment_status' => 'paid',
+            'payment_status' => $newStatus,
         ]);
 
         $this->auditLogService->log(
@@ -226,7 +230,7 @@ class TransactionController extends AppsTransactionController
             after: [
                 'invoice' => $transaction->invoice,
                 'payment_method' => $transaction->payment_method,
-                'payment_status' => 'paid',
+                'payment_status' => $newStatus,
                 'bank_account_id' => $transaction->bank_account_id,
             ],
             meta: [

@@ -17,6 +17,7 @@ use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class CheckoutServiceTest extends TestCase
@@ -176,7 +177,7 @@ class CheckoutServiceTest extends TestCase
         $result = app(CheckoutService::class)->execute($context);
 
         $this->assertSame('split', $result->paymentMethod);
-        $this->assertSame('paid', $result->paymentStatus);
+        $this->assertSame('pending', $result->paymentStatus);
         $this->assertSame(2, $result->transaction->tenders()->count());
         $this->assertSame(10000, (int) $result->transaction->tenders()->sum('amount'));
         $this->assertSame(5000, (int) $result->transaction->cash);
@@ -205,7 +206,7 @@ class CheckoutServiceTest extends TestCase
             bankAccountId: null,
         );
 
-        $this->expectException(\Symfony\Component\HttpKernel\Exception\HttpException::class);
+        $this->expectException(HttpException::class);
         app(CheckoutService::class)->execute($context);
     }
 }

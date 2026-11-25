@@ -90,13 +90,14 @@ class CashierShiftService
 
         // Split payments: cash tender portions must count toward the drawer,
         // the parent row's payment_method ('split') puts grand_total in the non-cash bucket.
+        // A split waiting for its transfer is pending, but its cash part is already in the drawer.
         $splitCashTenderTotal = (int) TransactionTender::query()
             ->whereHas('transaction', fn ($q) => $q
                 ->where('cashier_shift_id', $shift->id)
                 ->where('payment_method', 'split')
-                ->where('payment_status', 'paid'))
+                ->whereIn('payment_status', ['paid', 'pending']))
             ->where('method', TransactionTender::METHOD_CASH)
-            ->sum('cash_received');
+            ->sum('amount');
 
         $cashSalesTotal += $splitCashTenderTotal;
 

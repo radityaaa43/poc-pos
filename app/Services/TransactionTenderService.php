@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\BankAccount;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
+use App\Models\Transaction;
 use App\Models\TransactionTender;
 use Illuminate\Validation\ValidationException;
 
@@ -122,8 +123,8 @@ class TransactionTenderService
                 'cash_received' => $cashReceived,
                 'change' => $change,
                 'bank_account_id' => $bankAccountId,
+                // A transfer waits for a user to confirm it (see confirmTransfer), like a single transfer.
                 'payment_status' => $method === TransactionTender::METHOD_CASH
-                || $method === TransactionTender::METHOD_BANK_TRANSFER
                     ? TransactionTender::STATUS_PAID
                     : TransactionTender::STATUS_PENDING,
             ];
@@ -190,6 +191,27 @@ class TransactionTenderService
         }
 
         return 'paid';
+    }
+
+    public function hasTransfer(Transaction $transaction): bool
+    {
+        return $transaction->payment_method === TransactionTender::METHOD_BANK_TRANSFER
+            || $transaction->tenders()->where('method', TransactionTender::METHOD_BANK_TRANSFER)->exists();
+    }
+
+    /**
+     * Mark the transfer tender paid and return the sale's new status: a split sale with another
+     * pending tender (a gateway) stays pending.
+     */
+    public function confirmTransfer(Transaction $transaction): string
+    {
+        $transaction->tenders()
+            ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
+            ->update(['payment_status' => TransactionTender::STATUS_PAID]);
+
+        $tenders = $transaction->tenders()->get();
+
+        return $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
     }
 
     public function resolveQrisGateway(?Outlet $outlet = null): ?string
