@@ -51,7 +51,7 @@ const roundUpToNearest = (value, step) =>
     Math.ceil(value / step) * step;
 
 export default function Index({
-    carts = [],
+    carts: serverCarts = [],
     carts_total = 0,
     heldCarts = [],
     customers = [],
@@ -74,6 +74,14 @@ export default function Index({
     const offlineScopeKey = `${auth?.user?.id ?? "guest"}:${activeCashierShift?.warehouse_id ?? "none"}`;
     const { can } = useAuthorization();
     const canOpenShift = can("cashier-shifts-open");
+
+    // The cart lives on the server, so an offline sale cannot delete it: hide the rows it was made
+    // from instead. The sync removes them on the server (cart_ids in the queued payload).
+    const [queuedCartIds, setQueuedCartIds] = useState([]);
+    const carts = useMemo(
+        () => serverCarts.filter((cart) => !queuedCartIds.includes(cart.id)),
+        [serverCarts, queuedCartIds]
+    );
 
     // State
     const [searchQuery, setSearchQuery] = useState("");
@@ -760,6 +768,7 @@ export default function Index({
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
                 order_type: orderType,
                 note: orderNote || null,
+                cart_ids: carts.map((item) => item.id),
                 items: carts.map((item) => ({
                     product_id: item.product_id,
                     unit_id: item.unit?.id ?? item.unit_id ?? null,
@@ -768,7 +777,7 @@ export default function Index({
             };
             queueTransaction(payload, offlineScopeKey).then(() => {
                 refreshPendingCount();
-                setCarts([]);
+                setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
                 toast.success("Transaksi disimpan offline. Akan dikirim saat online.");
             });

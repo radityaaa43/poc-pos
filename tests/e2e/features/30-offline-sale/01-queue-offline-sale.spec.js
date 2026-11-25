@@ -42,8 +42,7 @@ test.describe('offline sale: queue', () => {
         });
     });
 
-    // Bug #109: the queue callback calls an undefined setCarts, so no toast and the cart stays full.
-    test.fixme('the cashier is told the sale was saved offline and the cart is emptied', async ({ asRole, arrange, uniq }) => {
+    test('the cashier is told the sale was saved offline and the cart is emptied', async ({ asRole, arrange, uniq }) => {
         test.setTimeout(120_000);
         const { page } = await prepareOfflineSale({ asRole, arrange, uniq });
 
