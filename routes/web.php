@@ -377,7 +377,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     // settings warehouses
     Route::resource('/settings/warehouses', WarehouseController::class)
-        ->except('show')
+        ->except(['create', 'edit', 'show'])
         ->names('settings.warehouses')
         ->middlewareFor('index', 'permission:warehouses-access')
         ->middlewareFor('store', 'permission:warehouses-create')
@@ -399,7 +399,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
 
     // settings units
     Route::resource('/settings/units', UnitController::class)
-        ->except('show')
+        ->except(['create', 'edit', 'show'])
         ->names('settings.units')
         ->middlewareFor('index', 'permission:units-access')
         ->middlewareFor('store', 'permission:units-create')
