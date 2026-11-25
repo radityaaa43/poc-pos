@@ -748,7 +748,7 @@ class PosApiController extends Controller
                 $existingFingerprint = $existing->sync_fingerprint;
 
                 if (! $existingFingerprint || $existingFingerprint === $fingerprint) {
-                    $this->discardQueuedCarts($request, $payload);
+                    Cart::discardQueued($payload['cart_ids'] ?? [], $request->user()->id);
                 }
 
                 $results[] = array_merge([
@@ -768,7 +768,7 @@ class PosApiController extends Controller
             $response = $this->syncOne($request, $payload, $uuid, $fingerprint);
 
             if (in_array($response['status'], ['synced', 'pending_approval'], true)) {
-                $this->discardQueuedCarts($request, $payload);
+                Cart::discardQueued($payload['cart_ids'] ?? [], $request->user()->id);
             }
 
             $results[] = array_merge(['client_uuid' => $uuid], $response);
@@ -928,21 +928,6 @@ class PosApiController extends Controller
             report($e);
 
             return ['status' => 'failed', 'reason' => $e->getMessage()];
-        }
-    }
-
-    /**
-     * The browser's server-side cart rows behind a sale that was queued offline: once the sale
-     * exists they must go, or the cashier would see (and could sell again) the same basket.
-     * Only the ids the queue named, and only this cashier's live carts.
-     */
-    private function discardQueuedCarts(Request $request, array $payload): void
-    {
-        if (! empty($payload['cart_ids'])) {
-            Cart::whereIn('id', $payload['cart_ids'])
-                ->where('cashier_id', $request->user()->id)
-                ->active()
-                ->delete();
         }
     }
 
