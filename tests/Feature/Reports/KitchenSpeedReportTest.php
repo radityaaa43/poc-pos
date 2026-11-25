@@ -167,30 +167,34 @@ class KitchenSpeedReportTest extends TestCase
         $this->assertSame([7.0, 2.0, 3.0, 2.5], $medians);
     }
 
-    public function test_period_uses_app_timezone_day_boundaries(): void
-    {
-        config(['app.timezone' => 'Asia/Jakarta']);
-        $nasi = $this->product('Nasi goreng');
-        $this->item($nasi, ['accepted' => self::DAY.' 23:30:00']);
-        $this->item($nasi, ['accepted' => '2026-05-11 00:30:00']);
-
-        $this->assertSame(1, $this->page(['start_date' => self::DAY, 'end_date' => self::DAY])['rows'][0]['count_rows']);
-        $this->assertSame(1, $this->page(['start_date' => '2026-05-11', 'end_date' => '2026-05-11'])['rows'][0]['count_rows']);
-        $this->assertSame(2, $this->page(['start_date' => self::DAY, 'end_date' => '2026-05-11'])['rows'][0]['count_rows']);
-    }
-
     public function test_period_boundaries_use_the_app_timezone(): void
     {
-        config(['app.timezone' => 'Asia/Jakarta']);
+        $this->useJakarta();
         $nasi = $this->product('Nasi goreng');
-        $this->item($nasi, ['accepted' => self::DAY.' 00:00:00']);
-        $this->item($nasi, ['accepted' => self::DAY.' 23:59:59']);
-        $this->item($nasi, ['accepted' => '2026-05-11 00:00:00']);
-        $this->item($nasi, ['accepted' => '2026-05-09 23:59:59']);
+        // 23:30 Jakarta on the 24th is 16:30 UTC, and 00:30 on the 25th is 17:30 UTC: the same UTC day, two Jakarta days.
+        $late = $this->item($nasi, ['accepted' => '2026-11-24 23:30:00']);
+        $this->item($nasi, ['accepted' => '2026-11-25 00:30:00']);
+        $this->assertSame('2026-11-24 16:30:00', $late->accepted_at->clone()->utc()->format('Y-m-d H:i:s'));
 
-        $page = $this->page(['start_date' => self::DAY, 'end_date' => self::DAY]);
+        $this->assertSame(1, $this->page(['start_date' => '2026-11-24', 'end_date' => '2026-11-24'])['rows'][0]['count_rows']);
+        $this->assertSame(1, $this->page(['start_date' => '2026-11-25', 'end_date' => '2026-11-25'])['rows'][0]['count_rows']);
+        $this->assertSame(2, $this->page(['start_date' => '2026-11-24', 'end_date' => '2026-11-25'])['rows'][0]['count_rows']);
+    }
 
-        $this->assertSame(2, $page['rows'][0]['count_rows']);
+    public function test_default_period_is_the_current_month_in_the_app_timezone(): void
+    {
+        $this->useJakarta();
+        // 20:00 UTC on 30 November is already 1 December 03:00 in Jakarta.
+        Carbon::setTestNow(Carbon::parse('2026-11-30 20:00:00', 'UTC'));
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi, ['accepted' => '2026-12-02 10:00:00']);
+        $this->item($nasi, ['accepted' => '2026-11-20 10:00:00']);
+
+        $props = $this->actingAs($this->user)->get(route('reports.kitchen-speed.index'))->assertOk()->viewData('page')['props'];
+
+        $this->assertSame('2026-12-01', $props['filters']['start_date']);
+        $this->assertSame('2026-12-31', $props['filters']['end_date']);
+        $this->assertSame(1, $props['rows'][0]['count_rows']);
     }
 
     public function test_item_counts_on_the_day_it_was_accepted(): void
@@ -239,6 +243,17 @@ class KitchenSpeedReportTest extends TestCase
                 ->where('empty', true));
     }
 
+    public function test_items_from_a_deactivated_warehouse_still_count_in_past_periods(): void
+    {
+        $closed = $this->warehouse($this->outlet, 'WH-A2');
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['warehouse' => $closed]);
+        $closed->update(['is_active' => false]);
+
+        $this->assertSame(2, $this->page()['rows'][0]['count_rows']);
+    }
+
     public function test_forged_outlet_id_is_rejected(): void
     {
         $other = Outlet::create(['code' => 'OUT-B', 'name' => 'Outlet B', 'is_active' => true]);
@@ -255,6 +270,21 @@ class KitchenSpeedReportTest extends TestCase
             ->getJson(route('reports.kitchen-speed.index', ['start_date' => '2025-04-20', 'end_date' => '2025-04-10']))
             ->assertUnprocessable()
             ->assertJsonValidationErrors('end_date');
+    }
+
+    /** Wall-clock times are stored in the app timezone: make both the config and the PHP default Jakarta (UTC+7). */
+    private function useJakarta(): void
+    {
+        config(['app.timezone' => 'Asia/Jakarta']);
+        date_default_timezone_set('Asia/Jakarta');
+    }
+
+    protected function tearDown(): void
+    {
+        Carbon::setTestNow();
+        date_default_timezone_set('UTC');
+
+        parent::tearDown();
     }
 
     /** The report as the page receives it. */

@@ -861,7 +861,7 @@
             "lowPerformers": "Low Performers"
         },
         "kitchenSpeed": {
-            "title": "Kitchen speed report",
+            "title": "Kitchen Speed Report",
             "outlet": "Outlet",
             "startDate": "Start date",
             "endDate": "End date",

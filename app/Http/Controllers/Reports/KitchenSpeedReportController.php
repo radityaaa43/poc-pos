@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Reports;
 
 use App\Http\Controllers\Controller;
+use App\Models\Warehouse;
 use App\Services\KitchenSpeedReportService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
@@ -28,17 +29,17 @@ class KitchenSpeedReportController extends Controller
         $outlet = isset($input['outlet_id'])
             ? $outlets->firstWhere('id', (int) $input['outlet_id'])
             : $outletAccessService->activeOutlet($request);
-        $warehouses = $outletAccessService->warehousesFor($user);
-        if ($outlet) {
-            $warehouses = $warehouses->where('outlet_id', $outlet->id);
-        }
+        // The outlet was checked against the user's access above; a deactivated warehouse of it still holds past data.
+        $warehouseIds = $outlet
+            ? Warehouse::where('outlet_id', $outlet->id)->pluck('id')->all()
+            : $outletAccessService->warehousesFor($user)->pluck('id')->all();
 
         // "Outlet local time" is the app timezone: outlets have no timezone of their own.
         $timezone = config('app.timezone');
         $startDate = $input['start_date'] ?? now($timezone)->startOfMonth()->toDateString();
         $endDate = $input['end_date'] ?? now($timezone)->endOfMonth()->toDateString();
         $report = $service->build(
-            $warehouses->pluck('id')->all(),
+            $warehouseIds,
             Carbon::parse($startDate, $timezone)->startOfDay(),
             Carbon::parse($endDate, $timezone)->endOfDay(),
         );
