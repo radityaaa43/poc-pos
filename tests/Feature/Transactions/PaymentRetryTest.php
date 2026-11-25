@@ -6,9 +6,12 @@ use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\CashierShift;
 use App\Models\Category;
+use App\Models\DineOrder;
+use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\TransactionTender;
@@ -73,6 +76,11 @@ class PaymentRetryTest extends TestCase
     public function test_failed_qris_sale_can_be_paid_in_cash(): void
     {
         $sale = $this->makeSale('qris');
+        // Stock was taken at sale and stays taken: a retry never touches it (product_warehouse.stock, products.stock, mutations).
+        $product = $this->product();
+        $this->warehouse->products()->updateExistingPivot($product->id, ['stock' => 7]);
+        $product->update(['stock' => 7]);
+        $mutations = StockMutation::count();
 
         $this->actingAs($this->cashier)
             ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 25000])
@@ -89,12 +97,35 @@ class PaymentRetryTest extends TestCase
         $this->assertNull($sale->qr_string);
         $this->assertNull($sale->payment_reference);
         $this->assertSame(1, AuditLog::where('event', 'transaction.payment_retried')->count());
+        $this->assertSame(7, (int) $this->warehouse->products()->whereKey($product->id)->first()->pivot->stock);
+        $this->assertSame(7, $product->fresh()->stock);
+        $this->assertSame($mutations, StockMutation::count());
 
         // Paid once: a second retry is refused and changes nothing.
         $this->actingAs($this->cashier)
             ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 25000])
             ->assertSessionHasErrors('payment');
         $this->assertSame(1, $sale->fresh()->payment_attempt);
+    }
+
+    public function test_dine_open_bill_is_not_retried_here(): void
+    {
+        $sale = $this->makeSale('qris');
+        $table = DiningTable::create(['name' => 'Meja 7', 'is_active' => true, 'capacity' => 4, 'sort_order' => 0]);
+        DineOrder::create([
+            'dine_table_id' => $table->id, 'status' => DineOrder::STATUS_ACCEPTED, 'subtotal' => 20000, 'item_count' => 1,
+            'transaction_id' => $sale->id,
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 25000])
+            ->assertSessionHasErrors(['payment' => 'Bayar lewat Tagihan Terbuka']);
+
+        $this->assertSame('failed', $sale->fresh()->payment_status);
+        $this->assertSame(0, $sale->fresh()->payment_attempt);
+        $this->actingAs($this->cashier)
+            ->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('retryable', false));
     }
 
     public function test_an_expired_sale_can_be_retried_and_old_tenders_are_replaced(): void

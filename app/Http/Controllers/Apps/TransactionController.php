@@ -986,7 +986,7 @@ class TransactionController extends Controller
 
         return $sale->payment_status === 'paid'
             ? $print->with('success', "Pembayaran untuk invoice {$sale->invoice} berhasil dicatat.")
-            : $print->with('info', "Menunggu pembayaran untuk invoice {$sale->invoice}.");
+            : $print->with('success', "Menunggu pembayaran untuk invoice {$sale->invoice}.");
     }
 
     protected function ensureTransactionAccess(Request $request, Transaction $transaction): void

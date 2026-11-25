@@ -8,7 +8,7 @@ import { useAuthorization } from "@/Utils/authorization";
 const buttonClass =
     "h-11 rounded-xl px-4 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
-const SAME_METHOD_RETRY = ["cash", "qris", "midtrans", "xendit"];
+const SAME_METHOD_RETRY = ["qris", "midtrans", "xendit"];
 
 const formatPrice = (value = 0) =>
     Number(value || 0).toLocaleString("id-ID", {

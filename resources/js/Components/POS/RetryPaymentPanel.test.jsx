@@ -65,8 +65,8 @@ describe("RetryPaymentPanel", () => {
         expect(screen.getByText("Kedaluwarsa")).toBeInTheDocument();
     });
 
-    it("does not offer Coba lagi for a method that cannot be started again (split, bank transfer)", () => {
-        for (const payment_method of ["split", "bank_transfer"]) {
+    it("does not offer Coba lagi for a method that cannot be started again (split, bank transfer, cash)", () => {
+        for (const payment_method of ["split", "bank_transfer", "cash"]) {
             const { unmount } = renderPanel({ transaction: { ...failed, payment_method } });
 
             expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();

@@ -30,7 +30,10 @@ class TransactionPaymentRetryService
 
     public function isRetryable(Transaction $transaction): bool
     {
-        return in_array($transaction->payment_status, self::RETRYABLE_STATUSES, true) && ! $this->wasRestocked($transaction);
+        // A dine-in bill is paid through its open bill (dine-orders.pay), which already settles failed bills.
+        return in_array($transaction->payment_status, self::RETRYABLE_STATUSES, true)
+            && ! $transaction->dineOrder()->exists()
+            && ! $this->wasRestocked($transaction);
     }
 
     /** ExpirePendingTransactionsCommand returned the stock of this sale: it is cancelled for good. */
@@ -54,6 +57,10 @@ class TransactionPaymentRetryService
 
             if (! in_array($sale->payment_status, self::RETRYABLE_STATUSES, true)) {
                 throw ValidationException::withMessages(['payment' => 'Pembayaran ini tidak bisa diulang']);
+            }
+
+            if ($sale->dineOrder()->exists()) {
+                throw ValidationException::withMessages(['payment' => 'Bayar lewat Tagihan Terbuka']);
             }
 
             if ($this->wasRestocked($sale)) {
