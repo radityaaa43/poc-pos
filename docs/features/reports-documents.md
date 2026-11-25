@@ -57,6 +57,16 @@ Dashboard insights menyediakan metrik operasional seperti penjualan per jam,
 performa kasir, repeat customer, dan ringkasan tren yang membantu pemilik mengambil
 keputusan berbasis data.
 
+## Kitchen Speed Report
+
+Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, menu Reports, permission `reports-access`).
+
+- Filters: outlet (only the outlets the user may see) and a date range; the default is the current month in the app timezone.
+- The period counts a kitchen item on the day it was accepted (paid), in the app timezone. Only `ready` and `served` items count; cancelled, *tidak diambil* and release-carried items are left out.
+- Per menu item: *Jumlah pesanan* (kitchen item rows), *Jumlah porsi* (summed quantity), median and average of *waktu buat* (preparing to ready) and of *waktu tunggu + buat* (accepted to ready), the product's `prep_target_minutes` and the share of items made within it (current target, so changing a target changes old numbers). An item without a step time counts only where both ends exist.
+- One card with the average time from payment to the last item served, over orders whose live items are all served.
+- Medians are computed in PHP (`KitchenSpeedReportService`); minutes show with one decimal ("4,5 mnt"). An empty period says so instead of showing zeros.
+
 ## Efek Bisnis Penting
 
 - laporan sales dan profit bergantung pada kualitas data transaksi

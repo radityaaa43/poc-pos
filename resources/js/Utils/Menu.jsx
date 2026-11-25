@@ -42,6 +42,7 @@ IconRulerMeasure,
     IconBrandWhatsapp,
     IconToolsKitchen2,
     IconWheat,
+    IconStopwatch,
 } from "@tabler/icons-react";
 import hasAnyPermission from "./Permission";
 import React from "react";
@@ -310,6 +311,13 @@ export default function Menu() {
                     href: route("reports.insights.index"),
                     active: url.startsWith("/dashboard/reports/insights"),
                     icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["reports-access"]),
+                },
+                {
+                    title: t("sidebar.items.kitchenSpeedReport"),
+                    href: route("reports.kitchen-speed.index"),
+                    active: url.startsWith("/dashboard/reports/kitchen-speed"),
+                    icon: <IconStopwatch size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["reports-access"]),
                 },
             ],

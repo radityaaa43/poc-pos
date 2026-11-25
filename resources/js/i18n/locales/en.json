@@ -290,6 +290,7 @@
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
+            "kitchenSpeedReport": "Kitchen Speed Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
             "permissions": "Permissions",
@@ -858,6 +859,25 @@
             "repeatCustomers": "Repeat Customers",
             "productTrends": "Product Trends",
             "lowPerformers": "Low Performers"
+        },
+        "kitchenSpeed": {
+            "title": "Kitchen speed report",
+            "outlet": "Outlet",
+            "startDate": "Start date",
+            "endDate": "End date",
+            "apply": "Apply",
+            "item": "Menu",
+            "orders": "Orders",
+            "portions": "Portions",
+            "makeMedian": "Median make time",
+            "makeAvg": "Average make time",
+            "waitMakeMedian": "Median wait + make",
+            "waitMakeAvg": "Average wait + make",
+            "target": "Target",
+            "withinTarget": "Within target",
+            "handover": "Payment to handover",
+            "minutes": "{{value}} min",
+            "empty": "No kitchen data for this period"
         }
     },
     "auditLogs": {

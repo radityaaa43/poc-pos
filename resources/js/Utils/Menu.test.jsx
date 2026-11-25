@@ -62,6 +62,14 @@ describe("sidebar Menu", () => {
         expect(new Set(hrefs).size).toBe(hrefs.length);
     });
 
+    it("shows the kitchen speed report to users with reports-access", () => {
+        const granted = leaves(
+            renderMenu({ auth: { super: false, permissions: { "reports-access": true } } }),
+        ).filter((i) => i.permissions === true);
+
+        expect(granted.map((i) => i.href)).toContain("/reports.kitchen-speed.index");
+    });
+
     it("every menu permission exists in PermissionSeeder", () => {
         const read = (p) => readFileSync(join(process.cwd(), p), "utf8");
         const menu = read("resources/js/Utils/Menu.jsx");

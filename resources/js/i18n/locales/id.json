@@ -290,6 +290,7 @@
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
+            "kitchenSpeedReport": "Laporan Kecepatan Dapur",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -858,6 +859,25 @@
             "repeatCustomers": "Pelanggan Berulang",
             "productTrends": "Tren Produk",
             "lowPerformers": "Produk Kurang Laris"
+        },
+        "kitchenSpeed": {
+            "title": "Laporan Kecepatan Dapur",
+            "outlet": "Outlet",
+            "startDate": "Tanggal Mulai",
+            "endDate": "Tanggal Akhir",
+            "apply": "Terapkan",
+            "item": "Menu",
+            "orders": "Jumlah pesanan",
+            "portions": "Jumlah porsi",
+            "makeMedian": "Median buat",
+            "makeAvg": "Rata-rata buat",
+            "waitMakeMedian": "Median tunggu + buat",
+            "waitMakeAvg": "Rata-rata tunggu + buat",
+            "target": "Target",
+            "withinTarget": "Dalam target",
+            "handover": "Waktu bayar sampai diserahkan",
+            "minutes": "{{value}} mnt",
+            "empty": "Belum ada data dapur untuk periode ini"
         }
     },
     "auditLogs": {
