@@ -47,6 +47,8 @@ class PublicPortalController extends Controller
                 ] : null,
             ],
             'token' => $request->token,
+            // Flashed by payReceivable() when the payment cannot start.
+            'error' => session('error'),
         ])->toResponse($request)->header('Cache-Control', 'no-store, max-age=0');
     }
 

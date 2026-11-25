@@ -10,7 +10,6 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class PublicPortalPaymentTest extends TestCase
@@ -82,5 +81,37 @@ class PublicPortalPaymentTest extends TestCase
         ]));
 
         $response->assertRedirect('https://payments.test/portal');
+    }
+
+    // #124: the pay endpoint flashes an error and redirects back; the portal page must receive it.
+    public function test_portal_page_receives_the_error_when_the_gateway_is_not_configured(): void
+    {
+        $transaction = Transaction::create([
+            'cashier_id' => User::factory()->create()->id,
+            'invoice' => 'INV-PORTAL-NOGW',
+            'cash' => 0,
+            'change' => 0,
+            'discount' => 0,
+            'grand_total' => 25000,
+            'total' => 25000,
+            'payment_method' => 'pay_later',
+            'payment_status' => 'unpaid',
+        ]);
+        $receivable = Receivable::create([
+            'transaction_id' => $transaction->id,
+            'invoice' => 'INV-PORTAL-NOGW',
+            'due_date' => now()->addDays(3),
+            'total' => 25000,
+            'paid' => 0,
+            'status' => 'unpaid',
+        ]);
+        $page = route('portal.transaction', ['invoice' => 'INV-PORTAL-NOGW', 'token' => $transaction->access_token]);
+
+        $this->from($page)
+            ->post(route('portal.receivable.pay', ['receivable' => $receivable, 'token' => $transaction->access_token]))
+            ->assertRedirect($page);
+
+        $this->get($page)->assertInertia(fn ($inertia) => $inertia
+            ->where('error', 'Gateway pembayaran belum dikonfigurasi.'));
     }
 }

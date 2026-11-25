@@ -6,12 +6,12 @@ const formatPrice = (v = 0) => Number(v || 0).toLocaleString("id-ID", { style: "
 const formatDate = (v) => v ? new Date(v).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" }) : "-";
 
 const statusBadge = (status) => {
-    const styles = { paid: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", unpaid: "bg-rose-100 text-rose-700", pending_approval: "bg-slate-100 text-slate-700" };
-    const labels = { paid: "Lunas", pending: "Menunggu", unpaid: "Belum Lunas", pending_approval: "Menunggu Approval" };
+    const styles = { paid: "bg-emerald-100 text-emerald-700", pending: "bg-amber-100 text-amber-700", unpaid: "bg-rose-100 text-rose-700", pending_approval: "bg-slate-100 text-slate-700", failed: "bg-rose-100 text-rose-700", expired: "bg-slate-100 text-slate-700" };
+    const labels = { paid: "Lunas", pending: "Menunggu", unpaid: "Belum Lunas", pending_approval: "Menunggu Approval", failed: "Gagal", expired: "Kedaluwarsa" };
     return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${styles[status] || "bg-slate-100 text-slate-600"}`}>{labels[status] || status}</span>;
 };
 
-export default function TransactionDetail({ transaction, token }) {
+export default function TransactionDetail({ transaction, token, error }) {
     return (
         <>
             <Head title={`Invoice ${transaction.invoice}`} />
@@ -64,6 +64,7 @@ export default function TransactionDetail({ transaction, token }) {
                                     <span className="text-amber-700">Jatuh tempo: {formatDate(transaction.receivable.due_date)}</span>
                                     <span className="font-bold text-amber-900">{formatPrice(transaction.receivable.remaining)}</span>
                                 </div>
+                                {error && <p role="alert" className="text-sm font-medium text-rose-700">{error}</p>}
                                 <a
                                     href={route("portal.receivable.pay", [transaction.receivable.id, { token }])}
                                     as="button"
