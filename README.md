@@ -216,6 +216,8 @@ Base URL: `https://dikasir.web.id/api/v1` (dev: `http://localhost:8000/api/v1`)
 
 Pastikan `php artisan test` lulus sebelum PR.
 
+Static analysis (Larastan level 5, baseline in `phpstan-baseline.gen.neon`): `docker compose exec -T app composer analyse`. New code must not add errors; do not regenerate the baseline to hide them (regenerate with `--generate-baseline=phpstan-baseline.gen.neon`).
+
 ## Lisensi
 
 GNU Affero General Public License v3.0 (AGPL-3.0)
