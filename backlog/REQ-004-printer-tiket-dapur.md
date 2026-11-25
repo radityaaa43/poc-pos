@@ -3,7 +3,7 @@
 - **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:sales
-- **Updated:** 2026-11-26
+- **Updated:** 2026-11-26 (diperjelas setelah planning K1–K3)
 
 ## User stories
 
@@ -27,7 +27,7 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 **Keputusan** (Business/PM, didelegasikan pemilik, 2026-11-26; pemilik menyetujui urutan A → B → C
 → D):
 
-1. **Stasiun cetak adalah perangkat yang membuka Layar Dapur**, dengan printer yang terhubung lewat
+1. **Perangkat cetak adalah perangkat yang membuka Layar Dapur**, dengan printer yang terhubung lewat
    USB ke perangkat itu. Perangkatnya bisa tablet atau PC di dapur, atau PC kasir yang membuka Layar
    Dapur di tab terpisah dengan printer kedua di dekat jendela dapur. Semua pesanan, termasuk QR meja,
    masuk Layar Dapur, sehingga semuanya tercetak.
@@ -38,14 +38,14 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 3. **Tiket tanpa harga.** Dapur hanya butuh menu, jumlah dan catatan.
 4. **Pesanan tambahan** (REQ-003 AC-21) dicetak sebagai tiket **TAMBAHAN**. **Item yang dibatalkan**
    (REQ-003 AC-11) dicetak sebagai tiket **DIBATALKAN**, supaya dapur berhenti membuat.
-5. **Satu kali per stasiun, juga setelah dimuat ulang.**
-   - Setiap item dicetak sekali per stasiun cetak. Catatan "sudah dicetak" disimpan di server per
-     stasiun, sehingga memuat ulang halaman atau memasang tablet kedua tidak mencetak ulang semuanya.
+5. **Satu kali per perangkat cetak, juga setelah dimuat ulang.**
+   - Setiap item dicetak sekali per perangkat cetak. Catatan "sudah dicetak" disimpan di server per
+     perangkat cetak, sehingga memuat ulang halaman atau memasang tablet kedua tidak mencetak ulang semuanya.
    - Cetak ulang selalu manual dan bertanda **CETAK ULANG**.
 6. **Layar tetap sumber kebenaran.** Gagal cetak tidak pernah menghapus atau menahan pesanan. Pesanan
    tetap di Layar Dapur dan kegagalannya terlihat.
 7. **Pengaturan per perangkat.** Cetak otomatis dan ukuran kertas (58/80 mm) disimpan di perangkat,
-   seperti pengaturan printer kasir sekarang. Perangkat diberi nama stasiun (misalnya "Dapur 1") agar
+   seperti pengaturan printer kasir sekarang. Perangkat diberi nama perangkat cetak (misalnya "Dapur 1") agar
    catatan cetaknya terpisah.
 8. **Perangkat yang didukung:**
    - **Android dengan Chrome dan USB-OTG:** didukung.
@@ -58,10 +58,31 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 9. **Printer melengkapi Layar Dapur, tidak menggantikannya.**
    - Langkah *Siap* dan *Serahkan* (REQ-003) tetap ditekan di Layar Dapur. Tiket memuat nomor pesanan
      yang besar supaya pesanan mudah dicari di layar.
-   - Kalau stasiunnya PC kasir, kasir atau pelayan yang berizin menekan *Semua siap* saat makanan
+   - Kalau perangkat cetaknya PC kasir, kasir atau pelayan yang berizin menekan *Semua siap* saat makanan
      diambil dari jendela dapur.
    - Ditolak: menandai siap otomatis saat tiket tercetak. Pesanan akan terlihat siap padahal belum
      dimasak, dan data kecepatan REQ-003 menjadi salah.
+10. **Istilah.**
+    - Perangkat yang mencetak disebut **perangkat cetak**.
+    - **Stasiun dapur** (Dapur, Bar, dan seterusnya) adalah konsep REQ-006.
+    - Perangkat cetak tidak sama dengan stasiun dapur. Perubahan istilah ini dibuat 2026-11-26.
+11. **Kehabisan kertas tidak bisa dideteksi** (keputusan setelah cek teknis, 2026-11-26).
+    - WebUSB hanya tahu printer menerima data, bukan apakah kertasnya keluar.
+    - Peringatan *Gagal mencetak* hanya muncul kalau pengiriman ke printer gagal, misalnya printer
+      terputus atau error USB.
+    - Untuk kertas habis atau tiket rusak, staf memakai **Cetak ulang**.
+12. **Coba lagi dan Cetak ulang dibedakan.**
+    - Pesanan **Belum tercetak** punya tombol **Coba lagi**. Tombol ini mencetak tiket biasa dan
+      mencatatnya sebagai sudah tercetak.
+    - **Cetak ulang** hanya untuk pesanan yang sudah tercetak. Tiketnya bertanda CETAK ULANG dan tidak
+      mengubah catatan cetak.
+13. **Retur sebagian:** tiket DIBATALKAN berisi jumlah yang diretur. Pembatalan yang lebih tua dari
+    12 jam tidak dicetak, karena pesanan sudah lama selesai.
+14. **Bantuan WinUSB ditampilkan di aplikasi.**
+    - Langkah singkat penggantian driver muncul langsung di pesan error, karena staf toko tidak bisa
+      membuka repo.
+    - Dokumentasi lengkap ada di `docs/features/thermal-printer.md` untuk tim.
+    - Ditolak: tautan ke GitHub.
 
 ## Process
 
@@ -84,12 +105,12 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 
 ### Perjalanan per peran
 
-**J1. Menyiapkan stasiun cetak** (sekali per perangkat; staf dapur atau pemilik)
+**J1. Menyiapkan perangkat cetak** (sekali per perangkat; staf dapur atau pemilik)
 
 | # | Langkah | Yang dilihat atau dilakukan | AC | Titik rawan |
 |---|---|---|---|---|
 | 1 | Buka **Layar Dapur** di tablet atau PC | Antrean dapur outlet (REQ-003) | — | Perlu izin memasak atau menyerahkan |
-| 2 | Buka **Pengaturan printer dapur**, beri nama stasiun ("Dapur 1") | Form nama stasiun | AC-07 | Nama ganda: catatan cetak tercampur, jadi nama harus unik per outlet |
+| 2 | Buka **Pengaturan printer dapur**, beri nama perangkat cetak ("Dapur 1") | Form nama perangkat cetak | AC-07 | Nama ganda: catatan cetak tercampur, jadi nama harus unik per outlet |
 | 3 | **Hubungkan printer** dan pilih printer USB | Dialog perangkat dari browser | AC-07 | iPad: AC-09. Windows dengan driver bawaan: AC-11 |
 | 4 | Pilih kertas 58/80 mm, lalu **Cetak percobaan** | Tiket contoh keluar | AC-07 | Kertas salah ukuran: teks terpotong |
 | 5 | Nyalakan **Cetak otomatis** | Status "Printer siap" | AC-07, AC-10 | Layar menjaga perangkat tetap menyala |
@@ -111,13 +132,13 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 | 1 | Tamu menambah item (REQ-003 AC-21) | Tiket **TAMBAHAN** dengan nomor pesanan asal | AC-03 |
 | 2 | Item diretur dan returnya selesai (REQ-003 AC-11) | Tiket **DIBATALKAN** berisi menu dan jumlah yang dibatalkan | AC-04 |
 
-**J4. Printer bermasalah** (kertas habis, kabel lepas, printer mati)
+**J4. Printer bermasalah** (kabel lepas, printer mati, error USB. Kertas habis tidak terdeteksi: keputusan 11)
 
 | # | Langkah | Yang dilihat | AC |
 |---|---|---|---|
 | 1 | Tiket gagal dicetak | Peringatan **Gagal mencetak — coba lagi**, dan pesanan bertanda **Belum tercetak** | AC-08 |
 | 2 | Staf memperbaiki printer | — | — |
-| 3 | Antrean dicoba lagi otomatis pada pembaruan berikutnya, atau lewat tombol | Tiket yang tertunda tercetak berurutan, masing-masing sekali | AC-05, AC-08 |
+| 3 | Antrean dicoba lagi otomatis pada pembaruan berikutnya, atau lewat tombol **Coba lagi** | Tiket yang tertunda tercetak berurutan, masing-masing sekali, dan tercatat | AC-05, AC-08 |
 | 4 | Tiket yang sudah tercetak tapi rusak atau hilang | Staf menekan **Cetak ulang**, tiket bertanda CETAK ULANG | AC-06 |
 
 **J5. Perangkat tidur atau tertutup**
@@ -125,7 +146,7 @@ menaruh printer dapur di luar cakupan. REQ ini menambahkannya.
 | # | Langkah | Yang dilihat | AC |
 |---|---|---|---|
 | 1 | Tab tertutup atau perangkat tidur saat ada pesanan masuk | Begitu dibuka, layar menampilkan **Printer dapur offline atau tab tidur** | AC-10 |
-| 2 | Layar dibuka lagi | Hanya pesanan yang belum tercetak di stasiun ini yang dicetak | AC-05 |
+| 2 | Layar dibuka lagi | Hanya pesanan yang belum tercetak di perangkat ini yang dicetak | AC-05 |
 
 ### Alur pesanan sampai tiket
 
@@ -137,17 +158,17 @@ flowchart TD
     C -->|Ya| D[Item masuk dapur]
     B -->|Bayar Belakangan| D
     D --> E[Layar Dapur menerima dalam 10 detik]
-    E --> F{Sudah tercetak di stasiun ini?}
+    E --> F{Sudah tercetak di perangkat ini?}
     F -->|Ya| G[Tidak dicetak lagi]
     F -->|Belum| H[Masuk antrean cetak]
     H --> I{Printer berhasil?}
-    I -->|Ya| J[Tiket keluar dan dicatat di server per stasiun]
+    I -->|Ya| J[Tiket keluar dan dicatat di server per perangkat cetak]
     I -->|Tidak| K[Peringatan dan Belum tercetak, tetap di antrean]
     K -->|Pembaruan berikutnya atau tombol| H
     J --> L[Staf memasak lalu menekan Siap di Layar Dapur]
 ```
 
-### Status tiket di satu stasiun
+### Status tiket di satu perangkat cetak
 
 ```mermaid
 stateDiagram-v2
@@ -193,9 +214,11 @@ stateDiagram-v2
 - **AC-07:** Given Layar Dapur, when staf membuka pengaturan printer dapur, then staf bisa
   menghubungkan atau memutus printer USB, memilih kertas 58 atau 80 mm, menyalakan atau mematikan
   *Cetak otomatis*, dan mencetak tiket percobaan. Semua tersimpan di perangkat itu.
-- **AC-08:** Given *Cetak otomatis* aktif, when printer tidak terhubung atau gagal mencetak, then Layar
-  Dapur menampilkan peringatan **Printer dapur tidak terhubung** atau **Gagal mencetak**, pesanan
-  tetap tampil, dan pesanan yang gagal ditandai **Belum tercetak** sampai dicetak ulang.
+- **AC-08:** Given *Cetak otomatis* aktif, when printer tidak terhubung atau pengiriman ke printer gagal,
+  then Layar Dapur menampilkan peringatan **Printer dapur tidak terhubung** atau **Gagal mencetak**,
+  pesanan tetap tampil, dan pesanan yang gagal ditandai **Belum tercetak** dengan tombol **Coba lagi**.
+  **Coba lagi** mencetak tiket biasa dan mencatatnya. Kehabisan kertas tidak terdeteksi (keputusan 11).
+  (Diperjelas 2026-11-26.)
 - **AC-09:** Given perangkat yang tidak mendukung WebUSB (misalnya iPad), when staf membuka pengaturan
   printer dapur, then muncul pesan bahwa perangkat ini tidak mendukung printer USB, dan Layar Dapur
   tetap berjalan tanpa cetak.
@@ -203,8 +226,9 @@ stateDiagram-v2
   berhasil sudah terlalu lama padahal ada pesanan baru, then layar menampilkan **Printer dapur offline
   atau tab tidur**. Layar menjaga perangkat tetap menyala selama *Cetak otomatis* aktif (Wake Lock).
 - **AC-11:** Given PC Windows yang printernya dikunci driver Windows, when staf menghubungkan printer,
-  then muncul pesan **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB** dengan tautan
-  ke langkah di dokumentasi.
+  then muncul pesan **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB**, berisi
+  langkah singkat penggantian driver langsung di aplikasi. (Diperjelas 2026-11-26: bukan tautan
+  GitHub.)
 
 ## Business rules
 
@@ -214,9 +238,9 @@ stateDiagram-v2
 - **Izin:** pengaturan printer dapur memakai izin yang sama dengan membuka Layar Dapur
   (`dine-orders-prepare` atau `dine-orders-handover`). Tidak ada izin baru.
 - **Pengaturan:** per perangkat. Tidak ada pengaturan outlet baru.
-- **Nama stasiun** unik per outlet.
+- **Nama perangkat cetak** unik per outlet.
 - **Tiket** memuat nomor pesanan atau nama meja dengan huruf besar di bagian atas.
-- **Sekali cetak:** satu tiket per kejadian (masuk, tambahan, batal) per stasiun, tercatat di server.
+- **Sekali cetak:** satu tiket per kejadian (masuk, tambahan, batal) per perangkat cetak, tercatat di server.
   Memuat ulang halaman tidak mencetak ulang. Cetak ulang selalu manual dan bertanda.
 - **Antrean cetak:** tiket dicetak berurutan. Tiket yang gagal tetap di antrean dengan pesan **Gagal
   mencetak — coba lagi**, lalu dicoba lagi pada pembaruan berikutnya atau lewat tombol. Tiket tidak
@@ -238,7 +262,7 @@ stateDiagram-v2
 ## Data and integrations
 
 - **Data:** item dapur (REQ-003, `kitchen_items`) dan pesanan tambahan serta pembatalan dari REQ-003.
-  Catatan cetak per stasiun disimpan di server (baru). Pengaturan printer disimpan di perangkat.
+  Catatan cetak per perangkat cetak disimpan di server (baru). Pengaturan printer disimpan di perangkat.
 - **Integrasi:** printer thermal USB lewat WebUSB ESC/POS yang sudah ada (`escpos.js`). Tidak ada
   integrasi baru.
 
@@ -252,7 +276,7 @@ stateDiagram-v2
 ## Out of scope
 
 - Printer jaringan (LAN/IP) dan cetak lewat cloud.
-- Pemisahan tiket per stasiun (bar dan dapur panas), yang menjadi REQ tersendiri (opsi C).
+- Pemisahan tiket per perangkat cetak (bar dan dapur panas), yang menjadi REQ tersendiri (opsi C).
 - Printer label atau stiker.
 - iPad dan perangkat tanpa WebUSB.
 
@@ -262,8 +286,8 @@ stateDiagram-v2
 |---|---|---|
 | Layar Dapur tertutup atau perangkat mati | Tidak ada tiket | Layar menampilkan status printer. Pemilik diberi tahu di dokumentasi bahwa perangkat harus tetap membuka Layar Dapur |
 | Dua perangkat sama-sama mencetak | Tiket dobel | Sekali cetak berlaku per perangkat. Pemilik menyalakan *Cetak otomatis* di satu perangkat saja |
-| Printer kehabisan kertas | Tiket tidak keluar | Peringatan *Gagal mencetak* dan tanda *Belum tercetak* (AC-08) |
-| Stasiun di PC kasir, dan *Siap* ditekan saat makanan diambil | Waktu buat ikut menghitung waktu tunggu di jendela dapur | Diterima. Dicatat di dokumentasi laporan kecepatan (REQ-003) |
+| Printer kehabisan kertas | Tiket tidak keluar dan tidak terdeteksi (WebUSB) | Pesanan tetap di Layar Dapur. Staf memakai **Cetak ulang** setelah mengisi kertas (keputusan 11) |
+| Perangkat cetak di PC kasir, dan *Siap* ditekan saat makanan diambil | Waktu buat ikut menghitung waktu tunggu di jendela dapur | Diterima. Dicatat di dokumentasi laporan kecepatan (REQ-003) |
 
 - Kelayakan dicek Tech Lead (2026-11-26):
   - Android dengan Chrome berjalan.
