@@ -105,8 +105,9 @@ template (`backlog/TEMPLATE.md`, with journeys and a state diagram).
 ## Technical plan (Tech Lead)
 
 ### 1. Context
-REQ-<n> and the AC, BR and edge cases this ticket covers (by tag), what it builds on (merged PRs, the
-frozen contracts it uses), and what it deliberately leaves to other tickets. Summary in 2–4 sentences.
+REQ-<n> and what this ticket covers, by id: user stories (`US-n`), journeys (`J-n`), AC and BR. The
+trace runs US → J → AC / BR → TC → test. Also: what it builds on (merged PRs, the frozen contracts it
+uses), what it deliberately leaves to other tickets, and a 2–4 sentence summary.
 
 ### 2. Architecture
 Components touched (layer by layer) and where new code sits in the existing structure (no new layer
@@ -150,7 +151,8 @@ stateDiagram-v2
 ### 8. Edge cases
 Every failure path in the REQ's journeys, plus the technical ones (concurrency, offline, retries,
 partial failure, missing data), each with its handling and its test:
-| Case (REQ journey step / BR) | Handling | Test |
+| Case (journey step id, e.g. `J4.1`, or BR) | Handling | Test |
+Every failure step of the covered journeys has a row, so the check is mechanical.
 
 ### 9. Security
 Server-side authorization per action, input validation and mass assignment, data exposure (what
