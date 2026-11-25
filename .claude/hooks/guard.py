@@ -237,7 +237,7 @@ def branch_decision(command: str, view=gh_json):
     labels = view(["issue", "view", ok.group(1), "--json", "labels"])
     triage = get("triage_labels.needs-triage", "needs-triage")
     if labels and any(l["name"] == triage for l in labels.get("labels", [])):
-        return "ask", (f"Issue #{ok.group(1)} is still {triage}; the Tech Lead moves it to "
+        return "ask", (f"Issue #{ok.group(1)} is still {triage}; its module Owner moves it to "
                        "ready-for-* before work starts"), rule("AGENTS.md → Issues")
     return None
 
