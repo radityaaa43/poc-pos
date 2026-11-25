@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class KitchenReleaseBackfillTest extends TestCase
@@ -85,7 +86,8 @@ class KitchenReleaseBackfillTest extends TestCase
         $unflagged = $this->sale($plain, 'paid', DineOrder::STATUS_READY);
 
         $migration = require database_path('migrations/2026_11_29_100001_create_kitchen_items_table.php');
-        $migration->down();
+        // kitchen_ticket_prints references kitchen_items, and MySQL refuses to drop a referenced table.
+        Schema::withoutForeignKeyConstraints(fn () => $migration->down());
         $migration->up();
 
         $this->assertSame(1, KitchenItem::count());
@@ -115,7 +117,8 @@ class KitchenReleaseBackfillTest extends TestCase
         $sale->dineOrder->items()->create(['product_id' => $flagged->id, 'qty' => 2, 'price' => 10000, 'note' => 'tanpa gula']);
 
         $migration = require database_path('migrations/2026_11_29_100001_create_kitchen_items_table.php');
-        $migration->down();
+        // kitchen_ticket_prints references kitchen_items, and MySQL refuses to drop a referenced table.
+        Schema::withoutForeignKeyConstraints(fn () => $migration->down());
         $migration->up();
 
         $this->assertSame('tanpa gula', KitchenItem::sole()->note);
