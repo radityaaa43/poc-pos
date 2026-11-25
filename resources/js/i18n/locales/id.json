@@ -287,6 +287,7 @@
             "dineAreas": "Area Dine-In",
             "dineTables": "Meja Dine-In",
             "dineOrders": "Pesanan Dine-In",
+            "kitchenDisplay": "Layar Dapur",
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
@@ -1029,6 +1030,25 @@
             "product": "Tambahkan produk pertama",
             "customer": "Daftarkan pelanggan pertama",
             "transaction": "Selesaikan transaksi pertama"
+        }
+    },
+    "kitchen": {
+        "title": "Layar Dapur",
+        "empty": "Belum ada pesanan",
+        "noOutlet": "Pilih outlet terlebih dahulu",
+        "unpaid": "Belum lunas",
+        "minutes": "{{count}} menit",
+        "connectionLost": "Koneksi terputus — mencoba lagi…",
+        "types": {
+            "dine_in": "Dine-in",
+            "in_store": "Di tempat",
+            "takeaway": "Bawa pulang",
+            "delivery": "Diantar"
+        },
+        "status": {
+            "accepted": "Diterima",
+            "preparing": "Sedang dibuat",
+            "ready": "Siap"
         }
     },
     "pos": {

@@ -287,6 +287,7 @@
             "dineAreas": "Dine-In Areas",
             "dineTables": "Dine-In Tables",
             "dineOrders": "Dine-In Orders",
+            "kitchenDisplay": "Kitchen display",
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
@@ -1029,6 +1030,25 @@
             "product": "Add your first product",
             "customer": "Register your first customer",
             "transaction": "Complete your first transaction"
+        }
+    },
+    "kitchen": {
+        "title": "Kitchen display",
+        "empty": "No orders yet",
+        "noOutlet": "Select an outlet first",
+        "unpaid": "Unpaid",
+        "minutes": "{{count}} min",
+        "connectionLost": "Connection lost — retrying…",
+        "types": {
+            "dine_in": "Dine-in",
+            "in_store": "In store",
+            "takeaway": "Takeaway",
+            "delivery": "Delivery"
+        },
+        "status": {
+            "accepted": "Accepted",
+            "preparing": "Preparing",
+            "ready": "Ready"
         }
     },
     "pos": {
