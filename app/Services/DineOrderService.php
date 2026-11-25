@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Exceptions\PaymentGatewayException;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
+use App\Models\PaymentSetting;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -21,6 +24,7 @@ class DineOrderService
         private InventoryCostService $inventoryCostService,
         private CashierShiftService $cashierShiftService,
         private TransactionTenderService $tenderService,
+        private PaymentGatewayManager $gatewayManager,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -214,6 +218,8 @@ class DineOrderService
     /**
      * Settle the open bill of an accepted order. Stock was taken at accept, so only the payment is
      * recorded: on the paying cashier's shift, which is the drawer the money goes into.
+     * A gateway tender (QRIS, Midtrans, Xendit) charges against the same transaction and leaves the
+     * bill pending until the webhook marks it paid.
      *
      * @param  array<int, array<string, mixed>>  $tenderInput
      */
@@ -222,34 +228,47 @@ class DineOrderService
         return DB::transaction(function () use ($order, $cashier, $tenderInput) {
             $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
             $shift->load('warehouse.outlet');
+            $outlet = $shift->warehouse?->outlet;
 
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $transaction = $order->transaction_id
                 ? Transaction::with('warehouse')->whereKey($order->transaction_id)->lockForUpdate()->first()
                 : null;
 
-            if ($order->status !== DineOrder::STATUS_ACCEPTED || ! $transaction || $transaction->payment_status !== 'unpaid') {
+            if (! in_array($order->status, DineOrder::IN_PROGRESS, true) || ! $transaction
+                || ! in_array($transaction->payment_status, [...Transaction::OPEN_BILL_PAYABLE, 'pending'], true)) {
                 throw ValidationException::withMessages([
                     'order' => 'Pesanan ini tidak memiliki tagihan yang belum lunas.',
                 ]);
             }
 
-            if ($transaction->warehouse?->outlet_id !== $shift->warehouse?->outlet_id) {
+            // A pending gateway payment or transfer already holds the bill: no second charge or tender, finish that one.
+            if ($transaction->payment_status === 'pending') {
+                throw ValidationException::withMessages([
+                    'order' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
+                ]);
+            }
+
+            if ($transaction->warehouse?->outlet_id !== $outlet?->id) {
                 throw ValidationException::withMessages([
                     'shift' => 'Shift kasir harus berada di outlet yang sama dengan pesanan.',
                 ]);
             }
 
-            $tenders = $this->tenderService->normalize($tenderInput, (int) $transaction->grand_total, allowEmpty: false, outlet: $shift->warehouse?->outlet);
+            $tenders = $this->tenderService->normalize($tenderInput, (int) $transaction->grand_total, allowEmpty: false, outlet: $outlet);
+            $gatewayMethods = collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS);
 
-            // shortcut: gateway tenders need a charge and a webhook that completes the order, so the bill takes cash and bank transfer only; add gateways when a cafe asks
-            if (collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS)->isNotEmpty()) {
+            // shortcut: a gateway tender cannot share the bill with another tender, so a failed or expired one can be replaced without losing a paid part; allow split when someone needs it
+            if ($gatewayMethods->isNotEmpty() && count($tenders) > 1) {
                 throw ValidationException::withMessages([
-                    'tenders' => 'Tagihan dine-in hanya dapat dibayar tunai atau transfer bank.',
+                    'tenders' => 'Pembayaran gateway tidak dapat digabung dengan metode lain pada tagihan dine-in.',
                 ]);
             }
 
-            $transaction->tenders()->createMany($tenders);
+            // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
+            $transaction->tenders()->delete();
+            $tenderModels = $transaction->tenders()->createMany($tenders);
+
             $transaction->update([
                 'cashier_id' => $cashier->id,
                 'cashier_shift_id' => $shift->id,
@@ -258,28 +277,62 @@ class DineOrderService
                 'payment_method' => count($tenders) > 1 ? 'split' : $tenders[0]['method'],
                 'payment_status' => $this->tenderService->aggregateStatus($tenders),
                 'bank_account_id' => collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null,
+                'payment_reference' => null,
+                'payment_url' => null,
+                'qr_string' => null,
             ]);
+
+            foreach ($tenderModels->whereIn('method', TransactionTenderService::GATEWAY_METHODS) as $tender) {
+                try {
+                    $charge = $this->gatewayManager->createTenderPayment($transaction, $tender, PaymentSetting::forOutlet($outlet));
+                } catch (PaymentGatewayException $exception) {
+                    // rolls the whole settlement back: the bill stays unpaid and the cashier can pick another method
+                    throw ValidationException::withMessages(['tenders' => $exception->getMessage()]);
+                }
+
+                $tender->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
+                $transaction->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
+            }
 
             return $transaction;
         });
     }
 
-    /** Staff mark the order as served from the queue. Idempotent. */
+    /** Kitchen starts making an accepted order. */
+    public function startPreparing(DineOrder $order): void
+    {
+        $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing_at');
+    }
+
+    /** Kitchen marks a preparing order ready. */
+    public function markReady(DineOrder $order): void
+    {
+        $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready_at');
+    }
+
+    /** Someone verifies a ready order was handed to the customer. Completes it at once if it is already paid. */
     public function serve(DineOrder $order): void
     {
-        DB::transaction(function () use ($order) {
+        $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served_at');
+    }
+
+    /** One fulfillment step: valid only from the previous status; repeating a step already taken is a no-op. */
+    private function advance(DineOrder $order, string $from, string $to, string $timestamp): void
+    {
+        DB::transaction(function () use ($order, $from, $to, $timestamp) {
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
-            if ($order->status !== DineOrder::STATUS_ACCEPTED) {
+            if ($order->{$timestamp}) {
+                return;
+            }
+
+            if ($order->status !== $from) {
                 throw ValidationException::withMessages([
-                    'order' => 'Hanya pesanan yang sudah diterima yang dapat ditandai disajikan.',
+                    'order' => "Pesanan harus berstatus {$from} untuk langkah ini (sekarang: {$order->status}).",
                 ]);
             }
 
-            if (! $order->served_at) {
-                $order->update(['served_at' => now()]);
-            }
-
+            $order->update(['status' => $to, $timestamp => now()]);
             $order->completeIfSettled();
         });
     }

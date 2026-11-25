@@ -16,6 +16,12 @@ class DineOrder extends Model
 
     public const STATUS_ACCEPTED = 'accepted';
 
+    public const STATUS_PREPARING = 'preparing';
+
+    public const STATUS_READY = 'ready';
+
+    public const STATUS_SERVED = 'served';
+
     public const STATUS_COMPLETED = 'completed';
 
     public const STATUS_REJECTED = 'rejected';
@@ -23,6 +29,9 @@ class DineOrder extends Model
     public const STATUS_CANCELLED = 'cancelled';
 
     public const PAY_AT_COUNTER = 'pay_at_counter';
+
+    /** Accepted but not completed: the bill can still be open and the order is being fulfilled. */
+    public const IN_PROGRESS = [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY, self::STATUS_SERVED];
 
     protected $fillable = [
         'dine_table_id',
@@ -40,6 +49,8 @@ class DineOrder extends Model
         'subtotal',
         'item_count',
         'submitted_at',
+        'preparing_at',
+        'ready_at',
         'served_at',
     ];
 
@@ -49,6 +60,8 @@ class DineOrder extends Model
             'subtotal' => 'integer',
             'item_count' => 'integer',
             'submitted_at' => 'datetime',
+            'preparing_at' => 'datetime',
+            'ready_at' => 'datetime',
             'served_at' => 'datetime',
         ];
     }
@@ -94,7 +107,7 @@ class DineOrder extends Model
 
     public function scopeActive($query)
     {
-        return $query->whereIn('status', [self::STATUS_SUBMITTED, self::STATUS_ACCEPTED]);
+        return $query->whereIn('status', [self::STATUS_SUBMITTED, ...self::IN_PROGRESS]);
     }
 
     public function isPending(): bool
@@ -102,10 +115,10 @@ class DineOrder extends Model
         return $this->status === self::STATUS_SUBMITTED;
     }
 
-    /** Fulfillment and payment are separate: completed only once the order is both served and paid. */
+    /** Fulfillment (status) and payment (transaction) are separate: completed only once the order is both served and paid, in either order. */
     public function completeIfSettled(): void
     {
-        if ($this->status === self::STATUS_ACCEPTED && $this->served_at && $this->transaction?->payment_status === 'paid') {
+        if ($this->status === self::STATUS_SERVED && $this->transaction?->payment_status === 'paid') {
             $this->update(['status' => self::STATUS_COMPLETED]);
         }
     }

@@ -166,15 +166,16 @@ class TransactionController extends Controller
             'heldCarts' => $heldCarts,
             'openBills' => Transaction::openBills()
                 ->whereIn('warehouse_id', $this->outletAccessService->warehousesFor(auth()->user())->pluck('id'))
-                ->with('dineOrder:id,transaction_id,dine_table_id,served_at', 'dineOrder.table:id,name')
+                ->with('dineOrder:id,transaction_id,dine_table_id,status', 'dineOrder.table:id,name')
                 ->oldest()
-                ->get(['id', 'invoice', 'grand_total'])
+                ->get(['id', 'invoice', 'grand_total', 'payment_status'])
                 ->map(fn (Transaction $bill) => [
                     'order_id' => $bill->dineOrder->id,
                     'invoice' => $bill->invoice,
                     'table' => $bill->dineOrder->table?->name,
                     'grand_total' => (int) $bill->grand_total,
-                    'served' => (bool) $bill->dineOrder->served_at,
+                    'order_status' => $bill->dineOrder->status,
+                    'pending' => $bill->payment_status === 'pending',
                 ]),
             'customers' => $customers,
             'products' => $products,
@@ -870,13 +871,16 @@ class TransactionController extends Controller
             ];
         });
 
+        $billOutlet = $this->outletAccessService->activeOutlet($request);
+
         return Inertia::render('Dashboard/Transactions/History', [
             'transactions' => $transactions,
             'filters' => $filters,
             'salesReturnFeatureReady' => $salesReturnTablesReady,
             'warehouses' => $warehouses,
             // for the "Bayar" modal on an unpaid dine-in bill
-            'bankAccounts' => BankAccount::active()->forOutlet($this->outletAccessService->activeOutlet($request))->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']),
+            'bankAccounts' => BankAccount::active()->forOutlet($billOutlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']),
+            'paymentGateways' => PaymentSetting::forOutlet($billOutlet)?->enabledGateways($billOutlet) ?? [],
         ]);
     }
 

@@ -150,11 +150,14 @@ class Transaction extends Model
         return $this->hasOne(DineOrder::class);
     }
 
-    /** Accepted dine-in orders whose bill is unsettled. An open bill is not a credit sale: no receivable. */
+    /** Statuses of an open bill the cashier may still pay: nothing paid, or a gateway attempt that failed or expired. */
+    public const OPEN_BILL_PAYABLE = ['unpaid', 'failed', 'expired'];
+
+    /** Accepted dine-in orders whose bill is unsettled (a pending gateway or transfer included). Not a credit sale: no receivable. */
     public function scopeOpenBills($query)
     {
-        return $query->where('payment_status', 'unpaid')
-            ->whereHas('dineOrder', fn ($order) => $order->where('status', DineOrder::STATUS_ACCEPTED));
+        return $query->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+            ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS));
     }
 
     public function salesReturns()

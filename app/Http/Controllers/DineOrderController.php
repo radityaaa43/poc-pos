@@ -162,7 +162,7 @@ class DineOrderController extends Controller
     public function statusCheck(string $accessToken)
     {
         $order = DineOrder::where('access_token', $accessToken)
-            ->first(['id', 'status', 'payment_option', 'payment_status', 'subtotal', 'item_count', 'served_at', 'updated_at']);
+            ->first(['id', 'status', 'payment_option', 'payment_status', 'subtotal', 'item_count', 'updated_at']);
 
         if (! $order) {
             return response()->json(['message' => 'Pesanan tidak ditemukan.'], 404);

@@ -2,20 +2,25 @@
 
 namespace Tests\Feature\DineIn;
 
+use App\Exceptions\PaymentGatewayException;
 use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
+use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
+use App\Services\Payments\PaymentGatewayManager;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class DineOrderPaymentTest extends TestCase
@@ -73,6 +78,26 @@ class DineOrderPaymentTest extends TestCase
         return $order->fresh();
     }
 
+    /** Kitchen starts it and marks it ready, then someone serves it. */
+    private function fulfil(DineOrder $order): void
+    {
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->actingAs($this->cashier)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
+        $this->actingAs($this->cashier)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+    }
+
+    private function enableMidtrans(): void
+    {
+        PaymentSetting::create([
+            'default_gateway' => 'cash', 'midtrans_enabled' => true, 'midtrans_server_key' => 'sk-test', 'midtrans_client_key' => 'ck-test',
+        ]);
+    }
+
+    private function qrisTender(): array
+    {
+        return ['tenders' => [['method' => 'qris', 'amount' => 20000]]];
+    }
+
     private function cashTender(int $cashReceived = 25000): array
     {
         return ['tenders' => [['method' => 'cash', 'amount' => 20000, 'cash_received' => $cashReceived]]];
@@ -125,7 +150,7 @@ class DineOrderPaymentTest extends TestCase
 
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())
             ->assertSessionHasNoErrors();
-        $this->actingAs($this->cashier)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+        $this->fulfil($order);
 
         $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
         $this->actingAs($this->admin)->get(route('dine-orders.index'))
@@ -138,21 +163,20 @@ class DineOrderPaymentTest extends TestCase
     {
         $order = $this->acceptedOrder();
 
-        $this->actingAs($this->cashier)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
-        // serving twice is harmless
-        $this->actingAs($this->cashier)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+        $this->fulfil($order);
+        // repeating a step already taken is a no-op
+        $this->fulfil($order);
 
-        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
+        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
         $this->actingAs($this->admin)->get(route('dine-orders.index'))
             ->assertInertia(fn (Assert $page) => $page->has('orders', 0));
         $this->actingAs($this->cashier)->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->has('openBills', 1)
                 ->where('openBills.0.table', 'Meja 7')
-                ->where('openBills.0.served', true));
+                ->where('openBills.0.order_status', 'served'));
         $this->get(route('dine-order.status-check', $order->access_token))
-            ->assertJsonPath('order.status', 'accepted')
-            ->assertJsonPath('order.served_at', fn ($servedAt) => $servedAt !== null);
+            ->assertJsonPath('order.status', 'served');
 
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())
             ->assertSessionHasNoErrors();
@@ -165,7 +189,7 @@ class DineOrderPaymentTest extends TestCase
     public function test_any_path_that_marks_the_bill_paid_completes_a_served_order(): void
     {
         $order = $this->acceptedOrder();
-        $this->actingAs($this->cashier)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+        $this->fulfil($order);
 
         // e.g. a confirmed bank transfer: payment_status flips without going through the pay endpoint
         $order->transaction->update(['payment_status' => 'paid']);
@@ -243,6 +267,180 @@ class DineOrderPaymentTest extends TestCase
             ->assertSessionHasNoErrors();
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())
             ->assertSessionHasErrors('order');
+    }
+
+    public function test_each_step_is_valid_only_from_the_previous_status_and_repeating_it_is_a_no_op(): void
+    {
+        $order = $this->acceptedOrder();
+        $post = fn (string $step) => $this->actingAs($this->cashier)->post(route("dine-orders.$step", $order));
+
+        $post('ready')->assertSessionHasErrors('order');
+        $post('serve')->assertSessionHasErrors('order');
+        $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
+
+        $post('prepare')->assertSessionHasNoErrors();
+        $preparingAt = $order->fresh()->preparing_at;
+        $this->assertEquals(DineOrder::STATUS_PREPARING, $order->fresh()->status);
+        $post('prepare')->assertSessionHasNoErrors();
+        $this->assertEquals($preparingAt, $order->fresh()->preparing_at);
+        $post('serve')->assertSessionHasErrors('order');
+
+        $post('ready')->assertSessionHasNoErrors();
+        $post('ready')->assertSessionHasNoErrors();
+        $this->assertEquals(DineOrder::STATUS_READY, $order->fresh()->status);
+
+        $post('serve')->assertSessionHasNoErrors();
+        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
+        $this->assertNotNull($order->fresh()->served_at);
+    }
+
+    public function test_a_rejected_order_cannot_be_prepared(): void
+    {
+        $this->acceptedOrder();
+        $rejected = DineOrder::create([
+            'dine_table_id' => $this->table->id, 'status' => DineOrder::STATUS_REJECTED, 'subtotal' => 0, 'item_count' => 0,
+        ]);
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.prepare', $rejected))->assertSessionHasErrors('order');
+    }
+
+    public function test_each_fulfillment_step_has_its_own_permission(): void
+    {
+        $order = $this->acceptedOrder();
+        $kitchen = User::factory()->create();
+        $kitchen->assignRole(Role::create(['name' => 'kitchen'])->givePermissionTo('dine-orders-access', 'dine-orders-prepare'));
+
+        $this->actingAs($kitchen)->post(route('dine-orders.serve', $order))->assertForbidden();
+        $this->actingAs($kitchen)->post(route('dine-orders.pay', $order), $this->cashTender())->assertForbidden();
+        $this->actingAs($kitchen)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->assertEquals(DineOrder::STATUS_PREPARING, $order->fresh()->status);
+    }
+
+    public function test_seeders_grant_the_fulfillment_permissions_to_cashier_and_manager_and_rerun_cleanly(): void
+    {
+        $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+
+        foreach (['cashier', 'manager'] as $role) {
+            $this->assertTrue(Role::findByName($role)->hasPermissionTo('dine-orders-prepare'));
+            $this->assertTrue(Role::findByName($role)->hasPermissionTo('dine-orders-handover'));
+        }
+        $this->assertEquals(1, Permission::where('name', 'dine-orders-prepare')->count());
+    }
+
+    public function test_a_qris_payment_charges_the_same_transaction_and_waits_for_the_webhook(): void
+    {
+        $this->enableMidtrans();
+        $order = $this->acceptedOrder();
+        $transaction = $order->transaction;
+        $this->mock(PaymentGatewayManager::class)
+            ->shouldReceive('createTenderPayment')
+            ->once()
+            ->withArgs(fn ($charged) => $charged->is($transaction))
+            ->andReturn(['reference' => 'ref-1', 'payment_url' => null, 'qr_string' => '000201QR']);
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->qrisTender())
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('transactions.print', $transaction->invoice));
+
+        $transaction->refresh();
+        $this->assertEquals('pending', $transaction->payment_status);
+        $this->assertEquals('qris', $transaction->payment_method);
+        $this->assertEquals('000201QR', $transaction->qr_string);
+        $this->assertEquals(1, Transaction::count());
+        $this->assertEquals(18, $this->product->fresh()->stock);
+
+        // still an open bill (Belum Lunas), marked pending, until the webhook confirms it
+        $this->actingAs($this->cashier)->get(route('transactions.index'))
+            ->assertInertia(fn (Assert $page) => $page->has('openBills', 1)->where('openBills.0.pending', true));
+
+        // a second attempt while the first is pending: no second charge, no second tender
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->qrisTender())->assertSessionHasErrors('order');
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasErrors('order');
+        $this->assertEquals(1, $transaction->tenders()->count());
+
+        $this->fulfil($order);
+        $this->assertEquals(DineOrder::STATUS_SERVED, $order->fresh()->status);
+
+        // Midtrans settles it: the order completes
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction->invoice, 'settlement'))->assertOk();
+
+        $this->assertEquals('paid', $transaction->fresh()->payment_status);
+        $this->assertEquals(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
+    }
+
+    public function test_a_failed_charge_leaves_the_bill_unpaid(): void
+    {
+        $this->enableMidtrans();
+        $order = $this->acceptedOrder();
+        $this->mock(PaymentGatewayManager::class)
+            ->shouldReceive('createTenderPayment')->once()->andThrow(new PaymentGatewayException('Gateway down'));
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->qrisTender())
+            ->assertSessionHasErrors('tenders');
+
+        $transaction = $order->transaction->fresh();
+        $this->assertEquals('unpaid', $transaction->payment_status);
+        $this->assertEquals(Transaction::METHOD_OPEN_BILL, $transaction->payment_method);
+        $this->assertEquals(0, $transaction->tenders()->count());
+    }
+
+    public function test_an_expired_or_failed_gateway_payment_can_be_replaced_by_cash(): void
+    {
+        $this->enableMidtrans();
+        $order = $this->acceptedOrder();
+        $transaction = $order->transaction;
+        $this->mock(PaymentGatewayManager::class)
+            ->shouldReceive('createTenderPayment')->once()
+            ->andReturn(['reference' => 'ref-1', 'payment_url' => null, 'qr_string' => 'QR']);
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->qrisTender())->assertSessionHasNoErrors();
+
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction->invoice, 'expire'))->assertOk();
+        $this->assertEquals('failed', $transaction->fresh()->payment_status);
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
+
+        $transaction->refresh();
+        $this->assertEquals('paid', $transaction->payment_status);
+        $this->assertEquals('cash', $transaction->payment_method);
+        $this->assertEquals(1, $transaction->tenders()->count());
+        $this->assertNull($transaction->qr_string);
+    }
+
+    public function test_the_expire_command_leaves_a_pending_dine_bill_alone(): void
+    {
+        $order = $this->acceptedOrder();
+        $transaction = $order->transaction;
+        $transaction->update(['payment_method' => 'qris', 'payment_status' => 'pending', 'created_at' => now()->subDays(3)]);
+
+        $this->artisan('transactions:expire')->assertSuccessful();
+
+        // the food was served long after accept; the bill's age says nothing about abandonment
+        $this->assertEquals('pending', $transaction->fresh()->payment_status);
+        $this->assertEquals(18, $this->product->fresh()->stock);
+    }
+
+    public function test_a_gateway_tender_cannot_be_split_with_another_tender(): void
+    {
+        $this->enableMidtrans();
+        $order = $this->acceptedOrder();
+
+        $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), ['tenders' => [
+            ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+            ['method' => 'qris', 'amount' => 15000],
+        ]])->assertSessionHasErrors('tenders');
+        $this->assertEquals('unpaid', $order->transaction->fresh()->payment_status);
+    }
+
+    private function midtransPayload(string $invoice, string $status): array
+    {
+        return [
+            'order_id' => $invoice,
+            'status_code' => '200',
+            'gross_amount' => '20000.00',
+            'transaction_status' => $status,
+            'transaction_id' => 'mt-1',
+            'signature_key' => hash('sha512', $invoice.'200'.'20000.00'.'sk-test'),
+        ];
     }
 
     public function test_a_submitted_order_cannot_be_paid(): void

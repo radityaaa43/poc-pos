@@ -24,10 +24,9 @@ class DineOrderController extends Controller
             ? null
             : $this->outletAccessService->accessibleOutlets($request->user())->pluck('id')->all();
 
-        // Fulfillment queue: new orders and accepted ones still to serve. Served-but-unpaid bills live in Open Bills.
+        // Fulfillment queue: new orders, the kitchen (accepted, preparing) and the handover (ready). Served-but-unpaid bills live in Open Bills.
         $orders = DineOrder::with(['table.area', 'items.product', 'transaction:id,payment_status'])
-            ->where(fn ($query) => $query->where('status', DineOrder::STATUS_SUBMITTED)
-                ->orWhere(fn ($accepted) => $accepted->where('status', DineOrder::STATUS_ACCEPTED)->whereNull('served_at')))
+            ->whereIn('status', [DineOrder::STATUS_SUBMITTED, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY])
             ->when($outletIds !== null, function ($query) use ($outletIds, $includeLegacy) {
                 $query->where(function ($query) use ($outletIds, $includeLegacy) {
                     $query->whereHas('table.area', fn ($area) => $area->whereIn('outlet_id', $outletIds));
@@ -52,12 +51,28 @@ class DineOrderController extends Controller
         return back()->with('success', 'Pesanan diterima dan siap diproses di kasir.');
     }
 
+    public function prepare(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->startPreparing($dineOrder);
+
+        return back()->with('success', 'Pesanan mulai dibuat.');
+    }
+
+    public function ready(Request $request, DineOrder $dineOrder)
+    {
+        $this->ensureOutletAccess($request, $dineOrder);
+        $this->service->markReady($dineOrder);
+
+        return back()->with('success', 'Pesanan ditandai siap.');
+    }
+
     public function serve(Request $request, DineOrder $dineOrder)
     {
         $this->ensureOutletAccess($request, $dineOrder);
         $this->service->serve($dineOrder);
 
-        return back()->with('success', 'Pesanan ditandai sudah disajikan.');
+        return back()->with('success', 'Pesanan ditandai sudah diserahkan.');
     }
 
     public function pay(Request $request, DineOrder $dineOrder)
