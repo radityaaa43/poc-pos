@@ -16,7 +16,7 @@ class CrmAutomationService
 {
     public function __construct(
         private readonly CustomerSegmentationService $segmentationService,
-        private readonly ?WhatsAppService $whatsAppService = null
+        private readonly WhatsAppService $whatsAppService
     ) {}
 
     public function audienceOptions(): array
@@ -146,7 +146,7 @@ class CrmAutomationService
         $outlet = $campaign->outlet_id ? Outlet::find($campaign->outlet_id) : null;
         $waAvailable = Setting::getBoolForOutlet('wa_enabled', $outlet, false)
             && Setting::getForOutlet('wa_service_url', $outlet)
-            && ($this->whatsAppService?->status($outlet)['connected'] ?? false);
+            && ($this->whatsAppService->status($outlet)['connected'] ?? false);
 
         foreach ($audience as $customer) {
             $payload = $this->buildCustomerPayload($campaign, $customer);
@@ -171,6 +171,11 @@ class CrmAutomationService
             'audience_snapshot' => $snapshot,
             'processed_at' => $at,
         ]);
+
+        // Direct delivery may have sent every log already; an empty audience stays ready.
+        if ($audience->isNotEmpty()) {
+            $this->refreshCampaignStatus($campaign);
+        }
 
         return $campaign->fresh(['logs.customer']);
     }
