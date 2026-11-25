@@ -26,7 +26,7 @@ test.describe('33-kitchen-printer', () => {
         // Nothing but the name form works until the station has a name.
         await expect(panel.getByRole('button', { name: 'Hubungkan printer' })).toBeDisabled();
         await expect(panel.getByRole('switch', { name: 'Cetak otomatis' })).toBeDisabled();
-        await panel.getByLabel('Nama stasiun').fill(name);
+        await panel.getByLabel('Nama perangkat cetak').fill(name);
         await panel.getByRole('button', { name: 'Simpan' }).click();
         await expect(panel.getByText(name, { exact: true })).toBeVisible();
         expect(JSON.parse(await stored(page, 'kitchen.station')).name).toBe(name);
@@ -34,9 +34,9 @@ test.describe('33-kitchen-printer', () => {
         // Another device cannot take the same name in this outlet, and saves nothing.
         const other = await asRole(cashier);
         const otherPanel = await openPanel(other);
-        await otherPanel.getByLabel('Nama stasiun').fill(name);
+        await otherPanel.getByLabel('Nama perangkat cetak').fill(name);
         await otherPanel.getByRole('button', { name: 'Simpan' }).click();
-        await expect(otherPanel.getByText('Nama stasiun sudah dipakai di outlet ini')).toBeVisible();
+        await expect(otherPanel.getByText('Nama perangkat cetak sudah dipakai di outlet ini')).toBeVisible();
         expect(await stored(other, 'kitchen.station')).toBeNull();
 
         await panel.getByRole('button', { name: 'Hubungkan printer' }).click();
@@ -104,7 +104,7 @@ test.describe('33-kitchen-printer', () => {
         const panel = page.getByRole('region', { name: 'Kitchen printer settings' });
         await expect(panel).toBeVisible();
         await expect(page.getByRole('button', { name: 'Kitchen printer settings' })).toBeVisible();
-        await expect(panel.getByLabel('Station name')).toBeVisible();
+        await expect(panel.getByLabel('Print device name')).toBeVisible();
         await expect(panel.getByRole('button', { name: 'Connect printer' })).toBeVisible();
         await expect(panel.getByRole('switch', { name: 'Auto-print' })).toBeVisible();
     });

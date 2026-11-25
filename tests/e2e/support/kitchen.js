@@ -25,7 +25,7 @@ export async function setUpPrintStation(page, name) {
     await page.goto('/dashboard/kitchen');
     await page.getByRole('button', { name: 'Pengaturan printer dapur' }).click();
     const panel = page.getByRole('region', { name: 'Pengaturan printer dapur' });
-    await panel.getByLabel('Nama stasiun').fill(name);
+    await panel.getByLabel('Nama perangkat cetak').fill(name);
     await panel.getByRole('button', { name: 'Simpan' }).click();
     await expect(panel.getByText(name, { exact: true })).toBeVisible();
     await panel.getByRole('button', { name: 'Hubungkan printer' }).click();

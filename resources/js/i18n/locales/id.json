@@ -1079,10 +1079,10 @@
         },
         "print": {
             "open": "Pengaturan printer dapur",
-            "stationName": "Nama stasiun",
+            "stationName": "Nama perangkat cetak",
             "stationPlaceholder": "Dapur 1",
             "save": "Simpan",
-            "nameTaken": "Nama stasiun sudah dipakai di outlet ini",
+            "nameTaken": "Nama perangkat cetak sudah dipakai di outlet ini",
             "connect": "Hubungkan printer",
             "disconnect": "Putuskan",
             "paper": "Ukuran kertas (58 mm / 80 mm)",

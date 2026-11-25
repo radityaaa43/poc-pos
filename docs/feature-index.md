@@ -8,7 +8,7 @@
 | Sales Return | `docs/features/sales-returns.md` | ✅ |
 | Customer Portal (self-service) | `docs/features/customer-portal.md` | ✅ |
 | Offline Mode | `docs/features/offline-mode.md` | ✅ (queue + auto-sync dengan batasan cart) |
-| Kitchen display | `docs/features/kitchen-display.md` | ✅ (read-only queue, 5 s refresh, kitchen ticket printing per print station) |
+| Kitchen display | `docs/features/kitchen-display.md` | ✅ (read-only queue, 5 s refresh, kitchen ticket printing per print device) |
 
 ## Inventory & Warehouse
 

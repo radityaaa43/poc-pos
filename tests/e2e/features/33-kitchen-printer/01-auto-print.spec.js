@@ -12,7 +12,7 @@ test.describe('33-kitchen-printer', () => {
         arrange('open-shift', { cash: 100000 });
         const page = await asRole(cashier);
         await fakePrinter(page);
-        // The station comes first: it prints only what reaches the kitchen after it was named.
+        // The print device is named first: it prints only what reaches the kitchen after it was named.
         await setUpPrintStation(page, uniq('Dapur'));
 
         const note = uniq('tanpa-gula');

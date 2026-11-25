@@ -296,7 +296,7 @@ class KitchenTicketTest extends TestCase
 
         $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => ' Dapur 1'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name' => 'Nama stasiun sudah dipakai di outlet ini']);
+            ->assertJsonValidationErrors(['name' => 'Nama perangkat cetak sudah dipakai di outlet ini']);
         $this->assertDatabaseCount('kitchen_print_stations', 2);
     }
 
@@ -310,7 +310,7 @@ class KitchenTicketTest extends TestCase
 
         $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 1'])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['name' => 'Nama stasiun sudah dipakai di outlet ini']);
+            ->assertJsonValidationErrors(['name' => 'Nama perangkat cetak sudah dipakai di outlet ini']);
         $this->assertDatabaseCount('kitchen_print_stations', 1);
     }
 

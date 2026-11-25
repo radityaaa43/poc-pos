@@ -7,4 +7,4 @@
 
 Manual checks: the offline banner ("Koneksi terputus") and a session that ends while the screen is open (covered by Vitest and `KitchenDisplayTest`); the offline tap refusal ("Gagal menyimpan", covered by Vitest); touch use on a kitchen tablet; a screen left open all day.
 
-Printing the tickets of this screen (print station, paper, Cetak otomatis) is covered in `33-kitchen-printer`.
+Printing the tickets of this screen (print device, paper, Cetak otomatis) is covered in `33-kitchen-printer`.

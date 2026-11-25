@@ -12,9 +12,9 @@ const printsOf = async (page, invoice) => (await sentToPrinter(page)).map(asText
 test.describe('33-kitchen-printer', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('a ticket prints once per station, not again after a reload', { tag: ['@REQ-004-AC-05'] }, async ({ asRole, arrange, uniq }) => {
+    test('a ticket prints once per print device, not again after a reload', { tag: ['@REQ-004-AC-05'] }, async ({ asRole, arrange, uniq }) => {
         arrange('open-shift', { cash: 100000 });
-        // Two devices, each with its own station name, both named before the sale.
+        // Two devices, each with its own print device name, both named before the sale.
         const a = await asRole(cashier);
         await fakePrinter(a);
         await setUpPrintStation(a, uniq('DapurA'));

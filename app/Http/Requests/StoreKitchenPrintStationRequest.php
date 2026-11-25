@@ -34,6 +34,6 @@ class StoreKitchenPrintStationRequest extends FormRequest
 
     public function messages(): array
     {
-        return ['name.unique' => 'Nama stasiun sudah dipakai di outlet ini'];
+        return ['name.unique' => 'Nama perangkat cetak sudah dipakai di outlet ini'];
     }
 }

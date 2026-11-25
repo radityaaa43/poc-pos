@@ -1079,10 +1079,10 @@
         },
         "print": {
             "open": "Kitchen printer settings",
-            "stationName": "Station name",
+            "stationName": "Print device name",
             "stationPlaceholder": "Kitchen 1",
             "save": "Save",
-            "nameTaken": "This station name is already used in this outlet",
+            "nameTaken": "This print device name is already used in this outlet",
             "connect": "Connect printer",
             "disconnect": "Disconnect",
             "paper": "Paper size (58 mm / 80 mm)",

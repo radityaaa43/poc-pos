@@ -43,7 +43,7 @@ describe("PrintStationPanel", () => {
     it("starts with only the name form usable", () => {
         render(<Harness />);
 
-        expect(screen.getByLabelText("Nama stasiun")).toBeEnabled();
+        expect(screen.getByLabelText("Nama perangkat cetak")).toBeEnabled();
         expect(screen.getByRole("button", { name: "Hubungkan printer" })).toBeDisabled();
         expect(screen.getByRole("switch", { name: "Cetak otomatis" })).toBeDisabled();
         expect(screen.getByRole("status")).toHaveTextContent("Printer belum terhubung");
@@ -54,7 +54,7 @@ describe("PrintStationPanel", () => {
         axios.post.mockResolvedValue({ data: { id: 5, name: "Dapur 1" } });
         render(<Harness />);
 
-        await user.type(screen.getByLabelText("Nama stasiun"), "  Dapur 1 ");
+        await user.type(screen.getByLabelText("Nama perangkat cetak"), "  Dapur 1 ");
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
         expect(axios.post).toHaveBeenCalledWith("/kitchen.stations.store", { name: "Dapur 1" });
@@ -68,14 +68,14 @@ describe("PrintStationPanel", () => {
         axios.post.mockRejectedValue({ response: { status: 422, data: { errors: { name: ["The name has already been taken."] } } } });
         render(<Harness />);
 
-        await user.type(screen.getByLabelText("Nama stasiun"), "Dapur 1");
+        await user.type(screen.getByLabelText("Nama perangkat cetak"), "Dapur 1");
         await user.click(screen.getByRole("button", { name: "Simpan" }));
 
-        const field = screen.getByLabelText("Nama stasiun");
-        expect(await screen.findByText("Nama stasiun sudah dipakai di outlet ini")).toBeInTheDocument();
-        expect(field).toHaveAccessibleDescription("Nama stasiun sudah dipakai di outlet ini");
+        const field = screen.getByLabelText("Nama perangkat cetak");
+        expect(await screen.findByText("Nama perangkat cetak sudah dipakai di outlet ini")).toBeInTheDocument();
+        expect(field).toHaveAccessibleDescription("Nama perangkat cetak sudah dipakai di outlet ini");
         expect(field).toBeInvalid();
-        expect(screen.getByRole("alert")).toHaveTextContent("Nama stasiun sudah dipakai di outlet ini");
+        expect(screen.getByRole("alert")).toHaveTextContent("Nama perangkat cetak sudah dipakai di outlet ini");
         expect(localStorage.getItem("kitchen.station")).toBeNull();
     });
 
@@ -94,7 +94,7 @@ describe("PrintStationPanel", () => {
         const user = userEvent.setup();
         render(<Harness />);
 
-        await user.type(screen.getByLabelText("Nama stasiun"), "   ");
+        await user.type(screen.getByLabelText("Nama perangkat cetak"), "   ");
         expect(screen.getByRole("button", { name: "Simpan" })).toBeDisabled();
     });
 
@@ -201,7 +201,7 @@ describe("PrintStationPanel", () => {
         localStorage.setItem("kitchen.autoPrint", "true");
         render(<Harness />);
 
-        expect(screen.getByLabelText("Nama stasiun")).toHaveValue("Dapur 1");
+        expect(screen.getByLabelText("Nama perangkat cetak")).toHaveValue("Dapur 1");
         expect(screen.getByRole("button", { name: "Putuskan" })).toBeInTheDocument();
         expect(screen.getByLabelText("Ukuran kertas (58 mm / 80 mm)")).toHaveValue("58mm");
         expect(screen.getByRole("switch", { name: "Cetak otomatis" })).toHaveAttribute("aria-checked", "true");
@@ -212,7 +212,7 @@ describe("PrintStationPanel", () => {
         await i18n.changeLanguage("en");
         render(<Harness />);
 
-        expect(screen.getByLabelText("Station name")).toHaveAttribute("placeholder", "Kitchen 1");
+        expect(screen.getByLabelText("Print device name")).toHaveAttribute("placeholder", "Kitchen 1");
         expect(screen.getByRole("button", { name: "Save" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Connect printer" })).toBeInTheDocument();
         expect(screen.getByLabelText("Paper size (58 mm / 80 mm)")).toBeInTheDocument();
