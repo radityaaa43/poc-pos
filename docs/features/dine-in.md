@@ -13,12 +13,19 @@ Pelanggan scan QR
   → Pesanan terkirim → status: submitted
 
 Staff lihat pesanan di dashboard
-  → Terima (accept) → stok dipotong, lanjut ke kasir
+  → Terima (accept) → stok dipotong, transaksi dibuat (belum lunas), pesanan jadi tagihan terbuka
   → Atau Tolak (reject) dengan alasan
 
-Jika bayar di kasir:
-  → Staff proses di halaman kasir seperti biasa
+Setelah diterima, dua alur berjalan terpisah:
+  Penyajian: staff tekan "Sajikan" di antrean pesanan → served_at terisi
+  Pembayaran: kasir tekan "Bayar" di POS (Tagihan Terbuka) atau Riwayat Transaksi → transaksi lunas
+
+Pesanan menjadi completed hanya jika sudah disajikan DAN lunas (urutan bebas)
+Pesanan completed keluar dari antrean; halaman status tamu menampilkan "Selesai"
 ```
+
+Tagihan terbuka (*open bill*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
+metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
 ## Database
 
@@ -53,7 +60,7 @@ Header pesanan pelanggan.
 | `dine_table_id` | foreignId | Meja tujuan |
 | `customer_id` | foreignId | (nullable) |
 | `access_token` | uuid | Token unik untuk halaman status |
-| `status` | enum | submitted/accepted/completed/rejected/cancelled |
+| `status` | enum | submitted/accepted/completed/rejected/cancelled. `completed` = disajikan dan lunas |
 | `notes` | text | Catatan pesanan |
 | `payment_option` | enum | pay_at_counter / pay_online |
 | `payment_method` | string | midtrans/xendit (nullable) |
@@ -64,6 +71,7 @@ Header pesanan pelanggan.
 | `transaction_id` | foreignId | Transaksi terkait (nullable) |
 | `subtotal` | integer | Total pesanan |
 | `item_count` | integer | Jumlah item |
+| `served_at` | timestamp | Kapan staff menandai pesanan disajikan (nullable). Penyajian terpisah dari pembayaran (status transaksi) |
 
 ### Tabel: `dine_order_items`
 Item-item dalam pesanan.
@@ -104,6 +112,8 @@ Dikontrol via `Setting` table:
 | GET | `/dashboard/dine-tables/{table}/qr` | permission:dine-tables-access |
 | GET | `/dashboard/dine-orders` | permission:dine-orders-access |
 | POST | `/dashboard/dine-orders/{order}/accept` | permission:dine-orders-process |
+| POST | `/dashboard/dine-orders/{order}/serve` | permission:dine-orders-process |
+| POST | `/dashboard/dine-orders/{order}/pay` | permission:dine-orders-process, active_shift |
 | POST | `/dashboard/dine-orders/{order}/reject` | permission:dine-orders-process |
 
 ### Publik
@@ -124,7 +134,7 @@ Dikontrol via `Setting` table:
 | `dine-tables-update` | Edit posisi meja |
 | `dine-tables-delete` | Hapus meja |
 | `dine-orders-access` | Lihat daftar pesanan |
-| `dine-orders-process` | Terima/tolak pesanan |
+| `dine-orders-process` | Terima/tolak, sajikan, dan bayar tagihan pesanan |
 
 **Role cashier** mendapat: `dine-orders-access` + `dine-orders-process`
 
@@ -150,23 +160,47 @@ Dikontrol via `Setting` table:
 - Opsi saat ini: Bayar di Kasir (`pay_at_counter`)
 
 ### Polling Status
-- Halaman status auto-refresh setiap 5 detik saat status = submitted
-- Notifikasi visual per status (menunggu/diterima/selesai/ditolak)
+- Halaman status auto-refresh setiap 5 detik saat status = submitted atau accepted (berhenti saat completed/rejected)
+- Notifikasi visual per status (menunggu/diterima/disajikan/selesai/ditolak). "Disajikan" = accepted dan `served_at` terisi, tinggal menunggu bayar
 
 ### Konversi Staff
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
-- Konfirmasi dari kasir via halaman POS seperti transaksi biasa
+- Sajikan: staff menandai pesanan disajikan dari antrean (idempoten). Pesanan yang sudah disajikan keluar dari antrean dan menunggu di Tagihan Terbuka bila belum lunas; yang sudah lunas tapi belum disajikan tetap di antrean
+- Bayar: lihat "Pembayaran tagihan terbuka" di bawah
 
 ## Pembayaran
 
 Saat ini endpoint `/dine/{token}/order` hanya menerima `payment_option: pay_at_counter`.
 `pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
 
+### Pembayaran tagihan terbuka
+
+Pesanan `accepted` dibayar dari dua tempat, keduanya memakai satu endpoint (`POST /dashboard/dine-orders/{order}/pay`)
+dan **memperbarui transaksi yang dibuat saat accept** (tidak ada transaksi baru):
+
+- **POS** → bagian "Tagihan Terbuka" (daftar pesanan accepted yang belum lunas, di outlet kasir).
+- **Riwayat Transaksi** → baris `unpaid` yang punya pesanan dine-in tampil "Belum Lunas · Meja X" (badge amber) dengan tombol "Bayar".
+
+Payload memakai `tenders[]` yang sama dengan checkout POS (`TransactionTenderService::normalize`): tunai (dengan kembalian)
+atau transfer bank. Layar bayar saat ini satu metode per tagihan; server menerima sampai dua tender (split) karena
+validasinya dipakai bersama. Gateway (Midtrans/Xendit/QRIS) belum didukung untuk tagihan terbuka.
+
+Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
+
+- `payment_method`, `cash`, `change`, `bank_account_id` dan tender dicatat; `payment_status` jadi `paid`.
+- `cashier_id` dan `cashier_shift_id` pindah ke kasir yang menerima uang dan **shift aktifnya**. Kas yang diharapkan shift
+  (`expected_cash`) hanya bertambah saat tunai benar-benar dibayar; tagihan terbuka tidak dihitung sama sekali.
+- Stok tidak dipotong lagi (sudah dipotong saat accept).
+- Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
+- Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
+- Pesanan menjadi `completed` bila sudah disajikan (`Transaction` memanggil `DineOrder::completeIfSettled()` saat
+  `payment_status` berubah ke `paid`, jadi jalur lain seperti konfirmasi transfer ikut menyelesaikannya).
+
 ## Catatan Teknis
 
 - QR generator: `simplesoftwareio/simple-qrcode`
 - Status polling: fetch JSON setiap 5 detik (tanpa broadcast/realtime dependency)
 - Stok dipotong saat `accept` — bukan saat submit
-- Core POS (`TransactionController`) TIDAK dimodifikasi
+- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data Tagihan Terbuka (POS) dan relasi pesanan di Riwayat
 - Cart tetap berbasis `cashier_id` — tidak terpengaruh oleh dine-in

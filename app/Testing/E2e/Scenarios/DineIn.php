@@ -10,6 +10,7 @@ use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
+use App\Models\Receivable;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
@@ -99,6 +100,11 @@ class DineIn
                     'orders_on_table' => DineOrder::where('dine_table_id', $order->dine_table_id)->count(),
                     'invoice' => $transaction?->invoice,
                     'payment_status' => $transaction?->payment_status,
+                    'payment_method' => $transaction?->payment_method,
+                    'cash' => $transaction?->cash,
+                    'change' => $transaction?->change,
+                    'served' => $order->served_at !== null,
+                    'receivables' => $transaction ? Receivable::where('transaction_id', $transaction->id)->count() : 0,
                     'grand_total' => $transaction?->grand_total,
                     'product_stock' => isset($options['product_id']) ? (int) Product::find($options['product_id'])->stock : null,
                     'warehouse_stock' => isset($options['product_id'])

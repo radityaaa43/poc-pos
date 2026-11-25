@@ -22,8 +22,9 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Purchase order (PO) | An order to a supplier | Goods receiving: what actually arrived | `PurchaseOrder` / `purchase_orders` |
 | Goods receiving | Recording what arrived from a supplier; adds stock and creates a payable | Purchase order | `GoodsReceiving` / `goods_receivings` |
 | Payable / receivable | Money the business owes a supplier / is owed by a customer | Transaction | `Payable`, `Receivable` |
-| Transaction | A completed sale (invoice) with its lines and tenders | Dine order: becomes a transaction at payment | `Transaction`, `TransactionDetail` |
+| Transaction | A completed sale (invoice) with its lines and tenders | Dine order: its transaction is created at accept and paid later (open bill) | `Transaction`, `TransactionDetail` |
 | Dine order | A dine-in table order, paid at the counter | Transaction | `DineOrder` / `dine_orders` |
+| Open bill | An accepted dine order whose transaction is still `unpaid`; settled from the POS "Tagihan Terbuka" or Transactions History ("Belum Lunas"). Not a credit sale: no receivable. A dine order is `completed` once it is both served (`served_at`) and paid | Receivable (pay later) | `Transaction::scopeOpenBills`, `payment_method = open_bill` |
 | Cashier shift | A cashier's open-to-close session with opening and closing cash | | `CashierShift` |
 | HPP (cost of goods sold; "harga pokok penjualan") | Cost of what was sold, frozen on each sale line from the selling warehouse's average cost; sale minus HPP is profit | Buy price: the current price, not the cost at sale time | `transaction_details.cost_total` |
 | Average cost ("harga pokok persediaan" / "biaya rata-rata") | Weighted-average cost per stock unit of one product in one warehouse; moves on goods receiving (and starts at the reference price on opening stock), other warehouses do not change | Buy price: the reference price, the latest price paid, also the fallback until a warehouse has an average | `product_warehouse.avg_cost`, `InventoryCostService` |
