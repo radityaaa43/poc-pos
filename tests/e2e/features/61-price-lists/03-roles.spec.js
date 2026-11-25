@@ -9,8 +9,7 @@ test.describe('price lists: roles', () => {
         expect(index.status()).toBe(403);
     });
 
-    // Bug #103: price-lists.show has no permission middleware, so the detail page opens for a cashier.
-    test.fixme('a cashier cannot read a price list with its prices', async ({ asRole, arrange, uniq }) => {
+    test('a cashier cannot read a price list with its prices', async ({ asRole, arrange, uniq }) => {
         const { price_list_id } = arrange('crm.price-list', { name: uniq('Rahasia') });
 
         const cashier = await asRole(roleOf(roles, 'cashier'));
