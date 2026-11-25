@@ -60,7 +60,7 @@ class RoleController extends Controller
             description: 'Role baru dibuat.',
             after: [
                 'name' => $role->name,
-                'permissions' => $this->auditLogService->permissionNames($request->selectedPermission),
+                'permissions' => $role->permissions()->pluck('name')->all(),
             ],
         );
 
@@ -89,7 +89,7 @@ class RoleController extends Controller
         // sync role permissions
         $role->syncPermissions($request->selectedPermission);
 
-        $afterPermissions = $this->auditLogService->permissionNames($request->selectedPermission);
+        $afterPermissions = $role->permissions()->pluck('name')->all();
 
         $this->auditLogService->log(
             event: 'role.updated',
