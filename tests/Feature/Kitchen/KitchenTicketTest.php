@@ -164,7 +164,8 @@ class KitchenTicketTest extends TestCase
         $this->assertFalse(Schema::hasTable('kitchen_print_stations'));
         $this->assertDatabaseHas('kitchen_print_devices', ['id' => $device->id, 'name' => 'Dapur 1']);
         $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $item->id]);
-        $this->assertSame([], $this->tickets($device), 'the printed item is still known as printed');
+        // The printed item is still known as printed (not offered again); the spare one, never printed by this device, is.
+        $this->assertSame(['t'.$spare->transaction_id], array_column($this->tickets($device), 'key'));
         $assertKeys('kitchen_print_devices', 'kitchen_print_device_id');
 
         // And through the app: deleting the device removes its print log.
