@@ -103,6 +103,15 @@ class RecoverKitchenIntakeTest extends TestCase
 
                 parent::intake($transaction);
             }
+
+            public function intakeUnpaid(Transaction $transaction): void
+            {
+                if (in_array($transaction->id, $this->failFor, true)) {
+                    throw new RuntimeException('kitchen down');
+                }
+
+                parent::intakeUnpaid($transaction);
+            }
         };
         $this->app->instance(KitchenIntakeService::class, $intake);
 
@@ -145,11 +154,10 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->assertSame(2, KitchenItem::distinct()->count('transaction_detail_id'));
     }
 
-    public function test_skips_old_pay_later_no_warehouse_and_fully_returned_sales(): void
+    public function test_skips_old_no_warehouse_and_fully_returned_sales(): void
     {
         $old = $this->sale();
         Transaction::whereKey($old->id)->update(['updated_at' => now()->subDays(2)]);
-        $this->sale(attributes: ['payment_method' => 'pay_later', 'is_pay_later' => true]);
         $this->sale(attributes: ['warehouse_id' => null]);
         $this->sale(attributes: ['payment_status' => 'expired']);
         $this->salesReturn($this->sale(), 2);
@@ -236,6 +244,101 @@ class RecoverKitchenIntakeTest extends TestCase
         $this->artisan('kitchen:recover-intake')->assertSuccessful();
 
         $this->assertSame([$sale->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
+    /** A pay-later sale as checkout left it when its after-commit intake failed: lines, no kitchen items. */
+    private function payLaterSale(string $status = 'unpaid', string $method = 'pay_later', ?array $products = null, array $attributes = []): Transaction
+    {
+        return $this->sale($products, ['payment_method' => $method, 'is_pay_later' => true, 'payment_status' => $status, ...$attributes]);
+    }
+
+    // #360 TC-1
+    public function test_a_pay_later_sale_whose_intake_failed_is_recovered_once(): void
+    {
+        Log::spy();
+        $credit = $this->payLaterSale();                               // a POS credit sale
+        $dineBill = $this->payLaterSale(method: Transaction::METHOD_OPEN_BILL); // a QR bill accepted as pay later
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+        $this->artisan('kitchen:recover-intake')->assertSuccessful(); // the second run adds nothing
+
+        $this->assertEqualsCanonicalizing([$credit->id, $dineBill->id], KitchenItem::pluck('transaction_id')->all());
+        $this->assertSame(2, KitchenItem::count());
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, KitchenItem::where('transaction_id', $credit->id)->value('status'));
+        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0]);
+        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 0, 'failed' => 0]);
+    }
+
+    public function test_a_pay_later_sale_paid_within_the_window_but_never_taken_in_is_still_recovered(): void
+    {
+        $paid = $this->payLaterSale('paid');
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame([$paid->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
+    public function test_the_pay_later_window_runs_on_the_creation_time_not_on_the_payment(): void
+    {
+        $recent = $this->payLaterSale();
+        Transaction::whereKey($recent->id)->update(['created_at' => now()->subMinutes(29), 'updated_at' => now()->subMinutes(29)]);
+        $old = $this->payLaterSale('paid'); // created long ago, settled just now: its intake belonged to its creation
+        Transaction::whereKey($old->id)->update(['created_at' => now()->subMinutes(31), 'updated_at' => now()]);
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame([$recent->id], KitchenItem::pluck('transaction_id')->all());
+    }
+
+    // #360 TC-2
+    public function test_a_pay_later_sale_without_a_reason_to_be_recovered_is_not_touched(): void
+    {
+        Log::spy();
+        $this->payLaterSale(attributes: ['warehouse_id' => null]);
+        $this->payLaterSale(products: [$this->product(false)]);        // nothing to make
+        $this->salesReturn($this->payLaterSale(), 2);                  // fully returned
+        $this->payLaterSale('pending');                                // an attempt is in flight: picked up when the bill is unpaid or paid again
+        $this->payLaterSale('failed');
+        $this->payLaterSale('expired');
+        $outside = $this->payLaterSale();
+        Transaction::whereKey($outside->id)->update(['created_at' => now()->subMinutes(31), 'updated_at' => now()->subMinutes(31)]);
+
+        // Controls: the same shapes that must be recovered, so the skips above come from the rules.
+        $plain = $this->payLaterSale();
+        $partlyReturned = $this->payLaterSale();
+        $this->salesReturn($partlyReturned, 1);
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertEqualsCanonicalizing([$plain->id, $partlyReturned->id], KitchenItem::pluck('transaction_id')->all());
+        Log::shouldHaveReceived('info')->once()->with('kitchen:recover-intake', ['recovered' => 2, 'failed' => 0]);
+    }
+
+    // #360 TC-3
+    public function test_a_pay_later_sale_that_already_has_kitchen_items_is_not_touched(): void
+    {
+        $sale = $this->payLaterSale(products: [$this->product(), $this->product()]);
+        app(KitchenIntakeService::class)->intakeUnpaid($sale);
+        $before = KitchenItem::orderBy('id')->get(['id', 'transaction_detail_id', 'accepted_at'])->toArray();
+        $this->travel(5)->minutes();
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        $this->assertSame($before, KitchenItem::orderBy('id')->get(['id', 'transaction_detail_id', 'accepted_at'])->toArray());
+    }
+
+    public function test_one_failing_pay_later_sale_does_not_stop_the_paid_branch(): void
+    {
+        Exceptions::fake();
+        $intake = $this->flakyIntake();
+        $broken = $this->payLaterSale();
+        $paid = $this->sale();
+        $intake->failFor = [$broken->id];
+
+        $this->artisan('kitchen:recover-intake')->assertSuccessful();
+
+        Exceptions::assertReported(fn (RuntimeException $e) => $e->getMessage() === 'kitchen down');
+        $this->assertSame([$paid->id], KitchenItem::pluck('transaction_id')->all());
     }
 
     public function test_command_is_scheduled_every_five_minutes(): void
