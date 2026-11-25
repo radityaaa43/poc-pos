@@ -244,6 +244,10 @@
     "screenshots_dir": "",
     "design_plugin": true
   },
+  "issue": {
+    "title_types": ["feat", "fix", "refactor", "docs", "test", "chore", "ci"],
+    "title_rule_start": "2026-11-25"
+  },
   "ai_used": {
     "required": true,
     "rule_start": "2026-11-20"

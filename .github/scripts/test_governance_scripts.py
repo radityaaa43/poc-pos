@@ -166,6 +166,28 @@ class IssueBody(unittest.TestCase):
         self.assertEqual(len(check_issue_body.problems(body, cfg=c)), 1)
         self.assertEqual(check_issue_body.problems(body.replace("- [ ] works", "- [ ] [AC-01] works"), cfg=c), [])
 
+    TITLE_CFG = dict(issue__title_types=["feat", "fix", "chore"], issue__title_rule_start="2026-11-25")
+    TITLE_BODY = "AI used: none\n\n## Done when\n- [ ] works\n"
+
+    def title_problems(self, title, created_at="2026-11-26"):
+        return check_issue_body.problems(self.TITLE_BODY, created_at, cfg(**self.TITLE_CFG), title)
+
+    def test_title_without_type_is_flagged(self):
+        found = self.title_problems("Product import shows no result message")
+        self.assertEqual(len(found), 1)
+        self.assertIn("<type>(<scope>): <summary>", found[0])
+
+    def test_typed_title_passes(self):
+        self.assertEqual(self.title_problems("fix(products): product import shows no result message"), [])
+        self.assertEqual(self.title_problems("feat(pos)!: x"), [])
+
+    def test_title_rule_skips_older_issues(self):
+        self.assertEqual(self.title_problems("Product import shows no result message", "2026-11-24"), [])
+
+    def test_title_unknown_type_or_scope_flagged(self):
+        self.assertEqual(len(self.title_problems("bug(pos): x")), 1)
+        self.assertEqual(len(self.title_problems("fix(POS): x")), 1)
+
 
 class PrSize(unittest.TestCase):
     def test_counted_lines_skips_lockfiles_and_migrations(self):

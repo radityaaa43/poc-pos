@@ -1,6 +1,7 @@
 ---
 name: Feature / change
 about: Something the product should do (or do differently)
+title: "feat(<scope>): "
 labels: needs-triage
 ---
 
