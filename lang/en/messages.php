@@ -402,6 +402,16 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Validation Messages - Kitchen Stations
+    |--------------------------------------------------------------------------
+    */
+    'kitchen_stations' => [
+        'name_taken' => 'A kitchen station with this name already exists.',
+        'default_locked' => 'The default station (Dapur) cannot be deleted.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Validation Messages
     |--------------------------------------------------------------------------
     */

@@ -18,6 +18,7 @@ use App\Http\Controllers\Apps\GoodsReceivingController;
 use App\Http\Controllers\Apps\ImportExportController;
 use App\Http\Controllers\Apps\KitchenController;
 use App\Http\Controllers\Apps\KitchenPrintStationController;
+use App\Http\Controllers\Apps\KitchenStationController;
 use App\Http\Controllers\Apps\MemberController;
 use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PayableController;
@@ -415,6 +416,12 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
         ->middlewareFor('store', 'permission:units-create')
         ->middlewareFor('update', 'permission:units-update')
         ->middlewareFor('destroy', 'permission:units-delete');
+
+    // settings kitchen stations (shop-wide, REQ-006)
+    Route::resource('/settings/kitchen-stations', KitchenStationController::class)
+        ->except(['create', 'edit', 'show'])
+        ->names('settings.kitchen-stations')
+        ->middleware('permission:products-edit');
 
     // confirm payment for bank transfer
     Route::patch('/transactions/{transaction}/confirm-payment', [TransactionController::class, 'confirmPayment'])->middleware(['permission:transactions-confirm-payment', 'step_up'])->name('transactions.confirm-payment');

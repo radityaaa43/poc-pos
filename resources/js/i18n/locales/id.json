@@ -308,6 +308,7 @@
             "warehouses": "Gudang / Cabang",
             "outlets": "Outlet",
             "units": "Satuan",
+            "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp"
         },
         "menu": {
@@ -424,7 +425,8 @@
         },
         "preparation": {
             "needsPreparation": "Perlu dibuat di dapur",
-            "targetMinutes": "Target waktu buat (menit)"
+            "targetMinutes": "Target waktu buat (menit)",
+            "station": "Stasiun dapur"
         }
     },
     "categories": {
@@ -1111,5 +1113,21 @@
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
         }
+    },
+    "kitchenStations": {
+        "title": "Stasiun dapur",
+        "add": "Tambah stasiun",
+        "rename": "Ubah nama stasiun",
+        "renameLabel": "Ubah nama {{name}}",
+        "deleteLabel": "Hapus stasiun {{name}}",
+        "name": "Nama stasiun",
+        "default": "Bawaan",
+        "empty": "Belum ada stasiun",
+        "deleteTitle": "Hapus stasiun {{name}}?",
+        "deleteConfirm": "Produknya pindah ke {{default}}. Item yang sudah ada di dapur tetap di tempatnya.",
+        "created": "Stasiun ditambahkan",
+        "renamed": "Nama stasiun diubah",
+        "deleted": "Stasiun dihapus",
+        "failed": "Stasiun tidak bisa disimpan"
     }
 }
