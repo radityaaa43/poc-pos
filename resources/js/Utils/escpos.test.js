@@ -336,6 +336,76 @@ describe("buildKitchenTicketBytes", () => {
             0x11, 0x00, 0x00,
         ]);
     });
+
+    describe("cancel layout", () => {
+        const cancelLabels = { ...labels, cancelled: "DIBATALKAN" };
+        const cancel = (overrides = {}) =>
+            ticket({
+                kind: "cancel",
+                unpaid: true,
+                items: [{ id: 9, title: "Nasi Goreng", qty: 1, note: "tanpa pedas" }],
+                ...overrides,
+            });
+
+        it("prints the cancelled label, then the number, both in double size, before the type and time", () => {
+            // eslint-disable-next-line no-control-regex
+            expect(textOf(cancel(), "80mm", cancelLabels)).toMatch(/^\x1b@\x1d!\x11DIBATALKAN\nMeja 5\n\x1d!\x00Makan di tempat/);
+        });
+
+        it("uses the cancelled label it is given, so the English device prints CANCELLED", () => {
+            const text = textOf(cancel(), "80mm", { ...cancelLabels, cancelled: "CANCELLED" });
+            expect(text).toContain("CANCELLED");
+            expect(text).not.toContain("DIBATALKAN");
+        });
+
+        it("shows the type and the cancel time right aligned, and no unpaid line", () => {
+            const lines = kitchenLines(cancel(), "80mm", cancelLabels);
+            expect(lines.find((l) => l.startsWith("Makan di tempat"))).toHaveLength(48);
+            expect(lines.find((l) => l.includes("14:07"))).toBeDefined();
+            expect(lines.join("\n")).not.toContain("BELUM LUNAS");
+        });
+
+        it("prints the cancelled quantity, with the note on the following line", () => {
+            const lines = kitchenLines(cancel({ items: [{ id: 9, title: "Nasi Goreng", qty: 1, note: "tanpa pedas" }] }), "80mm", cancelLabels);
+            const i = lines.indexOf("1 x Nasi Goreng");
+            expect(i).toBeGreaterThan(-1);
+            expect(lines[i + 1].trim()).toBe("tanpa pedas");
+            expect(lines).not.toContain("2 x Nasi Goreng");
+        });
+
+        it("never prints a price", () => {
+            const text = textOf(
+                cancel({ items: [{ id: 9, title: "Nasi", qty: 1, note: null, price: 25000, subtotal: 25000 }], total: 25000 }),
+                "80mm",
+                cancelLabels
+            );
+            expect(text).not.toMatch(/25\.?000|Rp/);
+        });
+
+        it("wraps and strips control characters like the original layout", () => {
+            const bytes = bytesOf(
+                cancel({ number: "M\x1b@5", items: [{ id: 9, title: "Es\x00 Teh", qty: 1, note: "manis\x1bp\x00\x19\xfa\x1d!\x11" }] }),
+                "58mm",
+                cancelLabels
+            );
+            expect(bytes.filter((b) => b === 0x1b)).toHaveLength(1);
+            expect(bytes.filter((b) => b === 0x1d)).toHaveLength(3);
+            const long = kitchenLines(cancel({ items: [{ id: 9, title: "x".repeat(40), qty: 1, note: null }] }), "58mm", cancelLabels);
+            expect(Math.max(...long.map((l) => l.length))).toBeLessThanOrEqual(32);
+        });
+
+        it("starts with init and ends with the cut command", () => {
+            const bytes = bytesOf(cancel(), "80mm", cancelLabels);
+            expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]);
+            expect(bytes.slice(-4)).toEqual([0x1d, 0x56, 0x42, 0x00]);
+        });
+
+        it("leaves the original layout untouched when kind is absent or not cancel", () => {
+            const original = bytesOf(ticket(), "80mm", labels);
+            expect(bytesOf(ticket({ kind: "original" }), "80mm", cancelLabels)).toEqual(original);
+            expect(textOf(ticket(), "80mm", cancelLabels)).not.toContain("DIBATALKAN");
+        });
+    });
 });
 
 describe("printerKey and getPrinter", () => {

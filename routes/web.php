@@ -471,6 +471,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('/kitchen/print-devices', [KitchenPrintDeviceController::class, 'store'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.store');
     Route::get('/kitchen/print-devices/{device}/tickets', [KitchenPrintDeviceController::class, 'tickets'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.tickets');
     Route::post('/kitchen/print-devices/{device}/prints', [KitchenPrintDeviceController::class, 'prints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.prints');
+    Route::post('/kitchen/print-devices/{device}/cancellation-prints', [KitchenPrintDeviceController::class, 'cancellationPrints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.cancellation-prints');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
