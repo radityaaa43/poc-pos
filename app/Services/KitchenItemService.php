@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\DineOrder;
+use App\Models\KitchenCancellation;
 use App\Models\KitchenItem;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
@@ -137,6 +138,12 @@ class KitchenItemService
         foreach ($lines as $line) {
             if ($item = $items->get($line->transaction_detail_id)) {
                 $qty = max(0, $item->qty - $line->qty_return);
+                // #332: the event the DIBATALKAN ticket is built from; it commits or rolls back with the return
+                KitchenCancellation::create([
+                    'kitchen_item_id' => $item->id,
+                    'sales_return_id' => $return->id,
+                    'qty_cancelled' => min($line->qty_return, $item->qty),
+                ]);
                 // a cancelled item keeps its last qty: the display shows what was cancelled
                 $item->update($qty > 0 ? ['qty' => $qty] : ['status' => KitchenItem::STATUS_CANCELLED]);
             }

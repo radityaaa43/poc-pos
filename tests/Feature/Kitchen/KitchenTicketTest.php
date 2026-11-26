@@ -402,7 +402,7 @@ class KitchenTicketTest extends TestCase
         $this->actingAs($this->userWith('dine-orders-handover', $this->outlet))
             ->getJson(route('kitchen.print-devices.tickets', $device))
             ->assertOk()
-            ->assertExactJson(['tickets' => []]);
+            ->assertExactJson(['tickets' => [], 'cancellations' => []]);
     }
 
     /** @return array<int, array<string, mixed>> */

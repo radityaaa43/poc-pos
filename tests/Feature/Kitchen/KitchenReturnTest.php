@@ -413,6 +413,7 @@ class KitchenReturnTest extends TestCase
         $this->assertSame(2, $item->fresh()->qty);
         $this->assertSame(10, $product->fresh()->stock);
         $this->assertSame(10, ProductWarehouse::where('product_id', $product->id)->value('stock'));
+        $this->assertDatabaseCount('kitchen_cancellations', 0);
     }
 
     public function test_api_complete_return_also_cancels_the_kitchen_item(): void

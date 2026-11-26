@@ -1097,7 +1097,8 @@
             "ready": "Printer siap",
             "notConnected": "Printer belum terhubung",
             "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
-            "unpaid": "BELUM LUNAS"
+            "unpaid": "BELUM LUNAS",
+            "cancelled": "DIBATALKAN"
         },
         "actions": {
             "start": "Mulai buat",

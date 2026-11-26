@@ -1,6 +1,7 @@
 // Serial FIFO print queue. A job leaves the queue only after `send` resolves; a failed job stays at the
 // head and stops the queue, so a ticket is never skipped, reordered or printed twice (kitchen BR-7/BR-8).
 // Memory only: jobs are rebuilt from the server's pending list after a reload.
+// Jobs are opaque here (the caller's `send` reads `kind` and the rest); only `key` matters to the queue.
 export function createPrintQueue({ send }) {
     const jobs = [];
     let status = "idle";
@@ -25,9 +26,28 @@ export function createPrintQueue({ send }) {
         release();
     }
 
+    // Only the head can be in flight; a failed head is idle, so reconcile may drop or replace it.
+    const indexOfIdle = (key) => {
+        const at = jobs.findIndex((job) => job.key === key);
+        return at === 0 && status === "printing" ? -1 : at;
+    };
+
     return {
         enqueue(job) {
             if (!jobs.some((queued) => queued.key === job.key)) jobs.push(job);
+        },
+        // Reconcile helpers: false when the key is unknown or its job is the one sending right now.
+        remove(key) {
+            const at = indexOfIdle(key);
+            if (at < 0) return false;
+            jobs.splice(at, 1);
+            return true;
+        },
+        replace(key, job) {
+            const at = indexOfIdle(key);
+            if (at < 0) return false;
+            jobs[at] = job;
+            return true;
         },
         // A drain already in flight is returned as is: no second sender can start.
         drain() {

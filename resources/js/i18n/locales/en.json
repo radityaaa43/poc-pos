@@ -1097,7 +1097,8 @@
             "ready": "Printer ready",
             "notConnected": "Printer not connected",
             "otherTab": "Tickets are printed from another tab on this device",
-            "unpaid": "UNPAID"
+            "unpaid": "UNPAID",
+            "cancelled": "CANCELLED"
         },
         "actions": {
             "start": "Start",

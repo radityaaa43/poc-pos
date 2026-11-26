@@ -2,13 +2,17 @@
 
 namespace App\Testing\E2e\Scenarios;
 
+use App\Http\Controllers\Api\V1\SalesReturnController;
 use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineOrder;
+use App\Models\KitchenCancellation;
 use App\Models\KitchenItem;
 use App\Models\KitchenStation;
 use App\Models\Product;
+use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
@@ -19,6 +23,7 @@ use App\Services\KitchenStationService;
 use App\Support\Checkout\CheckoutContext;
 use App\Testing\E2e\Scenarios;
 use Database\Seeders\E2eSeeder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
@@ -227,7 +232,76 @@ class Kitchen
 
                 return $titles + ['invoice' => $transaction->invoice, 'transaction_id' => $transaction->id];
             },
+
+            // Saves a DRAFT return of --arg=qty (default the whole line) units of the line of kitchen item --arg=index (default 0)
+            // of the sale --arg=invoice, as the Retur page does: nothing leaves the kitchen until it is completed.
+            'kitchen.return-draft' => fn (array $options): array => ['sales_return_id' => self::draftReturn($options)->id],
+
+            // Saves that return and COMPLETES it through the controller the POS uses, so the kitchen hook, the refund and the
+            // restock run for real (the cashier who made the sale needs the open shift kitchen-sale left). Returns the return,
+            // what it cancelled in the kitchen (0 for a served item) and the item's status afterwards.
+            'kitchen.return' => function (array $options): array {
+                $return = self::draftReturn($options);
+                $cashier = User::findOrFail($return->cashier_id);
+                $request = Request::create('/', 'POST');
+                $request->setUserResolver(fn () => $cashier);
+
+                app(SalesReturnController::class)->completeReturn($request, $return);
+
+                $item = self::returnedItem($options);
+
+                return [
+                    'sales_return_id' => $return->id,
+                    'cancelled_qty' => (int) KitchenCancellation::where('sales_return_id', $return->id)->sum('qty_cancelled'),
+                    'item_status' => $item->status,
+                ];
+            },
         ];
+    }
+
+    /** The kitchen item --arg=index (default 0) of the sale --arg=invoice, in the order kitchen.set-item counts them. */
+    private static function returnedItem(array $options): KitchenItem
+    {
+        $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
+
+        return KitchenItem::where('transaction_id', $transaction->id)->orderBy('id')->skip((int) ($options['index'] ?? 0))->firstOrFail();
+    }
+
+    /** A draft return of the item's sale line, written the way the controller's draft step does. */
+    private static function draftReturn(array $options): SalesReturn
+    {
+        $item = self::returnedItem($options);
+        $detail = TransactionDetail::findOrFail($item->transaction_detail_id);
+        $transaction = Transaction::findOrFail($item->transaction_id);
+        $qty = (int) ($options['qty'] ?? $detail->qty);
+        $before = (int) SalesReturnItem::where('transaction_detail_id', $detail->id)
+            ->whereHas('salesReturn', fn ($query) => $query->where('status', 'completed'))->sum('qty_return');
+        $amount = $detail->returnAmount($before, $qty);
+
+        $return = SalesReturn::create([
+            'code' => 'SR-E2E-'.Str::upper(Str::random(8)),
+            'transaction_id' => $transaction->id,
+            'customer_id' => $transaction->customer_id,
+            'cashier_id' => $transaction->cashier_id,
+            'status' => 'draft',
+            'return_type' => 'refund_cash',
+            'refund_amount' => $transaction->payment_status === 'paid' ? $amount : 0,
+            'credited_amount' => 0,
+            'total_return_amount' => $amount,
+        ]);
+        $return->items()->create([
+            'transaction_detail_id' => $detail->id,
+            'product_id' => $detail->product_id,
+            'qty_sold' => (int) $detail->qty,
+            'qty_returned_before' => $before,
+            'qty_return' => $qty,
+            'unit_price' => (int) round((int) $detail->price / max(1, (int) $detail->qty)),
+            'subtotal' => $amount,
+            'return_reason' => 'E2E',
+            'restock_to_inventory' => true,
+        ]);
+
+        return $return;
     }
 
     /** A guest order on a new table, accepted by the cashier and paid in cash: the paid bill reaches the kitchen. */

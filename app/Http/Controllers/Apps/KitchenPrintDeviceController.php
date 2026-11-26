@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreKitchenCancellationPrintsRequest;
 use App\Http\Requests\StoreKitchenPrintDeviceRequest;
 use App\Http\Requests\StoreKitchenTicketPrintsRequest;
 use App\Models\KitchenPrintDevice;
@@ -40,7 +41,19 @@ class KitchenPrintDeviceController extends Controller
     {
         $this->authorizeDevice($request, $device);
 
-        return response()->json(['tickets' => $this->ticketService->pending($device)]);
+        return response()->json([
+            'tickets' => $this->ticketService->pending($device),
+            'cancellations' => $this->ticketService->pendingCancellations($device),
+        ]);
+    }
+
+    public function cancellationPrints(StoreKitchenCancellationPrintsRequest $request, KitchenPrintDevice $device): Response
+    {
+        $this->authorizeDevice($request, $device);
+
+        $this->ticketService->markCancellationsPrinted($device, $request->validated('cancellation_ids'));
+
+        return response()->noContent();
     }
 
     public function prints(StoreKitchenTicketPrintsRequest $request, KitchenPrintDevice $device): Response
