@@ -72,6 +72,7 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 
 - laporan sales dan profit bergantung pada kualitas data transaksi
 - sales return dan inventory correction dapat memengaruhi pembacaan operasional pada laporan terkait
+- laporan sales punya baris sendiri "Dibayar setelah shift ditutup" (`summary.paid_after_close_count` dan `summary.paid_after_close_total`, juga di `GET /api/v1/reports/sales`): jumlah dan total penjualan gateway yang lunas setelah shift pemiliknya ditutup, dihitung pada tanggal penjualannya dan sudah termasuk dalam total periode. Baris tersembunyi bila 0, dan barisnya diberi lencana yang sama. Rekap shift yang sudah ditutup tidak berubah (lihat `cashier-shifts.md`)
 
 ## Batasan Saat Ini
 

@@ -22,6 +22,7 @@ use App\Services\BatchService;
 use App\Services\CashierShiftService;
 use App\Services\CheckoutService;
 use App\Services\LoyaltyService;
+use App\Services\OpenBillListService;
 use App\Services\OutletAccessService;
 use App\Services\Payments\PaymentGatewayManager;
 use App\Services\PriceListService;
@@ -168,25 +169,7 @@ class TransactionController extends Controller
             'carts' => $carts,
             'carts_total' => $carts_total,
             'heldCarts' => $heldCarts,
-            'openBills' => Transaction::openBills()
-                ->whereIn('warehouse_id', $this->outletAccessService->warehousesFor(auth()->user())->pluck('id'))
-                ->with('dineOrder:id,transaction_id,dine_table_id,status', 'dineOrder.table:id,name')
-                ->addSelect(['customer_name' => Customer::select('name')->whereColumn('customers.id', 'transactions.customer_id')->limit(1)])
-                ->withSum(['salesReturns' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount')
-                ->oldest()
-                ->get(['transactions.id', 'invoice', 'grand_total', 'payment_status', 'note', 'transactions.created_at'])
-                ->map(fn (Transaction $bill) => [
-                    'id' => $bill->id,
-                    'order_id' => $bill->dineOrder?->id,
-                    'invoice' => $bill->invoice,
-                    'label' => data_get($bill, 'dineOrder.table.name') ?? $bill->getAttribute('customer_name') ?? $bill->note,
-                    'table' => $bill->dineOrder?->table?->name,
-                    'grand_total' => (int) $bill->grand_total,
-                    'amount' => max(0, (int) $bill->grand_total - (int) $bill->getAttribute('sales_returns_sum_total_return_amount')),
-                    'order_status' => $bill->dineOrder?->status,
-                    'pending' => $bill->payment_status === 'pending',
-                    'created_at' => $bill->created_at->toIso8601String(),
-                ]),
+            'openBills' => app(OpenBillListService::class)->rowsFor(auth()->user()),
             'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'customers' => $customers,
             'products' => $products,
@@ -199,6 +182,14 @@ class TransactionController extends Controller
             'shiftSummary' => $this->cashierShiftService->summarizeForDisplay($activeShift),
             'loyaltyTierOptions' => $this->loyaltyService->tierOptions(),
         ]);
+    }
+
+    /**
+     * The POS "Belum Lunas" list as JSON, polled by the browser: only the open-bills query, not the whole POS page.
+     */
+    public function openBills(): JsonResponse
+    {
+        return response()->json(['openBills' => app(OpenBillListService::class)->rowsFor(auth()->user())]);
     }
 
     /**
@@ -821,6 +812,7 @@ class TransactionController extends Controller
             'end_date' => $request->input('end_date'),
             'warehouse_id' => $request->input('warehouse_id'),
             'late_payment' => $request->boolean('late_payment'),
+            'paid_after_close' => $request->boolean('paid_after_close'),
         ];
 
         $query = Transaction::query()
@@ -868,7 +860,9 @@ class TransactionController extends Controller
                 $builder->where('warehouse_id', $warehouseId);
             })
             // sales whose superseded attempt was paid after a retry: money to refund by hand
-            ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'));
+            ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'))
+            // gateway sales paid after their shift closed: the closed recap was left as it was
+            ->when($filters['paid_after_close'], fn (Builder $builder) => $builder->whereNotNull('paid_after_close_at'));
 
         $transactions = $query->paginate($this->perPage())->withQueryString();
         $warehouses = $this->outletAccessService->warehousesFor($request->user());

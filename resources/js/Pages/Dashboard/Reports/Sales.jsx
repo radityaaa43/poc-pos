@@ -5,6 +5,7 @@ import InputSelect from "@/Components/Dashboard/InputSelect";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import Pagination from "@/Components/Dashboard/Pagination";
+import PaidAfterCloseBadge from "@/Pages/Dashboard/Transactions/PaidAfterCloseBadge";
 import {
     IconCoin,
     IconDatabaseOff,
@@ -166,6 +167,8 @@ const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses
         items_sold: summary?.items_sold ?? 0,
         profit_total: summary?.profit_total ?? 0,
         average_order: summary?.average_order ?? 0,
+        paid_after_close_count: summary?.paid_after_close_count ?? 0,
+        paid_after_close_total: summary?.paid_after_close_total ?? 0,
     };
 
     const summaryCards = [
@@ -245,6 +248,20 @@ const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses
                         <SummaryCard key={card.title} {...card} />
                     ))}
                 </div>
+
+                {/* Part of the revenue above: gateway sales paid after their shift closed (the closed recap stays as it was) */}
+                {safeSummary.paid_after_close_count > 0 && (
+                    <p
+                        data-testid="paid-after-close-line"
+                        className="text-sm text-slate-600 dark:text-slate-400"
+                    >
+                        Dibayar setelah shift ditutup:{" "}
+                        <span className="font-semibold text-slate-900 dark:text-white">
+                            {safeSummary.paid_after_close_count} transaksi ·{" "}
+                            {formatCurrency(safeSummary.paid_after_close_total)}
+                        </span>
+                    </p>
+                )}
 
                 {/* Filters Panel */}
                 {showFilters && (
@@ -391,6 +408,7 @@ const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses
                                             </td>
                                             <td className="px-4 py-4 text-sm font-semibold text-slate-900 dark:text-white">
                                                 {trx.invoice}
+                                                <PaidAfterCloseBadge transaction={trx} />
                                             </td>
                                             <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
                                                 {trx.created_at}

@@ -277,6 +277,17 @@ page ships with the second half of #325; until then only the endpoint and the `p
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
+- **What the cashier sees** (REQ-005 AC-06, AC-08, AC-10). The POS unpaid bill (Belum Lunas) section marks a dine-in bill whose
+  guest charge is pending **Menunggu pembayaran online** (`awaiting_online`, from `Transaction::isAwaitingGuestPayment()`), in place of
+  "Menunggu Pembayaran"; **Bayar** stays, and **Lihat QR** stays only for the cashier's own pending charge. Opening **Bayar** on such a
+  bill first shows a notice: ask the guest whether they already paid; taking payment now makes the guest's online payment not count and
+  the refund is manual. A bill that received a payment flagged "Bayar ganda — refund manual" (`late_payment`) shows that marker on its row.
+  The section refreshes itself every 10 seconds (paused while the tab is hidden, the last list kept when the request fails) from
+  `GET /dashboard/transactions/open-bills` (`transactions.open-bills`, permission `transactions-access`, the rows and outlet scope of the
+  POS page). Transactions History marks a sale paid after its shift closed with the badge **Dibayar setelah shift ditutup** and has a
+  chip with the same name (`paid_after_close=1`); the sales report shows count and total of those sales for the period as a line under
+  the summary cards (`summary.paid_after_close_count`, `summary.paid_after_close_total`; the web page and `/api/v1/reports/sales`), inside
+  the period's totals, by the sale's own date.
 - A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
 - It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
   transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
