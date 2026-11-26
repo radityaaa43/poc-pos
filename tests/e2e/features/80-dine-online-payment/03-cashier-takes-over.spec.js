@@ -60,15 +60,15 @@ test.describe('80-dine-online-payment', () => {
     test('the gateway settles first: the cashier\'s stale Bayar is refused and nothing is paid twice', { tag: ['@REQ-005-AC-06'] }, async ({ arrange, page, request }) => {
         const bill = await guestStartsPaying(page, arrange, { staff: '1' });
         await signIn(page, bill.cashier_email);
+        // Hold the list on its old state (no poll gets through) from before the page loads, so the server's refusal is
+        // what this step proves and no in-flight poll can land between the settlement and the click.
+        const polls = '**/transactions/open-bills';
+        await page.route(polls, (route) => route.abort());
         await openList(page);
         await billRow(page, bill).getByRole('button', { name: 'Bayar' }).click();
         const dialog = page.getByRole('dialog');
         await dialog.getByLabel('Uang diterima').fill(String(bill.grand_total));
 
-        // Hold the list on its old state (no poll gets through), so the server's refusal is what this step proves
-        // and a poll cannot land between the settlement and the click.
-        const polls = '**/transactions/open-bills';
-        await page.route(polls, (route) => route.abort());
         expect(await notify(request, bill, `${bill.invoice}-r1`, 'settlement')).toBe(200);
         await dialog.getByRole('button', { name: 'Bayar', exact: true }).click();
 
