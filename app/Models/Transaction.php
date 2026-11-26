@@ -62,6 +62,7 @@ class Transaction extends Model
         'payment_attempt',
         'payment_failure_reason',
         'late_superseded_payment_at',
+        'paid_after_close_at',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -101,6 +102,7 @@ class Transaction extends Model
         'discount_approved_at' => 'datetime',
         'payment_attempt' => 'integer',
         'late_superseded_payment_at' => 'datetime',
+        'paid_after_close_at' => 'datetime',
     ];
 
     /** @return HasMany<TransactionDetail, $this> */
@@ -224,6 +226,32 @@ class Transaction extends Model
     public function tenders()
     {
         return $this->hasMany(TransactionTender::class);
+    }
+
+    /**
+     * Does a cashier's tender hold the bill, so a late online payment must not be booked on top of it?
+     * A pending or paid tender does (the cashier is collecting, or money was taken); a failed or expired one never held
+     * money and does not (business answer on #327). The one place this rule lives.
+     */
+    public function hasBlockingTenders(): bool
+    {
+        return $this->tenders()->whereIn('payment_status', [TransactionTender::STATUS_PENDING, TransactionTender::STATUS_PAID])->exists();
+    }
+
+    /** ExpirePendingTransactionsCommand returned the stock of this sale: it is cancelled for good. */
+    public function wasRestocked(): bool
+    {
+        return StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $this->id)->exists();
+    }
+
+    /**
+     * The guest's online charge is in flight: pending, charged at least once, and no tender rows. A guest charge
+     * never writes tenders; a cashier's own charge or transfer always does (whatever its attempt number, since a
+     * cashier's gateway charge after a guest attempt also carries one).
+     */
+    public function isAwaitingGuestPayment(): bool
+    {
+        return $this->payment_status === 'pending' && $this->payment_attempt > 0 && ! $this->tenders()->exists();
     }
 
     public function usedCustomerVoucher()

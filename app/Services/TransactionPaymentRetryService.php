@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Exceptions\PaymentGatewayException;
 use App\Models\PaymentSetting;
-use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
@@ -33,13 +32,7 @@ class TransactionPaymentRetryService
         // A dine-in bill is paid through its open bill (dine-orders.pay), which already settles failed bills.
         return in_array($transaction->payment_status, self::RETRYABLE_STATUSES, true)
             && ! $transaction->dineOrder()->exists()
-            && ! $this->wasRestocked($transaction);
-    }
-
-    /** ExpirePendingTransactionsCommand returned the stock of this sale: it is cancelled for good. */
-    public function wasRestocked(Transaction $transaction): bool
-    {
-        return StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $transaction->id)->exists();
+            && ! $transaction->wasRestocked();
     }
 
     /**
@@ -53,6 +46,9 @@ class TransactionPaymentRetryService
         $method = $input['payment_method'];
 
         $sale = DB::transaction(function () use ($transaction, $user, $input, $method) {
+            // Lock order shift, then sale (the webhook and the cashier's payment take them the same way), so no cycle:
+            // the sale is read only after both locks, never before.
+            $shift = $this->cashierShiftService->requireActiveShiftForUser($user->id, lockForUpdate: true);
             $sale = Transaction::with('warehouse.outlet')->lockForUpdate()->findOrFail($transaction->id);
 
             if (! in_array($sale->payment_status, self::RETRYABLE_STATUSES, true)) {
@@ -63,7 +59,7 @@ class TransactionPaymentRetryService
                 throw ValidationException::withMessages(['payment' => 'Bayar lewat daftar Belum Lunas di POS']);
             }
 
-            if ($this->wasRestocked($sale)) {
+            if ($sale->wasRestocked()) {
                 throw ValidationException::withMessages([
                     'payment' => 'Penjualan ini sudah dibatalkan otomatis dan stoknya dikembalikan — buat penjualan baru.',
                 ]);
@@ -76,7 +72,6 @@ class TransactionPaymentRetryService
                 ]);
             }
 
-            $shift = $this->cashierShiftService->requireActiveShiftForUser($user->id, lockForUpdate: true);
             $shift->load('warehouse.outlet');
             $outlet = $shift->warehouse?->outlet;
 

@@ -60,8 +60,11 @@ class TransactionTender extends Model
     {
         // ponytail: derived, not stored — matches PaymentGatewayManager::createTenderPayment
         $siblings = $this->transaction->tenders()->count();
+        $orderId = $siblings > 1 ? $this->transaction->invoice.'-'.$this->method : $this->transaction->invoice;
 
-        return $siblings > 1 ? $this->transaction->invoice.'-'.$this->method : $this->transaction->invoice;
+        $attempt = (int) $this->transaction->getAttribute('payment_attempt');
+
+        return $attempt > 0 ? "{$orderId}-r{$attempt}" : $orderId;
     }
 
     public function bankAccount(): BelongsTo

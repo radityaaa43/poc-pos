@@ -253,8 +253,11 @@ class DineOrderService
                 ]);
             }
 
-            // A pending gateway payment or transfer already holds the bill: no second charge or tender, finish that one.
-            if ($transaction->payment_status === 'pending') {
+            // The guest's online charge does not hold the bill: the cashier can always take the money (takeover below).
+            $takeover = $transaction->isAwaitingGuestPayment();
+
+            // A pending gateway payment or transfer of the cashier already holds the bill: no second charge or tender, finish that one.
+            if ($transaction->payment_status === 'pending' && ! $takeover) {
                 throw ValidationException::withMessages([
                     'order' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
                 ]);
@@ -266,7 +269,25 @@ class DineOrderService
                 ]);
             }
 
-            return $this->settlementService->collect($transaction, $cashier, $shift, $outlet, $tenderInput);
+            $guestAttempt = (int) $transaction->payment_attempt;
+            $guestReference = $transaction->payment_reference;
+
+            // collect() moves the attempt counter, so the guest's charge is superseded in the same transaction as the payment.
+            // If the input is invalid or the cashier's gateway call fails, everything rolls back and the guest's charge stays valid.
+            $transaction = $this->settlementService->collect($transaction, $cashier, $shift, $outlet, $tenderInput);
+
+            if ($takeover) {
+                app(AuditLogService::class)->log(
+                    event: 'dine_order.online_payment_taken_over',
+                    module: 'transactions',
+                    auditable: $transaction,
+                    description: "Kasir mengambil alih pembayaran online tamu invoice {$transaction->invoice}; pembayaran tamu tidak berlaku, refund manual bila sudah terbayar.",
+                    meta: ['guest_attempt' => $guestAttempt, 'attempt' => $transaction->payment_attempt, 'guest_reference' => $guestReference, 'cashier_id' => $cashier->id],
+                    actor: $cashier,
+                );
+            }
+
+            return $transaction;
         });
     }
 

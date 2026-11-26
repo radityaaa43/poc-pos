@@ -48,6 +48,8 @@ Mengontrol sesi kerja kasir agar transaksi kasir memiliki konteks shift yang jel
 
 - tanpa shift aktif, operasi inti transaksi diblokir
 - close shift dipakai untuk rekonsiliasi cash operasional
+- rekap non-cash hanya menghitung uang yang sudah diterima: penjualan gateway (`qris`, `midtrans`, `xendit`) yang belum `paid` (pending atau gagal) tidak ikut, dan masuk begitu lunas. Tagihan terbuka (`open_bill`) belum menghitung apa pun. Kredit, split, dan transfer tetap dihitung menurut metodenya
+- rekap shift yang sudah ditutup adalah snapshot tersimpan dan tidak pernah berubah. Pembayaran gateway yang masuk setelah shift pemilik tagihan ditutup (atau force close) menandai tagihan `paid_after_close_at` ("Dibayar setelah shift ditutup") dan audit `payment.paid_after_close`
 
 ## Batasan Saat Ini
 
