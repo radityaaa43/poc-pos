@@ -37,7 +37,7 @@ test('a paid sale no longer asks the customer for the balance', async ({ arrange
     await expect(page.getByRole('link', { name: 'Bayar Sekarang' })).toHaveCount(0);
 });
 
-test('an expired payment shows as not paid and a later settlement is ignored', async ({ arrange, page, request }) => {
+test('an expired payment shows as not paid and a later settlement is booked', async ({ arrange, page, request }) => {
     arrange('public.reset-throttle');
     const sale = arrange('public.sale', { method: 'pay_later', gateway: 'midtrans' });
 
@@ -46,11 +46,12 @@ test('an expired payment shows as not paid and a later settlement is ignored', a
     // A failed payment is labelled "Gagal" (#124).
     await expect(page.getByText('Gagal', { exact: true })).toBeVisible();
 
-    // A failed sale is terminal: a late settlement must not flip it (idempotency guard).
+    // The customer paid the expired charge after all (#380, BR-4): money a gateway settles is booked or flagged, never dropped.
+    // Nothing was restocked and the amount is the whole balance, so the sale is booked as paid.
     expect((await request.post('/api/webhooks/midtrans', { data: notification(sale, 'settlement') })).status()).toBe(200);
     await page.goto(portal(sale));
-    await expect(page.getByText('Gagal', { exact: true })).toBeVisible();
-    await expect(page.getByText('Lunas', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('Lunas', { exact: true })).toBeVisible();
+    await expect(page.getByText('Gagal', { exact: true })).toHaveCount(0);
 });
 
 test('a notification with a bad signature or an unknown invoice is refused', async ({ arrange, request }) => {

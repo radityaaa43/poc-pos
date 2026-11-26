@@ -266,7 +266,8 @@ page ships with the second half of #325; until then only the endpoint and the `p
   otherwise it is flagged (`late_superseded_payment_at`, "Bayar ganda — refund manual", audit `payment.late_superseded` or
   `payment.late_after_failed` with `booked: false`) and never booked. A second payment with another reference on a paid bill is flagged. `late_superseded_payment_at` is only the "needs refund" flag (set once);
   every distinct gateway reference is audited (`meta.reference`, `meta.order_id`), a redelivery of the same one is not.
-  A failed bill of attempt 0 with no tender row stays final (portal sales); a **dine** bill of attempt 0 whose own gateway charge failed takes the late path above, so that money is not recorded nowhere. A late payment of a sale that was restocked is flagged, not booked.
+  A failed bill of attempt 0 takes the late path above when it has a gateway charge of its own (a gateway tender row, a single-method gateway sale, or a
+  credit sale with a receivable, #380; any gateway tender in any status counts, a pending or paid one then blocks the booking); one without any stays failed. A bill settled by cash or transfer at attempt 0 flags a later gateway payment as a second payment. A late payment of a sale that was restocked is flagged, not booked.
   When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
