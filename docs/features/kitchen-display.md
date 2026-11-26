@@ -64,6 +64,17 @@ A device that has the kitchen display open can print a ticket for every new orde
 - Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Failure warnings, reprint and the Windows driver steps are not part of this first version.
 - Routes: `kitchen.print-devices.store`, `kitchen.print-devices.tickets`, `kitchen.print-devices.prints` (`/kitchen/print-devices`) (same permission as the display). Tables: `kitchen_print_devices`, `kitchen_ticket_prints` (one row per station and item).
 
+### Cancellation tickets (DIBATALKAN)
+
+When a sales return that cancels a kitchen item is **completed**, every print device that printed that item's ticket prints a second ticket marked **DIBATALKAN** / "CANCELLED" (labels follow the device language).
+
+- **Trigger:** only a completed return (see "Cancelled items"). A draft return, editing a draft or discarding it prints nothing, and neither does a return of an item already served or cancelled. A return completed before this release prints nothing: no cancellation was recorded for it.
+- **Content:** the order number or table name in large type under the DIBATALKAN heading, the order type and the cancel time (`HH:MM`), then `qty x product` with its note per line. The quantity is what this return cancelled, so a partial return of 1 of 3 prints `1 x`. No prices. One ticket per return and order, listing every printed line it cancelled.
+- **Once per print device:** the print device asks for the same list (`cancellations` next to `tickets`), prints the tickets one at a time after any earlier ticket, then tells the server (`kitchen.print-devices.cancellation-prints`, `/kitchen/print-devices/{id}/cancellation-prints`, same permission as the display). Reloading or losing the connection never prints one twice; a second print device prints its own copy once.
+- **Only where the original was printed:** a print device that never printed the item's original ticket prints no cancellation for it. The server also skips a cancellation made more than 30 seconds before that original was recorded (the original already had the lowered quantity), and one older than 12 hours (a device switched off over a weekend does not print Friday's cancellations). Inside the 30-second grace one extra DIBATALKAN ticket may print for a cancel the original already carried; that is accepted.
+- **Queued originals are reconciled:** each successful poll drops a ticket still waiting (or failed) in the print queue whose order is no longer offered, and replaces one whose items or quantities changed. An item cancelled while its original was still waiting therefore prints neither ticket.
+- **Data:** `kitchen_cancellations` (one immutable row per cancelled line, written in the return's own transaction: item, return, `qty_cancelled`) and `kitchen_cancellation_prints` (one row per print device and cancellation, unique together). `kitchen_ticket_prints` is only read. Nothing here changes stock or the item's status.
+
 ## Language
 
 Indonesian and English (`kitchen.*` in `resources/js/i18n/locales/`).

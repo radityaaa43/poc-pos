@@ -10,7 +10,8 @@ vi.mock("@/Utils/escpos", () => ({
     buildKitchenTicketBytes: vi.fn(() => new Uint8Array([1, 2])),
     printBytes: vi.fn(),
 }));
-// A minimal stand-in that follows the printQueue contract (FIFO, failed head stays, duplicate keys ignored).
+// A minimal stand-in that follows the printQueue contract (FIFO, failed head stays, duplicate keys ignored,
+// remove/replace refused for the job that is sending).
 vi.mock("@/Utils/printQueue", () => ({
     createPrintQueue: ({ send }) => {
         const jobs = [];
@@ -19,6 +20,18 @@ vi.mock("@/Utils/printQueue", () => ({
         return {
             enqueue(job) {
                 if (!jobs.some((j) => j.key === job.key)) jobs.push(job);
+            },
+            remove(key) {
+                const at = jobs.findIndex((j) => j.key === key);
+                if (at < 0 || (at === 0 && running)) return false;
+                jobs.splice(at, 1);
+                return true;
+            },
+            replace(key, job) {
+                const at = jobs.findIndex((j) => j.key === key);
+                if (at < 0 || (at === 0 && running)) return false;
+                jobs[at] = job;
+                return true;
             },
             async drain() {
                 if (running) return;
@@ -65,11 +78,25 @@ const setStorage = (over = {}) => {
     localStorage.setItem("kitchen.autoPrint", "true");
     Object.entries(over).forEach(([k, v]) => (v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v)));
 };
+const cancelTicket = (returnId, ids, over = {}) => ({
+    key: `c${returnId}t1`,
+    number: "Meja 1",
+    type: "dine_in",
+    unpaid: false,
+    since: "2026-11-26T10:05:00Z",
+    cancellation_ids: ids,
+    items: ids.map((id) => ({ id, title: `Item ${id}`, qty: 2, note: "tanpa pedas" })),
+    ...over,
+});
+const unconfirmedCancellations = () => JSON.parse(localStorage.getItem("kitchen.unconfirmedCancellations") ?? "[]");
+const cancelPosts = () => axios.post.mock.calls.filter((c) => c[0].includes("cancellation-prints"));
+const itemPosts = () => axios.post.mock.calls.filter((c) => !c[0].includes("cancellation-prints"));
 const unconfirmed = () => JSON.parse(localStorage.getItem("kitchen.unconfirmed") ?? "[]");
-const postedIds = () => axios.post.mock.calls.map((c) => c[1].item_ids);
+const postedIds = () => itemPosts().map((c) => c[1].item_ids);
 
 let onLine;
 let tickets;
+let cancellations;
 
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms) => act(() => vi.advanceTimersByTimeAsync(ms));
@@ -83,7 +110,8 @@ beforeEach(async () => {
     onLine = true;
     vi.spyOn(navigator, "onLine", "get").mockImplementation(() => onLine);
     tickets = [ticket(1, [11, 12])];
-    axios.get.mockImplementation(async () => ({ data: { tickets } }));
+    cancellations = [];
+    axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
     axios.post.mockResolvedValue({ status: 204 });
     printBytes.mockResolvedValue(undefined);
 });
@@ -463,5 +491,309 @@ describe("useKitchenPrintDevice: one tab prints per device", () => {
         await advance(5000);
         expect(second.result.current.otherTab).toBe(false);
         expect(printBytes).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("useKitchenPrintDevice: cancel tickets (DIBATALKAN)", () => {
+    beforeEach(() => {
+        setStorage();
+        tickets = [];
+    });
+
+    it("prints a cancel ticket with the cancelled label, then posts its ids to the cancellation route", async () => {
+        cancellations = [cancelTicket(7, [71, 72])];
+        mount();
+        await flush();
+
+        expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
+            expect.objectContaining({ kind: "cancel", key: "c7t1", number: "Meja 1", items: expect.any(Array) }),
+            "80mm",
+            { type: "Dine-in", unpaid: "BELUM LUNAS", cancelled: "DIBATALKAN" }
+        );
+        expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
+        expect(cancelPosts()).toEqual([["/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }]]);
+        expect(itemPosts()).toEqual([]);
+        expect(unconfirmedCancellations()).toEqual([]);
+    });
+
+    it("uses the English label on an English device", async () => {
+        await i18n.changeLanguage("en");
+        cancellations = [cancelTicket(7, [71])];
+        mount();
+        await flush();
+        expect(buildKitchenTicketBytes.mock.calls[0][2].cancelled).toBe("CANCELLED");
+    });
+
+    it("prints first and records after: the ids are in kitchen.unconfirmedCancellations when the POST starts", async () => {
+        cancellations = [cancelTicket(7, [71, 72])];
+        const order = [];
+        printBytes.mockImplementation(async () => order.push("print"));
+        axios.post.mockImplementation(async () => {
+            order.push(`post:${JSON.stringify(unconfirmedCancellations())}`);
+        });
+        mount();
+        await flush();
+        expect(order).toEqual(["print", "post:[71,72]"]);
+        expect(unconfirmedCancellations()).toEqual([]);
+    });
+
+    it("a cancel ticket waits its turn behind an original ticket (FIFO)", async () => {
+        tickets = [ticket(1, [11])];
+        cancellations = [cancelTicket(7, [71])];
+        mount();
+        await flush();
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].kind ?? "original")).toEqual(["original", "cancel"]);
+        expect(axios.post.mock.calls.map((c) => c[0])).toEqual([
+            "/kitchen.print-devices.prints",
+            "/kitchen.print-devices.cancellation-prints",
+        ]);
+    });
+
+    it("does not queue a cancel twice while it is still printing (overlapping polls)", async () => {
+        cancellations = [cancelTicket(7, [71])];
+        let release;
+        printBytes.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+        mount();
+        await flush();
+        await advance(5000);
+        await advance(5000);
+        expect(axios.get).toHaveBeenCalledTimes(3);
+        expect(printBytes).toHaveBeenCalledTimes(1);
+
+        await act(async () => release());
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        expect(cancelPosts()).toHaveLength(1);
+    });
+
+    it("does not queue a cancel whose ids are in kitchen.unconfirmedCancellations", async () => {
+        cancellations = [cancelTicket(7, [71]), cancelTicket(8, [81])];
+        // Another run recorded 81 while this poll was in flight.
+        axios.get.mockImplementation(async () => {
+            localStorage.setItem("kitchen.unconfirmedCancellations", "[81]");
+            return { data: { tickets, cancellations } };
+        });
+        mount();
+        await flush();
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["c7t1"]);
+    });
+
+    it("re-posts kitchen.unconfirmedCancellations before asking for tickets, and does not print them again", async () => {
+        setStorage({ "kitchen.unconfirmedCancellations": "[71,72]" });
+        const calls = [];
+        axios.post.mockImplementation(async (url, body) => {
+            calls.push(["post", url, body]);
+            cancellations = [];
+        });
+        axios.get.mockImplementation(async () => {
+            calls.push(["get"]);
+            return { data: { tickets, cancellations } };
+        });
+        cancellations = [cancelTicket(7, [71, 72])];
+        mount();
+        await flush();
+
+        expect(calls).toEqual([
+            ["post", "/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }],
+            ["get"],
+        ]);
+        expect(printBytes).not.toHaveBeenCalled();
+        expect(unconfirmedCancellations()).toEqual([]);
+    });
+
+    it("a failed POST leaves the ids unconfirmed; the next tick re-posts them and does not print again", async () => {
+        cancellations = [cancelTicket(7, [71, 72])];
+        axios.post.mockRejectedValueOnce(new Error("offline"));
+        mount();
+        await flush();
+        expect(unconfirmedCancellations()).toEqual([71, 72]);
+        expect(printBytes).toHaveBeenCalledTimes(1);
+
+        // The repeat POST succeeds, so the server stops offering the cancel.
+        axios.post.mockImplementation(async () => {
+            cancellations = [];
+        });
+        await advance(5000);
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        expect(cancelPosts()).toHaveLength(2);
+        expect(unconfirmedCancellations()).toEqual([]);
+    });
+
+    it("a reload (remount) never prints a cancel twice while its ids are unconfirmed", async () => {
+        cancellations = [cancelTicket(7, [71])];
+        axios.post.mockRejectedValue(new Error("offline"));
+        const first = mount();
+        await flush();
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        first.unmount();
+
+        mount(); // a fresh page: new queue, same localStorage
+        await flush();
+        await advance(10000);
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        expect(unconfirmedCancellations()).toEqual([71]);
+    });
+
+    it("a failed print records nothing and the next tick retries the cancel", async () => {
+        cancellations = [cancelTicket(7, [71])];
+        printBytes.mockRejectedValueOnce(new Error("usb"));
+        mount();
+        await flush();
+        expect(unconfirmedCancellations()).toEqual([]);
+        expect(cancelPosts()).toEqual([]);
+
+        await advance(5000);
+        expect(printBytes).toHaveBeenCalledTimes(2);
+        expect(cancelPosts()).toHaveLength(1);
+    });
+
+    it("works with an old server that sends no cancellations field", async () => {
+        axios.get.mockImplementation(async () => ({ data: { tickets: [ticket(1, [11])] } }));
+        mount();
+        await flush();
+        expect(postedIds()).toEqual([[11]]);
+        expect(cancelPosts()).toEqual([]);
+    });
+
+    it("naming another device forgets the old device's unconfirmed cancellations, naming the same one keeps them", () => {
+        setStorage({ "kitchen.unconfirmedCancellations": "[71,72]" });
+        const { result } = mount();
+
+        act(() => result.current.setDevice({ id: 5, name: "Dapur 1" }));
+        expect(unconfirmedCancellations()).toEqual([71, 72]);
+
+        act(() => result.current.setDevice({ id: 9, name: "Bar" }));
+        expect(localStorage.getItem("kitchen.unconfirmedCancellations")).toBeNull();
+    });
+});
+
+describe("useKitchenPrintDevice: reconciling queued originals with the poll", () => {
+    let release;
+    // The first print hangs, so ticket 1 is the sending head and everything else waits behind it.
+    const blockHead = () => {
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    };
+    const printedNumbers = () => buildKitchenTicketBytes.mock.calls.map((c) => c[0].number);
+
+    beforeEach(() => setStorage());
+
+    it("drops a queued original whose key left the response, and never prints or posts it", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        blockHead();
+        mount();
+        await flush();
+
+        tickets = [ticket(1, [11])]; // ticket 2 was cancelled or served meanwhile
+        await advance(5000);
+        await act(async () => release());
+
+        expect(printedNumbers()).toEqual(["Meja 1"]);
+        expect(postedIds()).toEqual([[11]]);
+        expect(unconfirmed()).toEqual([]);
+    });
+
+    it("replaces a queued original whose items changed, keeping its place", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21, 22]), ticket(3, [31])];
+        blockHead();
+        mount();
+        await flush();
+
+        tickets = [ticket(1, [11]), ticket(2, [21]), ticket(3, [31])]; // item 22 was cancelled
+        await advance(5000);
+        await act(async () => release());
+
+        expect(printedNumbers()).toEqual(["Meja 1", "Meja 2", "Meja 3"]);
+        expect(buildKitchenTicketBytes.mock.calls[1][0].items.map((i) => i.id)).toEqual([21]);
+        expect(postedIds()).toEqual([[11], [21], [31]]);
+    });
+
+    it("replaces a queued original whose quantity changed (a partial return)", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        blockHead();
+        mount();
+        await flush();
+
+        const lowered = ticket(2, [21]);
+        lowered.items[0].qty = 3;
+        tickets = [ticket(1, [11]), lowered];
+        await advance(5000);
+        await act(async () => release());
+
+        expect(buildKitchenTicketBytes.mock.calls[1][0].items[0].qty).toBe(3);
+    });
+
+    it("keeps the head that is sending even when its key left the response", async () => {
+        tickets = [ticket(1, [11])];
+        blockHead();
+        mount();
+        await flush();
+
+        tickets = [];
+        await advance(5000);
+        await act(async () => release());
+
+        expect(printedNumbers()).toEqual(["Meja 1"]);
+        expect(postedIds()).toEqual([[11]]);
+    });
+
+    it("drops a failed head whose key left the response, and the queue moves on", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        printBytes.mockRejectedValueOnce(new Error("usb"));
+        mount();
+        await flush();
+        expect(printBytes).toHaveBeenCalledTimes(1);
+
+        tickets = [ticket(2, [21])];
+        await advance(5000);
+
+        expect(printedNumbers()).toEqual(["Meja 1", "Meja 2"]);
+        expect(postedIds()).toEqual([[21]]);
+    });
+
+    it("reconciles nothing after a failed poll", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        blockHead();
+        mount();
+        await flush();
+
+        axios.get.mockRejectedValue({ response: { status: 500 } });
+        await advance(5000);
+        axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
+        await act(async () => release());
+
+        expect(printedNumbers()).toEqual(["Meja 1", "Meja 2"]);
+        expect(postedIds()).toEqual([[11], [21]]);
+    });
+
+    it("offers a dropped job again when it reappears (the server caps a poll at 30 orders)", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        blockHead();
+        mount();
+        await flush();
+
+        tickets = [ticket(1, [11])]; // pushed out of the capped response
+        await advance(5000);
+        tickets = [ticket(1, [11]), ticket(2, [21])]; // and back
+        await advance(5000);
+        await act(async () => release());
+
+        expect(printedNumbers()).toEqual(["Meja 1", "Meja 2"]);
+        expect(postedIds()).toEqual([[11], [21]]);
+    });
+
+    it("does not reconcile cancel jobs: a queued cancel survives a response that no longer lists it", async () => {
+        tickets = [ticket(1, [11])];
+        cancellations = [cancelTicket(7, [71])];
+        blockHead();
+        mount();
+        await flush();
+
+        cancellations = [];
+        await advance(5000);
+        await act(async () => release());
+
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1", "c7t1"]);
+        expect(cancelPosts()).toHaveLength(1);
     });
 });

@@ -107,21 +107,26 @@ function clockTime(iso) {
 }
 
 // Kitchen ticket: no prices, ever. `labels` are already translated (this file stays free of i18n).
+// `ticket.kind === "cancel"` prints a DIBATALKAN ticket: `labels.cancelled` on top, `since` is the cancel
+// time and each item's `qty` is the cancelled quantity.
 function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
     const width = paperSize === "58mm" ? 32 : 48;
     const bytes = [ESC, 0x40];
     const write = (text) => bytes.push(...textBytes(text + "\n"));
     const rule = () => write("-".repeat(width));
 
+    const cancel = ticket.kind === "cancel";
+
     // Double size halves the characters per line.
     bytes.push(GS, 0x21, 0x11);
+    if (cancel) wrapLines(printable(labels.cancelled), Math.floor(width / 2)).forEach(write);
     wrapLines(printable(ticket.number), Math.floor(width / 2)).forEach(write);
     bytes.push(GS, 0x21, 0x00);
 
     const type = printable(labels.type);
     const time = clockTime(ticket.since);
     write(type + " ".repeat(Math.max(1, width - type.length - time.length)) + time);
-    if (ticket.unpaid) {
+    if (ticket.unpaid && !cancel) {
         bytes.push(ESC, 0x45, 0x01);
         wrapLines(printable(labels.unpaid), width).forEach(write);
         bytes.push(ESC, 0x45, 0x00);

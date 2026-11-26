@@ -232,3 +232,122 @@ describe("createPrintQueue", () => {
         expect(queue.jobs).toEqual([]);
     });
 });
+
+describe("createPrintQueue: remove and replace (reconcile)", () => {
+    const gate = () => {
+        const releases = [];
+        const sent = [];
+        const send = vi.fn(async (job) => {
+            await new Promise((resolve) => releases.push(resolve));
+            sent.push(job.key);
+        });
+        return { releases, sent, send };
+    };
+
+    it("keeps the kind on the job and stays kind-agnostic", async () => {
+        const seen = [];
+        const queue = createPrintQueue({ send: async (job) => seen.push([job.key, job.kind]) });
+        queue.enqueue({ key: "a", kind: "cancel" });
+        queue.enqueue({ key: "b" });
+        await queue.drain();
+        expect(seen).toEqual([["a", "cancel"], ["b", undefined]]);
+    });
+
+    it("a removed job never prints and the others keep their order", async () => {
+        const sent = [];
+        const queue = createPrintQueue({ send: async (job) => sent.push(job.key) });
+        queue.enqueue({ key: "a" });
+        queue.enqueue({ key: "b" });
+        queue.enqueue({ key: "c" });
+
+        expect(queue.remove("b")).toBe(true);
+        await queue.drain();
+
+        expect(sent).toEqual(["a", "c"]);
+    });
+
+    it("removing an unknown key does nothing", () => {
+        const queue = createPrintQueue({ send: vi.fn() });
+        queue.enqueue({ key: "a" });
+        expect(queue.remove("zzz")).toBe(false);
+        expect(queue.jobs.map((j) => j.key)).toEqual(["a"]);
+    });
+
+    it("the head that is sending cannot be removed or replaced, but a job behind it can", async () => {
+        const { releases, sent, send } = gate();
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a" });
+        queue.enqueue({ key: "b" });
+        const done = queue.drain();
+        await Promise.resolve();
+
+        expect(queue.remove("a")).toBe(false);
+        expect(queue.replace("a", { key: "a", v: 2 })).toBe(false);
+        expect(queue.jobs[0]).toEqual({ key: "a" });
+        expect(queue.replace("b", { key: "b", v: 2 })).toBe(true);
+
+        releases[0]();
+        await vi.waitFor(() => expect(releases).toHaveLength(2));
+        releases[1]();
+        await done;
+        expect(sent).toEqual(["a", "b"]);
+        expect(send.mock.calls[1][0]).toEqual({ key: "b", v: 2 });
+    });
+
+    it("a failed head can be removed, and the queue moves on to the next job", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const sent = [];
+        const send = vi.fn(async (job) => {
+            if (job.key === "a") throw new Error("usb");
+            sent.push(job.key);
+        });
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a" });
+        queue.enqueue({ key: "b" });
+        await queue.drain();
+        expect(queue.status).toBe("failed");
+
+        expect(queue.remove("a")).toBe(true);
+        await queue.drain();
+
+        expect(sent).toEqual(["b"]);
+        expect(queue.jobs).toEqual([]);
+    });
+
+    it("a failed head can be replaced, keeps its place and prints the new job", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const sent = [];
+        let fail = true;
+        const queue = createPrintQueue({
+            send: async (job) => {
+                if (fail) throw new Error("usb");
+                sent.push(job);
+            },
+        });
+        queue.enqueue({ key: "a", v: 1 });
+        queue.enqueue({ key: "b" });
+        await queue.drain();
+
+        expect(queue.replace("a", { key: "a", v: 2 })).toBe(true);
+        fail = false;
+        await queue.drain();
+
+        expect(sent).toEqual([{ key: "a", v: 2 }, { key: "b" }]);
+    });
+
+    it("replacing an unknown key does nothing", () => {
+        const queue = createPrintQueue({ send: vi.fn() });
+        expect(queue.replace("zzz", { key: "zzz" })).toBe(false);
+        expect(queue.jobs).toEqual([]);
+    });
+
+    it("a key can be queued again after it was removed", async () => {
+        const sent = [];
+        const queue = createPrintQueue({ send: async (job) => sent.push(job.v) });
+        queue.enqueue({ key: "a", v: 1 });
+        queue.remove("a");
+        queue.enqueue({ key: "a", v: 2 });
+        await queue.drain();
+        expect(sent).toEqual([2]);
+    });
+});
