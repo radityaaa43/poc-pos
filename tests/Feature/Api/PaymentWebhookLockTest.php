@@ -788,7 +788,7 @@ class PaymentWebhookLockTest extends TestCase
 
     public function test_paid_after_close_migration_rolls_back(): void
     {
-        $migration = require database_path('migrations/2026_12_05_100001_add_paid_after_close_at_to_transactions_table.php');
+        $migration = require database_path('migrations/2026_12_06_200001_add_paid_after_close_at_to_transactions_table.php');
         $this->assertTrue(Schema::hasColumn('transactions', 'paid_after_close_at'));
 
         $migration->down();

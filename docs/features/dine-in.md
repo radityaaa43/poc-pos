@@ -241,7 +241,7 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 
 ### Guest online payment (REQ-005, server half)
 
-After staff accept an order, the guest can pay its open bill online from the status page, at an outlet whose Midtrans or
+After staff accept an order, the guest can pay its unpaid bill (Belum Lunas) online from the status page, at an outlet whose Midtrans or
 Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_online` stays rejected). The pay panel on the
 page ships with the second half of #325; until then only the endpoint and the `payment` payload exist.
 
@@ -276,7 +276,7 @@ page ships with the second half of #325; until then only the endpoint and the `p
   bill uses the order id `{invoice}[-{method}]-r{attempt}`, so its settlement is booked.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
-  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an open bill or a gateway sale unpaid at close).
+  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
 - A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
 - It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
   transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
