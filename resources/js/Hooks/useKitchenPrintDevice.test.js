@@ -3,7 +3,7 @@ import axios from "axios";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "@/i18n";
 import { buildKitchenTicketBytes, printBytes } from "@/Utils/escpos";
-import { useKitchenPrintStation } from "./useKitchenPrintStation";
+import { useKitchenPrintDevice } from "./useKitchenPrintDevice";
 
 vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("@/Utils/escpos", () => ({
@@ -73,7 +73,7 @@ let tickets;
 
 const flush = () => act(() => vi.advanceTimersByTimeAsync(0));
 const advance = (ms) => act(() => vi.advanceTimersByTimeAsync(ms));
-const mount = (o = outlet) => renderHook(() => useKitchenPrintStation(o));
+const mount = (o = outlet) => renderHook(() => useKitchenPrintDevice(o));
 
 beforeEach(async () => {
     vi.useFakeTimers();
@@ -93,8 +93,8 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-describe("useKitchenPrintStation: when it does nothing", () => {
-    it("does nothing without a station", async () => {
+describe("useKitchenPrintDevice: when it does nothing", () => {
+    it("does nothing without a device", async () => {
         setStorage({ "kitchen.station": null });
         mount();
         await advance(10000);
@@ -126,13 +126,13 @@ describe("useKitchenPrintStation: when it does nothing", () => {
     });
 });
 
-describe("useKitchenPrintStation: printing a polled ticket", () => {
-    it("polls the station, builds the ticket with translated labels and prints it on the stored printer", async () => {
+describe("useKitchenPrintDevice: printing a polled ticket", () => {
+    it("polls the device, builds the ticket with translated labels and prints it on the stored printer", async () => {
         setStorage({ "kitchen.paper": "58mm" });
         mount();
         await flush();
 
-        expect(axios.get).toHaveBeenCalledWith("/kitchen.stations.tickets");
+        expect(axios.get).toHaveBeenCalledWith("/kitchen.print-devices.tickets");
         expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
             expect.objectContaining({ number: "Meja 1", type: "dine_in", unpaid: false }),
             "58mm",
@@ -173,7 +173,7 @@ describe("useKitchenPrintStation: printing a polled ticket", () => {
     });
 });
 
-describe("useKitchenPrintStation: never lost, never doubled", () => {
+describe("useKitchenPrintDevice: never lost, never doubled", () => {
     it("a failed print records nothing and the next tick retries it once", async () => {
         setStorage();
         printBytes.mockRejectedValueOnce(new Error("usb"));
@@ -247,7 +247,7 @@ describe("useKitchenPrintStation: never lost, never doubled", () => {
     });
 });
 
-describe("useKitchenPrintStation: offline and unmount", () => {
+describe("useKitchenPrintDevice: offline and unmount", () => {
     it("posts and polls nothing while offline, and resumes when the browser is back online", async () => {
         setStorage();
         onLine = false;
@@ -274,26 +274,38 @@ describe("useKitchenPrintStation: offline and unmount", () => {
         expect(axios.get).not.toHaveBeenCalled();
     });
 
-    it("starts polling when a station is saved and auto-print is switched on", async () => {
+    it("starts polling when a device is saved and auto-print is switched on", async () => {
         const { result } = mount();
         await advance(5000);
         expect(axios.get).not.toHaveBeenCalled();
 
         act(() => {
-            result.current.setStation({ id: 5, name: "Dapur 1" });
+            result.current.setDevice({ id: 5, name: "Dapur 1" });
             result.current.setAutoPrint(true);
         });
         await flush();
-        expect(axios.get).toHaveBeenCalledWith("/kitchen.stations.tickets");
+        expect(axios.get).toHaveBeenCalledWith("/kitchen.print-devices.tickets");
     });
 });
 
-describe("useKitchenPrintStation: settings", () => {
+describe("useKitchenPrintDevice: settings", () => {
+    it("keeps a print device saved before the rename (same storage keys, #366)", () => {
+        // What a browser stored while the code still said "station": these literal key names must keep working.
+        localStorage.clear();
+        localStorage.setItem("kitchen.station", JSON.stringify({ id: 7, name: "Dapur lama" }));
+        localStorage.setItem("kitchen.unconfirmed", JSON.stringify([31, 32]));
+
+        const { result } = mount();
+
+        expect(result.current.device).toEqual({ id: 7, name: "Dapur lama" });
+        expect(unconfirmed()).toEqual([31, 32]);
+    });
+
     it("reads and writes the per-device settings in localStorage", () => {
         setStorage({ "kitchen.paper": "58mm" });
         const { result } = mount();
         expect(result.current).toMatchObject({
-            station: { id: 5, name: "Dapur 1" },
+            device: { id: 5, name: "Dapur 1" },
             printerKey: "1:2:abc",
             paper: "58mm",
             autoPrint: true,
@@ -303,7 +315,7 @@ describe("useKitchenPrintStation: settings", () => {
             result.current.setPaper("80mm");
             result.current.setAutoPrint(false);
             result.current.setPrinterKey("");
-            result.current.setStation({ id: 9, name: "Bar" });
+            result.current.setDevice({ id: 9, name: "Bar" });
         });
         expect(localStorage.getItem("kitchen.paper")).toBe("80mm");
         expect(localStorage.getItem("kitchen.autoPrint")).toBe("false");
@@ -311,20 +323,20 @@ describe("useKitchenPrintStation: settings", () => {
         expect(JSON.parse(localStorage.getItem("kitchen.station"))).toEqual({ id: 9, name: "Bar" });
     });
 
-    it("naming another station forgets the old station's unconfirmed ids, naming the same one keeps them", () => {
+    it("naming another device forgets the old device's unconfirmed ids, naming the same one keeps them", () => {
         setStorage({ "kitchen.unconfirmed": "[11,12]" });
         const { result } = mount();
 
-        act(() => result.current.setStation({ id: 5, name: "Dapur 1" }));
+        act(() => result.current.setDevice({ id: 5, name: "Dapur 1" }));
         expect(unconfirmed()).toEqual([11, 12]);
 
-        act(() => result.current.setStation({ id: 9, name: "Bar" }));
+        act(() => result.current.setDevice({ id: 9, name: "Bar" }));
         expect(unconfirmed()).toEqual([]);
     });
 
-    it("defaults to 80 mm, auto-print off, no station", () => {
+    it("defaults to 80 mm, auto-print off, no device", () => {
         const { result } = mount();
-        expect(result.current).toMatchObject({ station: null, printerKey: "", paper: "80mm", autoPrint: false });
+        expect(result.current).toMatchObject({ device: null, printerKey: "", paper: "80mm", autoPrint: false });
     });
 
     it("test print sends a TEST ticket in the chosen width to the stored printer", async () => {
@@ -374,7 +386,7 @@ const fakeLocks = () => {
     return { state, request };
 };
 
-describe("useKitchenPrintStation: one tab prints per device", () => {
+describe("useKitchenPrintDevice: one tab prints per device", () => {
     let locks;
 
     beforeEach(() => {

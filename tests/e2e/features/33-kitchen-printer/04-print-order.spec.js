@@ -1,6 +1,6 @@
 import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
-import { sentWith, setUpPrintStation } from '../../support/kitchen.js';
+import { sentWith, setUpPrintDevice } from '../../support/kitchen.js';
 import { fakePrinter, sentToPrinter, asText } from '../../support/webusb.js';
 
 const cashier = roles.find((role) => role.key === 'cashier');
@@ -12,7 +12,7 @@ test.describe('33-kitchen-printer', () => {
         arrange('open-shift', { cash: 100000 });
         const page = await asRole(cashier);
         await fakePrinter(page);
-        await setUpPrintStation(page, uniq('Dapur'));
+        await setUpPrintDevice(page, uniq('Dapur'));
 
         const first = arrange('kitchen-sale', { prefix: uniq('Ctk') });
         const second = arrange('kitchen-sale', { prefix: uniq('Ctk') });

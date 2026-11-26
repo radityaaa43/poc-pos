@@ -3,7 +3,7 @@
 namespace App\Services;
 
 use App\Models\KitchenItem;
-use App\Models\KitchenPrintStation;
+use App\Models\KitchenPrintDevice;
 use App\Models\KitchenTicketPrint;
 use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,16 +15,16 @@ class KitchenTicketService
     private const ORDERS_PER_POLL = 30;
 
     /**
-     * Tickets this station has not printed yet, oldest first, one per order. An order is never split across
+     * Tickets this device has not printed yet, oldest first, one per order. An order is never split across
      * two polls: the oldest ORDERS_PER_POLL orders come with all their pending items. Prices are never selected.
      */
-    public function pending(KitchenPrintStation $station): Collection
+    public function pending(KitchenPrintDevice $device): Collection
     {
         $unprinted = fn (): Builder => KitchenItem::open()
-            ->inOutlet($station->outlet_id)
-            // Only what reached the kitchen at or after the station was named (a new tablet does not reprint the queue).
-            ->whereRaw('COALESCE(accepted_at, created_at) >= ?', [$station->created_at])
-            ->whereDoesntHave('ticketPrints', fn ($q) => $q->where('kitchen_print_station_id', $station->id));
+            ->inOutlet($device->outlet_id)
+            // Only what reached the kitchen at or after the device was named (a new tablet does not reprint the queue).
+            ->whereRaw('COALESCE(accepted_at, created_at) >= ?', [$device->created_at])
+            ->whereDoesntHave('ticketPrints', fn ($q) => $q->where('kitchen_print_device_id', $device->id));
 
         $transactionIds = $unprinted()
             ->select('transaction_id')
@@ -62,22 +62,22 @@ class KitchenTicketService
     }
 
     /**
-     * Record that the station printed these items. Idempotent (a retry, a double tap or two tabs add nothing)
+     * Record that the device printed these items. Idempotent (a retry, a double tap or two tabs add nothing)
      * and it never writes kitchen_items or stock: a print does not change an item's status.
      *
      * @param  array<int, int>  $itemIds
      */
-    public function markPrinted(KitchenPrintStation $station, array $itemIds): void
+    public function markPrinted(KitchenPrintDevice $device, array $itemIds): void
     {
         // Ids of other outlets or unknown ids are dropped silently, so the log cannot be probed.
-        $ids = KitchenItem::inOutlet($station->outlet_id)->whereIn('id', $itemIds)->pluck('id');
+        $ids = KitchenItem::inOutlet($device->outlet_id)->whereIn('id', $itemIds)->pluck('id');
 
         if ($ids->isEmpty()) {
             return;
         }
 
         KitchenTicketPrint::insertOrIgnore(
-            $ids->map(fn ($id) => ['kitchen_print_station_id' => $station->id, 'kitchen_item_id' => $id])->all()
+            $ids->map(fn ($id) => ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $id])->all()
         );
     }
 }

@@ -5,8 +5,8 @@ import { useTranslation } from "react-i18next";
 import { IconClock, IconPrinter, IconWifiOff } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { useAuthorization } from "@/Utils/authorization";
-import { useKitchenPrintStation } from "@/Hooks/useKitchenPrintStation";
-import PrintStationPanel from "./PrintStationPanel";
+import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
+import PrintDevicePanel from "./PrintDevicePanel";
 
 const POLL_MS = 5000;
 const STALE_MS = 15000;
@@ -35,7 +35,7 @@ export default function Index({ orders, outlet, stations = [] }) {
     const [offline, setOffline] = useState(() => navigator.onLine === false);
     const [panelOpen, setPanelOpen] = useState(false);
     // Runs for the whole page, so tickets print with the panel closed.
-    const printStation = useKitchenPrintStation(outlet);
+    const printDevice = useKitchenPrintDevice(outlet);
 
     const [busy, setBusy] = useState(null);
     const { can } = useAuthorization();
@@ -138,7 +138,7 @@ export default function Index({ orders, outlet, stations = [] }) {
                 )}
             </div>
 
-            {panelOpen && <PrintStationPanel printStation={printStation} />}
+            {panelOpen && <PrintDevicePanel printDevice={printDevice} />}
 
             {connectionLost && (
                 <div
