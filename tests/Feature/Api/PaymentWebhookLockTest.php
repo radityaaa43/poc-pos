@@ -4,6 +4,7 @@ namespace Tests\Feature\Api;
 
 use App\Models\AuditLog;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\KitchenItem;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
@@ -110,7 +111,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertSame(2, $log->meta['bill_attempt']);
     }
 
-    public function test_locks_are_taken_shift_then_dine_order_then_bill_and_no_network_call_is_made(): void
+    public function test_locks_are_taken_shift_then_dine_order_then_receivable_then_bill_and_no_network_call_is_made(): void
     {
         [, $bill] = $this->guestBill('midtrans');
 
@@ -124,18 +125,22 @@ class PaymentWebhookLockTest extends TestCase
         $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
         $shift = $first('/from [`"]cashier_shifts[`"]/');
         $order = $first('/from [`"]dine_orders[`"]/');
+        $receivable = $first('/from [`"]receivables[`"]/');
         $locked = $first('/from [`"]transactions[`"] where [`"]transactions[`"]\.[`"]id[`"] = \?/');
 
         $this->assertIsInt($shift);
         $this->assertIsInt($order);
+        $this->assertIsInt($receivable);
         $this->assertIsInt($locked);
-        $this->assertTrue($shift < $order && $order < $locked, 'Lock order must be shift, dine order, bill.');
+        // The receivable controllers lock the receivable and then update the bill: the webhook must not take them the other way round.
+        $this->assertTrue($shift < $order && $order < $receivable && $receivable < $locked, 'Lock order must be shift, dine order, receivable, bill.');
         Http::assertSentCount(1); // the guest's charge; the webhook calls nobody
 
         // SQLite renders no lock clause: only the MySQL job can show them.
         if (DB::getDriverName() === 'mysql') {
             $this->assertStringContainsString('lock in share mode', strtolower($queries[$shift]));
             $this->assertStringContainsString('for update', strtolower($queries[$order]));
+            $this->assertStringContainsString('for update', strtolower($queries[$receivable]));
             $this->assertStringContainsString('for update', strtolower($queries[$locked]));
         }
     }
@@ -436,13 +441,13 @@ class PaymentWebhookLockTest extends TestCase
     // ---- attempt 0 keeps today's rules -----------------------------------------------------------------
 
     #[DataProvider('gateways')]
-    public function test_a_failed_bill_without_a_payment_history_stays_failed(string $gateway): void
+    public function test_a_failed_bill_without_a_payment_history_or_tenders_stays_failed(string $gateway): void
     {
+        // Branch E: attempt 0, failed, and no tender row (a portal sale looks like this), so nothing says who was collecting.
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
-        $this->notify($gateway, $bill->invoice, 'failed')->assertOk();
+        $bill->update(['payment_method' => 'qris', 'payment_status' => 'failed']);
 
         $this->notify($gateway, $bill->invoice, 'paid')->assertOk();
 
@@ -451,6 +456,31 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertNull($bill->late_superseded_payment_at);
         $this->assertSame(0, $this->eventCount('payment.late_after_failed'));
         $this->assertSame(0, $this->eventCount('payment.late_superseded'));
+    }
+
+    #[DataProvider('gateways')]
+    public function test_an_expired_cashier_charge_of_a_dine_bill_without_a_payment_history_is_booked_when_paid_late(string $gateway): void
+    {
+        $this->useGateway($gateway);
+        $order = $this->acceptedOrder();
+        $bill = $this->bill($order);
+        $this->cashierPays($order, 'qris'); // attempt 0: the order id is the bare invoice
+        $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
+        $tender = $bill->tenders()->sole();
+        $this->assertSame('failed', $bill->fresh()->payment_status);
+        $this->assertSame(0, $bill->fresh()->payment_attempt);
+
+        $this->notify($gateway, $bill->invoice, 'paid', reference: 'late-ref')->assertOk();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame(0, $bill->payment_attempt);
+        $this->assertNull($bill->late_superseded_payment_at);
+        $this->assertSame('paid', $tender->fresh()->payment_status);
+        $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());
+        $log = AuditLog::where('event', 'payment.late_after_failed')->sole();
+        $this->assertTrue($log->meta['booked']);
+        $this->assertSame('late-ref', $log->meta['reference']);
     }
 
     #[DataProvider('gateways')]
@@ -695,6 +725,53 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertSame('failed', $bill->payment_status);
         $this->assertNotNull($bill->late_superseded_payment_at);
         $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
+    }
+
+    /**
+     * A guest's attempt 1 is paid while the cashier collects by QRIS (attempt 2): flagged. Then her QRIS expires.
+     *
+     * @return array{0: DineOrder, 1: Transaction}
+     */
+    private function flaggedWhileACashierChargeIsPending(string $reference): array
+    {
+        [$order, $bill] = $this->guestBill('midtrans');
+        $this->cashierPays($order, 'qris');
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: $reference)->assertOk();
+        $this->assertNotNull($bill->fresh()->late_superseded_payment_at);
+        $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
+        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // nothing holds the bill any more
+        $this->assertSame('failed', $bill->fresh()->payment_status);
+
+        return [$order, $bill];
+    }
+
+    public function test_a_flagged_payment_that_is_booked_on_redelivery_loses_the_refund_marker_and_keeps_both_audits(): void
+    {
+        [, $bill] = $this->flaggedWhileACashierChargeIsPending('guest-ref');
+
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: 'guest-ref')->assertOk(); // the gateway redelivers
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNull($bill->late_superseded_payment_at); // no "Bayar ganda" on a bill that was paid once
+        $logs = AuditLog::where('event', 'payment.late_after_failed')->orderBy('id')->get();
+        $this->assertSame([false, true], $logs->pluck('meta.booked')->all());
+        $this->assertSame(['guest-ref', 'guest-ref'], $logs->pluck('meta.reference')->all());
+    }
+
+    public function test_booking_keeps_the_refund_marker_when_a_different_reference_was_flagged(): void
+    {
+        [, $bill] = $this->flaggedWhileACashierChargeIsPending('ref-other');
+
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: 'ref-booked')->assertOk();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame('ref-booked', $bill->payment_reference);
+        $this->assertNotNull($bill->late_superseded_payment_at); // the other payment still has to be refunded
+        $logs = AuditLog::where('event', 'payment.late_after_failed')->orderBy('id')->get();
+        $this->assertSame(['ref-other', 'ref-booked'], $logs->pluck('meta.reference')->all());
+        $this->assertSame([false, true], $logs->pluck('meta.booked')->all());
     }
 
     public function test_only_pending_and_paid_tenders_block(): void

@@ -15,6 +15,7 @@ use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\TransactionTenderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -266,9 +267,11 @@ class PaymentWebhookController extends Controller
     /**
      * One gateway notification, decided on current data.
      *
-     * Lock order, the same as DineOrderService::pay and closeShift: the owning shift (shared, so a close and a settlement
-     * are ordered: the closed recap holds the payment or the payment is flagged, never neither), the dine order (its
-     * completion runs inside the bill's update), then the bill. The bill is re-read under its lock, so a cashier payment
+     * Lock order, the same as DineOrderService::pay and closeShift where they overlap, and the receivable controllers
+     * (receivable first, then its bill): the owning shift (shared, so a close and a settlement are ordered: the closed
+     * recap holds the payment or the payment is flagged, never neither), the dine order (its completion runs inside the
+     * bill's update), the receivable (a gateway payment of a pay-later sale settles it inside the bill's update), then the
+     * bill. The bill is re-read under its lock, so a cashier payment
      * or a new guest charge that committed after the caller's read is seen. No network call runs in here.
      *
      * The shift is known before the bill is locked, so a takeover or a retry can move the bill to another shift in
@@ -284,6 +287,7 @@ class PaymentWebhookController extends Controller
             $settled = DB::transaction(function () use ($transaction, $gateway, $providerId, $newStatus, $expired, $reference, $amount, &$shiftId) {
                 $shift = $shiftId ? CashierShift::whereKey($shiftId)->sharedLock()->first() : null;
                 DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->value('id');
+                Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->value('id'); // no row is fine
                 $bill = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
 
                 if ($bill->cashier_shift_id !== $shiftId) {
@@ -351,11 +355,19 @@ class PaymentWebhookController extends Controller
                 return 'record';
             }
 
-            // Failed is final for attempt 0; a bill with a payment history can still receive its late payment.
-            return $current === 0 ? 'ignore' : 'late';
+            // Failed is final for attempt 0 (portal and plain POS sales). A bill with a payment history, or a dine bill whose own
+            // gateway charge failed, can still receive its late payment: the money must not be recorded nowhere.
+            return $current === 0 && ! $this->failedCashierChargeOfDineBill($bill) ? 'ignore' : 'late';
         }
 
         return $current > 0 && $attempt < $current ? 'late' : 'flag';
+    }
+
+    /** A dine bill at attempt 0 whose own gateway charge failed or expired: the tender row is what tells it from a portal sale. */
+    private function failedCashierChargeOfDineBill(Transaction $bill): bool
+    {
+        return $bill->dineOrder()->exists()
+            && $bill->tenders()->where('payment_status', TransactionTender::STATUS_FAILED)->exists();
     }
 
     /**
@@ -388,6 +400,14 @@ class PaymentWebhookController extends Controller
 
         if ($booked) {
             $this->record($bill, $shift, $gateway, $providerId, 'paid', false, $reference, $amount, late: true);
+
+            // An earlier flag of this same payment (a tender was pending then) is reversed by the booking, and stays in the
+            // audit trail. Another payment's flag keeps the bill marked: that money still has to be refunded.
+            $key = filled($reference) ? $reference : $providerId;
+            if ($bill->late_superseded_payment_at && $this->lateAuditKeys($bill)->every(fn (string $logged) => $logged === $key)) {
+                $bill->update(['late_superseded_payment_at' => null]);
+            }
+
             app(AuditLogService::class)->log(
                 event: 'payment.late_after_failed',
                 module: 'transactions',
@@ -471,6 +491,22 @@ class PaymentWebhookController extends Controller
     }
 
     /**
+     * The gateway reference (the order id when there is none) of every late-payment audit of the bill: the one lookup that
+     * tells a redelivery from another payment, for flagging and for clearing the refund marker.
+     *
+     * @param  array<int, string>  $events
+     * @return Collection<int, string>
+     */
+    private function lateAuditKeys(Transaction $bill, array $events = ['payment.late_superseded', 'payment.late_after_failed']): Collection
+    {
+        return AuditLog::whereIn('event', $events)
+            ->where('auditable_type', $bill->getMorphClass())
+            ->where('auditable_id', $bill->id)
+            ->get()
+            ->map(fn (AuditLog $log) => (string) (filled($log->meta['reference'] ?? null) ? $log->meta['reference'] : ($log->meta['order_id'] ?? '')));
+    }
+
+    /**
      * A payment that must not be booked. The marker (late_superseded_payment_at) is only the "needs refund" flag and is set once;
      * the audit is written for every distinct gateway reference (the order id when there is none), so a second late payment
      * is not lost behind the first and a redelivery of the same callback is not audited twice. Marker and audit commit together:
@@ -486,11 +522,7 @@ class PaymentWebhookController extends Controller
         [$marked, $audited] = DB::transaction(function () use ($bill, $event, $description, $meta, $key) {
             $marked = (bool) Transaction::whereKey($bill->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
 
-            $seen = AuditLog::where('event', $event)
-                ->where('auditable_type', $bill->getMorphClass())
-                ->where('auditable_id', $bill->id)
-                ->get()
-                ->contains(fn (AuditLog $log) => (filled($log->meta['reference'] ?? null) ? $log->meta['reference'] : ($log->meta['order_id'] ?? null)) === $key);
+            $seen = $this->lateAuditKeys($bill, [$event])->contains($key);
 
             if (! $seen) {
                 app(AuditLogService::class)->log(event: $event, module: 'transactions', auditable: $bill, description: $description, meta: $meta);

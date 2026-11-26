@@ -78,7 +78,7 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
   (filter "Perlu refund"); the refund itself is manual. A sale that was restocked is never booked late. A sale of attempt 0 that
-  is `failed` stays final (portal sales).
+  is `failed` stays final (portal sales); only a dine bill whose own gateway charge failed can still be booked late.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.

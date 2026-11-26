@@ -256,7 +256,7 @@ page ships with the second half of #325; until then only the endpoint and the `p
   stored only if the bill is still on that attempt. A second press (or a retry after failed/expired) supersedes the
   first. The existing webhook settles the bill and the existing paid hook sends the flagged items to the kitchen, once.
 - **The webhook decides under locks** (`PaymentWebhookController::applyNotification`): one short DB transaction, lock order
-  owning shift (shared), dine order, bill (`FOR UPDATE`, re-read), no network call inside. The bill's shift is re-checked under
+  owning shift (shared), dine order, receivable (a pay-later sale's gateway payment settles it; the receivable controllers lock it before the bill), bill (`FOR UPDATE`, re-read), no network call inside. The bill's shift is re-checked under
   its lock: if a takeover or retry moved the bill meanwhile, the transaction ends and runs once more with the new shift; a second
   move fails closed (500, nothing booked, the gateway redelivers). `TransactionPaymentRetryService::retry` locks in the same order (shift, then sale).
   For a **paid** notification:
@@ -266,7 +266,8 @@ page ships with the second half of #325; until then only the endpoint and the `p
   otherwise it is flagged (`late_superseded_payment_at`, "Bayar ganda — refund manual", audit `payment.late_superseded` or
   `payment.late_after_failed` with `booked: false`) and never booked. A second payment with another reference on a paid bill is flagged. `late_superseded_payment_at` is only the "needs refund" flag (set once);
   every distinct gateway reference is audited (`meta.reference`, `meta.order_id`), a redelivery of the same one is not.
-  A failed bill of attempt 0 stays final. A late payment of a sale that was restocked is flagged, not booked.
+  A failed bill of attempt 0 with no tender row stays final (portal sales); a **dine** bill of attempt 0 whose own gateway charge failed takes the late path above, so that money is not recorded nowhere. A late payment of a sale that was restocked is flagged, not booked.
+  When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
   charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::collect`), so the guest's charge is
