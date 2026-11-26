@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { router } from "@inertiajs/react";
 import Index from "./Index";
 
 const granted = ["dine-orders-process", "dine-orders-prepare", "dine-orders-handover"];
@@ -74,18 +75,45 @@ describe("dine orders queue", () => {
         expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
     });
 
-    it("still offers Serahkan on a ready order", () => {
-        render(<Index orders={orders} />);
-
-        expect(screen.getAllByRole("button", { name: "Serahkan" })).toHaveLength(1);
-    });
-
-    it("shows Serahkan only with its permission", () => {
-        permissions = ["dine-orders-process"];
-        render(<Index orders={orders} />);
+    it("has no Serahkan button on a ready order the kitchen display tracks: it is handed over there", () => {
+        render(<Index orders={[{ ...order(6, "Meja Siap", "ready", "paid"), has_kitchen_items: true }]} />);
 
         expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Terima" })).toBeTruthy();
+        expect(screen.getByText("Meja Siap")).toBeTruthy();
+    });
+
+    it("keeps Serahkan on a ready order without kitchen items, its only exit, and posts to the legacy route", async () => {
+        const user = userEvent.setup();
+        render(<Index orders={[{ ...order(6, "Meja Siap", "ready", "paid"), has_kitchen_items: false }]} />);
+
+        await user.click(screen.getByRole("button", { name: "Serahkan" }));
+
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.serve", {}, expect.any(Object));
+    });
+
+    it("shows that Serahkan only to the hand-over permission, and never on an order that is not ready", () => {
+        permissions = ["dine-orders-process", "dine-orders-prepare"];
+        const { unmount } = render(<Index orders={[{ ...order(6, "Meja Siap", "ready", "paid"), has_kitchen_items: false }]} />);
+        expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
+        unmount();
+
+        permissions = granted;
+        render(<Index orders={[{ ...order(5, "Meja Masak", "preparing", "paid"), has_kitchen_items: false }]} />);
+        expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
+    });
+
+    it("still accepts and rejects a submitted order", async () => {
+        const user = userEvent.setup();
+        vi.stubGlobal("confirm", () => true);
+        vi.stubGlobal("prompt", () => "Habis");
+        render(<Index orders={orders} />);
+
+        await user.click(screen.getByRole("button", { name: "Terima" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.accept", {}, expect.any(Object));
+
+        await user.click(screen.getByRole("button", { name: "Tolak" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.reject", expect.any(Object), expect.any(Object));
+        vi.unstubAllGlobals();
     });
 });
 

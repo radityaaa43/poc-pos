@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\DineOrder;
+use App\Models\KitchenItem;
 use App\Models\Outlet;
 use App\Services\DineOrderService;
 use App\Services\OutletAccessService;
@@ -38,6 +39,11 @@ class DineOrderController extends Controller
             })
             ->latest()
             ->get();
+
+        // Orders the kitchen display tracks hand over there; one without kitchen items (from before the display, or nothing to make)
+        // keeps its Serahkan on this page, its only exit. One query for the page, not one per order.
+        $tracked = KitchenItem::whereIn('transaction_id', $orders->pluck('transaction_id')->filter())->distinct()->pluck('transaction_id');
+        $orders->each(fn (DineOrder $order) => $order->setAttribute('has_kitchen_items', $tracked->contains($order->transaction_id)));
 
         return Inertia::render('Dashboard/DineIn/Orders/Index', [
             'orders' => $orders,

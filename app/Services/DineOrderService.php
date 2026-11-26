@@ -330,6 +330,13 @@ class DineOrderService
     /** Someone verifies a ready order was handed to the customer. The bill is already paid by then, so this completes the order. */
     public function serve(DineOrder $order): void
     {
+        // Not ready yet (or already served): advance() keeps its error / no-op, so only a ready order is handed over item by item.
+        if ($order->status === DineOrder::STATUS_READY && $this->hasKitchenItems($order)) {
+            $this->kitchenItemService->handOverAll(Transaction::findOrFail($order->transaction_id), auth()->user());
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served');
     }
 

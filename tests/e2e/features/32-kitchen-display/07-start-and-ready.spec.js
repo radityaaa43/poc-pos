@@ -21,7 +21,9 @@ test.describe('32-kitchen-display', () => {
         await expect(item.getByRole('button', { name: 'Mulai buat', exact: true })).toHaveCount(0);
         await item.getByRole('button', { name: 'Siap', exact: true }).click();
         await expect(item).toContainText('Siap');
-        await expect(item.getByRole('button')).toHaveCount(0);
+        // A ready item has no prepare step left; it is handed over with Serahkan (#238).
+        await expect(item.getByRole('button')).toHaveCount(1);
+        await expect(item.getByRole('button', { name: 'Serahkan', exact: true })).toBeVisible();
         await expect(sibling).toContainText('Diterima');
         await expect(sibling.getByRole('button', { name: 'Mulai buat', exact: true })).toBeVisible();
 
@@ -32,7 +34,8 @@ test.describe('32-kitchen-display', () => {
         await expect(started).toContainText('Sedang dibuat');
         await all.getByRole('button', { name: 'Semua siap', exact: true }).click();
         await expect(all.getByRole('listitem').filter({ hasText: 'Siap' })).toHaveCount(2);
-        await expect(all.getByRole('button')).toHaveCount(0);
+        await expect(all.getByRole('button', { name: /Mulai buat|^Siap$|Semua siap/ })).toHaveCount(0);
+        await expect(all.getByRole('button', { name: 'Serahkan semua', exact: true })).toBeVisible();
         await expect(card).toContainText('Diterima'); // the first order is untouched by the second
     });
 });

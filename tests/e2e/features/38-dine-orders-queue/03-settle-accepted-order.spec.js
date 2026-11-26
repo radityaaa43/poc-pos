@@ -4,7 +4,7 @@ import { roles } from '../../support/roles.js';
 const manager = roles.find((role) => role.key === 'manager');
 
 // Issue #128: an accepted dine order is an open bill and payment comes first. The kitchen (Mulai Buat) only works a
-// paid order; then Siap and Serahkan, and serving completes it. The transaction made at accept is the one paid. An
+// paid order; then Siap and Serahkan (on the kitchen display, #238), and serving completes it. The transaction made at accept is the one paid. An
 // order of unflagged products has no kitchen step: it is served when paid and completes at once (BR-1, #237). A
 // pending transfer, QRIS, Midtrans or Xendit payment is not paid either; those need a live gateway or bank, so they are
 // covered by tests/Feature/DineIn/DineOrderPaymentTest.php instead.
@@ -116,15 +116,21 @@ test.describe('38-dine-orders-queue', () => {
         await expect(guest.getByTestId('dine-status')).toHaveText('Sedang dibuat');
 
         await kitchenCard.getByRole('button', { name: 'Siap', exact: true }).click();
-        await expect(kitchenCard.getByRole('button')).toHaveCount(0);
+        await expect(kitchenCard.getByRole('button', { name: 'Siap', exact: true })).toHaveCount(0);
+        // Serahkan lives on the kitchen display (#238); the Orders page shows the ready order but no longer serves it.
+        await expect(kitchenCard.getByRole('button', { name: 'Serahkan', exact: true })).toBeVisible();
         await page.goto('/dashboard/dine-orders');
         await page.getByRole('button', { name: 'Penyerahan', exact: true }).click();
-        await expect(card.getByRole('button', { name: 'Serahkan' })).toBeVisible();
+        await expect(card).toHaveCount(1);
+        await expect(card.getByRole('button', { name: 'Serahkan' })).toHaveCount(0);
         await guest.reload();
         await expect(guest.getByTestId('dine-status')).toHaveText('Siap');
 
         // The bill is already paid, so serving completes the order and takes it off the queue.
-        await card.getByRole('button', { name: 'Serahkan' }).click();
+        await page.goto('/dashboard/kitchen');
+        await kitchenCard.getByRole('button', { name: 'Serahkan', exact: true }).click();
+        await expect(kitchenCard).toHaveCount(0);
+        await page.goto('/dashboard/dine-orders');
         await expect(card).toHaveCount(0);
         expect(arrange('dine.order-state', { access_token })).toMatchObject({ status: 'completed', preparing: true, ready: true, served: true });
         await guest.reload();
@@ -160,9 +166,10 @@ test.describe('38-dine-orders-queue', () => {
         const kitchenCard = page.locator('article', { hasText: table_name });
         await kitchenCard.getByRole('button', { name: 'Mulai buat', exact: true }).click();
         await kitchenCard.getByRole('button', { name: 'Siap', exact: true }).click();
-        await expect(kitchenCard.getByRole('button')).toHaveCount(0);
+        await expect(kitchenCard.getByRole('button', { name: 'Siap', exact: true })).toHaveCount(0);
+        await kitchenCard.getByRole('button', { name: 'Serahkan', exact: true }).click();
+        await expect(kitchenCard).toHaveCount(0);
         await page.goto('/dashboard/dine-orders');
-        await card.getByRole('button', { name: 'Serahkan' }).click();
         await expect(card).toHaveCount(0);
 
         expect(arrange('dine.order-state', { access_token })).toMatchObject({ status: 'completed', served: true, payment_status: 'paid' });

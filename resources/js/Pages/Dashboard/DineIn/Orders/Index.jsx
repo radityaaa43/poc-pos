@@ -64,14 +64,14 @@ export default function Index({ orders }) {
         );
     };
 
-    // Hand over: the kitchen steps (start, ready) live on the kitchen display.
-    const handleStep = (order, routeName, successMessage) => {
+    // Hand over: only for a ready order the kitchen display does not track (no kitchen items); the others are handed over there.
+    const handleServe = (order) => {
         router.post(
-            route(routeName, order.id),
+            route("dine-orders.serve", order.id),
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success(successMessage),
+                onSuccess: () => toast.success("Pesanan ditandai diserahkan."),
                 onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal menandai pesanan."),
             }
         );
@@ -161,13 +161,13 @@ export default function Index({ orders }) {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canHandover && order.status === "ready" && (
+                                            {canHandover && order.status === "ready" && !order.has_kitchen_items && (
                                                 <Button
                                                     type={"button"}
                                                     label={"Serahkan"}
                                                     icon={<IconCheck size={16} strokeWidth={1.5} />}
                                                     className={"bg-primary-500 hover:bg-primary-600 text-white"}
-                                                    onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
+                                                    onClick={() => handleServe(order)}
                                                 />
                                             )}
                                             {canProcess && order.status === "submitted" && (
