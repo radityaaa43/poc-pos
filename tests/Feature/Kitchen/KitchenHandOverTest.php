@@ -192,8 +192,9 @@ class KitchenHandOverTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard/DineIn/Orders/Index')
                 ->has('orders', 2)
-                ->where('orders.'.($tracked->dineOrder->id < $untracked->dineOrder->id ? 1 : 0).'.has_kitchen_items', true)
-                ->where('orders.'.($tracked->dineOrder->id < $untracked->dineOrder->id ? 0 : 1).'.has_kitchen_items', false)
+                // By id, not by position: two orders created in the same second have no guaranteed order on MySQL.
+                ->where('orders', fn ($orders) => collect($orders)->firstWhere('id', $tracked->dineOrder->id)['has_kitchen_items'] === true
+                    && collect($orders)->firstWhere('id', $untracked->dineOrder->id)['has_kitchen_items'] === false)
             );
     }
 
