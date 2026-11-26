@@ -6,7 +6,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 
 // REQ-003 AC-09: a pay-later order with a flagged line has its kitchen item from the accept; paying at the counter
 // adds no second item, and once it is paid and handed over the order completes. The staff steps are the ones on the
-// kitchen display (Mulai buat, Siap) and the Orders queue (Serahkan).
+// kitchen display (Mulai buat, Siap, Serahkan); the Orders queue only shows the order go away.
 test.describe('38-dine-orders-queue', () => {
     test.describe.configure({ timeout: 240_000 });
 
@@ -40,8 +40,8 @@ test.describe('38-dine-orders-queue', () => {
             status: 'accepted', invoice: accepted.invoice, payment_status: 'paid', served: false, kitchen_items: 1, receivables: 0,
         });
 
-        // Made on the kitchen display (it owns Mulai buat and Siap since #326), then handed over from the queue:
-        // paid and served, so the order completes.
+        // Made and handed over on the kitchen display (it owns Mulai buat, Siap and Serahkan since #326 and #238): the order has a
+        // kitchen item, so the Orders page has no Serahkan for it. Paid and served, so the order completes.
         const kitchen = await asRole(cashier);
         await kitchen.goto('/dashboard/kitchen');
         const item = kitchen.locator('article', { hasText: table_name }).getByRole('listitem').filter({ hasText: title });
@@ -51,7 +51,10 @@ test.describe('38-dine-orders-queue', () => {
         await expect(item).toContainText('Siap');
 
         await page.goto('/dashboard/dine-orders');
-        await card.getByRole('button', { name: 'Serahkan' }).click();
+        await expect(card.getByRole('button', { name: 'Serahkan' })).toHaveCount(0);
+        await item.getByRole('button', { name: 'Serahkan', exact: true }).click();
+        await expect(kitchen.locator('article', { hasText: table_name })).toHaveCount(0);
+        await page.reload();
         await expect(card).toHaveCount(0);
 
         expect(arrange('dine.order-state', { access_token })).toMatchObject({ status: 'completed', served: true, payment_status: 'paid', kitchen_items: 1 });

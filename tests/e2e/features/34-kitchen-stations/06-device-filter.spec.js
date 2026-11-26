@@ -35,7 +35,9 @@ test.describe('34-kitchen-stations: device filter', () => {
         await drink.getByRole('button', { name: 'Mulai buat', exact: true }).click();
         await expect(drink).toContainText('Sedang dibuat');
         await drink.getByRole('button', { name: 'Siap', exact: true }).click();
-        await expect(drink.getByRole('button')).toHaveCount(0);
+        // Ready: no step left to make, only the hand-over (Serahkan, #238) is offered to a role that has it.
+        await expect(drink.getByRole('button', { name: /^(Mulai buat|Siap)$/ })).toHaveCount(0);
+        await expect(drink.getByRole('button', { name: 'Serahkan', exact: true })).toBeVisible();
         expect(arrange('kitchen.status-by-station', { invoice: sale.invoice }).status_by_station).toEqual({ [bar]: 'ready', Dapur: 'accepted' });
 
         // The choice is saved on the device: a reload keeps Bar.
