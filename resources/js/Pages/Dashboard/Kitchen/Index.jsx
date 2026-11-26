@@ -6,6 +6,8 @@ import { IconClock, IconPrinter, IconWifiOff } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { useAuthorization } from "@/Utils/authorization";
 import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
+import { isNotPrinted } from "@/Utils/printerStatus";
+import PrinterStatusBanner from "@/Components/Kitchen/PrinterStatusBanner";
 import PrintDevicePanel from "./PrintDevicePanel";
 
 const POLL_MS = 5000;
@@ -27,6 +29,36 @@ const readSaved = () => {
         return [];
     }
 };
+
+const PRINT_BUTTON =
+    "min-h-[44px] w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800";
+
+// The one print button of a card (REQ-004 K2). Coba lagi re-sends a ticket that never printed; Cetak ulang
+// prints a CETAK ULANG copy of one that did. A ticket still queued and young gets no button yet.
+function PrintAction({ order, entry, notPrinted, printDevice }) {
+    const { t } = useTranslation();
+    if (entry && !notPrinted) return null;
+    const busy = printDevice.headFailed || printDevice.reprinting?.includes(order.id);
+
+    return (
+        <div className="border-t border-slate-100 p-4 dark:border-slate-800">
+            {notPrinted ? (
+                <button type="button" onClick={printDevice.retry} className={PRINT_BUTTON}>
+                    {t("kitchen.print.retry")}
+                </button>
+            ) : (
+                <button type="button" disabled={busy} onClick={() => printDevice.reprint(order)} className={PRINT_BUTTON}>
+                    {t("kitchen.print.reprintButton")}
+                </button>
+            )}
+            {printDevice.reprintFailed === order.id && (
+                <p role="status" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
+                    {t("kitchen.print.reprintFailed")}
+                </p>
+            )}
+        </div>
+    );
+}
 
 export default function Index({ orders, outlet, stations = [] }) {
     const { t } = useTranslation();
@@ -114,6 +146,10 @@ export default function Index({ orders, outlet, stations = [] }) {
     }, []);
 
     const connectionLost = offline || now - lastOk > STALE_MS;
+    // The print UI only exists on a display with a print device, and the warnings only while it auto-prints.
+    const hasPrinter = Boolean(outlet && printDevice.device);
+    const canReprint = hasPrinter && Boolean(printDevice.printerKey || printDevice.autoPrint);
+    const entryFor = (order) => printDevice.unprinted?.find((entry) => entry.key === `t${order.id}`);
 
     return (
         <>
@@ -149,6 +185,8 @@ export default function Index({ orders, outlet, stations = [] }) {
                     {t("kitchen.connectionLost")}
                 </div>
             )}
+
+            {hasPrinter && printDevice.autoPrint && <PrinterStatusBanner status={printDevice.status} onRetry={printDevice.retry} />}
 
             {multi && (
                 <div role="group" aria-label={t("kitchen.stations.label")} className="mb-4 flex flex-wrap gap-2">
@@ -207,6 +245,11 @@ export default function Index({ orders, outlet, stations = [] }) {
                                             {t("kitchen.unpaid")}
                                         </span>
                                     )}
+                                    {printDevice.autoPrint && isNotPrinted(entryFor(order), now) && (
+                                        <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-900/50 dark:text-warning-400">
+                                            {t("kitchen.print.notPrinted")}
+                                        </span>
+                                    )}
                                     {multi && showAll && (
                                         <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                                             {t("kitchen.stations.progress", {
@@ -255,6 +298,14 @@ export default function Index({ orders, outlet, stations = [] }) {
                                 {canHandOver && order.items.some((item) => item.status === "ready") &&
                                     stepButton(`hand-over-all-${order.id}`, "kitchen.orders.hand-over-all", order.id, t("kitchen.actions.handOverAll"), "w-full bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500", showAll ? {} : { station_ids: chosen })}
                             </footer>
+                            {canReprint && (
+                                <PrintAction
+                                    order={order}
+                                    entry={printDevice.autoPrint ? entryFor(order) : undefined}
+                                    notPrinted={printDevice.autoPrint && isNotPrinted(entryFor(order), now)}
+                                    printDevice={printDevice}
+                                />
+                            )}
                         </article>
                     ))}
                 </div>

@@ -9,56 +9,7 @@ vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("@/Utils/escpos", () => ({
     buildKitchenTicketBytes: vi.fn(() => new Uint8Array([1, 2])),
     printBytes: vi.fn(),
-}));
-// A minimal stand-in that follows the printQueue contract (FIFO, failed head stays, duplicate keys ignored,
-// remove/replace refused for the job that is sending).
-vi.mock("@/Utils/printQueue", () => ({
-    createPrintQueue: ({ send }) => {
-        const jobs = [];
-        let running = false;
-        let status = "idle";
-        return {
-            enqueue(job) {
-                if (!jobs.some((j) => j.key === job.key)) jobs.push(job);
-            },
-            remove(key) {
-                const at = jobs.findIndex((j) => j.key === key);
-                if (at < 0 || (at === 0 && running)) return false;
-                jobs.splice(at, 1);
-                return true;
-            },
-            replace(key, job) {
-                const at = jobs.findIndex((j) => j.key === key);
-                if (at < 0 || (at === 0 && running)) return false;
-                jobs[at] = job;
-                return true;
-            },
-            async drain() {
-                if (running) return;
-                running = true;
-                try {
-                    while (jobs.length) {
-                        try {
-                            await send(jobs[0]);
-                            jobs.shift();
-                        } catch {
-                            status = "failed";
-                            return;
-                        }
-                    }
-                    status = "idle";
-                } finally {
-                    running = false;
-                }
-            },
-            get jobs() {
-                return jobs;
-            },
-            get status() {
-                return status;
-            },
-        };
-    },
+    printerKey: vi.fn((device) => device.key),
 }));
 
 const outlet = { id: 1, name: "Pusat" };
@@ -95,6 +46,8 @@ const unconfirmed = () => JSON.parse(localStorage.getItem("kitchen.unconfirmed")
 const postedIds = () => itemPosts().map((c) => c[1].item_ids);
 
 let onLine;
+let usb;
+let wakeLock;
 let tickets;
 let cancellations;
 
@@ -109,6 +62,12 @@ beforeEach(async () => {
     await i18n.changeLanguage("id");
     onLine = true;
     vi.spyOn(navigator, "onLine", "get").mockImplementation(() => onLine);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    // WebUSB and Wake Lock exist unless a test removes them; the hook skips printing without WebUSB.
+    usb = new EventTarget();
+    Object.defineProperty(navigator, "usb", { value: usb, configurable: true });
+    wakeLock = { request: vi.fn(async () => ({ released: false, release: vi.fn(), addEventListener: vi.fn() })) };
+    Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true });
     tickets = [ticket(1, [11, 12])];
     cancellations = [];
     axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
@@ -119,6 +78,8 @@ beforeEach(async () => {
 afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    delete navigator.usb;
+    delete navigator.wakeLock;
 });
 
 describe("useKitchenPrintDevice: when it does nothing", () => {

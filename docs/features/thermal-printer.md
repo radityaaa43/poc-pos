@@ -46,6 +46,26 @@ The kitchen display can print an order ticket on its own printer: see "Kitchen t
 - Keep the kitchen display in a **separate browser window**, not a background tab: Chrome slows the timers of hidden tabs, so tickets could arrive late. The same goes for a tablet: keep the screen on and the page in front.
 - Needs Chrome or Edge on HTTPS (or `localhost`). Pairing the printer needs one tap on **Hubungkan printer** and Chrome's device dialog; it cannot be done for the user.
 
+### Windows: switch the printer to the WinUSB driver
+
+On Windows a USB printer normally runs on Windows' own printer driver, and Chrome cannot open it. When the kitchen display (or **Hubungkan printer**) says **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB** / "Printer cannot be used from the browser — switch the driver to WinUSB", replace the driver of that printer with WinUSB. The same five steps are shown in the app under **Lihat langkah** / "Show steps", because shop staff cannot open this repository.
+
+1. Download and open [Zadig](https://zadig.akeo.ie/). Choose **Options > List All Devices**.
+2. Pick the kitchen printer from the list (check the name and the USB id against the printer; do not pick another device).
+3. Choose **WinUSB** as the target driver.
+4. Click **Replace Driver** and wait until it says it succeeded.
+5. Reload the kitchen display tab and press **Hubungkan printer** again.
+
+- **The cost:** after the swap Windows can no longer print to that printer through its own driver (Notepad, receipts through the print dialog, other programs). Do this for the kitchen printer only, not for a printer that other Windows programs must keep using.
+- **To go back:** open Device Manager, find the printer (under "Universal Serial Bus devices", WinUSB), choose **Uninstall device** with "Delete the driver software for this device", then unplug and plug the printer in again: Windows installs its own driver.
+- **If the driver is already WinUSB** and the message still shows, another program or browser tab is holding the printer. Close other programs and tabs that use it (a second kitchen display tab, a print spooler, a manufacturer's utility), unplug and plug the printer in again, then reload. The app tells the two cases apart only by guessing from the error (Windows plus a USB "network error"), so it can show the driver message for a printer that is merely busy.
+- The message appears only on Windows. On Android, Linux or ChromeOS the same USB error is shown as a normal print failure.
+
+### Limits: paper out, a cable pulled mid-ticket
+
+- **Paper out is not detected.** WebUSB only tells the app whether the printer accepted the bytes, not whether paper came out. With the roll empty or the cover open the send succeeds, no warning shows and the order is marked printed. Staff who see no ticket use **Cetak ulang** on the order's card: it prints the ticket again, marked CETAK ULANG, and records nothing.
+- A cable pulled in the middle of a ticket fails the send: the app shows **Gagal mencetak — coba lagi** and retries the whole ticket from the start. The torn stub already on paper is for staff to discard.
+
 ## Route
 
 | Route | Method | Fungsi |

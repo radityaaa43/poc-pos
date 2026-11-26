@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axios from "axios";
@@ -37,6 +37,14 @@ beforeEach(async () => {
     axios.get.mockResolvedValue({ data: { tickets: [] } });
     requestPrinter.mockResolvedValue({ vendorId: 1 });
     printerKey.mockReturnValue("1:2:abc");
+    // WebUSB exists unless a test removes it; the panel disables the printer controls without it.
+    Object.defineProperty(navigator, "usb", { value: new EventTarget(), configurable: true });
+});
+
+afterEach(() => {
+    delete navigator.usb;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
 });
 
 describe("PrintDevicePanel", () => {
@@ -226,5 +234,103 @@ describe("PrintDevicePanel", () => {
         render(<Harness />);
 
         [...screen.getAllByRole("button"), screen.getByRole("switch")].forEach((el) => expect(el.className).toMatch(/min-h-\[44px\]/));
+    });
+});
+
+describe("PrintDevicePanel: no WebUSB and driver lock (REQ-004 K2)", () => {
+    const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130";
+    const lockError = () =>
+        Object.assign(new Error("Unable to claim interface."), { code: "claim_failed", cause: new DOMException("busy", "NetworkError") });
+
+    it("says the device does not support USB printers, disables connect and auto-print, and keeps the name form", () => {
+        delete navigator.usb;
+        withDevice();
+        render(<Harness />);
+
+        expect(screen.getByText("Perangkat ini tidak mendukung printer USB")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Hubungkan printer" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Hubungkan printer" })).toHaveAccessibleDescription("Perangkat ini tidak mendukung printer USB");
+        expect(screen.getByRole("switch", { name: "Cetak otomatis" })).toBeDisabled();
+        expect(screen.getByLabelText("Nama perangkat cetak")).toBeEnabled();
+        expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("adds the HTTPS hint on an insecure page", () => {
+        vi.stubGlobal("isSecureContext", false);
+        withDevice();
+        render(<Harness />);
+
+        expect(screen.getByText("Perangkat ini tidak mendukung printer USB")).toBeInTheDocument();
+        expect(screen.getByText("Cetak USB perlu koneksi aman (HTTPS)")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Hubungkan printer" })).toBeDisabled();
+    });
+
+    it("says it in English too, and only a device without USB sees it", async () => {
+        await i18n.changeLanguage("en");
+        delete navigator.usb;
+        const { unmount } = render(<Harness />);
+        expect(screen.getByText("This device does not support USB printers")).toBeInTheDocument();
+        unmount();
+
+        Object.defineProperty(navigator, "usb", { value: new EventTarget(), configurable: true });
+        render(<Harness />);
+        expect(screen.queryByText("This device does not support USB printers")).not.toBeInTheDocument();
+    });
+
+    it("shows the WinUSB message and the in-app steps when connecting hits the Windows driver lock", async () => {
+        const user = userEvent.setup();
+        vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS);
+        requestPrinter.mockRejectedValue(lockError());
+        withDevice();
+        render(<Harness />);
+        expect(screen.queryByText(/ganti driver ke WinUSB/)).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole("button", { name: "Hubungkan printer" }));
+
+        expect(await screen.findByText("Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB")).toBeInTheDocument();
+        expect(screen.queryByRole("list")).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Lihat langkah" }));
+        expect(screen.getAllByRole("listitem")).toHaveLength(5);
+        expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("does not show the WinUSB message for the same error off Windows", async () => {
+        const user = userEvent.setup();
+        requestPrinter.mockRejectedValue(lockError());
+        withDevice();
+        render(<Harness />);
+
+        await user.click(screen.getByRole("button", { name: "Hubungkan printer" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalled());
+        expect(screen.queryByText(/ganti driver ke WinUSB/)).not.toBeInTheDocument();
+    });
+
+    it("clears the message after a good connect", async () => {
+        const user = userEvent.setup();
+        vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS);
+        requestPrinter.mockRejectedValueOnce(lockError());
+        withDevice();
+        render(<Harness />);
+        await user.click(screen.getByRole("button", { name: "Hubungkan printer" }));
+        await screen.findByText(/ganti driver ke WinUSB/);
+
+        await user.click(screen.getByRole("button", { name: "Hubungkan printer" }));
+
+        await waitFor(() => expect(screen.queryByText(/ganti driver ke WinUSB/)).not.toBeInTheDocument());
+        expect(await screen.findByRole("button", { name: "Putuskan" })).toBeInTheDocument();
+    });
+
+    it("shows the message when the test print hits the lock", async () => {
+        const user = userEvent.setup();
+        vi.spyOn(navigator, "userAgent", "get").mockReturnValue(WINDOWS);
+        printBytes.mockRejectedValue(lockError());
+        withDevice();
+        localStorage.setItem("kitchen.printerKey", "1:2:abc");
+        render(<Harness />);
+
+        await user.click(screen.getByRole("button", { name: "Cetak percobaan" }));
+
+        expect(await screen.findByText(/ganti driver ke WinUSB/)).toBeInTheDocument();
     });
 });

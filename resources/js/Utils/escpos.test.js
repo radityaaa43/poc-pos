@@ -188,6 +188,73 @@ describe("printer connection", () => {
         );
         expect(hasCachedPrinter()).toBe(false);
     });
+
+    describe("error codes (REQ-004 K2)", () => {
+        const dom = (name) => new DOMException("x", name);
+        const rejected = (promise) => promise.then(() => null, (error) => error);
+
+        it("requestPrinter without WebUSB is coded unsupported", async () => {
+            vi.stubGlobal("navigator", { usb: undefined });
+            expect(await rejected(requestPrinter())).toMatchObject({ code: "unsupported" });
+        });
+
+        it("getPrinter without WebUSB is coded unsupported", async () => {
+            vi.stubGlobal("navigator", { usb: undefined });
+            expect(await rejected(printBytes(new Uint8Array([1])))).toMatchObject({ code: "unsupported" });
+        });
+
+        it("printBytes with no granted printer is coded not_connected", async () => {
+            vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue([]) } });
+            expect(await rejected(printBytes(new Uint8Array([1])))).toMatchObject({ code: "not_connected" });
+        });
+
+        it("a failed transfer is coded transfer and keeps the browser's error as cause", async () => {
+            const failure = dom("NetworkError");
+            const device = makeDevice({ transferOut: vi.fn().mockRejectedValue(failure) });
+            vi.stubGlobal("navigator", {
+                usb: { requestDevice: vi.fn().mockResolvedValue(device), getDevices: vi.fn().mockResolvedValue([]) },
+            });
+            await requestPrinter();
+
+            const error = await rejected(printBytes(new Uint8Array([1])));
+
+            expect(error).toMatchObject({ code: "transfer", message: "Gagal mengirim data ke printer. Periksa koneksi printer." });
+            expect(error.cause).toBe(failure);
+        });
+
+        it("a claimInterface failure is coded claim_failed, keeps its message and cause, and closes the device", async () => {
+            const failure = dom("NetworkError");
+            const device = makeDevice();
+            device.claimInterface.mockRejectedValue(failure);
+            vi.stubGlobal("navigator", { usb: { requestDevice: vi.fn().mockResolvedValue(device) } });
+
+            const error = await rejected(requestPrinter());
+
+            expect(error).toMatchObject({ code: "claim_failed", message: failure.message });
+            expect(error.cause).toBe(failure);
+            expect(device.close).toHaveBeenCalled();
+        });
+
+        it("an open failure on re-attach is coded claim_failed", async () => {
+            const failure = dom("SecurityError");
+            const device = makeDevice();
+            device.open.mockRejectedValue(failure);
+            vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue([device]) } });
+
+            const error = await rejected(getPrinter());
+
+            expect(error).toMatchObject({ code: "claim_failed" });
+            expect(error.cause).toBe(failure);
+        });
+
+        it("a device without an output interface is coded claim_failed", async () => {
+            const device = makeDevice();
+            device.configuration.interfaces = [];
+            vi.stubGlobal("navigator", { usb: { requestDevice: vi.fn().mockResolvedValue(device) } });
+
+            expect(await rejected(requestPrinter())).toMatchObject({ code: "claim_failed" });
+        });
+    });
 });
 
 describe("buildKitchenTicketBytes", () => {
@@ -404,6 +471,38 @@ describe("buildKitchenTicketBytes", () => {
             const original = bytesOf(ticket(), "80mm", labels);
             expect(bytesOf(ticket({ kind: "original" }), "80mm", cancelLabels)).toEqual(original);
             expect(textOf(ticket(), "80mm", cancelLabels)).not.toContain("DIBATALKAN");
+        });
+    });
+
+    describe("reprint layout", () => {
+        const reprintLabels = { ...labels, reprint: "CETAK ULANG" };
+
+        it("prints the reprint label, then the number, both in double size, before the type and time", () => {
+            // eslint-disable-next-line no-control-regex
+            expect(textOf(ticket({ reprint: true }), "80mm", reprintLabels)).toMatch(/^\x1b@\x1d!\x11CETAK ULANG\nMeja 5\n\x1d!\x00Makan di tempat/);
+        });
+
+        it("uses the label it is given, so the English device prints REPRINT", () => {
+            const text = textOf(ticket({ reprint: true }), "80mm", { ...reprintLabels, reprint: "REPRINT" });
+            expect(text).toContain("REPRINT");
+            expect(text).not.toContain("CETAK ULANG");
+        });
+
+        it("keeps the unpaid line and the items of the original", () => {
+            const lines = kitchenLines(ticket({ reprint: true, unpaid: true }), "80mm", { ...reprintLabels, unpaid: "BELUM LUNAS" });
+            expect(lines).toContain("BELUM LUNAS");
+            expect(lines.some((l) => l.includes("x "))).toBe(true);
+        });
+
+        it("splits a long label in double size like the cancelled label", () => {
+            const lines = kitchenLines(ticket({ reprint: true }), "58mm", { ...reprintLabels, reprint: "CETAK ULANG TIKET" });
+            expect(Math.max(...lines.slice(0, 3).map((l) => l.length))).toBeLessThanOrEqual(16);
+        });
+
+        it("leaves the bytes of a ticket without reprint untouched", () => {
+            const original = bytesOf(ticket(), "80mm", labels);
+            expect(bytesOf(ticket({ reprint: false }), "80mm", reprintLabels)).toEqual(original);
+            expect(textOf(ticket(), "80mm", reprintLabels)).not.toContain("CETAK ULANG");
         });
     });
 });
