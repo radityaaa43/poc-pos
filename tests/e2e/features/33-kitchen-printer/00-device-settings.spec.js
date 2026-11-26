@@ -16,14 +16,14 @@ const stored = (page, key) => page.evaluate((k) => localStorage.getItem(k), key)
 test.describe('33-kitchen-printer', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('name the station, connect the printer, test print per paper size, and keep the settings', { tag: ['@REQ-004-AC-07'] }, async ({ asRole, arrange, uniq }) => {
+    test('name the device, connect the printer, test print per paper size, and keep the settings', { tag: ['@REQ-004-AC-07'] }, async ({ asRole, arrange, uniq }) => {
         arrange('open-shift', { cash: 100000 }); // the display needs an outlet: the one of the cashier's open shift
         const name = uniq('Dapur');
         const page = await asRole(cashier);
         await fakePrinter(page);
         const panel = await openPanel(page);
 
-        // Nothing but the name form works until the station has a name.
+        // Nothing but the name form works until the device has a name.
         await expect(panel.getByRole('button', { name: 'Hubungkan printer' })).toBeDisabled();
         await expect(panel.getByRole('switch', { name: 'Cetak otomatis' })).toBeDisabled();
         await panel.getByLabel('Nama perangkat cetak').fill(name);

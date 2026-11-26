@@ -61,10 +61,11 @@ keputusan berbasis data.
 
 Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, menu Reports, permission `reports-access`).
 
-- Filters: outlet (only the outlets the user may see) and a date range; the default is the current month in the app timezone.
+- Filters: outlet (only the outlets the user may see), **Stasiun** and a date range; the default is the current month in the app timezone and *Semua stasiun*.
+- **Stasiun**: a menu item gets one row per kitchen station, shown in the *Stasiun* column after the menu, because an item keeps the station it had at intake (a menu moved to another station mid-period shows two rows). With a station chosen (`station_id`) the per-menu figures count only that station's items; an item without a station counts as the default station (Dapur). Deleted stations keep their name on past items, are listed after the active stations as `<name> (dihapus)`, and can still be chosen; a renamed station shows its current name.
 - The period counts a kitchen item on the day it was accepted (paid), in the app timezone. Only `ready` and `served` items count; cancelled, *tidak diambil* and release-carried items are left out.
 - Per menu item: *Jumlah pesanan* (kitchen item rows), *Jumlah porsi* (summed quantity), median and average of *waktu buat* (preparing to ready) and of *waktu tunggu + buat* (accepted to ready), the product's `prep_target_minutes` and the share of items made within it (current target, so changing a target changes old numbers). An item without a step time counts only where both ends exist.
-- One card with the average time from payment to the last item served, over orders whose live items are all served.
+- One card with the average time from payment to the last item served, over orders whose live items are all served. It is order level, so the station filter does not narrow it; with a station chosen the card carries the caption *Semua pesanan dari semua stasiun*.
 - Medians are computed in PHP (`KitchenSpeedReportService`); minutes show with one decimal ("4,5 mnt"). An empty period says so instead of showing zeros.
 
 ## Efek Bisnis Penting

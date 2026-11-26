@@ -27,7 +27,7 @@ test.describe('kitchen speed report: period', () => {
         // The day itself, inside a wider range: 3 finished orders; the cancelled one and the not collected one stay out.
         await show(at(-1), at(1));
         const cells = page.getByRole('row').filter({ hasText: item.title }).getByRole('cell');
-        await expect(cells.nth(0)).toHaveText('3');
-        await expect(cells.nth(1)).toHaveText('5');
+        await expect(cells.nth(1)).toHaveText('3');
+        await expect(cells.nth(2)).toHaveText('5');
     });
 });

@@ -14,10 +14,11 @@ const tdClass = "px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-400
 
 const columns = ["orders", "portions", "makeMedian", "makeAvg", "waitMakeMedian", "waitMakeAvg", "target", "withinTarget"];
 
-const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors = {} }) => {
+const KitchenSpeed = ({ filters, outlets = [], stations = [], rows = [], orders, empty, errors = {} }) => {
     const { t, i18n } = useTranslation();
     const [filterData, setFilterData] = useState({
         outlet_id: String(filters?.outlet_id ?? ""),
+        station_id: String(filters?.station_id ?? ""),
         start_date: filters?.start_date ?? "",
         end_date: filters?.end_date ?? "",
     });
@@ -66,6 +67,22 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors 
                                 ))}
                             </Select>
                         )}
+                        <Select
+                            id="station_id"
+                            label={t("reports.kitchenSpeed.station")}
+                            value={filterData.station_id}
+                            onChange={handleChange("station_id")}
+                            error={errors.station_id}
+                        >
+                            <option value="">{t("reports.kitchenSpeed.allStations")}</option>
+                            {stations.map((station) => (
+                                <option key={station.id} value={station.id}>
+                                    {station.deleted
+                                        ? `${station.name} ${t("reports.kitchenSpeed.stationDeleted")}`
+                                        : station.name}
+                                </option>
+                            ))}
+                        </Select>
                         <Input
                             type="date"
                             label={t("reports.kitchenSpeed.startDate")}
@@ -110,6 +127,9 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors 
                                             <th scope="col" className={`${thClass} text-left`}>
                                                 {t("reports.kitchenSpeed.item")}
                                             </th>
+                                            <th scope="col" className={`${thClass} text-left`}>
+                                                {t("reports.kitchenSpeed.station")}
+                                            </th>
                                             {columns.map((column) => (
                                                 <th key={column} scope="col" className={`${thClass} text-right`}>
                                                     {t(`reports.kitchenSpeed.${column}`)}
@@ -120,7 +140,7 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors 
                                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                                         {rows.map((row) => (
                                             <tr
-                                                key={row.product_id}
+                                                key={`${row.product_id}-${row.station_id}`}
                                                 className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
                                             >
                                                 <th
@@ -129,6 +149,17 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors 
                                                 >
                                                     {row.title}
                                                 </th>
+                                                <td className="px-4 py-4 text-left text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                    {row.station}
+                                                    {row.station_deleted && (
+                                                        <>
+                                                            {" "}
+                                                            <span className="text-slate-400 dark:text-slate-500">
+                                                                {t("reports.kitchenSpeed.stationDeleted")}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </td>
                                                 <td className={tdClass}>{row.count_rows}</td>
                                                 <td className={tdClass}>{row.count_portions}</td>
                                                 <td className={tdClass}>{minutes(row.make_median)}</td>
@@ -158,6 +189,11 @@ const KitchenSpeed = ({ filters, outlets = [], rows = [], orders, empty, errors 
                             <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                                 {minutes(orders?.avg_minutes)}
                             </p>
+                            {filters?.station_id != null && (
+                                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                                    {t("reports.kitchenSpeed.handoverAllStations")}
+                                </p>
+                            )}
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                                 {t("reports.kitchenSpeed.orders")}:{" "}
                                 <span>{orders?.orders ?? 0}</span>
