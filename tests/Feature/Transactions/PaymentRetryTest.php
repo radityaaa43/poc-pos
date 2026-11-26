@@ -19,13 +19,16 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
+use App\Services\TransactionPaymentRetryService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use RuntimeException;
 use Tests\TestCase;
@@ -360,6 +363,47 @@ class PaymentRetryTest extends TestCase
         $this->assertNull($sale->payment_reference);
         $this->assertNotNull($sale->late_superseded_payment_at);
         $this->assertSame('xendit', AuditLog::where('event', 'payment.late_superseded')->firstOrFail()->meta['gateway']);
+    }
+
+    public function test_retry_locks_the_shift_before_the_sale_and_reads_the_sale_after_both_locks(): void
+    {
+        $sale = $this->makeSale('qris');
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        app(TransactionPaymentRetryService::class)->retry($sale, $this->cashier, ['payment_method' => 'cash', 'cash_amount' => 20000]);
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        // The webhook and the cashier's payment lock shift, then bill; a retry in the opposite order could deadlock with them.
+        // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
+        $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $shift = $first('/from [`"]cashier_shifts[`"]/');
+        $locked = $first('/from [`"]transactions[`"] where [`"]transactions[`"]\.[`"]id[`"] = \?/');
+
+        $this->assertIsInt($shift);
+        $this->assertIsInt($locked);
+        $this->assertLessThan($locked, $shift, 'Lock order must be shift, then sale.');
+        // SQLite renders no lock clause: only the MySQL job can show them.
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', strtolower($queries[$shift]));
+            $this->assertStringContainsString('for update', strtolower($queries[$locked]));
+        }
+    }
+
+    public function test_retry_judges_the_sale_by_what_it_is_after_the_locks_not_by_the_caller_copy(): void
+    {
+        $stale = $this->makeSale('qris'); // the caller's copy says failed
+        DB::table('transactions')->where('id', $stale->id)->update(['payment_status' => 'paid']); // paid meanwhile
+
+        try {
+            app(TransactionPaymentRetryService::class)->retry($stale, $this->cashier, ['payment_method' => 'cash', 'cash_amount' => 20000]);
+            $this->fail('A paid sale must not be retried.');
+        } catch (ValidationException $exception) {
+            $this->assertSame('Pembayaran ini tidak bisa diulang', $exception->errors()['payment'][0]);
+        }
+
+        $this->assertSame(0, $stale->fresh()->payment_attempt);
     }
 
     public function test_auto_expired_restocked_sale_cannot_be_retried(): void

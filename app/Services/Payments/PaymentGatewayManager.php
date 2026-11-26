@@ -51,6 +51,12 @@ class PaymentGatewayManager
             ? $transaction->invoice.'-'.$tender->method
             : $transaction->invoice;
 
+        // A bill with a payment history (a guest attempt, a retry) is charged under its current attempt: without the
+        // suffix the callback reads as attempt 0 and is treated as superseded, so the cashier's own payment would never be booked.
+        if ($transaction->payment_attempt > 0) {
+            $orderId .= '-r'.$transaction->payment_attempt;
+        }
+
         $response = $tender->method === TransactionTender::METHOD_QRIS
             ? $this->createQrisPayment($transaction, $setting, $tender->amount, $orderId)
             : $this->createPayment($transaction, $tender->method, $setting, $tender->amount, $orderId);
