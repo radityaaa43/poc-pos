@@ -74,6 +74,18 @@ class CashierShiftService
         ]);
     }
 
+    /**
+     * Does a recap taken while a bill is unpaid already hold it? An unpaid bill (Belum Lunas) and an unpaid gateway sale are left out
+     * (calculateSummary), so once such a bill is paid after its shift closed, the closed recap lacks it and the payment is
+     * flagged "paid after close". A credit, split, transfer or cash sale was counted by its method.
+     * Pass the bill's payment_method as it was before the payment.
+     */
+    public static function countedInClosedRecap(?string $paymentMethod): bool
+    {
+        return $paymentMethod !== Transaction::METHOD_OPEN_BILL
+            && ! in_array($paymentMethod, TransactionTenderService::GATEWAY_METHODS, true);
+    }
+
     public function calculateSummary(CashierShift $shift): array
     {
         $transactions = Transaction::query()
@@ -101,8 +113,12 @@ class CashierShiftService
 
         $cashSalesTotal += $splitCashTenderTotal;
 
+        // Only money received counts: an unpaid bill (Belum Lunas) has taken none yet, and a gateway sale counts once it is paid (see countedInClosedRecap).
         $nonCashSalesTotal = (int) (clone $transactions)
-            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL]) // an open bill has taken no money yet
+            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
+            ->where(fn ($sales) => $sales
+                ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
+                ->orWhere('payment_status', 'paid'))
             ->sum('grand_total');
 
         // Split payments: non-cash portion = grand_total minus cash tenders.

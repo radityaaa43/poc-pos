@@ -307,14 +307,20 @@ class DineOrderOnlinePaymentTest extends TestCase
         $this->pay($order)->assertOk()->assertJsonPath('payment.attempt', 2);
         $this->assertSame("{$bill->invoice}-r2", $bill->fresh()->payment_reference);
 
-        // The first charge is dead: its late paid callback is only marked, never booked.
+        // The first charge is no longer the current one, but the guest paid it first and nothing else holds the bill:
+        // the first payment wins and is booked (#327).
         $this->midtransWebhook("{$bill->invoice}-r1", 'settlement')->assertOk();
         $bill->refresh();
-        $this->assertSame('pending', $bill->payment_status);
-        $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame(2, $bill->payment_attempt);
+        $this->assertNull($bill->late_superseded_payment_at);
 
+        // The second QR is paid as well: that is a second payment, flagged for a manual refund and never booked.
         $this->midtransWebhook("{$bill->invoice}-r2", 'settlement')->assertOk();
-        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame("mt-{$bill->invoice}-r1", $bill->payment_reference);
+        $this->assertNotNull($bill->late_superseded_payment_at);
     }
 
     public function test_paid_webhook_settles_once_and_the_bill_leaves_open_bills(): void
@@ -375,10 +381,10 @@ class DineOrderOnlinePaymentTest extends TestCase
         Http::assertSent(fn (Request $request) => ($request['transaction_details']['order_id'] ?? null) === "{$bill->invoice}-r3"
             && $request['transaction_details']['gross_amount'] === self::TOTAL);
 
-        // A late paid callback of the first attempt is marked, not booked.
+        // A late paid callback of the first attempt (the bill is not paid and has no tenders): the first payment wins and is booked (#327).
         $this->midtransWebhook("{$bill->invoice}-r1", 'settlement')->assertOk();
-        $this->assertSame('pending', $bill->fresh()->payment_status);
-        $this->assertNotNull($bill->fresh()->late_superseded_payment_at);
+        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $this->assertNull($bill->fresh()->late_superseded_payment_at);
     }
 
     // ---- refusals -----------------------------------------------------------------------------------

@@ -419,6 +419,76 @@ class CashierShiftTest extends TestCase
                 ->where('warehouses.0.code', 'WH-MAL'));
     }
 
+    public function test_unpaid_gateway_sales_are_not_in_the_non_cash_recap_until_they_are_paid(): void
+    {
+        $cashier = $this->createUserWithPermissions(['cashier-shifts-access']);
+        $shift = $this->openShiftFor($cashier);
+
+        $this->sale($shift, 'cash', 'paid', 60000);
+        $this->sale($shift, 'qris', 'paid', 10000);
+        $this->sale($shift, 'qris', 'pending', 20000);
+        $this->sale($shift, 'midtrans', 'failed', 30000);
+        $this->sale($shift, 'xendit', 'pending', 5000);
+        // Not gateway sales: counted by their method as before.
+        $this->sale($shift, 'bank_transfer', 'pending', 50000);
+        $this->sale($shift, 'pay_later', 'unpaid', 40000);
+        $this->sale($shift, Transaction::METHOD_OPEN_BILL, 'unpaid', 7000); // no money yet
+
+        $summary = app(CashierShiftService::class)->calculateSummary($shift);
+
+        $this->assertSame(60000, $summary['cash_sales_total']);
+        $this->assertSame(100000, $summary['non_cash_sales_total']); // paid QRIS + transfer + credit
+
+        Transaction::where('payment_method', 'qris')->where('payment_status', 'pending')->update(['payment_status' => 'paid']);
+
+        $this->assertSame(120000, app(CashierShiftService::class)->calculateSummary($shift)['non_cash_sales_total']);
+    }
+
+    public function test_a_closed_shifts_recap_is_the_stored_snapshot_after_a_later_payment(): void
+    {
+        $cashier = $this->createUserWithPermissions(['cashier-shifts-access']);
+        $shift = $this->openShiftFor($cashier);
+        $sale = $this->sale($shift, 'qris', 'pending', 50000);
+
+        app(CashierShiftService::class)->closeShift($shift, $cashier, 100000);
+        $this->assertSame(0, (int) $shift->fresh()->non_cash_sales_total);
+
+        $sale->update(['payment_status' => 'paid']); // paid after the shift closed
+
+        $this->assertSame(0, (int) $shift->fresh()->non_cash_sales_total);
+        $this->actingAs($cashier)
+            ->get(route('cashier-shifts.show', $shift))
+            ->assertInertia(fn (Assert $page) => $page->where('cashierShift.non_cash_sales_total', 0));
+    }
+
+    private function openShiftFor(User $cashier): CashierShift
+    {
+        return CashierShift::create([
+            'user_id' => $cashier->id,
+            'opened_by' => $cashier->id,
+            'opened_at' => now(),
+            'opening_cash' => 100000,
+            'expected_cash' => 100000,
+            'status' => CashierShift::STATUS_OPEN,
+        ]);
+    }
+
+    private function sale(CashierShift $shift, string $method, string $status, int $total): Transaction
+    {
+        return Transaction::create([
+            'cashier_id' => $shift->user_id,
+            'cashier_shift_id' => $shift->id,
+            'invoice' => 'TRX-'.Str::upper(Str::random(8)),
+            'cash' => $method === 'cash' ? $total : 0,
+            'change' => 0,
+            'discount' => 0,
+            'shipping_cost' => 0,
+            'grand_total' => $total,
+            'payment_method' => $method,
+            'payment_status' => $status,
+        ]);
+    }
+
     private function createUserWithPermissions(array $permissions): User
     {
         $user = User::factory()->create();

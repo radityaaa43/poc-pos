@@ -150,6 +150,19 @@ class SettleGuestBillTest extends TestCase
         $this->assertSame($stock, $this->product->fresh()->stock, 'stock was taken when the bill was made');
     }
 
+    public function test_settling_a_bill_with_a_payment_history_moves_its_attempt_counter(): void
+    {
+        $bill = $this->guestBill();
+        $bill->update(['payment_status' => 'failed', 'payment_attempt' => 1, 'payment_failure_reason' => 'expired']);
+
+        $this->settle($bill, $this->cash())->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame(2, $bill->payment_attempt); // a late payment of the old charge is now superseded, never booked twice
+        $this->assertNull($bill->payment_failure_reason);
+    }
+
     public function test_settle_with_qris_charges_the_bill_and_leaves_it_pending(): void
     {
         $this->enableMidtrans();

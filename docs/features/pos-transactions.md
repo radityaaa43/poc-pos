@@ -73,9 +73,12 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 - Requires `transactions-access` and an open cashier shift in the sale's outlet (route `transactions.retry-payment`,
   `TransactionPaymentRetryService`). The sale then counts in the shift where the retry happens.
 - Each retry is a new *payment attempt* (`transactions.payment_attempt`). The gateway order id is `{invoice}-r{n}`,
-  so the webhook can tell attempts apart. A callback for any attempt but the current one never changes the sale:
-  a late *paid* one sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded` and shows
-  "Bayar ganda — refund manual" in the transactions history (filter "Perlu refund"); the refund itself is manual.
+  so the webhook can tell attempts apart. A callback for any attempt but the current one never overwrites the sale. A late *paid* one
+  is booked as the payment only when the sale is not paid, no pending or paid tender holds it and the amount is what is still owed (audit
+  `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
+  (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
+  (filter "Perlu refund"); the refund itself is manual. A sale that was restocked is never booked late. A sale of attempt 0 that
+  is `failed` stays final (portal sales); only a dine bill whose own gateway charge failed can still be booked late.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
