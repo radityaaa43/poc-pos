@@ -3,6 +3,7 @@
 namespace App\Testing\E2e\Scenarios;
 
 use App\Http\Controllers\TourController;
+use App\Models\AuditLog;
 use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineArea;
@@ -85,8 +86,9 @@ class DineIn
             // A guest bill to pay online, in its own outlet (so its payment settings never touch other groups' steps):
             // a warehouse, a table, a cashier with an open shift there, one product (10000, stock 20) and a submitted
             // order of --arg=qty (default 2). --arg=accepted=1 (default) accepts it through the real service, 0 leaves it submitted.
-            // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen.
-            // Returns access_token, invoice (null until accepted), grand_total and the keys that sign the gateway's webhooks.
+            // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen;
+            // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only).
+            // Returns access_token, invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
             'dine.bill' => function (array $options): array {
                 $suffix = Str::upper(Str::random(5));
                 $gateway = $options['gateway'] ?? 'midtrans';
@@ -118,7 +120,15 @@ class DineIn
                         'email' => 'bill-'.Str::lower($suffix).'@e2e.test',
                         'password' => Hash::make(E2eSeeder::PASSWORD),
                     ]);
-                    app(CashierShiftService::class)->openShift($cashier, $cashier, 100000, null, $warehouse->id);
+                    $shift = app(CashierShiftService::class)->openShift($cashier, $cashier, 100000, null, $warehouse->id);
+
+                    // A cashier who can sign in: the POS list, her shift, the history and the sales report of this outlet only.
+                    if (($options['staff'] ?? '0') === '1') {
+                        $cashier->markEmailAsVerified();
+                        $cashier->update(['completed_tours' => TourController::TOURS]); // else a tour overlay blocks clicks
+                        $cashier->syncPermissions(['dashboard-access', 'transactions-access', 'dine-orders-process', 'cashier-shifts-access', 'cashier-shifts-close', 'reports-access']);
+                        $cashier->outlets()->sync([$outlet->id => ['is_default' => true]]);
+                    }
 
                     $product = Product::create([
                         'category_id' => Category::where('name', 'E2E Kategori')->firstOrFail()->id,
@@ -150,23 +160,28 @@ class DineIn
                         'access_token' => $order->access_token,
                         'invoice' => Transaction::find($order->fresh()->transaction_id)?->invoice,
                         'grand_total' => 10000 * $qty,
+                        'shift_id' => $shift->id,
+                        'cashier_email' => $cashier->email, // password 'password'; can sign in only with --arg=staff=1
                         'midtrans_server_key' => PublicFlows::MIDTRANS_SERVER_KEY,
                         'xendit_callback_token' => E2eSeeder::XENDIT_CALLBACK_TOKEN,
                     ];
                 });
             },
 
-            // What staff do to the order of --arg=access_token=<uuid>: --arg=action=reject (a submitted order) or
-            // cash-paid (the cashier settles the accepted bill in cash, as the POS list does).
+            // What staff do to the order of --arg=access_token=<uuid>: --arg=action=reject (a submitted order),
+            // cash-paid (the cashier settles the accepted bill in cash, as the POS list does) or qris-pending
+            // (the cashier starts her own QRIS charge: the bill is pending with a tender row, and takes over a guest charge).
             'dine.bill-act' => function (array $options): array {
                 $order = DineOrder::where('access_token', $options['access_token'])->firstOrFail();
                 $service = app(DineOrderService::class);
 
-                if ($options['action'] === 'reject') {
-                    $service->reject($order);
-                } else {
-                    $service->pay($order, User::findOrFail($order->cashier_id), [['method' => 'cash', 'amount' => (int) $order->subtotal]]);
-                }
+                // Each action by name: a typo must fail, not become a cash payment.
+                match ($options['action'] ?? null) {
+                    'reject' => $service->reject($order),
+                    'cash-paid' => $service->pay($order, User::findOrFail($order->cashier_id), [['method' => 'cash', 'amount' => (int) $order->subtotal]]),
+                    'qris-pending' => $service->pay($order, User::findOrFail($order->cashier_id), [['method' => 'qris', 'amount' => (int) $order->subtotal]]),
+                    default => throw new \InvalidArgumentException('dine.bill-act: unknown action '.($options['action'] ?? '(none)').' (reject, cash-paid, qris-pending).'),
+                };
 
                 return ['status' => $order->fresh()->status];
             },
@@ -198,6 +213,14 @@ class DineIn
                     'payment_attempt' => $transaction?->payment_attempt,
                     'payment_failure_reason' => $transaction?->payment_failure_reason,
                     'payment_reference' => $transaction?->payment_reference,
+                    'late_superseded_payment_at' => $transaction?->late_superseded_payment_at?->toIso8601String(),
+                    'paid_after_close_at' => $transaction?->paid_after_close_at?->toIso8601String(),
+                    'shift_id' => $transaction?->cashier_shift_id,
+                    // How many audit entries of each event the bill has (a step checks "once", not "some").
+                    'audit' => $transaction
+                        ? AuditLog::where('auditable_type', $transaction->getMorphClass())->where('auditable_id', $transaction->id)
+                            ->selectRaw('event, COUNT(*) as total')->groupBy('event')->pluck('total', 'event')->map(fn ($total) => (int) $total)->all()
+                        : [],
                     'in_open_bills' => $transaction ? Transaction::openBills()->whereKey($transaction->id)->exists() : false,
                     'orders_on_table' => DineOrder::where('dine_table_id', $order->dine_table_id)->count(),
                     'invoice' => $transaction?->invoice,

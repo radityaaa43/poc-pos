@@ -517,6 +517,10 @@
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
             "notice": "The old payment was received after the sale was paid again — manual refund needed"
+        },
+        "paidAfterClose": {
+            "badge": "Paid after shift closed",
+            "filter": "Paid after shift closed"
         }
     },
     "receivables": {
@@ -1140,7 +1144,10 @@
             "title": "Unpaid",
             "pay": "Pay",
             "ageMinutes": "{{count}} min",
-            "ageHours": "{{count}} h"
+            "ageHours": "{{count}} h",
+            "awaitingOnline": "Waiting for online payment",
+            "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
+            "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
         }
     },
     "outlets": {

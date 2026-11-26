@@ -517,6 +517,10 @@
             "badge": "Bayar ganda — refund manual",
             "filter": "Perlu refund",
             "notice": "Pembayaran lama diterima setelah dibayar ulang — perlu refund manual"
+        },
+        "paidAfterClose": {
+            "badge": "Dibayar setelah shift ditutup",
+            "filter": "Dibayar setelah shift ditutup"
         }
     },
     "receivables": {
@@ -1140,7 +1144,10 @@
             "title": "Belum Lunas",
             "pay": "Bayar",
             "ageMinutes": "{{count}} mnt",
-            "ageHours": "{{count}} j"
+            "ageHours": "{{count}} j",
+            "awaitingOnline": "Menunggu pembayaran online",
+            "takeoverNotice": "Tamu sedang membayar online. Tanyakan dulu apakah tamu sudah membayar. Kalau Anda menerima pembayaran sekarang, pembayaran online tamu tidak berlaku dan uangnya harus dikembalikan manual.",
+            "billGone": "Tagihan ini sudah tidak ada di daftar Belum Lunas (sudah dibayar atau dibatalkan). Tutup jendela ini dan periksa Riwayat Transaksi."
         }
     },
     "outlets": {

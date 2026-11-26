@@ -5,6 +5,7 @@ import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import OpenBillPayModal from "@/Components/POS/OpenBillPayModal";
 import LateRefundBadge from "./LateRefundBadge";
+import PaidAfterCloseBadge from "./PaidAfterCloseBadge";
 import { useTranslation } from "react-i18next";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
@@ -29,6 +30,7 @@ const defaultFilters = {
     end_date: "",
     warehouse_id: "",
     late_payment: "",
+    paid_after_close: "",
 };
 
 const formatCurrency = (value = 0) =>
@@ -150,6 +152,15 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
             { preserveScroll: true, preserveState: true }
         );
 
+    // Gateway sales paid after their shift closed; same boolean-or-"1" handling as the chip above.
+    const afterCloseOnly = [true, "1", 1].includes(filterData.paid_after_close);
+    const togglePaidAfterClose = () =>
+        router.get(
+            route("transactions.history"),
+            { ...filterData, paid_after_close: afterCloseOnly ? "" : "1" },
+            { preserveScroll: true, preserveState: true }
+        );
+
     const rows = transactions?.data ?? [];
     const links = transactions?.links ?? [];
     const currentPage = transactions?.current_page ?? 1;
@@ -158,7 +169,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         : rows.length || 1;
 
     const hasActiveFilters =
-        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id || lateOnly;
+        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id || lateOnly || afterCloseOnly;
 
     return (
         <>
@@ -191,6 +202,18 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                             }`}
                         >
                             {t("transactions.lateRefund.filter")}
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={afterCloseOnly}
+                            onClick={togglePaidAfterClose}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                                afterCloseOnly
+                                    ? "bg-warning-50 border-warning-200 text-warning-700 dark:bg-warning-950/50 dark:border-warning-800 dark:text-warning-400"
+                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {t("transactions.paidAfterClose.filter")}
                         </button>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
@@ -426,6 +449,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                     </span>
                                                 )}
                                                 <LateRefundBadge transaction={transaction} />
+                                                <PaidAfterCloseBadge transaction={transaction} />
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center justify-center gap-2">
@@ -558,6 +582,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                     </span>
                                                 )}
                                                 <LateRefundBadge transaction={transaction} />
+                                                <PaidAfterCloseBadge transaction={transaction} />
                                             </div>
                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">
                                                 {formatCurrency(

@@ -22,7 +22,7 @@ const inputClass =
  * Gateway methods (QRIS, Midtrans, Xendit) leave the bill pending and open the receipt with the QR.
  * Used by the POS "Belum Lunas" section and by Transactions History.
  */
-export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGateways = [], onClose }) {
+export default function OpenBillPayModal({ bill, gone = false, bankAccounts = [], paymentGateways = [], onClose }) {
     const { t } = useTranslation();
     const online = useOnlineStatus();
     const [method, setMethod] = useState("cash");
@@ -69,6 +69,20 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
     return (
         <Modal show onClose={onClose} title={`${t("pos.unpaidBills.pay")} ${bill.label ?? bill.table ?? "Meja"} · ${bill.invoice}`} maxWidth="md">
             <form onSubmit={handleSubmit} className="space-y-4">
+                {gone && (
+                    // The list no longer has this bill (paid or cancelled meanwhile). The server would refuse the payment anyway.
+                    <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 px-4 py-3 text-sm font-medium text-danger-800 dark:border-danger-800/50 dark:bg-danger-950/30 dark:text-danger-200">
+                        {t("pos.unpaidBills.billGone")}
+                    </p>
+                )}
+
+                {bill.awaiting_online && !gone && (
+                    // The guest's online charge is still open: taking payment here supersedes it (takeover), so say so before submit.
+                    <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+                        {t("pos.unpaidBills.takeoverNotice")}
+                    </p>
+                )}
+
                 <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 dark:bg-slate-800">
                     <span className="text-sm text-slate-500 dark:text-slate-400">Total tagihan</span>
                     <span className="text-lg font-bold text-slate-900 dark:text-white">{formatPrice(total)}</span>
@@ -135,7 +149,7 @@ export default function OpenBillPayModal({ bill, bankAccounts = [], paymentGatew
                     </button>
                     <button
                         type="submit"
-                        disabled={isSubmitting || !online}
+                        disabled={isSubmitting || !online || gone}
                         className="h-11 rounded-xl bg-primary-500 px-5 text-sm font-semibold text-white hover:bg-primary-600 disabled:opacity-50"
                     >
                         {t("pos.unpaidBills.pay")}

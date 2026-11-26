@@ -77,7 +77,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   is booked as the payment only when the sale is not paid, no pending or paid tender holds it and the amount is what is still owed (audit
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
-  (filter "Perlu refund"); the refund itself is manual. A sale that was restocked is never booked late. A sale of attempt 0 that
+  (filter "Perlu refund"); the refund itself is manual. History also marks a gateway sale that was paid after its shift closed
+  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A sale of attempt 0 that
   is `failed` stays final (portal sales); only a dine bill whose own gateway charge failed can still be booked late.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.

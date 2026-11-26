@@ -251,7 +251,16 @@ class Transaction extends Model
      */
     public function isAwaitingGuestPayment(): bool
     {
-        return $this->payment_status === 'pending' && $this->payment_attempt > 0 && ! $this->tenders()->exists();
+        if ($this->payment_status !== 'pending' || $this->payment_attempt < 1) {
+            return false;
+        }
+
+        // The POS list selects a tenders_exists column (1 or null), so a list of bills costs no query per row.
+        $hasTenders = array_key_exists('tenders_exists', $this->attributes)
+            ? (bool) $this->attributes['tenders_exists']
+            : $this->tenders()->exists();
+
+        return ! $hasTenders;
     }
 
     public function usedCustomerVoucher()
