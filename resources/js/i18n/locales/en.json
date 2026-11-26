@@ -886,7 +886,11 @@
             "withinTarget": "Within target",
             "handover": "Payment to handover",
             "minutes": "{{value}} min",
-            "empty": "No kitchen data for this period"
+            "empty": "No kitchen data for this period",
+            "station": "Station",
+            "allStations": "All stations",
+            "stationDeleted": "(deleted)",
+            "handoverAllStations": "All orders from all stations"
         }
     },
     "auditLogs": {

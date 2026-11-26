@@ -21,15 +21,17 @@ test.describe('kitchen speed report: per menu', () => {
         // The layout header and the page both carry the title.
         await expect(page.getByRole('heading', { name: 'Laporan Kecepatan Dapur' }).first()).toBeVisible();
         const cells = page.getByRole('row').filter({ hasText: item.title }).getByRole('cell');
+        // Stasiun is the first cell (the menu is the row header): an item without a station reads as Dapur.
+        await expect(cells.nth(0)).toHaveText('Dapur');
         // Jumlah pesanan counts rows, Jumlah porsi the summed quantity (a line of 3 is one order, three portions).
-        await expect(cells.nth(0)).toHaveText('3');
-        await expect(cells.nth(1)).toHaveText('5');
-        await expect(cells.nth(2)).toHaveText('4,0 mnt'); // Median buat
-        await expect(cells.nth(3)).toHaveText('4,7 mnt'); // Rata-rata buat
-        await expect(cells.nth(4)).toHaveText('5,0 mnt'); // Median tunggu + buat
-        await expect(cells.nth(5)).toHaveText('6,0 mnt'); // Rata-rata tunggu + buat
-        await expect(cells.nth(6)).toHaveText('5,0 mnt'); // Target
-        await expect(cells.nth(7)).toHaveText('66,7%'); // Dalam target
+        await expect(cells.nth(1)).toHaveText('3');
+        await expect(cells.nth(2)).toHaveText('5');
+        await expect(cells.nth(3)).toHaveText('4,0 mnt'); // Median buat
+        await expect(cells.nth(4)).toHaveText('4,7 mnt'); // Rata-rata buat
+        await expect(cells.nth(5)).toHaveText('5,0 mnt'); // Median tunggu + buat
+        await expect(cells.nth(6)).toHaveText('6,0 mnt'); // Rata-rata tunggu + buat
+        await expect(cells.nth(7)).toHaveText('5,0 mnt'); // Target
+        await expect(cells.nth(8)).toHaveText('66,7%'); // Dalam target
     });
 
     test('a period without kitchen data says so instead of showing zeros', { tag: ['@REQ-003-AC-15'] }, async ({ asRole }) => {

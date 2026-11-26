@@ -11,7 +11,12 @@ vi.mock("@inertiajs/react", async (importActual) => ({
 }));
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
 
-const filters = { outlet_id: 1, start_date: "2026-11-01", end_date: "2026-11-30" };
+const filters = { outlet_id: 1, station_id: null, start_date: "2026-11-01", end_date: "2026-11-30" };
+const stations = [
+    { id: 1, name: "Dapur", deleted: false },
+    { id: 2, name: "Bar", deleted: false },
+    { id: 3, name: "Bar", deleted: true },
+];
 const outlets = [
     { id: 1, name: "Outlet Pusat" },
     { id: 2, name: "Outlet Cabang" },
@@ -19,6 +24,9 @@ const outlets = [
 const row = (over = {}) => ({
     product_id: 1,
     title: "Kopi Susu",
+    station_id: 2,
+    station: "Bar",
+    station_deleted: false,
     count_rows: 4,
     count_portions: 9,
     make_median: 4.5,
@@ -32,6 +40,7 @@ const row = (over = {}) => ({
 const props = (over = {}) => ({
     filters,
     outlets,
+    stations,
     rows: [row()],
     orders: { orders: 3, avg_minutes: 12.3 },
     empty: false,
@@ -52,6 +61,7 @@ describe("Kitchen speed report page", () => {
         const headers = screen.getAllByRole("columnheader");
         expect(headers.map((h) => h.textContent)).toEqual([
             "Menu",
+            "Stasiun",
             "Jumlah pesanan",
             "Jumlah porsi",
             "Median buat",
@@ -65,6 +75,7 @@ describe("Kitchen speed report page", () => {
 
         const cells = within(screen.getByRole("row", { name: /Kopi Susu/ })).getAllByRole("cell");
         expect(cells.map((c) => c.textContent)).toEqual([
+            "Bar",
             "4",
             "9",
             "4,5 mnt",
@@ -148,5 +159,108 @@ describe("Kitchen speed report page", () => {
             { outlet_id: "2", start_date: "2026-11-10", end_date: "2026-11-30" },
             expect.any(Object),
         );
+    });
+
+    it("lists Semua stasiun first and the deleted stations last, labelled", () => {
+        render(<KitchenSpeed {...props()} />);
+
+        const select = screen.getByLabelText("Stasiun");
+        expect(select).toHaveValue("");
+        expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+            "Semua stasiun",
+            "Dapur",
+            "Bar",
+            "Bar (dihapus)",
+        ]);
+    });
+
+    it("preselects the station from the filters", () => {
+        render(<KitchenSpeed {...props({ filters: { ...filters, station_id: 3 } })} />);
+
+        expect(screen.getByLabelText("Stasiun")).toHaveValue("3");
+    });
+
+    it("sends the chosen station in the query and leaves it out for Semua stasiun", async () => {
+        render(<KitchenSpeed {...props()} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Terapkan" }));
+        expect(router.get.mock.calls[0][1]).not.toHaveProperty("station_id");
+
+        await userEvent.selectOptions(screen.getByLabelText("Stasiun"), "3");
+        await userEvent.click(screen.getByRole("button", { name: "Terapkan" }));
+        expect(router.get).toHaveBeenLastCalledWith(
+            "/reports.kitchen-speed.index",
+            { outlet_id: "1", station_id: "3", start_date: "2026-11-01", end_date: "2026-11-30" },
+            expect.any(Object),
+        );
+
+        await userEvent.selectOptions(screen.getByLabelText("Stasiun"), "");
+        await userEvent.click(screen.getByRole("button", { name: "Terapkan" }));
+        expect(router.get.mock.calls[2][1]).not.toHaveProperty("station_id");
+    });
+
+    it("marks a deleted station in its cell with text, not colour only", () => {
+        render(
+            <KitchenSpeed
+                {...props({
+                    rows: [
+                        row({ station_id: 2 }),
+                        row({ title: "Roti", station_id: 3, station_deleted: true }),
+                    ],
+                })}
+            />,
+        );
+
+        const live = within(screen.getByRole("row", { name: /Kopi Susu/ })).getAllByRole("cell")[0];
+        expect(live).toHaveTextContent(/^Bar$/);
+        const deleted = within(screen.getByRole("row", { name: /Roti/ })).getAllByRole("cell")[0];
+        expect(deleted).toHaveTextContent("Bar (dihapus)");
+    });
+
+    it("keeps one row per menu and station", () => {
+        const error = vi.spyOn(console, "error").mockImplementation(() => {});
+        render(
+            <KitchenSpeed
+                {...props({ rows: [row(), row({ station_id: 3, station: "Bar", station_deleted: true })] })}
+            />,
+        );
+
+        expect(screen.getAllByRole("row", { name: /Kopi Susu/ })).toHaveLength(2);
+        expect(error).not.toHaveBeenCalled();
+    });
+
+    it("captions the handover figure only when a station is chosen", () => {
+        const caption = "Semua pesanan dari semua stasiun";
+        const { unmount } = render(<KitchenSpeed {...props()} />);
+        expect(screen.queryByText(caption)).not.toBeInTheDocument();
+        unmount();
+
+        render(<KitchenSpeed {...props({ filters: { ...filters, station_id: 2 } })} />);
+        const card = screen.getByRole("region", { name: "Waktu bayar sampai diserahkan" });
+        expect(within(card).getByText(caption)).toBeInTheDocument();
+    });
+
+    it("shows a station validation error next to the select", () => {
+        render(<KitchenSpeed {...props({ errors: { station_id: "The selected station id is invalid." } })} />);
+
+        const select = screen.getByLabelText("Stasiun");
+        expect(select).toHaveAttribute("aria-invalid", "true");
+        expect(screen.getByText("The selected station id is invalid.")).toBeInTheDocument();
+    });
+
+    it("reads the station texts in English too", async () => {
+        await i18n.changeLanguage("en");
+        render(<KitchenSpeed {...props({ filters: { ...filters, station_id: 2 }, rows: [row({ station_id: 3, station_deleted: true })] })} />);
+
+        const select = screen.getByLabelText("Station");
+        expect(within(select).getAllByRole("option").map((o) => o.textContent)).toEqual([
+            "All stations",
+            "Dapur",
+            "Bar",
+            "Bar (deleted)",
+        ]);
+        expect(screen.getByRole("columnheader", { name: "Station" })).toBeInTheDocument();
+        expect(screen.getByText("All orders from all stations")).toBeInTheDocument();
+        expect(screen.getByRole("row", { name: /Kopi Susu/ })).toHaveTextContent("Bar (deleted)");
     });
 });
