@@ -215,7 +215,10 @@ class KitchenItemService
             if ($items->isEmpty() && $this->allLinesReturned($transaction, $including)) {
                 $order->update(['status' => DineOrder::STATUS_CANCELLED]);
             } else {
-                $order->update(['status' => DineOrder::STATUS_SERVED, 'served_at' => now(), 'served_by' => null]);
+                // Served by whoever handed over the last item (id breaks a same-second tie); with none served (a mixed order whose
+                // dishes were all returned) the system serves it now. It completes only once paid: a pay-later order waits for the paid hook.
+                $last = $items->sortBy([['served_at', 'desc'], ['id', 'desc']])->first();
+                $order->update(['status' => DineOrder::STATUS_SERVED, 'served_at' => $last->served_at ?? now(), 'served_by' => $last->served_by ?? null]);
                 $order->completeIfSettled();
             }
 
@@ -239,17 +242,6 @@ class KitchenItemService
                 'ready_at' => $last->ready_at ?? now(),
                 'ready_by' => $last?->ready_by,
             ]);
-        }
-
-        // Every item served: the order is served; it completes only once paid (a pay-later order waits for the paid hook).
-        if ($order->status === DineOrder::STATUS_READY && $items->isNotEmpty() && $items->every(fn (KitchenItem $item) => $item->status === KitchenItem::STATUS_SERVED)) {
-            $last = $items->sortBy([['served_at', 'desc'], ['id', 'desc']])->first(); // id breaks a same-second tie
-            $order->update([
-                'status' => DineOrder::STATUS_SERVED,
-                'served_at' => $last->served_at,
-                'served_by' => $last->served_by,
-            ]);
-            $order->completeIfSettled();
         }
     }
 }

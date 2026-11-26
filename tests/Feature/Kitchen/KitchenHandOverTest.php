@@ -15,6 +15,7 @@ use App\Models\Warehouse;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 // #238: Serahkan / Serahkan semua on the kitchen display. Hand-over is one more item step; the dine order follows its items.
@@ -175,6 +176,25 @@ class KitchenHandOverTest extends TestCase
             $this->assertSame($this->waiter->id, $item->fresh()->served_by);
         }
         $this->assertSame(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
+    }
+
+    // The Orders page keeps Serahkan only for a ready order the kitchen display does not track (no kitchen items), its only exit.
+    public function test_the_orders_page_marks_which_orders_have_kitchen_items(): void
+    {
+        $tracked = $this->sale('INV-11', table: 'Meja 11');
+        $this->kitchenItem($tracked);
+        $untracked = $this->sale('INV-12', table: 'Meja 12'); // e.g. paid before the display existed, or nothing to make
+        $admin = User::factory()->create();
+        $admin->assignRole('super-admin'); // sees every outlet; the test tables have no area
+
+        $this->actingAs($admin)->get(route('dine-orders.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('Dashboard/DineIn/Orders/Index')
+                ->has('orders', 2)
+                ->where('orders.'.($tracked->dineOrder->id < $untracked->dineOrder->id ? 1 : 0).'.has_kitchen_items', true)
+                ->where('orders.'.($tracked->dineOrder->id < $untracked->dineOrder->id ? 0 : 1).'.has_kitchen_items', false)
+            );
     }
 
     public function test_item_of_another_outlet_is_refused(): void
