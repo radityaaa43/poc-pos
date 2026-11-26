@@ -19,9 +19,9 @@ export async function confirmTransfer(browser, invoice) {
     await context.close();
 }
 
-// Names this device as a print station on the kitchen display and switches Cetak otomatis on, with the fake
+// Names this device as a print device on the kitchen display and switches Cetak otomatis on, with the fake
 // WebUSB printer (call fakePrinter(page) first). Returns the settings panel. Needs an open shift in the outlet.
-export async function setUpPrintStation(page, name) {
+export async function setUpPrintDevice(page, name) {
     await page.goto('/dashboard/kitchen');
     await page.getByRole('button', { name: 'Pengaturan printer dapur' }).click();
     const panel = page.getByRole('region', { name: 'Pengaturan printer dapur' });

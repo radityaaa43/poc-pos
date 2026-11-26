@@ -1085,8 +1085,8 @@
         },
         "print": {
             "open": "Kitchen printer settings",
-            "stationName": "Print device name",
-            "stationPlaceholder": "Kitchen 1",
+            "deviceName": "Print device name",
+            "devicePlaceholder": "Kitchen 1",
             "save": "Save",
             "nameTaken": "This print device name is already used in this outlet",
             "connect": "Connect printer",

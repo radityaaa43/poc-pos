@@ -6,7 +6,8 @@ import { buildKitchenTicketBytes, printBytes } from "@/Utils/escpos";
 
 const POLL_MS = 5000;
 // Per-device settings (BR-3). printerKey is a plain string because escpos.js reads it directly.
-const STATION = "kitchen.station";
+// The key keeps its old name on purpose: a device that saved its print device before the rename must not lose it.
+const DEVICE = "kitchen.station";
 const PRINTER_KEY = "kitchen.printerKey";
 const PAPER = "kitchen.paper";
 const AUTO_PRINT = "kitchen.autoPrint";
@@ -37,23 +38,23 @@ const deviceKey = () => ({ deviceKey: localStorage.getItem(PRINTER_KEY) || undef
 // Tells the server which items were printed, then forgets them locally. Throws when the POST fails,
 // leaving the ids in kitchen.unconfirmed for the next tick.
 async function confirm(ids) {
-    const station = readJson(STATION, null);
-    if (!station || ids.length === 0) return;
-    await axios.post(route("kitchen.stations.prints", station.id), { item_ids: ids });
+    const device = readJson(DEVICE, null);
+    if (!device || ids.length === 0) return;
+    await axios.post(route("kitchen.print-devices.prints", device.id), { item_ids: ids });
     writeUnconfirmed(readUnconfirmed().filter((id) => !ids.includes(id)));
 }
 
-export function useKitchenPrintStation(outlet) {
-    const [station, setStationState] = useState(() => readJson(STATION, null));
+export function useKitchenPrintDevice(outlet) {
+    const [device, setDeviceState] = useState(() => readJson(DEVICE, null));
     const [printerKey, setPrinterKeyState] = useState(() => localStorage.getItem(PRINTER_KEY) || "");
     const [paper, setPaperState] = useState(() => localStorage.getItem(PAPER) || "80mm");
     const [autoPrint, setAutoPrintState] = useState(() => localStorage.getItem(AUTO_PRINT) === "true");
 
-    const setStation = useCallback((value) => {
-        // Unconfirmed ids belong to the old station: posting them to the new one would 404 and halt printing.
-        if (readJson(STATION, null)?.id !== value?.id) localStorage.removeItem(UNCONFIRMED);
-        localStorage.setItem(STATION, JSON.stringify(value));
-        setStationState(value);
+    const setDevice = useCallback((value) => {
+        // Unconfirmed ids belong to the old device: posting them to the new one would 404 and halt printing.
+        if (readJson(DEVICE, null)?.id !== value?.id) localStorage.removeItem(UNCONFIRMED);
+        localStorage.setItem(DEVICE, JSON.stringify(value));
+        setDeviceState(value);
     }, []);
     const setPrinterKey = useCallback((value) => {
         if (value) localStorage.setItem(PRINTER_KEY, value);
@@ -84,8 +85,8 @@ export function useKitchenPrintStation(outlet) {
         []
     );
 
-    const active = Boolean(outlet) && Boolean(station) && autoPrint;
-    const stationId = station?.id;
+    const active = Boolean(outlet) && Boolean(device) && autoPrint;
+    const deviceId = device?.id;
 
     // Two tabs of one device each keep their own queue and would print a ticket twice (AC-05), so only the tab
     // holding this lock prints. A waiting tab takes over when the leader closes. Without the Web Locks API
@@ -134,7 +135,7 @@ export function useKitchenPrintStation(outlet) {
             if (halted || !navigator.onLine) return;
             try {
                 await confirm(readUnconfirmed());
-                const { data } = await axios.get(route("kitchen.stations.tickets", stationId));
+                const { data } = await axios.get(route("kitchen.print-devices.tickets", deviceId));
                 const known = new Set([...queued, ...readUnconfirmed()]);
                 for (const ticket of data.tickets) {
                     if (ticket.item_ids.some((id) => known.has(id))) continue;
@@ -142,7 +143,7 @@ export function useKitchenPrintStation(outlet) {
                     queue.enqueue({ key: ticket.key, ticket, itemIds: ticket.item_ids });
                 }
             } catch (error) {
-                // A failed poll is silent and retried; an expired session or a foreign station ends it.
+                // A failed poll is silent and retried; an expired session or a foreign device ends it.
                 if ([401, 404, 419].includes(error?.response?.status)) halted = true;
             }
             if (!halted) queue.drain();
@@ -156,7 +157,7 @@ export function useKitchenPrintStation(outlet) {
             clearInterval(timer);
             window.removeEventListener("online", tick);
         };
-    }, [printing, stationId]);
+    }, [printing, deviceId]);
 
-    return { station, printerKey, paper, autoPrint, otherTab, setStation, setPrinterKey, setPaper, setAutoPrint, testPrint };
+    return { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint };
 }

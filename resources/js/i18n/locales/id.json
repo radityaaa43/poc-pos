@@ -1085,8 +1085,8 @@
         },
         "print": {
             "open": "Pengaturan printer dapur",
-            "stationName": "Nama perangkat cetak",
-            "stationPlaceholder": "Dapur 1",
+            "deviceName": "Nama perangkat cetak",
+            "devicePlaceholder": "Dapur 1",
             "save": "Simpan",
             "nameTaken": "Nama perangkat cetak sudah dipakai di outlet ini",
             "connect": "Hubungkan printer",

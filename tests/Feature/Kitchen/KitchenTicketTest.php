@@ -6,7 +6,7 @@ use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
-use App\Models\KitchenPrintStation;
+use App\Models\KitchenPrintDevice;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -15,10 +15,12 @@ use App\Models\User;
 use App\Models\Warehouse;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
-// #312 (K1): a print station asks the server for the kitchen tickets it has not printed yet, and reports what it printed.
+// #312 (K1): a print device asks the server for the kitchen tickets it has not printed yet, and reports what it printed.
 class KitchenTicketTest extends TestCase
 {
     use RefreshDatabase;
@@ -52,9 +54,9 @@ class KitchenTicketTest extends TestCase
     {
         $sale = $this->sale('INV-DINE', table: 'Meja 5');
         $item = $this->kitchenItem($sale, acceptedAt: now()->subMinutes(2), qty: 3, note: 'tanpa pedas');
-        $station = $this->station();
+        $device = $this->device();
 
-        $response = $this->actingAs($this->cook)->getJson(route('kitchen.stations.tickets', $station))->assertOk();
+        $response = $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk();
 
         $ticket = $response->json('tickets.0');
         $this->assertCount(1, $response->json('tickets'));
@@ -77,7 +79,7 @@ class KitchenTicketTest extends TestCase
     {
         $this->kitchenItem($this->sale('INV-TAKEAWAY', orderType: 'takeaway'), acceptedAt: now()->subMinute());
 
-        $ticket = $this->tickets($this->station())[0];
+        $ticket = $this->tickets($this->device())[0];
 
         $this->assertSame('INV-TAKEAWAY', $ticket['number']);
         $this->assertSame('takeaway', $ticket['type']);
@@ -89,23 +91,23 @@ class KitchenTicketTest extends TestCase
         $this->kitchenItem($this->sale('INV-PAID'), acceptedAt: now()->subMinutes(2));
         $this->kitchenItem($this->sale('INV-LATER', paymentStatus: 'unpaid'), acceptedAt: now()->subMinute());
 
-        $tickets = $this->tickets($this->station());
+        $tickets = $this->tickets($this->device());
 
         $this->assertSame(['INV-PAID', 'INV-LATER'], array_column($tickets, 'number'));
         $this->assertSame([false, true], array_column($tickets, 'unpaid'));
     }
 
     // AC-05, BR-8
-    public function test_a_printed_item_is_not_offered_again_but_a_second_station_still_gets_it(): void
+    public function test_a_printed_item_is_not_offered_again_but_a_second_device_still_gets_it(): void
     {
         $item = $this->kitchenItem($this->sale('INV-ONCE'), acceptedAt: now()->subMinute());
-        $a = $this->station('Dapur 1');
-        $b = $this->station('Dapur 2');
+        $a = $this->device('Dapur 1');
+        $b = $this->device('Dapur 2');
 
         $this->assertCount(1, $this->tickets($a));
         $this->assertCount(1, $this->tickets($b));
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.prints', $a), ['item_ids' => [$item->id]])->assertNoContent();
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $a), ['item_ids' => [$item->id]])->assertNoContent();
 
         $this->assertSame([], $this->tickets($a));
         $this->assertCount(1, $this->tickets($b));
@@ -115,24 +117,70 @@ class KitchenTicketTest extends TestCase
     public function test_confirming_twice_records_one_row(): void
     {
         $item = $this->kitchenItem($this->sale('INV-TWICE'), acceptedAt: now()->subMinute());
-        $station = $this->station();
+        $device = $this->device();
 
         foreach ([1, 2] as $_) {
-            $this->actingAs($this->cook)->postJson(route('kitchen.stations.prints', $station), ['item_ids' => [$item->id, $item->id]])->assertNoContent();
+            $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [$item->id, $item->id]])->assertNoContent();
         }
 
         $this->assertDatabaseCount('kitchen_ticket_prints', 1);
-        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_station_id' => $station->id, 'kitchen_item_id' => $item->id]);
+        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $item->id]);
+    }
+
+    // #366: the table and column rename keeps what was printed, and the keys that guard it, in both directions.
+    public function test_the_print_device_rename_keeps_rows_and_keys_both_ways(): void
+    {
+        $item = $this->kitchenItem($this->sale('INV-RENAME'), acceptedAt: now()->subMinute());
+        $spare = $this->kitchenItem($this->sale('INV-RENAME-2'), acceptedAt: now()->subMinute());
+        $device = $this->device('Dapur 1');
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [$item->id]])->assertNoContent();
+        $migration = require database_path('migrations/2026_12_06_100001_rename_kitchen_print_stations_to_devices.php');
+
+        // The keys behind "one name per outlet" and "printed once per device": a lost one would fail silently.
+        // The cascade is run on a throwaway device, so the real row stays for the next step.
+        $assertKeys = function (string $devices, string $column) use ($device, $spare) {
+            $this->assertTrue(Schema::hasIndex($devices, ['outlet_id', 'name'], 'unique'), "$devices: unique outlet + name");
+            $this->assertTrue(Schema::hasIndex('kitchen_ticket_prints', [$column, 'kitchen_item_id'], 'unique'), "kitchen_ticket_prints: unique $column + item");
+            $this->assertContains($devices, collect(Schema::getForeignKeys('kitchen_ticket_prints'))->pluck('foreign_table')->all());
+            $this->assertContains('outlets', collect(Schema::getForeignKeys($devices))->pluck('foreign_table')->all());
+
+            $temp = DB::table($devices)->insertGetId(['outlet_id' => $device->outlet_id, 'name' => 'Cascade', 'created_at' => now(), 'updated_at' => now()]);
+            DB::table('kitchen_ticket_prints')->insert([$column => $temp, 'kitchen_item_id' => $spare->id]);
+            DB::table($devices)->where('id', $temp)->delete();
+            $this->assertDatabaseMissing('kitchen_ticket_prints', ['kitchen_item_id' => $spare->id]);
+        };
+
+        $migration->down();
+
+        $this->assertTrue(Schema::hasTable('kitchen_print_stations'));
+        $this->assertFalse(Schema::hasTable('kitchen_print_devices'));
+        $this->assertDatabaseHas('kitchen_print_stations', ['id' => $device->id, 'name' => 'Dapur 1']);
+        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_station_id' => $device->id, 'kitchen_item_id' => $item->id]);
+        $assertKeys('kitchen_print_stations', 'kitchen_print_station_id');
+
+        $migration->up();
+
+        $this->assertTrue(Schema::hasTable('kitchen_print_devices'));
+        $this->assertFalse(Schema::hasTable('kitchen_print_stations'));
+        $this->assertDatabaseHas('kitchen_print_devices', ['id' => $device->id, 'name' => 'Dapur 1']);
+        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $item->id]);
+        // The printed item is still known as printed (not offered again); the spare one, never printed by this device, is.
+        $this->assertSame(['t'.$spare->transaction_id], array_column($this->tickets($device), 'key'));
+        $assertKeys('kitchen_print_devices', 'kitchen_print_device_id');
+
+        // And through the app: deleting the device removes its print log.
+        $device->delete();
+        $this->assertDatabaseCount('kitchen_ticket_prints', 0);
     }
 
     // BR-9
     public function test_a_print_does_not_change_the_kitchen_item(): void
     {
         $item = $this->kitchenItem($this->sale('INV-STATUS'), acceptedAt: now()->subMinute());
-        $station = $this->station();
+        $device = $this->device();
         $before = $item->fresh()->getAttributes();
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.prints', $station), ['item_ids' => [$item->id]])->assertNoContent();
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [$item->id]])->assertNoContent();
 
         $this->assertSame($before, $item->fresh()->getAttributes());
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
@@ -146,7 +194,7 @@ class KitchenTicketTest extends TestCase
         $this->kitchenItem($newer, acceptedAt: now()->subMinutes(5));
         $this->kitchenItem($older, acceptedAt: now()->subMinutes(20));
 
-        $this->assertSame(['INV-OLDER', 'INV-NEWER'], array_column($this->tickets($this->station()), 'number'));
+        $this->assertSame(['INV-OLDER', 'INV-NEWER'], array_column($this->tickets($this->device()), 'number'));
     }
 
     public function test_an_order_gets_one_ticket_with_all_its_open_items(): void
@@ -155,7 +203,7 @@ class KitchenTicketTest extends TestCase
         $first = $this->kitchenItem($sale, acceptedAt: now()->subMinute());
         $second = $this->kitchenItem($sale, acceptedAt: now()->subMinute(), detail: $this->detail($sale, $this->product('Extra')));
 
-        $tickets = $this->tickets($this->station());
+        $tickets = $this->tickets($this->device());
 
         $this->assertCount(1, $tickets);
         $this->assertSame([$first->id, $second->id], $tickets[0]['item_ids']);
@@ -163,7 +211,7 @@ class KitchenTicketTest extends TestCase
 
     public function test_a_backlog_comes_as_the_oldest_30_whole_orders_per_poll(): void
     {
-        $station = $this->station(createdAt: now()->subHours(2));
+        $device = $this->device(createdAt: now()->subHours(2));
 
         // The oldest order has 40 items: a cap on items would cut it in two tickets.
         $big = $this->sale('INV-BIG');
@@ -175,7 +223,7 @@ class KitchenTicketTest extends TestCase
             $this->kitchenItem($this->sale("INV-S$i"), acceptedAt: now()->subMinutes(30)->addSeconds($i));
         }
 
-        $first = $this->tickets($station);
+        $first = $this->tickets($device);
 
         $this->assertCount(30, $first);
         $this->assertSame('INV-BIG', $first[0]['number']);
@@ -183,9 +231,9 @@ class KitchenTicketTest extends TestCase
         $this->assertSame('INV-S29', $first[29]['number']);
 
         $ids = array_merge(...array_column($first, 'item_ids'));
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.prints', $station), ['item_ids' => $ids])->assertNoContent();
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => $ids])->assertNoContent();
 
-        $this->assertSame(['INV-S30'], array_column($this->tickets($station), 'number'));
+        $this->assertSame(['INV-S30'], array_column($this->tickets($device), 'number'));
     }
 
     public function test_an_item_served_before_the_poll_is_not_offered(): void
@@ -193,50 +241,50 @@ class KitchenTicketTest extends TestCase
         $this->kitchenItem($this->sale('INV-SERVED'), status: KitchenItem::STATUS_SERVED, acceptedAt: now()->subMinute());
         $this->kitchenItem($this->sale('INV-READY'), status: KitchenItem::STATUS_READY, acceptedAt: now()->subMinute());
 
-        $this->assertSame(['INV-READY'], array_column($this->tickets($this->station()), 'number'));
+        $this->assertSame(['INV-READY'], array_column($this->tickets($this->device()), 'number'));
     }
 
-    public function test_an_order_older_than_the_station_is_not_offered(): void
+    public function test_an_order_older_than_the_device_is_not_offered(): void
     {
         $this->kitchenItem($this->sale('INV-OLD'), acceptedAt: now()->subHour());
         // A release backfill row has no accepted_at: its created_at counts.
         $this->kitchenItem($this->sale('INV-BACKFILLED'), createdAt: now()->subHour(), backfilled: true);
         $this->kitchenItem($this->sale('INV-NEW'), acceptedAt: now()->subMinutes(10));
-        $station = $this->station(createdAt: now()->subMinutes(30));
+        $device = $this->device(createdAt: now()->subMinutes(30));
 
-        $this->assertSame(['INV-NEW'], array_column($this->tickets($station), 'number'));
+        $this->assertSame(['INV-NEW'], array_column($this->tickets($device), 'number'));
     }
 
-    public function test_only_the_stations_outlet_is_offered(): void
+    public function test_only_the_devices_outlet_is_offered(): void
     {
         [, $warehouseB] = $this->outletWithWarehouse('B');
         $this->kitchenItem($this->sale('INV-HERE'), acceptedAt: now()->subMinute());
         $this->kitchenItem($this->sale('INV-THERE', warehouse: $warehouseB), warehouse: $warehouseB, acceptedAt: now()->subMinute());
 
-        $this->assertSame(['INV-HERE'], array_column($this->tickets($this->station()), 'number'));
+        $this->assertSame(['INV-HERE'], array_column($this->tickets($this->device()), 'number'));
     }
 
-    // Security: the station is checked against the active outlet
-    public function test_a_station_of_another_outlet_is_not_found(): void
+    // Security: the device is checked against the active outlet
+    public function test_a_device_of_another_outlet_is_not_found(): void
     {
         [$outletB, $warehouseB] = $this->outletWithWarehouse('B');
         $item = $this->kitchenItem($this->sale('INV-THERE', warehouse: $warehouseB), warehouse: $warehouseB, acceptedAt: now()->subMinute());
-        $foreign = $this->station('Dapur B', outlet: $outletB);
+        $foreign = $this->device('Dapur B', outlet: $outletB);
 
-        $this->actingAs($this->cook)->getJson(route('kitchen.stations.tickets', $foreign))->assertNotFound();
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.prints', $foreign), ['item_ids' => [$item->id]])->assertNotFound();
+        $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $foreign))->assertNotFound();
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.prints', $foreign), ['item_ids' => [$item->id]])->assertNotFound();
         $this->assertDatabaseCount('kitchen_ticket_prints', 0);
     }
 
-    public function test_a_station_follows_the_active_outlet(): void
+    public function test_a_device_follows_the_active_outlet(): void
     {
         [$outletB] = $this->outletWithWarehouse('B');
         $this->cook->outlets()->attach($outletB->id);
-        $foreign = $this->station('Dapur B', outlet: $outletB);
+        $foreign = $this->device('Dapur B', outlet: $outletB);
 
-        $this->actingAs($this->cook)->getJson(route('kitchen.stations.tickets', $foreign))->assertNotFound();
+        $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $foreign))->assertNotFound();
         $this->actingAs($this->cook)->withSession(['active_outlet_id' => $outletB->id])
-            ->getJson(route('kitchen.stations.tickets', $foreign))->assertOk();
+            ->getJson(route('kitchen.print-devices.tickets', $foreign))->assertOk();
     }
 
     public function test_ids_outside_the_outlet_and_unknown_ids_are_ignored(): void
@@ -244,20 +292,20 @@ class KitchenTicketTest extends TestCase
         [, $warehouseB] = $this->outletWithWarehouse('B');
         $mine = $this->kitchenItem($this->sale('INV-HERE'), acceptedAt: now()->subMinute());
         $theirs = $this->kitchenItem($this->sale('INV-THERE', warehouse: $warehouseB), warehouse: $warehouseB, acceptedAt: now()->subMinute());
-        $station = $this->station();
+        $device = $this->device();
 
         $this->actingAs($this->cook)
-            ->postJson(route('kitchen.stations.prints', $station), ['item_ids' => [$mine->id, $theirs->id, 999999]])
+            ->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [$mine->id, $theirs->id, 999999]])
             ->assertNoContent();
 
         $this->assertDatabaseCount('kitchen_ticket_prints', 1);
-        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_station_id' => $station->id, 'kitchen_item_id' => $mine->id]);
+        $this->assertDatabaseHas('kitchen_ticket_prints', ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $mine->id]);
     }
 
     public function test_prints_needs_between_one_and_200_integer_ids(): void
     {
-        $station = $this->station();
-        $url = route('kitchen.stations.prints', $station);
+        $device = $this->device();
+        $url = route('kitchen.print-devices.prints', $device);
 
         $this->actingAs($this->cook)->postJson($url, [])->assertJsonValidationErrors('item_ids');
         $this->actingAs($this->cook)->postJson($url, ['item_ids' => []])->assertJsonValidationErrors('item_ids');
@@ -266,111 +314,111 @@ class KitchenTicketTest extends TestCase
     }
 
     // AC-07
-    public function test_a_station_is_saved_for_the_active_outlet(): void
+    public function test_a_device_is_saved_for_the_active_outlet(): void
     {
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 1'])
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => 'Dapur 1'])
             ->assertCreated()
             ->assertJsonPath('name', 'Dapur 1')
             ->assertJsonStructure(['id', 'name']);
 
-        $this->assertDatabaseHas('kitchen_print_stations', ['outlet_id' => $this->outlet->id, 'name' => 'Dapur 1']);
+        $this->assertDatabaseHas('kitchen_print_devices', ['outlet_id' => $this->outlet->id, 'name' => 'Dapur 1']);
     }
 
-    public function test_the_station_name_is_trimmed_and_required(): void
+    public function test_the_device_name_is_trimmed_and_required(): void
     {
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => '  Dapur 1  '])->assertCreated();
-        $this->assertDatabaseHas('kitchen_print_stations', ['name' => 'Dapur 1']);
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => '  Dapur 1  '])->assertCreated();
+        $this->assertDatabaseHas('kitchen_print_devices', ['name' => 'Dapur 1']);
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => '   '])->assertJsonValidationErrors('name');
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), [])->assertJsonValidationErrors('name');
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => str_repeat('a', 61)])->assertJsonValidationErrors('name');
-        $this->assertDatabaseCount('kitchen_print_stations', 1);
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => '   '])->assertJsonValidationErrors('name');
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), [])->assertJsonValidationErrors('name');
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => str_repeat('a', 61)])->assertJsonValidationErrors('name');
+        $this->assertDatabaseCount('kitchen_print_devices', 1);
     }
 
     // BR-2
-    public function test_a_station_name_is_unique_per_outlet(): void
+    public function test_a_device_name_is_unique_per_outlet(): void
     {
         [$outletB] = $this->outletWithWarehouse('B');
-        $this->station('Dapur 1', outlet: $outletB);
-        $this->station('Dapur 1');
+        $this->device('Dapur 1', outlet: $outletB);
+        $this->device('Dapur 1');
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => ' Dapur 1'])
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => ' Dapur 1'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name' => 'Nama perangkat cetak sudah dipakai di outlet ini']);
-        $this->assertDatabaseCount('kitchen_print_stations', 2);
+        $this->assertDatabaseCount('kitchen_print_devices', 2);
     }
 
     // Two devices create the same name at once: both pass the validation, the unique index stops the second.
-    public function test_a_concurrent_duplicate_station_name_gets_the_same_422(): void
+    public function test_a_concurrent_duplicate_device_name_gets_the_same_422(): void
     {
         $outlet = $this->outlet;
-        KitchenPrintStation::creating(function () use ($outlet) {
-            KitchenPrintStation::query()->insert(['outlet_id' => $outlet->id, 'name' => 'Dapur 1', 'created_at' => now(), 'updated_at' => now()]);
+        KitchenPrintDevice::creating(function () use ($outlet) {
+            KitchenPrintDevice::query()->insert(['outlet_id' => $outlet->id, 'name' => 'Dapur 1', 'created_at' => now(), 'updated_at' => now()]);
         });
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 1'])
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => 'Dapur 1'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['name' => 'Nama perangkat cetak sudah dipakai di outlet ini']);
-        $this->assertDatabaseCount('kitchen_print_stations', 1);
+        $this->assertDatabaseCount('kitchen_print_devices', 1);
     }
 
     public function test_the_same_name_is_free_in_another_outlet(): void
     {
         [$outletB] = $this->outletWithWarehouse('B');
-        $this->station('Dapur 1', outlet: $outletB);
+        $this->device('Dapur 1', outlet: $outletB);
 
-        $this->actingAs($this->cook)->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 1'])->assertCreated();
+        $this->actingAs($this->cook)->postJson(route('kitchen.print-devices.store'), ['name' => 'Dapur 1'])->assertCreated();
 
-        $this->assertDatabaseHas('kitchen_print_stations', ['outlet_id' => $this->outlet->id, 'name' => 'Dapur 1']);
-        $this->assertDatabaseCount('kitchen_print_stations', 2);
+        $this->assertDatabaseHas('kitchen_print_devices', ['outlet_id' => $this->outlet->id, 'name' => 'Dapur 1']);
+        $this->assertDatabaseCount('kitchen_print_devices', 2);
     }
 
-    public function test_a_user_without_an_outlet_cannot_save_a_station(): void
+    public function test_a_user_without_an_outlet_cannot_save_a_device(): void
     {
         $this->actingAs($this->userWith('dine-orders-prepare'))
-            ->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 1'])
+            ->postJson(route('kitchen.print-devices.store'), ['name' => 'Dapur 1'])
             ->assertUnprocessable();
 
-        $this->assertDatabaseCount('kitchen_print_stations', 0);
+        $this->assertDatabaseCount('kitchen_print_devices', 0);
     }
 
     // BR-1
     public function test_users_without_prepare_or_handover_are_refused_on_every_route(): void
     {
-        $station = $this->station();
+        $device = $this->device();
         $stranger = $this->userWith('dine-orders-access', $this->outlet);
 
-        $this->actingAs($stranger)->postJson(route('kitchen.stations.store'), ['name' => 'Dapur 2'])->assertForbidden();
-        $this->actingAs($stranger)->getJson(route('kitchen.stations.tickets', $station))->assertForbidden();
-        $this->actingAs($stranger)->postJson(route('kitchen.stations.prints', $station), ['item_ids' => [1]])->assertForbidden();
-        $this->assertDatabaseCount('kitchen_print_stations', 1);
+        $this->actingAs($stranger)->postJson(route('kitchen.print-devices.store'), ['name' => 'Dapur 2'])->assertForbidden();
+        $this->actingAs($stranger)->getJson(route('kitchen.print-devices.tickets', $device))->assertForbidden();
+        $this->actingAs($stranger)->postJson(route('kitchen.print-devices.prints', $device), ['item_ids' => [1]])->assertForbidden();
+        $this->assertDatabaseCount('kitchen_print_devices', 1);
     }
 
     public function test_either_permission_is_enough(): void
     {
-        $station = $this->station();
+        $device = $this->device();
 
-        $this->actingAs($this->cook)->getJson(route('kitchen.stations.tickets', $station))->assertOk();
+        $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk();
         $this->actingAs($this->userWith('dine-orders-handover', $this->outlet))
-            ->getJson(route('kitchen.stations.tickets', $station))
+            ->getJson(route('kitchen.print-devices.tickets', $device))
             ->assertOk()
             ->assertExactJson(['tickets' => []]);
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function tickets(KitchenPrintStation $station): array
+    private function tickets(KitchenPrintDevice $device): array
     {
-        return $this->actingAs($this->cook)->getJson(route('kitchen.stations.tickets', $station))->assertOk()->json('tickets');
+        return $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk()->json('tickets');
     }
 
-    /** A station named earlier than the sales of the test (created_at is the cut-off). */
-    private function station(string $name = 'Dapur 1', ?Outlet $outlet = null, ?Carbon $createdAt = null): KitchenPrintStation
+    /** A device named earlier than the sales of the test (created_at is the cut-off). */
+    private function device(string $name = 'Dapur 1', ?Outlet $outlet = null, ?Carbon $createdAt = null): KitchenPrintDevice
     {
-        $station = new KitchenPrintStation(['outlet_id' => ($outlet ?? $this->outlet)->id, 'name' => $name]);
-        $station->created_at = $createdAt ?? now()->subHour();
-        $station->save();
+        $device = new KitchenPrintDevice(['outlet_id' => ($outlet ?? $this->outlet)->id, 'name' => $name]);
+        $device->created_at = $createdAt ?? now()->subHour();
+        $device->save();
 
-        return $station;
+        return $device;
     }
 
     /** @return array{Outlet, Warehouse} */
