@@ -90,7 +90,7 @@ class KitchenTicketService
         }
 
         KitchenTicketPrint::insertOrIgnore(
-            $ids->map(fn ($id) => ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $id])->all()
+            $ids->map(fn ($id) => ['kitchen_print_device_id' => $device->id, 'kitchen_item_id' => $id, 'printed_at' => now()])->all()
         );
     }
 
