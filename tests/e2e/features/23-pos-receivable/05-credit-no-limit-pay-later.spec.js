@@ -21,7 +21,9 @@ test.describe('POS: credit sales of a customer without a limit', () => {
         await addToCart(page, product.title);
         await chooseCustomer(page, name);
         await expect(page.getByRole('status', { name: 'Batas piutang' }).getByText('Tanpa batas', { exact: true })).toBeVisible();
-        await page.getByRole('checkbox').check({ force: true }); // visually hidden behind the styled switch
+        // The visible label: the hidden checkbox can sit under the sticky total bar once the credit panel is above it.
+        await page.getByText('Bayar Belakangan', { exact: true }).click();
+        await expect(page.getByRole('checkbox')).toBeChecked();
         await field(page, 'Tanggal Jatuh Tempo').fill(new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10));
         const invoice = await finish(page);
 
