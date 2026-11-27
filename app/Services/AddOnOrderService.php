@@ -90,7 +90,7 @@ class AddOnOrderService
             $this->refuse(self::CANCELLED_MESSAGE);
         }
 
-        $sale = $original?->transaction()->lockForUpdate()->first();
+        $sale = $original?->transaction_id ? Transaction::lockForUpdate()->find($original->transaction_id) : null;
 
         if (! $sale) {
             return null;
