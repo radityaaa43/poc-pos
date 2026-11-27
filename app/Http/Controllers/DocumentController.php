@@ -77,7 +77,7 @@ class DocumentController extends Controller
     {
         $this->ensureFontDirectory();
 
-        $transaction = Transaction::with(['details.product', 'cashier', 'customer', 'warehouse.outlet'])
+        $transaction = Transaction::with(['details.product', 'details.modifiers', 'cashier', 'customer', 'warehouse.outlet'])
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureWarehouseAccess($transaction->warehouse);
@@ -98,7 +98,7 @@ class DocumentController extends Controller
     {
         $this->ensureFontDirectory();
 
-        $transaction = Transaction::with(['details.product', 'cashier', 'customer', 'warehouse.outlet'])
+        $transaction = Transaction::with(['details.product', 'details.modifiers', 'cashier', 'customer', 'warehouse.outlet'])
             ->where('invoice', $invoice)
             ->where('access_token', $request->query('token'))
             ->firstOrFail();
@@ -118,7 +118,7 @@ class DocumentController extends Controller
     {
         $this->ensureFontDirectory();
 
-        $transaction = Transaction::with(['details.product', 'cashier', 'customer', 'warehouse.outlet'])
+        $transaction = Transaction::with(['details.product', 'details.modifiers', 'cashier', 'customer', 'warehouse.outlet'])
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureWarehouseAccess($transaction->warehouse);

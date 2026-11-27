@@ -1223,6 +1223,20 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "modifiers": {
+            "required": "Wajib",
+            "optional": "Opsional",
+            "range": "Pilih {{min}}–{{max}}",
+            "soldOut": "Habis",
+            "note": "Catatan",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Harga porsi",
+            "add": "Tambah",
+            "cancel": "Batal",
+            "incomplete": "Lengkapi pilihan: {{group}}",
+            "noteLine": "Catatan: {{note}}",
+            "offline": "Penjualan dengan opsi atau catatan belum bisa disimpan saat offline"
         }
     },
     "outlets": {

@@ -8,9 +8,13 @@ use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\ModifierGroupService;
+use App\Services\ThermalPrintService;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Barryvdh\DomPDF\PDF as PdfDocument;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
+use Mockery;
 
 // REQ-008 AC-06..AC-10, AC-12..AC-14, BR-2, BR-3: choosing options on the POS and checking them out.
 class PosModifierCheckoutTest extends ModifierSaleTestCase
@@ -238,6 +242,34 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
         $this->assertSame([[50, 50], [10, 10]], [$this->stockOf($this->menu), $this->stockOf($this->milk)]);
         $this->assertSame(4, (int) StockMutation::where('product_id', $this->milk->id)->where('mutation_type', 'in')->sole()->qty);
+    }
+
+    public function test_receipts_print_the_sold_options_and_note(): void
+    {
+        $this->add(['Large', 'Jelly'], 1, 'less ice');
+        $this->checkout();
+        $this->option('Large')->update(['name' => 'Jumbo']);
+        $sale = Transaction::sole();
+        $expected = ['+ Large 5.000', '+ Jelly 2.000', __('messages.modifiers.note_line', ['note' => 'less ice'])];
+
+        $this->assertStringContainsString('  '.implode("\n  ", $expected), app(ThermalPrintService::class)->generateReceiptText($sale, '58mm'));
+        $this->get(route('transactions.print', $sale->invoice))->assertInertia(fn (Assert $page) => $page
+            ->where('transaction.details.0.note', 'less ice')
+            ->where('transaction.details.0.modifiers.0.option_name', 'Large'));
+
+        // The PDF receipts and invoice: render their view instead of building a PDF.
+        $html = '';
+        Pdf::shouldReceive('loadView')->andReturnUsing(function (string $view, array $data) use (&$html) {
+            $html .= view($view, $data)->render();
+
+            return Mockery::mock(PdfDocument::class)->shouldReceive('setPaper')->andReturnSelf()
+                ->shouldReceive('stream')->andReturn(response(''))->getMock();
+        });
+
+        foreach ([route('pdf.transactions.invoice', $sale->invoice), route('pdf.transactions.receipt', [$sale->invoice, '58']), route('pdf.transactions.receipt', [$sale->invoice, '80'])] as $url) {
+            $this->get($url)->assertOk();
+        }
+        $this->assertSame(3, substr_count($html, '+ Large 5.000'));
     }
 
     public function test_old_sale_keeps_its_option_snapshot(): void
