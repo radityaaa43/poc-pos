@@ -200,6 +200,30 @@ class Transaction extends Model
                 ." where sr2.transaction_id = transactions.id and sr2.status = 'completed'), 0)");
     }
 
+    /**
+     * Bayar sekarang sales with no money received, cancelled when their shift closes (REQ-003 AC-20). Never a bill
+     * (pay later or dine-in), a split with a paid part or a sale with a completed return (BR-15), or one already cancelled.
+     */
+    public function scopeUnpaidPayNow($query)
+    {
+        return $query->where('is_pay_later', false)
+            ->whereIn('payment_status', ['pending', 'failed', 'expired'])
+            ->whereNotIn('payment_method', ['pay_later', self::METHOD_OPEN_BILL])
+            ->doesntHave('dineOrder')
+            ->doesntHave('receivable')
+            ->whereDoesntHave('tenders', fn ($tenders) => $tenders->where('payment_status', TransactionTender::STATUS_PAID))
+            ->whereDoesntHave('salesReturns', fn ($returns) => $returns->where('status', 'completed'))
+            ->notRestocked();
+    }
+
+    /** Not cancelled: see wasRestocked(). */
+    public function scopeNotRestocked($query)
+    {
+        return $query->whereNotIn('transactions.id', StockMutation::query()
+            ->where('reference_type', 'transaction_expire')
+            ->select('reference_id'));
+    }
+
     /** Some quantity is still unreturned (no completed return, or returned qty below sold qty). */
     public function scopeNotFullyReturned($query)
     {
@@ -226,6 +250,13 @@ class Transaction extends Model
     public function tenders()
     {
         return $this->hasMany(TransactionTender::class);
+    }
+
+    /** What a bill still has to collect: the remaining total less the parts already paid. */
+    public function unpaidAmount(): int
+    {
+        return max(0, $this->remainingTotal()
+            - (int) $this->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
     }
 
     /**

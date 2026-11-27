@@ -16,6 +16,7 @@ const DB_VERSION = 2;
  *   last_attempt_at,          // ISO timestamp of last sync attempt
  *   synced_at,                // ISO timestamp of confirmed sync
  *   created_at,               // ISO timestamp queued
+ *   needs_kitchen,            // POS sale with a line the kitchen has to make
  * }
  *
  * v1 records (no metadata) are normalized lazily on read/write so an
@@ -84,11 +85,12 @@ export async function getCachedCustomers() {
     return db.getAll("customers");
 }
 
-export async function queueTransaction(transactionData, scopeKey = null) {
+export async function queueTransaction(transactionData, scopeKey = null, meta = {}) {
     const db = await dbPromise;
     return db.add(
         "pending_transactions",
         normalizeQueueRecord({
+            ...meta,
             data: transactionData,
             scope_key: scopeKey,
             created_at: new Date().toISOString(),
@@ -117,11 +119,11 @@ export async function getPendingTransactions(scopeKey = null) {
         .filter((row) => row.scope_key === null || row.scope_key === scopeKey);
 }
 
-export async function getPendingCount(scopeKey = null) {
+export async function getPendingCount(scopeKey = null, ignore = []) {
     const rows = await getPendingTransactions(scopeKey);
 
     return rows.filter(
-        (row) => !["synced", "duplicate"].includes(row.status)
+        (row) => !["synced", "duplicate", ...ignore].includes(row.status)
     ).length;
 }
 

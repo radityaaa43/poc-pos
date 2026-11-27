@@ -14,6 +14,7 @@ use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\OutletAccessService;
+use App\Services\ShiftCloseBlockerService;
 use App\Services\ThermalPrintService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -66,13 +67,15 @@ class CashierShiftController extends Controller
         ]);
     }
 
-    public function show(Request $request, CashierShift $cashierShift): Response
+    public function show(Request $request, CashierShift $cashierShift, ShiftCloseBlockerService $blockerService): Response
     {
         $cashierShift = $this->resolveVisibleShift($request, $cashierShift);
 
         return Inertia::render('Dashboard/CashierShifts/Show', [
             'cashierShift' => $this->transformShift($cashierShift),
             'canForceClose' => $request->user()->isSuperAdmin() || $request->user()->can('cashier-shifts-force-close'),
+            // AC-12: what holds the close, listed before the cashier even tries.
+            'closeBlockers' => $cashierShift->isOpen() ? $blockerService->rows($blockerService->blockersFor($cashierShift)) : [],
         ]);
     }
 
@@ -115,7 +118,8 @@ class CashierShiftController extends Controller
     {
         $cashierShift = $this->resolveVisibleShift($request, $cashierShift);
         $before = $this->shiftAuditPayload($cashierShift);
-        $forceClose = $cashierShift->user_id !== $request->user()->id;
+        // Someone else's shift, or the owner forcing their own held shift (BR-14): both need the permission.
+        $forceClose = $cashierShift->user_id !== $request->user()->id || $request->boolean('force');
 
         if ($forceClose && ! ($request->user()->isSuperAdmin() || $request->user()->can('cashier-shifts-force-close'))) {
             abort(403);
@@ -280,6 +284,7 @@ class CashierShiftController extends Controller
                 ])
                 ->values()
                 ->all(),
+            'unpaid_bills_total' => (int) $shift->unpaid_bills_total,
             'transactions_count' => $shift->isOpen() ? $summary['transactions_count'] : (int) $shift->transactions_count,
             'sales_returns_count' => $shift->isOpen() ? $summary['sales_returns_count'] : (int) $shift->sales_returns_count,
             'notes' => $shift->notes,
@@ -312,6 +317,7 @@ class CashierShiftController extends Controller
             'expected_cash' => (int) ($shift->expected_cash ?? $shift->opening_cash),
             'actual_cash' => $shift->actual_cash !== null ? (int) $shift->actual_cash : null,
             'cash_difference' => $shift->cash_difference !== null ? (int) $shift->cash_difference : null,
+            'unpaid_bills_total' => (int) $shift->unpaid_bills_total,
             'transactions_count' => (int) ($shift->transactions_count ?? 0),
             'sales_returns_count' => (int) ($shift->sales_returns_count ?? 0),
         ];

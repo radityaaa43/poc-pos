@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ShiftCloseBlockedException;
 use App\Models\CashierShift;
 use App\Models\Outlet;
 use App\Models\SalesReturn;
@@ -15,7 +16,13 @@ use Illuminate\Validation\ValidationException;
 
 class CashierShiftService
 {
-    public function __construct(private readonly OutletAccessService $outletAccessService) {}
+    public function __construct(
+        private readonly OutletAccessService $outletAccessService,
+        private readonly ShiftCloseBlockerService $blockerService,
+        private readonly UnpaidSaleCancellationService $cancellationService,
+        private readonly KitchenItemService $kitchenItemService,
+        private readonly AuditLogService $auditLogService,
+    ) {}
 
     public function getActiveShiftForUser(int $userId): ?CashierShift
     {
@@ -86,10 +93,13 @@ class CashierShiftService
             && ! in_array($paymentMethod, TransactionTenderService::GATEWAY_METHODS, true);
     }
 
-    public function calculateSummary(CashierShift $shift): array
+    /** @param  array<int, int>  $bookedBillIds  unpaid bills a forced close books as a shortfall (see closeShift) */
+    public function calculateSummary(CashierShift $shift, array $bookedBillIds = []): array
     {
+        // A cancelled sale (expired, or unpaid at a shift close) is no sale: it leaves every total and the count.
         $transactions = Transaction::query()
-            ->where('cashier_shift_id', $shift->id);
+            ->where('cashier_shift_id', $shift->id)
+            ->notRestocked();
 
         $salesReturns = SalesReturn::query()
             ->where('cashier_shift_id', $shift->id)
@@ -103,18 +113,18 @@ class CashierShiftService
         // Split payments: cash tender portions must count toward the drawer,
         // the parent row's payment_method ('split') puts grand_total in the non-cash bucket.
         // A split waiting for its transfer is pending, but its cash part is already in the drawer.
-        $splitCashTenderTotal = (int) TransactionTender::query()
+        $splitCashTenders = TransactionTender::query()
             ->whereHas('transaction', fn ($q) => $q
                 ->where('cashier_shift_id', $shift->id)
                 ->where('payment_method', 'split')
                 ->whereIn('payment_status', ['paid', 'pending']))
-            ->where('method', TransactionTender::METHOD_CASH)
-            ->sum('amount');
+            ->where('method', TransactionTender::METHOD_CASH);
 
-        $cashSalesTotal += $splitCashTenderTotal;
+        $cashSalesTotal += (int) (clone $splitCashTenders)->sum('amount');
 
         // Only money received counts: an unpaid bill (Belum Lunas) has taken none yet, and a gateway sale counts once it is paid (see countedInClosedRecap).
         $nonCashSalesTotal = (int) (clone $transactions)
+            ->whereKeyNot($bookedBillIds)
             ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
             ->where(fn ($sales) => $sales
                 ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
@@ -122,7 +132,14 @@ class CashierShiftService
             ->sum('grand_total');
 
         // Split payments: non-cash portion = grand_total minus cash tenders.
-        $nonCashSalesTotal -= $splitCashTenderTotal;
+        $nonCashSalesTotal -= (int) (clone $splitCashTenders)->whereNotIn('transaction_id', $bookedBillIds)->sum('amount');
+
+        // A booked bill is already a shortfall (BR-16): only the non-cash part it did receive counts here.
+        $nonCashSalesTotal += (int) TransactionTender::query()
+            ->whereIn('transaction_id', $bookedBillIds)
+            ->where('method', '!=', TransactionTender::METHOD_CASH)
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->sum('amount');
 
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')
@@ -208,10 +225,48 @@ class CashierShiftService
                 ]);
             }
 
-            $summary = $this->calculateSummary($lockedShift);
-            $cashDifference = $actualCash - $summary['expected_cash'];
+            $blockers = $this->blockerService->blockersFor($lockedShift, lock: true);
+            $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty();
+
+            // AC-12: a held shift closes only by force, and then only with a note (AC-13).
+            if ($held && ! $forceClose) {
+                throw ShiftCloseBlockedException::withBlockers($this->blockerService->rows($blockers));
+            }
+
+            if ($held && mb_strlen(trim((string) $closeNotes)) < 3) {
+                throw ValidationException::withMessages([
+                    'close_notes' => 'Catatan wajib diisi (minimal 3 huruf) untuk menutup paksa shift yang tertahan.',
+                ]);
+            }
+
+            $cancelled = $this->cancelUnpaidPayNowSales($lockedShift, $actor);
+
+            $unpaidBillsTotal = (int) $blockers['bills']->sum(fn (Transaction $bill) => $bill->unpaidAmount());
+            $this->kitchenItemService->markNotCollected($blockers['items']);
+
+            $summary = $this->calculateSummary($lockedShift, $blockers['bills']->modelKeys());
+            // BR-9: the booked bills are money the shift should have and does not.
+            $cashDifference = $actualCash - $summary['expected_cash'] - $unpaidBillsTotal;
+
+            if ($held) {
+                $this->auditLogService->log(
+                    event: 'cashier_shift.hold_overridden',
+                    module: 'cashier_shifts',
+                    auditable: $lockedShift,
+                    description: 'Shift ditutup paksa dengan item belum diserahkan atau tagihan belum lunas.',
+                    meta: [
+                        'note' => trim((string) $closeNotes),
+                        'not_collected_item_ids' => $blockers['items']->modelKeys(),
+                        'unpaid_bills' => $blockers['bills']->pluck('invoice')->all(),
+                        'unpaid_bills_total' => $unpaidBillsTotal,
+                        'cancelled_pay_now' => $cancelled,
+                    ],
+                    actor: $actor,
+                );
+            }
 
             $lockedShift->update([
+                'unpaid_bills_total' => $unpaidBillsTotal,
                 'actual_cash' => $actualCash,
                 'expected_cash' => $summary['expected_cash'],
                 'cash_sales_total' => $summary['cash_sales_total'],
@@ -231,6 +286,49 @@ class CashierShiftService
 
             return $lockedShift->fresh(['user:id,name', 'openedBy:id,name', 'closedBy:id,name']);
         });
+    }
+
+    /**
+     * AC-20: the shift's Bayar sekarang sales nobody paid are cancelled, restocked and audited. Call inside the close's
+     * DB::transaction.
+     *
+     * @return array<int, string> the cancelled invoices
+     */
+    private function cancelUnpaidPayNowSales(CashierShift $shift, User $actor): array
+    {
+        $candidates = fn () => Transaction::query()->unpaidPayNow()->where('cashier_shift_id', $shift->id);
+        $cancelled = [];
+
+        foreach ($candidates()->orderBy('id')->pluck('id') as $id) {
+            // Re-read under lock: a webhook or a confirmation may have paid it meanwhile.
+            $sale = $candidates()->whereKey($id)->lockForUpdate()->first();
+
+            if (! $sale) {
+                continue;
+            }
+
+            $this->cancellationService->cancel(
+                $sale,
+                "Dibatalkan saat shift ditutup {$sale->invoice}",
+                'Dibatalkan otomatis: belum dibayar saat shift ditutup.',
+            );
+            $sale->tenders()
+                ->where('payment_status', TransactionTender::STATUS_PENDING)
+                ->update(['payment_status' => TransactionTender::STATUS_FAILED]);
+
+            $this->auditLogService->log(
+                event: 'transaction.cancelled_on_shift_close',
+                module: 'transactions',
+                auditable: $sale,
+                description: 'Pesanan Bayar sekarang dibatalkan otomatis saat shift ditutup.',
+                meta: ['cashier_shift_id' => $shift->id, 'invoice' => $sale->invoice],
+                actor: $actor,
+            );
+
+            $cancelled[] = $sale->invoice;
+        }
+
+        return $cancelled;
     }
 
     public function summarizeForDisplay(?CashierShift $shift): ?array

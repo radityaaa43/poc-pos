@@ -159,6 +159,9 @@ class ThermalPrintService
         $lines[] = $this->line($maxWidth);
         $lines[] = $this->leftRight('MODAL AWAL', number_format((int) $shift->opening_cash, 0, ',', '.'), $maxWidth);
         $lines[] = $this->leftRight('EXPECTED CASH', number_format((int) $shift->expected_cash, 0, ',', '.'), $maxWidth);
+        if ($shift->unpaid_bills_total > 0) {
+            $lines[] = $this->leftRight('BELUM LUNAS', number_format((int) $shift->unpaid_bills_total, 0, ',', '.'), $maxWidth);
+        }
 
         if ($shift->actual_cash !== null) {
             $lines[] = $this->leftRight('KAS FISIK', number_format((int) $shift->actual_cash, 0, ',', '.'), $maxWidth);
