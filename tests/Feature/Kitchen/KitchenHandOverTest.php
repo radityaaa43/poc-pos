@@ -214,7 +214,9 @@ class KitchenHandOverTest extends TestCase
         $this->assertSame(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
 
         // Paid: accepted -> preparing -> ready -> served and completed, with no kitchen item involved.
-        $sale->update(['payment_status' => 'paid']);
+        // Quietly: a legacy order was paid before the release, so no intake ran. A paid flip today adds kitchen items, and the order is then tracked.
+        $sale->updateQuietly(['payment_status' => 'paid']);
+        $this->assertSame(0, KitchenItem::where('transaction_id', $sale->id)->count());
         $this->actingAs($admin)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
         $this->assertSame(DineOrder::STATUS_PREPARING, $order->fresh()->status);
         $this->actingAs($admin)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
