@@ -446,21 +446,15 @@ class PaymentWebhookController extends Controller
      * A paid notification for an older attempt, or for a failed one, on a bill that is not paid. Booked as the payment
      * when nothing else holds the bill (no pending or paid tender rows, see hasBlockingTenders) and the amount is what is
      * still owed; flagged for a manual refund otherwise. The event is audited either way.
+     *
+     * @param  array<string, mixed>  $extra  more meta for the booking's audit row
      */
-    private function settleLatePayment(Transaction $bill, ?CashierShift $shift, string $gateway, string $providerId, int $attempt, ?string $reference, mixed $amount): void
+    private function settleLatePayment(Transaction $bill, ?CashierShift $shift, string $gateway, string $providerId, int $attempt, ?string $reference, mixed $amount, array $extra = []): void
     {
         $priorStatus = $bill->payment_status;
         $meta = ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'order_attempt' => $attempt, 'bill_attempt' => $bill->payment_attempt, 'prior_status' => $priorStatus];
 
-        // A sale that expired and was restocked has no goods left to pay for: refund, do not book.
-        // A credit sale is charged what its receivable still owes (it may be partly paid), any other sale its remaining total.
-        $receivable = $bill->receivable()->first();
-        $owed = $receivable ? (int) round($receivable->remaining) : $bill->remainingTotal();
-        $booked = ! $bill->hasBlockingTenders()
-            && is_numeric($amount) && (int) round((float) $amount) === $owed
-            && ! $bill->wasRestocked();
-
-        if ($booked) {
+        if ($this->lateRefusal($bill, $amount) === null) {
             $this->record($bill, $shift, $gateway, $providerId, 'paid', false, $reference, $amount, late: true);
 
             // An earlier flag of this same payment (a tender was pending then) is reversed by the booking, and stays in the
@@ -475,13 +469,77 @@ class PaymentWebhookController extends Controller
                 module: 'transactions',
                 auditable: $bill,
                 description: "Pembayaran terlambat invoice {$bill->invoice} diterima dan dicatat sebagai pembayaran (status sebelumnya: {$priorStatus}).",
-                meta: [...$meta, 'reference' => $reference, 'booked' => true],
+                meta: [...$meta, ...$extra, 'reference' => $reference, 'booked' => true],
             );
 
             return;
         }
 
         $this->markLatePayment($bill, 'payment.late_after_failed', "Pembayaran terlambat invoice {$bill->invoice} tidak dicatat; perlu refund manual.", [...$meta, 'booked' => false], $reference);
+    }
+
+    /** Why a late payment of this amount cannot be booked (still_held, amount_mismatch, restocked), or null when it can. */
+    private function lateRefusal(Transaction $bill, mixed $amount): ?string
+    {
+        // A credit sale is charged what its receivable still owes (it may be partly paid), any other sale its remaining total.
+        $receivable = $bill->receivable()->first();
+        $owed = $receivable ? (int) round($receivable->remaining) : $bill->remainingTotal();
+
+        return match (true) {
+            $bill->hasBlockingTenders() => 'still_held',
+            ! is_numeric($amount) || (int) round((float) $amount) !== $owed => 'amount_mismatch',
+            // A sale that expired and was restocked has no goods left to pay for: refund, do not book.
+            $bill->wasRestocked() => 'restocked',
+            default => null,
+        };
+    }
+
+    /**
+     * BR-4 (#358): a cashier charge that held the bill has failed or expired, so the payments flagged meanwhile are judged
+     * again by the late-payment rule, plus "the bill is unpaid": a booked late payment leaves no tender to hold it, so only
+     * the status stops a second one. The oldest that fits is booked; each other one keeps its flag and is audited once per
+     * trigger. Call with the bill locked.
+     *
+     * @param  string  $trigger  cashier_charge_failed or expired
+     */
+    public function recheckFlaggedPayments(Transaction $bill, ?CashierShift $shift, string $trigger): void
+    {
+        $audits = AuditLog::whereIn('event', ['payment.late_superseded', 'payment.late_after_failed', 'payment.late_rechecked'])
+            ->where('auditable_type', $bill->getMorphClass())
+            ->where('auditable_id', $bill->id)
+            ->orderBy('id')
+            ->get();
+        $booked = $audits->filter(fn (AuditLog $log) => ($log->meta['booked'] ?? false) === true)->map($this->lateKey(...));
+        // Not flags to book: an audit-only note (flagged false), and the surplus of a payment that was booked (excess).
+        $flags = $audits->filter(fn (AuditLog $log) => $log->event !== 'payment.late_rechecked'
+            && ($log->meta['flagged'] ?? true) && ! isset($log->meta['excess']) && ! $booked->contains($this->lateKey($log)))
+            ->unique($this->lateKey(...));
+
+        foreach ($flags as $flag) {
+            ['gateway' => $gateway, 'order_id' => $providerId] = $flag->meta;
+            $reference = $flag->meta['reference'] ?? null;
+            $amount = $flag->meta['amount'] ?? null;
+            $reason = in_array($bill->payment_status, Transaction::OPEN_BILL_PAYABLE, true) ? $this->lateRefusal($bill, $amount) : 'still_held';
+
+            if ($reason === null) {
+                $this->settleLatePayment($bill, $shift, $gateway, $providerId, $this->attemptOf($providerId), $reference, $amount, ['rechecked' => true, 'trigger' => $trigger]);
+
+                continue;
+            }
+
+            $audited = $audits->contains(fn (AuditLog $log) => $log->event === 'payment.late_rechecked'
+                && $log->meta['trigger'] === $trigger && $this->lateKey($log) === $this->lateKey($flag));
+
+            if (! $audited) {
+                app(AuditLogService::class)->log(
+                    event: 'payment.late_rechecked',
+                    module: 'transactions',
+                    auditable: $bill,
+                    description: "Pembayaran bertanda pada invoice {$bill->invoice} diperiksa ulang dan tetap tidak dicatat.",
+                    meta: ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'reference' => $reference, 'booked' => false, 'reason' => $reason, 'trigger' => $trigger],
+                );
+            }
+        }
     }
 
     /**
@@ -564,6 +622,17 @@ class PaymentWebhookController extends Controller
             'normalized_status' => $newStatus,
             'verification_result' => 'valid',
         ]);
+
+        // A tender matching a failed or expired order id is a cashier's charge: what it held back is judged again.
+        if ($newStatus === 'failed' && $tenders->isNotEmpty()) {
+            $this->recheckFlaggedPayments($bill, $shift, $expired ? 'expired' : 'cashier_charge_failed');
+        }
+    }
+
+    /** What tells one late payment from another: the gateway reference, the order id when there is none. */
+    private function lateKey(AuditLog $log): string
+    {
+        return (string) (filled($log->meta['reference'] ?? null) ? $log->meta['reference'] : ($log->meta['order_id'] ?? ''));
     }
 
     /**
@@ -579,7 +648,7 @@ class PaymentWebhookController extends Controller
             ->where('auditable_type', $bill->getMorphClass())
             ->where('auditable_id', $bill->id)
             ->get()
-            ->map(fn (AuditLog $log) => (string) (filled($log->meta['reference'] ?? null) ? $log->meta['reference'] : ($log->meta['order_id'] ?? '')));
+            ->map($this->lateKey(...));
     }
 
     /**

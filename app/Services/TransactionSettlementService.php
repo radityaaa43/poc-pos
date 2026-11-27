@@ -3,7 +3,9 @@
 namespace App\Services;
 
 use App\Exceptions\PaymentGatewayException;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
@@ -219,6 +221,10 @@ class TransactionSettlementService
         $meta = ['attempt' => (int) $transaction->payment_attempt, 'method' => $tender?->method, 'exception' => $exception::class];
 
         DB::transaction(function () use ($claim, $transaction, $before, $status, $meta) {
+            // The re-check below may book a payment: take the webhook's locks, in its order (shift, dine order, bill).
+            $shift = $before['cashier_shift_id'] ? CashierShift::whereKey($before['cashier_shift_id'])->sharedLock()->first() : null;
+            DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->value('id');
+
             $restored = Transaction::storeChargeResult($transaction->id, $meta['attempt'], [
                 ...Arr::only($before, self::RESTORED),
                 ...$status,
@@ -244,6 +250,13 @@ class TransactionSettlementService
                 meta: $meta,
                 actor: $claim['cashier'],
             );
+
+            if ($restored) {
+                // BR-4: payments flagged because this charge was pending. A savepoint: a failure keeps the restore.
+                rescue(fn () => DB::transaction(fn () => app(PaymentWebhookController::class)->recheckFlaggedPayments(
+                    Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail(), $shift, 'cashier_charge_failed',
+                )));
+            }
         });
 
         throw ValidationException::withMessages([
