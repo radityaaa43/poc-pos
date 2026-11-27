@@ -151,7 +151,8 @@ merges:
   sides instead of conflicting. Add rows; a row two branches edit comes back twice (CI's *Glossary
   terms* check catches it in the glossary, review catches it elsewhere). Git reads the attribute from
   the branch you are on, so a branch cut before it commits `main`'s `.gitattributes` before merging
-  `main`. Locale JSON is not union-merged: the result can be invalid JSON.
+  `main`. GitHub ignores the attribute, so a PR may still show a conflict there; merging `main`
+  locally resolves it. Locale JSON is not union-merged: the result can be invalid JSON.
 - **Migrations** (`database/migrations/`): when the default branch has a newer migration than yours,
   rename yours to a fresh timestamp before merging, so files sort in apply order. CI's *Migration
   order* check turns red when you need to. Never rename or edit a migration after it has merged.
