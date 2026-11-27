@@ -225,6 +225,21 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], $locked);
     }
 
+    public function test_expired_payment_gives_back_option_stock(): void
+    {
+        $this->add(['Large'], 2);
+        $this->checkout();
+        Transaction::sole()->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
+        // Deleted since the sale: its recipe is still what comes back.
+        $this->option('Large')->delete();
+        $this->travel(25)->hours();
+
+        $this->artisan('transactions:expire')->assertSuccessful();
+
+        $this->assertSame([[50, 50], [10, 10]], [$this->stockOf($this->menu), $this->stockOf($this->milk)]);
+        $this->assertSame(4, (int) StockMutation::where('product_id', $this->milk->id)->where('mutation_type', 'in')->sole()->qty);
+    }
+
     public function test_old_sale_keeps_its_option_snapshot(): void
     {
         $this->add(['Large']);

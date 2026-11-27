@@ -11,14 +11,17 @@ use Illuminate\Support\Facades\DB;
  */
 class UnpaidSaleCancellationService
 {
-    public function __construct(private readonly StockMutationService $stockMutationService) {}
+    public function __construct(
+        private readonly StockMutationService $stockMutationService,
+        private readonly ComponentStockService $componentStock,
+    ) {}
 
     /**
      * The caller owns the DB::transaction, holds the row lock on `$sale` and has checked it may still be cancelled.
      */
     public function cancel(Transaction $sale, string $mutationNote, string $saleNote): void
     {
-        $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
+        $sale->loadMissing(['details.product.components', 'details.modifiers', 'details.batchAllocations']);
         $this->lockStockRows($sale);
 
         foreach ($sale->details as $detail) {
@@ -54,6 +57,21 @@ class UnpaidSaleCancellationService
                 notes: $mutationNote,
                 userId: null,
             );
+
+            foreach ($this->componentStock->restockOptions($detail, (int) $detail->qty, $warehouseId) as $row) {
+                $this->stockMutationService->recordMutation(
+                    product: $row['product'],
+                    warehouseId: $warehouseId,
+                    referenceType: 'transaction_expire',
+                    referenceId: $sale->id,
+                    mutationType: 'in',
+                    qty: $row['qty'],
+                    stockBefore: $row['stock_before'],
+                    stockAfter: $row['stock_before'] + $row['qty'],
+                    notes: "{$mutationNote} (opsi)",
+                    userId: null,
+                );
+            }
         }
 
         $sale->update([

@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\ModifierOption;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -72,5 +74,40 @@ class ComponentStockService
                 userId: $userId,
             );
         }
+    }
+
+    /**
+     * Gives back what the options of $qty sold units of a line took, in product_id order. A deleted option keeps its
+     * recipe; a deleted ingredient has no row left and is skipped. The caller records the stock mutations.
+     *
+     * @return list<array{product: Product, qty: int, stock_before: int}>
+     */
+    public function restockOptions(TransactionDetail $detail, int $qty, ?int $warehouseId): array
+    {
+        $options = ModifierOption::withTrashed()->with('components')
+            ->findMany($detail->modifiers->pluck('modifier_option_id')->filter()->all());
+        $taken = [];
+
+        foreach ($options as $option) {
+            foreach ($option->components as $component) {
+                $componentQty = (int) round((float) $component->getRelationValue('pivot')?->qty * $qty);
+                $taken[$component->id] = ($taken[$component->id] ?? 0) + $componentQty;
+            }
+        }
+
+        ksort($taken);
+        $restocked = [];
+
+        foreach ($taken as $productId => $componentQty) {
+            $pw = $warehouseId
+                ? ProductWarehouse::where(['product_id' => $productId, 'warehouse_id' => $warehouseId])->lockForUpdate()->first()
+                : null;
+            $product = Product::lockForUpdate()->findOrFail($productId);
+            $restocked[] = ['product' => $product, 'qty' => $componentQty, 'stock_before' => (int) ($pw->stock ?? $product->stock)];
+            $pw?->increment('stock', $componentQty);
+            $product->increment('stock', $componentQty);
+        }
+
+        return $restocked;
     }
 }
