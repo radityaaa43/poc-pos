@@ -44,7 +44,11 @@ export default function GroupForm({ group = null, outlets, ingredients, onClose 
                 toast.success(t("modifiers.saved"));
                 onClose();
             },
-            onError: () => toast.error(t("modifiers.failed")),
+            onError: () => {
+                toast.error(t("modifiers.failed"));
+                // The refusal is often above the Save button, out of view: bring the first one on screen.
+                requestAnimationFrame(() => document.querySelector('form [aria-invalid="true"], form [role="alert"]')?.scrollIntoView({ block: "center" }));
+            },
         };
 
         if (group) put(route("settings.modifiers.update", group.id), options);

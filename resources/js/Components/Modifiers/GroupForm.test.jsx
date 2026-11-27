@@ -91,6 +91,9 @@ describe("GroupForm", () => {
         expect(screen.getByLabelText("Minimum pilihan")).toHaveAccessibleDescription("Pesan minimum");
         expect(screen.getByRole("alert")).toHaveTextContent("Pesan default");
         expect(screen.getAllByLabelText("Tambahan harga (Rp)")[1]).toHaveAccessibleDescription("Pesan harga");
+        Element.prototype.scrollIntoView = vi.fn();
+        put.mock.calls[0][1].onError();
+        await vi.waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
     });
 
     it("builds a recipe in the ingredient's unit, and switches an outlet off and back on", async () => {
