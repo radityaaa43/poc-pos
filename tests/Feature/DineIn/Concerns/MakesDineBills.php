@@ -60,7 +60,7 @@ trait MakesDineBills
     }
 
     /** A guest order for 2 x Rujak + 1 x Air, accepted by the cashier (an open shift is opened for her first). */
-    private function acceptedOrder(): DineOrder
+    private function acceptedOrder(string $paymentOption = DineOrder::PAY_AT_COUNTER): DineOrder
     {
         if (! CashierShift::open()->where('user_id', $this->cashier->id)->exists()) {
             app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
@@ -68,7 +68,7 @@ trait MakesDineBills
 
         $order = DineOrder::create([
             'dine_table_id' => $this->table->id, 'cashier_id' => $this->cashier->id, 'status' => DineOrder::STATUS_SUBMITTED,
-            'submitted_at' => now(), 'payment_option' => DineOrder::PAY_AT_COUNTER, 'subtotal' => self::TOTAL, 'item_count' => 3,
+            'submitted_at' => now(), 'payment_option' => $paymentOption, 'subtotal' => self::TOTAL, 'item_count' => 3,
         ]);
         $order->items()->create(['product_id' => $this->flagged->id, 'qty' => 2, 'price' => 10000]);
         $order->items()->create(['product_id' => $this->plain->id, 'qty' => 1, 'price' => 5000]);
