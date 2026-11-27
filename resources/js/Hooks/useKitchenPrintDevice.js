@@ -54,6 +54,7 @@ const writeUnconfirmedCancellations = (ids) => localStorage.setItem(UNCONFIRMED_
 const labelsFor = (type) => ({
     type: i18n.t(`kitchen.types.${type}`, { defaultValue: type }),
     unpaid: i18n.t("kitchen.print.unpaid"),
+    addon: i18n.t("kitchen.print.addon"),
 });
 
 const buildBytes = (ticket, extraLabels) =>

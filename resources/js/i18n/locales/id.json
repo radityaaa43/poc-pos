@@ -1155,7 +1155,8 @@
             "wakeLockOff": "Layar bisa tidur — jaga perangkat tetap menyala",
             "reprint": "CETAK ULANG",
             "reprintButton": "Cetak ulang",
-            "reprintFailed": "Gagal mencetak ulang"
+            "reprintFailed": "Gagal mencetak ulang",
+            "addon": "TAMBAHAN"
         },
         "actions": {
             "start": "Mulai buat",

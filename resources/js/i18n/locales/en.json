@@ -1155,7 +1155,8 @@
             "wakeLockOff": "The screen may sleep — keep the device awake",
             "reprint": "REPRINT",
             "reprintButton": "Reprint",
-            "reprintFailed": "Reprint failed"
+            "reprintFailed": "Reprint failed",
+            "addon": "ADD-ON"
         },
         "actions": {
             "start": "Start",
