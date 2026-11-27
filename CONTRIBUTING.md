@@ -119,9 +119,9 @@ these checks must pass: **PR checklist**, **Standards approval**, **PR size**, *
 **Backend**, **Frontend** and **E2E**. No approving review is required, so the maintainer can merge their own PR once the
 checks are green.
 
-*Migration order* and *Script and hook tests* are not required checks because they only run when
-migrations or governance scripts change; a required check that never runs would block every other
-PR. Both still run and still count in review.
+*Migration order*, *Glossary terms* and *Script and hook tests* are not required checks because they
+only run when migrations, the glossary or governance scripts change; a required check that never runs
+would block every other PR. All three still run and still count in review.
 
 The guard hook is a second layer for agents only; for example it does not catch
 `git push origin HEAD:main`, which the ruleset rejects on the server.
@@ -183,6 +183,7 @@ on every turn.
 | Dependency check | no (warns) | Lists new direct dependencies for the reviewer |
 | Migration order | yes | New migrations sort after the default branch's |
 | Script and hook tests | yes | The governance scripts and the guard hook still work |
+| Glossary terms | yes | No `GLOSSARY.md` term appears twice, which its union merge can cause (also runs on `main`) |
 
 **Feature PRs bring their e2e.** A PR whose title starts with `feat` (`feat(pos): ...`) must change at
 least one file under `tests/e2e/features/` (scaffold a folder with `npm run e2e:new -- <NN-feature>`:
