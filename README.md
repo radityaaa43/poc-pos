@@ -130,6 +130,15 @@ On macOS or Linux, install the same versions and PHP extensions your usual way.
    character-set-server=utf8mb4
    collation-server=utf8mb4_unicode_ci
    max_allowed_packet=64M
+   # Dev box with many parallel sessions runs near its Windows commit limit: keep mysqld lean so an
+   # allocation failure doesn't kill it (crash 2026-11-28 22:13Z, uncaught exception after
+   # "DDL failed to create a thread").
+   performance_schema=OFF
+   innodb_buffer_pool_size=256M
+   innodb_ddl_threads=1
+   innodb_parallel_read_threads=1
+   temptable_max_ram=64M
+   max_connections=100
 
    [client]
    port=3306
@@ -143,6 +152,13 @@ On macOS or Linux, install the same versions and PHP extensions your usual way.
    mysqld --defaults-file=C:\laragon\bin\mysql\mysql-8.4.11-winx64\my.ini --initialize-insecure
    mysqld --install MySQL84 --defaults-file=C:\laragon\bin\mysql\mysql-8.4.11-winx64\my.ini
    net start MySQL84
+   ```
+
+   In the same terminal, make the service restart itself after a crash:
+
+   ```bat
+   sc failure MySQL84 reset= 86400 actions= restart/5000/restart/15000/restart/60000
+   sc failureflag MySQL84 1
    ```
 
    - Don't use Laragon's bundled MySQL 8.4.3: its zip lacks `lib/private` (ICU) and `mysqld` crashes during migrations.
