@@ -23,6 +23,7 @@ class DineOrderService
         private CashierShiftService $cashierShiftService,
         private TransactionSettlementService $settlementService,
         private KitchenItemService $kitchenItemService,
+        private AddOnOrderService $addOnOrderService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -60,10 +61,14 @@ class DineOrderService
 
             $userId = $cashierId;
 
+            // #251: re-checked under a lock here; a refusal rolls the whole accept back.
+            $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo);
+
             // ponytail: accepting a dine order is a sale — record a Transaction so revenue, profit, stock ledger and stock mutations all stay in sync with the POS path
             $transaction = Transaction::create([
                 'cashier_id' => $userId,
                 'cashier_shift_id' => $shift->id,
+                'parent_transaction_id' => $parentId,
                 'warehouse_id' => $warehouseId,
                 'customer_id' => $order->customer_id,
                 'invoice' => 'TRX-'.strtoupper(Str::random(10)),
@@ -77,6 +82,10 @@ class DineOrderService
                 'order_type' => 'in_store',
                 'note' => $order->notes,
             ]);
+
+            if ($parentId) {
+                $this->addOnOrderService->record($transaction);
+            }
 
             foreach ($order->items as $item) {
                 $product = $item->product;
