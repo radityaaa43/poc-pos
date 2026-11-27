@@ -19,7 +19,7 @@ REQ-008 berikutnya. Menu tanpa grup terjual seperti sebelumnya.
   kehilangan pasangannya. Tanpa `modifiers-manage` bagian ini tersembunyi dan server mengabaikan
   `modifier_group_ids`.
 - **Hapus**: grup dan opsi di-soft-delete (opsi yang hilang saat grup disimpan juga), grup dilepas dari semua menu
-  dan resep opsi terhapus dilepas (tercatat di audit), jadi bahannya bisa dihapus; penjualan lama tidak berubah.
+  resep opsi terhapus tetap disimpan (untuk retur penjualan lama; produk bahan yang dihapus keluar dari resep); penjualan lama tidak berubah.
 - **Audit log** (modul `modifiers`): `modifier_group.created`, `.updated`, `.deleted` dengan nilai lama dan baru, termasuk opsi,
   resep dan outlet yang dimatikan. Pemasangan ke menu ikut di `product.created` / `product.updated` (`modifier_group_ids`).
 

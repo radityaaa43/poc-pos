@@ -221,7 +221,7 @@ class ModifierGroupTest extends TestCase
         $this->assertTrue(ModifierCatalog::forOutlet(null, collect([$menu->id]))->isEmpty());
     }
 
-    public function test_an_edit_syncs_the_options_and_deleted_ones_release_their_ingredients(): void
+    public function test_deleted_options_keep_their_recipe(): void
     {
         [$milk, $syrup] = [$this->product(['is_raw_material' => true]), $this->product(['is_raw_material' => true])];
         $recipe = fn (Product $product) => ['components' => [['product_id' => $product->id, 'qty' => 1]]];
@@ -240,13 +240,13 @@ class ModifierGroupTest extends TestCase
         $this->assertSame(['Reguler', 'Jumbo'], $group->options()->pluck('name')->all());
         $this->assertSame($regular->id, $group->options()->first()->id);
         $this->assertSoftDeleted($large);
-        $syrup->delete();
+        $this->assertDatabaseHas('modifier_option_components', ['modifier_option_id' => $large->id, 'component_product_id' => $syrup->id]);
 
         $this->delete(route('settings.modifiers.destroy', $group));
         $milk->delete();
 
-        $this->assertModelMissing($syrup);
-        $this->assertModelMissing($milk);
+        // The row stays for a past sale's return; a deleted ingredient only drops out of it.
+        $this->assertDatabaseHas('modifier_option_components', ['modifier_option_id' => $regular->id, 'component_product_id' => null]);
         $deleted = AuditLog::where('event', 'modifier_group.deleted')->firstOrFail();
         $this->assertSame($milk->id, $deleted->before['options'][0]['components'][0]['product_id']);
     }

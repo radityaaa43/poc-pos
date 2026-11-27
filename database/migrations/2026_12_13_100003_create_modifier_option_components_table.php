@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::create('modifier_option_components', function (Blueprint $table) {
             $table->id();
             $table->foreignId('modifier_option_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('component_product_id')->constrained('products');
+            $table->foreignId('component_product_id')->nullable()->constrained('products')->nullOnDelete();
             $table->decimal('qty', 15, 4)->default(1);
             $table->timestamps();
 
