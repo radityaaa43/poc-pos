@@ -119,11 +119,27 @@ export async function getPendingTransactions(scopeKey = null) {
         .filter((row) => row.scope_key === null || row.scope_key === scopeKey);
 }
 
-export async function getPendingCount(scopeKey = null, ignore = []) {
+export async function getPendingCount(scopeKey = null) {
     const rows = await getPendingTransactions(scopeKey);
 
     return rows.filter(
-        (row) => !["synced", "duplicate", ...ignore].includes(row.status)
+        (row) => !["synced", "duplicate"].includes(row.status)
+    ).length;
+}
+
+/**
+ * Sales a cashier queued on this device that the server does not have yet (REQ-003 BR-12). Counted by cashier,
+ * not by the full scope key: the POS builds that key without a warehouse id. A `conflict` row is not counted: it
+ * is never sent again and the server holds that sale (BR-17).
+ */
+export async function getUnsyncedCount(cashierId) {
+    const db = await dbPromise;
+    const rows = (await db.getAll("pending_transactions")).map(normalizeQueueRecord);
+
+    return rows.filter(
+        (row) =>
+            (row.scope_key === null || row.scope_key.startsWith(`${cashierId}:`)) &&
+            !["synced", "duplicate", "conflict"].includes(row.status)
     ).length;
 }
 

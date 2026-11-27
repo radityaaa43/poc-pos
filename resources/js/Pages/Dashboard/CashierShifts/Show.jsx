@@ -3,7 +3,7 @@ import { Head, Link, router, usePage } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import ShiftCloseBlockedList from "./ShiftCloseBlockedList";
-import { getPendingCount } from "@/Utils/offlineDb";
+import { getUnsyncedCount } from "@/Utils/offlineDb";
 import {
     IconArrowLeft,
     IconCashBanknote,
@@ -83,16 +83,15 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
         ? null
         : actualCashNumber - Number(cashierShift.expected_cash || 0) - booked;
 
-    // BR-12: sales queued on this device must reach the shift first. Same key the POS queues under (cashier, warehouse).
-    const offlineScopeKey = `${cashierShift.user?.id ?? "guest"}:${cashierShift.warehouse?.id ?? "none"}`;
+    // BR-12: sales the shift's cashier queued on this device must reach the shift first.
+    const cashierId = cashierShift.user?.id ?? "guest";
     const [hasUnsynced, setHasUnsynced] = useState(false);
     const checkUnsynced = useCallback(async () => {
         // No IndexedDB means nothing can have been queued here.
-        // A conflict row is never sent again (#242 question), so it must not hold the close for good.
-        const pending = (await getPendingCount(offlineScopeKey, ["conflict"]).catch(() => 0)) > 0;
+        const pending = (await getUnsyncedCount(cashierId).catch(() => 0)) > 0;
         setHasUnsynced(pending);
         return pending;
-    }, [offlineScopeKey]);
+    }, [cashierId]);
 
     useEffect(() => {
         if (!canCloseShift) return undefined;

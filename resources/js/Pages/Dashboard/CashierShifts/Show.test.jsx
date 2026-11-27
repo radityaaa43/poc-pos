@@ -3,13 +3,13 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@inertiajs/react";
 import i18n from "@/i18n";
-import { getPendingCount } from "@/Utils/offlineDb";
+import { getUnsyncedCount } from "@/Utils/offlineDb";
 import Show from "./Show";
 
 let page;
 
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
-vi.mock("@/Utils/offlineDb", () => ({ getPendingCount: vi.fn() }));
+vi.mock("@/Utils/offlineDb", () => ({ getUnsyncedCount: vi.fn() }));
 vi.mock("@inertiajs/react", () => ({
     Head: () => null,
     Link: ({ children }) => children,
@@ -42,7 +42,7 @@ const expectPlainClose = async () => {
 beforeAll(() => i18n.changeLanguage("id"));
 beforeEach(() => {
     vi.clearAllMocks();
-    getPendingCount.mockResolvedValue(0);
+    getUnsyncedCount.mockResolvedValue(0);
     signIn();
 });
 
@@ -101,17 +101,17 @@ describe("Shift close", () => {
     });
 
     it("disables the close while this device still holds the shift cashier's offline sales", async () => {
-        getPendingCount.mockResolvedValue(2);
+        getUnsyncedCount.mockResolvedValue(2);
         signIn({ id: 1 });
         renderShow({ canForceClose: true });
         expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
-        expect(getPendingCount).toHaveBeenCalledWith("5:3", ["conflict"]);
+        expect(getUnsyncedCount).toHaveBeenCalledWith(5);
     });
 
     it("re-reads the queue on submit, so a sale queued after loading still blocks", async () => {
         renderShow();
-        await waitFor(() => expect(getPendingCount).toHaveBeenCalled());
-        getPendingCount.mockResolvedValue(1);
+        await waitFor(() => expect(getUnsyncedCount).toHaveBeenCalled());
+        getUnsyncedCount.mockResolvedValue(1);
         await fillCash();
         await click("Finalisasi Closing");
         expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
