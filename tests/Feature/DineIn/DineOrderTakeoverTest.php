@@ -51,7 +51,10 @@ class DineOrderTakeoverTest extends TestCase
         $this->assertSame($this->cashier->id, $bill->cashier_id);
         $this->assertFalse($bill->isAwaitingGuestPayment());
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count()); // the flagged line, once
-        Http::assertSentCount(1); // the guest's charge only: nothing is cancelled at the gateway (refund stays manual)
+        // The guest's charge, then its expiry, queued after the takeover committed (sync in tests).
+        Http::assertSentCount(2);
+        Http::assertSent(fn (Request $request) => $request->url() === "https://api.sandbox.midtrans.com/v2/{$bill->invoice}-r1/expire");
+        $this->assertSame(1, AuditLog::where('event', 'payment.superseded_charge_expired')->count());
 
         $log = AuditLog::where('event', 'dine_order.online_payment_taken_over')->sole();
         $this->assertSame(1, $log->meta['guest_attempt']);
@@ -126,13 +129,13 @@ class DineOrderTakeoverTest extends TestCase
     public function test_a_failed_takeover_charge_leaves_the_bill_payable_and_a_late_guest_payment_is_booked(): void
     {
         $this->useGateway('midtrans', fakeHttp: false);
-        $calls = 0;
         // The guest's charge succeeds; the cashier's own charge after it is refused by the gateway.
-        Http::fake(function () use (&$calls) {
-            return ++$calls === 1
-                ? Http::response(['token' => 'tok', 'redirect_url' => 'https://pay.test/midtrans', 'qr_string' => '000201MIDTRANS'], 201)
-                : Http::response(['status_message' => 'down'], 500);
-        });
+        Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '407'], 200),
+            'app.sandbox.midtrans.com/*' => Http::sequence()
+                ->push(['token' => 'tok', 'redirect_url' => 'https://pay.test/midtrans', 'qr_string' => '000201MIDTRANS'], 201)
+                ->push(['status_message' => 'down'], 500),
+        ]);
         $order = $this->acceptedOrder();
         $this->guestPays($order)->assertOk();
 
@@ -150,6 +153,8 @@ class DineOrderTakeoverTest extends TestCase
         $this->assertNull($bill->payment_reference);
         $this->assertFalse($bill->isAwaitingGuestPayment());
         $this->assertSame(1, AuditLog::where('event', 'dine_order.online_payment_taken_over')->count());
+        // Her charge failing does not keep the guest's alive: it is expired like after any takeover.
+        Http::assertSent(fn (Request $request) => $request->url() === "https://api.sandbox.midtrans.com/v2/{$bill->invoice}-r1/expire");
 
         // The guest pays her QR anyway: nothing holds the bill, so the money taken once is booked once.
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();

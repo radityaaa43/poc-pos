@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ExpireSupersededGatewayCharge;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
@@ -282,6 +283,9 @@ class DineOrderService
             $claim = $this->settlementService->claim($transaction, $cashier, $shift, $outlet, $tenderInput);
 
             if ($takeover) {
+                // After this commit, and whatever becomes of the cashier's own charge.
+                ExpireSupersededGatewayCharge::dispatchFor($transaction, $claim['before']);
+
                 app(AuditLogService::class)->log(
                     event: 'dine_order.online_payment_taken_over',
                     module: 'transactions',

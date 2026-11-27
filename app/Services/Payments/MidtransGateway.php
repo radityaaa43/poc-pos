@@ -4,6 +4,7 @@ namespace App\Services\Payments;
 
 use App\Exceptions\PaymentGatewayException;
 use App\Models\Transaction;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 class MidtransGateway
@@ -25,6 +26,34 @@ class MidtransGateway
             ...$result,
             'qr_string' => $result['raw']['qr_string'] ?? null,
         ];
+    }
+
+    /**
+     * Core API expire: it moves only a pending transaction, so it cannot void a payment that has just settled.
+     *
+     * @return string expired, not_pending, not_found, transient or permanent
+     */
+    public function expireCharge(array $config, string $orderId): string
+    {
+        $host = ($config['is_production'] ?? false) ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
+
+        try {
+            $response = Http::timeout(10)->withBasicAuth($config['server_key'], '')
+                ->send('POST', "{$host}/v2/".rawurlencode($orderId).'/expire');
+        } catch (ConnectionException) {
+            return 'transient';
+        }
+
+        // The body carries its own status_code, also under HTTP 200; 407 is "success, transaction has expired".
+        $code = (int) ($response->json('status_code') ?? $response->status());
+
+        return match (true) {
+            $code === 407 => 'expired',
+            $code === 412 => 'not_pending',
+            $code === 404 => 'not_found',
+            $code === 429, $code >= 500 => 'transient',
+            default => 'permanent',
+        };
     }
 
     private function createTransaction(Transaction $transaction, array $config, ?array $enabledPayments = null, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array

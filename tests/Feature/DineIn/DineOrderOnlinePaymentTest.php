@@ -48,6 +48,7 @@ class DineOrderOnlinePaymentTest extends TestCase
     {
         parent::setUp();
 
+        Http::preventStrayRequests(); // a superseded charge is expired on the sync queue: never at a real gateway
         $this->cashier = User::factory()->create();
         $this->warehouse = Warehouse::create(['code' => 'PUSAT', 'name' => 'Gudang Pusat', 'type' => 'main', 'is_active' => true, 'sort_order' => 0]);
         $category = Category::create(['name' => 'Kategori', 'image' => 'categories/t.jpg', 'description' => 'x']);
@@ -106,6 +107,8 @@ class DineOrderOnlinePaymentTest extends TestCase
     private function fakeGateways(): void
     {
         Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '407'], 200), // expiry
+            'api.xendit.co/invoices/*' => Http::response(['status' => 'EXPIRED'], 200), // expiry
             'app.sandbox.midtrans.com/*' => Http::response(['token' => 'tok', 'redirect_url' => 'https://pay.test/midtrans', 'qr_string' => '000201MIDTRANS'], 201),
             'api.xendit.co/*' => Http::response(['id' => 'xnd-1', 'invoice_url' => 'https://pay.test/xendit', 'qr_string' => '000201XENDIT'], 200),
         ]);
