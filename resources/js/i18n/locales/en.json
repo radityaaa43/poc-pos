@@ -571,7 +571,8 @@
         "closeBlocked": {
             "title": "Close blocked",
             "item": "Not handed over",
-            "bill": "Unpaid"
+            "bill": "Unpaid",
+            "syncFirst": "Sync offline transactions first"
         },
         "forced": {
             "submit": "Force close",
@@ -1178,6 +1179,11 @@
             "awaitingOnline": "Waiting for online payment",
             "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
             "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
+        },
+        "offlineKitchen": {
+            "notice": "The kitchen has not received this order. Tell the kitchen directly.",
+            "close": "Close",
+            "pending": "Offline orders not received by the kitchen: {{count}}"
         }
     },
     "outlets": {
