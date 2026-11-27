@@ -39,11 +39,6 @@ Grup urut sesuai menu, opsi sesuai grup; opsi terhapus atau dimatikan di outlet 
 opsinya mati tetap ada dengan `options` kosong (pemanggil memblokir menu bila grup itu wajib). Ketersediaan stok
 **tidak** diperiksa di sini. `components` adalah resep internal: jangan kirim ke tamu.
 
-## Data
-
-`modifier_groups`, `modifier_options` (keduanya soft delete), `modifier_option_components` (resep opsi),
-`product_modifier_group` (urutan di `sort`), `modifier_option_outlet` (baris = dimatikan). Tidak ada backfill.
-
 ## Deploy
 
 Jalankan migrasi, lalu `php artisan db:seed --class=PermissionSeeder` dan `--class=RoleSeeder`. `modifiers-manage`

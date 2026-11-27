@@ -2,9 +2,7 @@
 
 namespace App\Testing\E2e\Scenarios;
 
-use App\Models\Category;
 use App\Models\Outlet;
-use App\Models\Product;
 use App\Services\ModifierGroupService;
 use App\Support\Modifiers\ModifierCatalog;
 use Illuminate\Support\Str;
@@ -18,23 +16,6 @@ class Modifiers
     public static function registry(): array
     {
         return [
-            // A menu the product form can save as it is (SKU included). --arg=title=<text>
-            'modifier-menu' => function (array $options): array {
-                $product = Product::create([
-                    'category_id' => Category::where('name', 'E2E Kategori')->firstOrFail()->id,
-                    'barcode' => 'E2E-'.Str::upper(Str::random(10)),
-                    'sku' => 'E2E-'.Str::upper(Str::random(10)),
-                    'title' => $options['title'],
-                    'description' => 'Menu E2E',
-                    'buy_price' => 5000,
-                    'sell_price' => 10000,
-                    'stock' => 0,
-                    'tax_rate' => 0,
-                ]);
-
-                return ['product_id' => $product->id, 'title' => $product->title];
-            },
-
             // A required group --arg=name=<text> with Regular (default) and Large, optionally on --arg=product=<id>.
             'modifier-group' => function (array $options): array {
                 $group = app(ModifierGroupService::class)->save(null, [

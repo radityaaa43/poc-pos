@@ -93,6 +93,22 @@ describe("GroupForm", () => {
         expect(screen.getAllByLabelText("Tambahan harga (Rp)")[1]).toHaveAccessibleDescription("Pesan harga");
     });
 
+    it("builds a recipe in the ingredient's unit, and switches an outlet off and back on", async () => {
+        mount({ outlets: [{ id: 2, name: "Cabang" }], ingredients: [{ id: 9, title: "Susu", unit_symbol: "ml" }] });
+
+        await userEvent.click(screen.getByRole("button", { name: "Tambah bahan" }));
+        await userEvent.selectOptions(screen.getByLabelText("Bahan"), "Susu");
+        await userEvent.type(screen.getByLabelText("Jumlah (ml)"), "50");
+        expect(data.options[0].components).toEqual([{ product_id: "9", qty: "50" }]);
+        await userEvent.click(screen.getByRole("button", { name: "Hapus bahan 1" }));
+        expect(data.options[0].components).toEqual([]);
+
+        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
+        expect(data.options[0].disabled_outlet_ids).toEqual([2]);
+        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
+        expect(screen.getByRole("switch", { name: "Cabang" })).toBeChecked();
+    });
+
     it("reads in English", async () => {
         await i18n.changeLanguage("en");
         mount();

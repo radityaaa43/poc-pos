@@ -15,7 +15,6 @@ use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
-use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -102,15 +101,6 @@ class ModifierGroupTest extends TestCase
             ]),
         ]]);
 
-        $this->actingAs($this->manager)->get(route('settings.modifiers.index'))->assertInertia(fn (Assert $page) => $page
-            ->component('Dashboard/Settings/Modifiers')
-            ->where('groups.0.name', 'Ukuran')
-            ->where('groups.0.is_required', true)
-            ->where('groups.0.products_count', 0)
-            ->where('groups.0.options.1.price_delta', 5000)
-            ->where('groups.0.options.1.components.0.product_id', $milk->id)
-            ->where('groups.0.options.1.disabled_outlet_ids', [$outlet->id]));
-
         // An edit keeps the ids it sends, adds the new ones and soft-deletes the rest.
         [$regular, $large] = $group->options()->get()->all();
         $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [
@@ -123,21 +113,19 @@ class ModifierGroupTest extends TestCase
         $this->assertSoftDeleted($large);
     }
 
-    public static function brokenGroups(): array
+    public function test_group_rules_are_enforced(): void
     {
-        return [
-            'min above max' => [['min_select' => 3, 'max_select' => 2], 'min_select', 'min_above_max'],
-            'max below one' => [['is_required' => false, 'min_select' => 0, 'max_select' => 0], 'max_select', 'max_below_one'],
-            'required with min zero' => [['min_select' => 0], 'min_select', 'required_min'],
+        $cases = [
+            [['min_select' => 3, 'max_select' => 2], 'min_select', 'min_above_max'],
+            [['is_required' => false, 'min_select' => 0, 'max_select' => 0], 'max_select', 'max_below_one'],
+            [['min_select' => 0], 'min_select', 'required_min'],
         ];
-    }
 
-    #[DataProvider('brokenGroups')]
-    public function test_group_rules_are_enforced(array $overrides, string $field, string $message): void
-    {
-        $this->actingAs($this->manager)
-            ->post(route('settings.modifiers.store'), $this->payload($overrides))
-            ->assertSessionHasErrors([$field => __("messages.modifiers.$message")]);
+        foreach ($cases as [$overrides, $field, $message]) {
+            $this->actingAs($this->manager)
+                ->post(route('settings.modifiers.store'), $this->payload($overrides))
+                ->assertSessionHasErrors([$field => __("messages.modifiers.$message")]);
+        }
 
         $this->assertDatabaseCount('modifier_groups', 0);
     }

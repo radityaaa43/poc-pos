@@ -14,12 +14,7 @@ use Illuminate\Support\Collection;
 class ModifierCatalog
 {
     /**
-     * Four queries whatever the number of products. Products without groups are absent. Groups come in the menu's
-     * display order, options in the group's order; deleted ones and options switched off at $outlet are left out
-     * (null outlet: nothing is switched off). A group whose options are all off stays, with an empty list, so a
-     * required one can block the menu. Stock availability is not checked here.
-     *
-     * Each option is {id, name, price_delta, is_default, components: [{product_id, qty}]}.
+     * Output shape and rules (the contract for the selling channels): docs/features/modifiers.md.
      *
      * @param  Collection<int, int>  $productIds
      * @return Collection<int, array<int, array{id: int, name: string, is_required: bool, min_select: int,

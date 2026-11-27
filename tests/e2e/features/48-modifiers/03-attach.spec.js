@@ -3,7 +3,7 @@ import { role } from '../../support/inventory.js';
 
 test.describe('48-modifiers: attach to a menu', () => {
     test('groups attach to a menu in the chosen order, never to a raw material', { tag: ['@REQ-008-AC-03'] }, async ({ asRole, arrange, uniq }) => {
-        const menu = arrange('modifier-menu', { title: uniq('Kopi') });
+        const menu = arrange('product', { title: uniq('Kopi') });
         const size = arrange('modifier-group', { name: uniq('Ukuran') }).name;
         const sugar = arrange('modifier-group', { name: uniq('Gula') }).name;
         const page = await asRole(role('manager'));
