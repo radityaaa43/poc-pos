@@ -160,8 +160,8 @@ On macOS or Linux, install the same versions and PHP extensions your usual way.
 ```bash
 composer install                  # every worktree needs its own vendor/
 PUPPETEER_SKIP_DOWNLOAD=true npm install
-cp .env.example .env
-php artisan key:generate
+cp .env.example .env              # only when there is no .env yet
+php artisan key:generate          # same: a new key breaks sessions and encrypted data
 php artisan migrate --seed
 php artisan storage:link
 ```
