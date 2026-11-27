@@ -1,6 +1,6 @@
 # REQ-008: Menu modifier (pilihan dan catatan per item)
 
-- **Status:** draft
+- **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:sales
 - **Updated:** 2026-11-28
@@ -36,6 +36,7 @@ Hari ini setiap variasi menu harus dibuat sebagai produk terpisah (Kopi Susu Reg
 13. **Server selalu menghitung ulang harga opsi saat checkout** dari data terbaru, dari channel mana pun. Baris tanpa opsi dari channel yang belum mengenal modifier (mis. mobile POS API) mendapat opsi default grup wajib; kalau grup wajib tidak punya default yang tersedia, baris itu ditolak. Alasan: harga dari klien tidak dipercaya (sama seperti AC-02 REQ-005). Ditolak: menerima harga opsi dari klien. (Business/PM, 2026-11-28)
 14. **Retur** mengembalikan satu baris utuh (menu + opsinya); retur opsi saja tidak ada. Stok bahan resep opsi dikembalikan dengan aturan yang sama seperti menunya (REQ-003 AC-11). (Business/PM, 2026-11-28)
 15. **Pajak dan poin loyalty** dihitung dari nilai baris penuh, sama seperti harga menu. **Laporan kecepatan dapur** (REQ-003) tetap per menu; opsi tidak dipisah. (Business/PM, 2026-11-28)
+16. **Promo yang mengganti harga** (harga tetap per porsi, quantity break) hanya mengganti **harga menu**; opsi berbayar tetap ditagih di atasnya, sama seperti item gratis buy X get Y (keputusan 5). Alasan: harga promo menu tidak boleh menelan topping yang dipilih tamu. Ditolak: harga promo mencakup opsi, karena promo 10.000 akan menggratiskan topping 5.000. (Business/PM, 2026-11-28, Q-A dari feasibility read #412)
 
 ## Process
 
@@ -152,7 +153,7 @@ n/a — modifier tidak menambah status baru. Grup dan opsi hanya aktif/nonaktif 
 - **AC-08:** Given panel pilihan, when kasir menulis catatan (maks 100 karakter) lalu menambah ke cart, then baris cart menampilkan menu, opsi, catatan dan harga; catatan tidak mengubah harga atau stok.
 - **AC-09:** Given opsi yang bahan resepnya kurang untuk satu porsi di gudang kasir, when panel pilihan dibuka, then opsi itu tampil **Habis** dan tidak bisa dipilih; kalau semua opsi di sebuah grup wajib habis, menu tidak bisa ditambahkan.
 - **AC-10:** Given menu yang sama sudah ada di cart, when ditambahkan lagi dengan opsi atau catatan berbeda, then menjadi baris terpisah; dengan opsi dan catatan sama, qty baris yang ada bertambah.
-- **AC-11:** Given promo, diskon atau voucher aktif, when baris dengan opsi dihitung, then diskon berlaku ke harga baris penuh (menu + opsi); untuk item gratis dari buy X get Y, hanya harga menu yang gratis dan opsi berbayar tetap ditagih.
+- **AC-11:** Given promo, diskon atau voucher aktif, when baris dengan opsi dihitung, then diskon berlaku ke harga baris penuh (menu + opsi); untuk item gratis dari buy X get Y, hanya harga menu yang gratis dan opsi berbayar tetap ditagih; promo harga tetap atau quantity break hanya mengganti harga menu, dan opsi berbayar tetap ditagih (keputusan 16).
 - **AC-12:** Given checkout berhasil (online, atau offline lalu sync), when penjualan tersimpan, then setiap baris menyimpan nama dan harga opsi saat itu serta catatannya; struk menampilkannya per item; stok bahan menu dan bahan resep opsi berkurang dalam satu transaksi dengan penjualan.
 - **AC-13:** Given opsi yang dinonaktifkan, dihapus, habis atau harganya berubah setelah masuk cart (termasuk antrean offline), when checkout atau sync, then server memakai harga terbaru, dan menolak baris dengan opsi yang sudah tidak tersedia dengan pesan yang menyebut menu dan opsinya; baris tanpa opsi dari channel yang belum mengenal modifier mendapat opsi default grup wajib.
 - **AC-14:** Given penjualan lama berisi opsi, when opsi diubah atau dihapus, then struk, riwayat dan laporan penjualan lama tidak berubah; retur mengembalikan satu baris utuh beserta opsinya, dan stok bahan resep opsi dikembalikan dengan aturan yang sama seperti menunya.
@@ -237,7 +238,7 @@ n/a — modifier tidak menambah status baru. Grup dan opsi hanya aktif/nonaktif 
 
 ## Open questions
 
-- **Q1:** Feasibility read oleh tech-lead (struktur data, beban di cache offline dan QR menu, ukuran per ticket) — decides: tech-lead. `?` until answered.
+- **Q1:** Feasibility read oleh tech-lead — **answered** (#412, 2026-11-28): layak tanpa merombak mesin harga. Struktur data seluruhnya tambahan (grup, opsi, resep opsi, pemasangan ke menu, opsi nonaktif per outlet; snapshot opsi per baris penjualan sebagai tabel anak, bukan JSON, supaya laporan J5 portabel). Grup dikirim sekali ke POS dan QR menu, beberapa KB; cache offline menambah satu store tanpa menyentuh antrean penjualan. Dipotong menjadi lima ticket: T1 J1 setup (±1.300 baris), T2 J2 penjualan POS online (±1.500), T3 J2 offline, sync dan default mobile API (±800), T4 J3 + J4 QR menu dan dapur (±1.300), T5 J5 laporan (±500). Urutan T1 → T2 → (T3, T4, T5 paralel). Q-A menjadi keputusan 16.
 
 ## Delivered by
 
