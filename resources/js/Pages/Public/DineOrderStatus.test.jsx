@@ -51,7 +51,7 @@ describe("DineOrderStatus online payment", () => {
     const accepted = (props) => render(<DineOrderStatus order={{ ...base, status: "accepted" }} table={table} storeName="Toko" {...props} />);
     // The next 5 s poll answers with this body.
     const poll = async (body) => {
-        global.fetch.mockResolvedValueOnce({ json: async () => body });
+        globalThis.fetch.mockResolvedValueOnce({ json: async () => body });
         await act(() => vi.advanceTimersByTimeAsync(5000));
     };
 
@@ -59,7 +59,7 @@ describe("DineOrderStatus online payment", () => {
     beforeEach(() => {
         vi.useFakeTimers();
         router.reload.mockReset();
-        global.fetch = vi.fn();
+        globalThis.fetch = vi.fn();
     });
     afterEach(() => vi.useRealTimers());
 
