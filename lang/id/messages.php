@@ -430,6 +430,11 @@ return [
         'qty_below_one' => 'Jumlah bahan minimal 1.',
         'raw_material' => 'Bahan baku tidak bisa diberi modifier.',
         'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
+        'option_unavailable' => 'Opsi :option untuk :menu tidak tersedia lagi.',
+        'option_sold_out' => 'Opsi :option untuk :menu habis.',
+        'group_min' => 'Grup :group untuk :menu belum lengkap (pilih minimal :min).',
+        'group_max' => 'Grup :group untuk :menu maksimal :max pilihan.',
+        'note_line' => 'Catatan: :note',
     ],
 
     /*

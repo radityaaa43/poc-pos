@@ -430,6 +430,11 @@ return [
         'qty_below_one' => 'The ingredient quantity must be at least 1.',
         'raw_material' => 'A raw material cannot take modifiers.',
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
+        'option_unavailable' => 'Option :option for :menu is no longer available.',
+        'option_sold_out' => 'Option :option for :menu is sold out.',
+        'group_min' => 'Group :group for :menu is incomplete (pick at least :min).',
+        'group_max' => 'Group :group for :menu takes at most :max.',
+        'note_line' => 'Note: :note',
     ],
 
     /*

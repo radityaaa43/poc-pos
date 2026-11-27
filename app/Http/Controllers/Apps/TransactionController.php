@@ -19,9 +19,11 @@ use App\Models\TransactionTender;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
+use App\Services\CartService;
 use App\Services\CashierShiftService;
 use App\Services\CheckoutService;
 use App\Services\LoyaltyService;
+use App\Services\Modifiers\ModifierSelection;
 use App\Services\OpenBillListService;
 use App\Services\OutletAccessService;
 use App\Services\Payments\PaymentGatewayManager;
@@ -116,13 +118,17 @@ class TransactionController extends Controller
             ->filter(fn (Product $product) => $product->stockIn($warehouseId) > 0)
             ->values();
         $pricingBadges = $this->pricingService->previewProducts($products, null, null, $outlet);
-        $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId) {
+        $modifierGroups = ModifierSelection::forPos($products->pluck('id'), $outlet, $warehouseId);
+        $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId, $modifierGroups) {
             $pricing = $pricingBadges->get($product->id);
 
             return [
                 ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
                 'stock' => $product->stockIn($warehouseId),
                 'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
+                // What the options panel starts from: the outlet's price list, not products.sell_price.
+                'menu_price' => $product->is_composite ? $product->compositeSellPrice() : $pricing['base_unit_price'],
+                'modifiers_sold_out' => ModifierSelection::isSoldOut($modifierGroups->get($product->id, [])),
                 'units' => $product->units->map(fn ($u) => [
                     'unit_id' => $u->id,
                     'code' => $u->code,
@@ -173,6 +179,7 @@ class TransactionController extends Controller
             'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'customers' => $customers,
             'products' => $products,
+            'modifierGroups' => $modifierGroups,
             'categories' => $categories,
             'initialPricingPreview' => $initialPricingPreview,
             'paymentGateways' => $paymentSetting?->enabledGateways($outlet) ?? [],
@@ -270,92 +277,21 @@ class TransactionController extends Controller
      * @param  mixed  $request
      * @return void
      */
-    public function addToCart(Request $request)
+    public function addToCart(Request $request, CartService $cartService)
     {
         $validated = $request->validate([
             'product_id' => ['required', 'integer', 'exists:products,id'],
             'qty' => ['required', 'numeric', 'min:0.01'],
             'unit_id' => ['nullable', 'integer'],
+            'modifier_option_ids' => ['nullable', 'array', 'max:50'],
+            'modifier_option_ids.*' => ['integer'],
+            'note' => ['nullable', 'string', 'max:100'],
         ]);
 
         $activeShift = $this->cashierShiftService->getActiveShiftForUser(auth()->user()->id);
-        $warehouseId = $activeShift?->warehouse_id;
+        $activeShift?->loadMissing('warehouse.outlet');
 
-        $product = Product::whereId($validated['product_id'])->first();
-        $inCart = Cart::baseQtyInCart(auth()->id(), (int) $validated['product_id']);
-
-        if (! $product) {
-            return back()->withErrors(['message' => 'Product not found.']);
-        }
-
-        if ($product->is_raw_material) {
-            return back()->withErrors(['message' => 'Bahan baku tidak dapat dijual.']);
-        }
-
-        // ponytail: composite branch skips unit logic; null unit_id is fine for composite carts
-        $unitId = null;
-
-        // Composite: check component stock
-        if ($product->is_composite) {
-            $product->load('components');
-            foreach ($product->components as $component) {
-                $needed = (float) $component->pivot->qty * ($validated['qty'] + $inCart);
-                $whProduct = $component->warehouses()->where('warehouse_id', $warehouseId)->first();
-                $avail = $whProduct?->pivot->stock ?? 0;
-                if ($avail < $needed) {
-                    return back()->withErrors(['message' => "Stok {$component->title} tidak mencukupi."]);
-                }
-            }
-            $sellPrice = $product->compositeSellPrice();
-        } else {
-            $unitId = (int) (($validated['unit_id'] ?? null) ?: $product->baseUnit()?->id ?: 1);
-
-            // Reject an explicitly provided unit that does not belong to this product
-            if (! empty($validated['unit_id'] ?? null) && ! $product->units()->whereKey($unitId)->exists()) {
-                return back()->withErrors(['message' => 'Satuan tidak valid untuk produk ini.']);
-            }
-
-            $unitConversion = app(UnitConversionService::class);
-            $baseQty = $unitConversion->toBaseUnit($product, $unitId, $validated['qty']);
-
-            $availableStock = $warehouseId
-                ? (int) ($product->warehouses()->where('warehouse_id', $warehouseId)->first()?->pivot->stock ?? 0)
-                : (int) $product->stock;
-
-            if ($availableStock < $baseQty + $inCart) {
-                return back()->withErrors(['message' => 'Stok tidak mencukupi. Tersedia: '.$availableStock]);
-            }
-
-            $sellPrice = $unitConversion->getSellPrice($product, $unitId);
-            $pu = $product->units()->where('unit_id', $unitId)->first();
-            $conversionFactor = $pu?->pivot->conversion_factor ?? 1;
-        }
-        if (! isset($conversionFactor)) {
-            $conversionFactor = 1;
-        }
-
-        $cart = Cart::with('product')
-            ->where('product_id', $validated['product_id'])
-            ->where('unit_id', $unitId)
-            ->where('cashier_id', auth()->user()->id)
-            ->active()
-            ->first();
-
-        if ($cart) {
-            $cart->increment('qty', $validated['qty']);
-            $cart->price = $sellPrice * $cart->qty;
-            $cart->save();
-        } else {
-            Cart::create([
-                'cashier_id' => auth()->user()->id,
-                'warehouse_id' => $warehouseId,
-                'product_id' => $validated['product_id'],
-                'unit_id' => $unitId,
-                'conversion_factor' => $conversionFactor,
-                'qty' => $validated['qty'],
-                'price' => $sellPrice * $validated['qty'],
-            ]);
-        }
+        $cartService->add(auth()->id(), $activeShift?->warehouse_id, $activeShift?->warehouse?->outlet, $validated);
 
         return redirect()->route('transactions.index')->with('success', 'Product Added Successfully!.');
     }
@@ -435,9 +371,10 @@ class TransactionController extends Controller
 
         // Update quantity and price (derive price from DB, not from request/global sell_price)
         $cart->qty = $request->qty;
-        $cart->price = $product->is_composite
-            ? $product->compositeSellPrice() * $request->qty
-            : $unitConversion->getSellPrice($product, (int) $cart->unit_id) * $request->qty;
+        $menuPrice = $product->is_composite
+            ? $product->compositeSellPrice()
+            : $unitConversion->getSellPrice($product, (int) $cart->unit_id);
+        $cart->price = ($menuPrice + $cart->modifier_total) * $request->qty;
         $cart->save();
 
         return back()->with('success', 'Quantity updated successfully');
@@ -758,7 +695,7 @@ class TransactionController extends Controller
     public function print(Request $request, $invoice)
     {
         // get transaction
-        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
+        $transaction = Transaction::with('details.product', 'details.modifiers', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);

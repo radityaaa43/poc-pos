@@ -12,11 +12,14 @@ class Cart extends Model
 
     protected $fillable = [
         'cashier_id', 'warehouse_id', 'product_id', 'unit_id', 'conversion_factor', 'qty', 'price', 'hold_id', 'hold_label', 'held_at',
+        'modifier_option_ids', 'modifier_total', 'note', 'line_key',
     ];
 
     protected $casts = [
         'held_at' => 'datetime',
         'conversion_factor' => 'decimal:4',
+        'modifier_option_ids' => 'array',
+        'modifier_total' => 'integer',
     ];
 
     public function product()

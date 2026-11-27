@@ -35,6 +35,8 @@ class TransactionDetail extends Model
         'pricing_rule_kind',
         'pricing_group_key',
         'pricing_group_label',
+        'note',
+        'modifier_total',
     ];
 
     protected $casts = [
@@ -48,6 +50,7 @@ class TransactionDetail extends Model
         'pricing_rule_id' => 'integer',
         'pricing_rule_kind' => 'string',
         'conversion_factor' => 'decimal:4',
+        'modifier_total' => 'integer',
     ];
 
     /**
@@ -135,6 +138,12 @@ class TransactionDetail extends Model
     public function pricingRule(): BelongsTo
     {
         return $this->belongsTo(PricingRule::class);
+    }
+
+    /** @return HasMany<TransactionDetailModifier, $this> */
+    public function modifiers(): HasMany
+    {
+        return $this->hasMany(TransactionDetailModifier::class)->orderBy('id');
     }
 
     /** @return HasMany<SalesReturnItem, $this> */
