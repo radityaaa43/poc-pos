@@ -9,6 +9,7 @@ use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Transaction;
@@ -210,6 +211,9 @@ class SalesReturnController extends Controller
             // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
             // stock row (#241, #242). A refusal below rolls the cancellation back.
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
+
+            // Then the receivable, before the sale, as the webhook does (by id: no gap lock when there is none).
+            Receivable::whereKey(data_get($salesReturn, 'transaction.receivable.id'))->lockForUpdate()->first();
 
             // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice. The
             // row lock orders this against a close that is cancelling the sale right now.

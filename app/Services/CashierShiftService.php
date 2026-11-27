@@ -13,6 +13,7 @@ use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -224,10 +225,18 @@ class CashierShiftService
             ]);
         }
 
+        // Outside the transaction, so a refused close keeps what it took in and the page lists it. A sale that cannot be
+        // taken in is reported and left to the recovery command: it never blocks a close.
+        $unrecoverable = $this->missedSales($shift)->reject(fn (Transaction $sale) => rescue(function () use ($sale) {
+            $this->kitchenIntakeService->recover($sale);
+
+            return true;
+        }, false))->modelKeys();
+
         // Read before the transaction on purpose: a plain read inside it would fix MySQL's snapshot before the rows are locked.
         $saleIds = Transaction::where('cashier_shift_id', $shift->id)->pluck('id');
 
-        return DB::transaction(function () use ($shift, $actor, $actualCash, $closeNotes, $forceClose, $overrideHold, $saleIds) {
+        return DB::transaction(function () use ($shift, $actor, $actualCash, $closeNotes, $forceClose, $overrideHold, $saleIds, $unrecoverable) {
             $lockedShift = CashierShift::query()->lockForUpdate()->findOrFail($shift->id);
 
             if (! $lockedShift->isOpen()) {
@@ -238,11 +247,9 @@ class CashierShiftService
 
             $this->lockOrders($lockedShift, $saleIds);
 
-            // A sale paid a moment ago may not have reached the kitchen yet: take it in, so its food holds the close too.
-            foreach ($this->kitchenIntakeService->missedSales() as $missed) {
-                $missed->where('cashier_shift_id', $lockedShift->id)->get()
-                    ->each(fn (Transaction $sale) => $this->kitchenIntakeService->recover($sale));
-            }
+            // A checkout this close just waited for may not have reached the kitchen yet: its food holds the close too.
+            $this->missedSales($lockedShift)->except($unrecoverable)
+                ->each(fn (Transaction $sale) => $this->kitchenIntakeService->recover($sale));
 
             $blockers = $this->blockerService->blockersFor($lockedShift);
             $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty();
@@ -311,16 +318,35 @@ class CashierShiftService
      * Every writer takes these in one order (kitchen step, dine payment, webhook, return completion): shift, kitchen
      * items, dine orders, sales. Locking reads only, so every plain read after them sees the latest committed rows.
      *
-     * shortcut: a QR order accepted between reading $saleIds and the shift lock has its dine order locked after its
-     * bill; the close's deadlock retry covers it.
+     * shortcut: a sale committed between reading $saleIds and the shift lock has its kitchen rows locked after the
+     * sale; the close's deadlock retry covers it.
      *
      * @param  Collection<int, int>  $saleIds
      */
     private function lockOrders(CashierShift $shift, Collection $saleIds): void
     {
-        KitchenItem::whereIn('transaction_id', $saleIds)->lockForUpdate()->get(['id']);
-        DineOrder::whereIn('transaction_id', $saleIds)->lockForUpdate()->get(['id']);
-        Transaction::where('cashier_shift_id', $shift->id)->lockForUpdate()->get(['id']);
+        $lockKitchen = function (Collection $ids): void {
+            KitchenItem::whereIn('transaction_id', $ids)->lockForUpdate()->get(['id']);
+            DineOrder::whereIn('transaction_id', $ids)->lockForUpdate()->get(['id']);
+        };
+        $lockKitchen($saleIds);
+        // A late arrival's rows are locked too, or a kitchen tap on it could be overwritten with "not collected".
+        $locked = Transaction::where('cashier_shift_id', $shift->id)->lockForUpdate()->pluck('id');
+        $late = $locked->diff($saleIds);
+        if ($late->isNotEmpty()) {
+            $lockKitchen($late);
+        }
+    }
+
+    /** @return EloquentCollection<int, Transaction> the shift's recent sales that never reached the kitchen */
+    private function missedSales(CashierShift $shift): EloquentCollection
+    {
+        [$payNow, $payLater] = array_map(
+            fn (Builder $missed) => $missed->where('cashier_shift_id', $shift->id)->get(),
+            $this->kitchenIntakeService->missedSales(),
+        );
+
+        return $payNow->concat($payLater);
     }
 
     /**

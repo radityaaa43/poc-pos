@@ -221,7 +221,7 @@ class DineOrderService
                     $this->kitchenItemService->serveIfNoKitchenItems($transaction); // BR-10: nothing to make is served now, completed once paid
                 }));
             }
-        });
+        }, 3); // retried on a deadlock with a close of another shift; kitchen intake runs only after the commit
     }
 
     /**

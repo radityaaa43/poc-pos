@@ -433,9 +433,11 @@ class KitchenReturnTest extends TestCase
 
     /** @param  list<string>  $permissions */
     // #242: a shift close and a webhook lock the dine order before the sale; the other order here can deadlock them.
-    public function test_return_completion_locks_the_dine_order_before_the_sale(): void
+    public function test_return_completion_locks_the_dine_order_then_the_receivable_then_the_sale(): void
     {
-        [$sale, $detail] = $this->sale(table: 'Meja 1');
+        [$sale, $detail] = $this->sale(table: 'Meja 1', paymentMethod: 'pay_later');
+        Receivable::create(['transaction_id' => $sale->id, 'invoice' => $sale->invoice, 'total' => 10000, 'paid' => 0,
+            'due_date' => now()->addWeek(), 'status' => 'unpaid']);
         $return = $this->draft($sale, $detail, 1);
         DB::enableQueryLog();
         $this->completeReturn($return);
@@ -445,7 +447,9 @@ class KitchenReturnTest extends TestCase
         $dineLock = $first('/^select \* from [`"]dine_orders[`"] where [`"]transaction_id[`"] =/');
         $marker = $first('/from [`"]stock_mutations[`"] where [`"]reference_type[`"]/'); // read right after the sale lock
         $this->assertIsInt($dineLock);
-        $this->assertLessThan($marker - 1, $dineLock);
+        $receivableLock = $first('/^select \* from [`"]receivables[`"] where [`"]receivables[`"]\.[`"]id[`"] =/');
+        $this->assertLessThan($receivableLock, $dineLock);
+        $this->assertLessThan($marker - 1, $receivableLock);
         $this->assertMatchesRegularExpression('/^select \* from [`"]transactions[`"]/', $queries[$marker - 1]);
         if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
             $this->assertStringContainsString('for update', $queries[$dineLock]);

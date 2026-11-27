@@ -345,8 +345,38 @@ class ShiftCloseHoldTest extends TestCase
         $sale = $this->sale($this->shift, 'cash', 'paid', ['cash' => 20000]);
         $sale->details()->update(['needs_preparation' => true]);
         $this->close($this->shift)->assertSessionHasErrors('shift');
+        // Kept although the close was refused, so the page lists it and offers the force close.
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, KitchenItem::where('transaction_id', $sale->id)->sole()->status);
         $this->forceClose($this->shift, $this->cashier);
         $this->assertSame(KitchenItem::STATUS_NOT_COLLECTED, KitchenItem::where('transaction_id', $sale->id)->sole()->status);
+    }
+
+    public function test_close_locks_the_kitchen_rows_of_a_sale_that_arrived_after_the_ids_were_read(): void
+    {
+        $this->kitchenSale($this->shift);
+        $arrived = false;
+        $itemLocks = 0;
+        DB::listen(function ($query) use (&$arrived, &$itemLocks) {
+            if (! $arrived && preg_match('/^select \* from [`"]cashier_shifts[`"]/', $query->sql)) {
+                $arrived = true;
+                $this->kitchenSale($this->shift);
+            }
+            $itemLocks += preg_match('/^select [`"]id[`"] from [`"]kitchen_items[`"] where/', $query->sql);
+        });
+        $this->forceClose($this->shift, $this->cashier);
+        $this->assertSame(2, $itemLocks);
+    }
+
+    // Marking a dine bill paid can complete its order, which a close locks before the bill.
+    public function test_confirming_a_transfer_locks_the_dine_order_before_the_sale(): void
+    {
+        $sale = $this->sale($this->shift, 'bank_transfer', 'pending');
+        DB::enableQueryLog();
+        app(TransactionTenderService::class)->confirmTransfer($sale);
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+        $this->assertMatchesRegularExpression('/from [`"]dine_orders[`"] where [`"]transaction_id[`"]/', $queries[0]);
+        $this->assertMatchesRegularExpression('/from [`"]transactions[`"] where/', $queries[1]);
     }
 
     // MySQL fixes its snapshot at the first plain read, and two lock orders can deadlock: all rows are locked first.
