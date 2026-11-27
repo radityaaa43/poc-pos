@@ -41,19 +41,19 @@ async function expectPrintedOnce(page, sale, card) {
 test.describe('33-kitchen-printer', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('a failed send warns, keeps the order on the display, and the next poll prints it once', { tag: ['@REQ-004-AC-08'] }, async (fixtures) => {
-        const { page, sale, card } = await failedSale(fixtures);
+    test('a failed send warns, keeps the order on the display, and the next poll prints it once', { tag: ['@REQ-004-AC-08'] }, async ({ asRole, arrange, uniq }) => {
+        const { page, sale, card } = await failedSale({ asRole, arrange, uniq });
 
         // The printer is back: the next 5-second poll retries the ticket by itself, and the server records it.
         const recorded = page.waitForResponse(isPrintRecord, { timeout: 20_000 });
         await setPrinterFault(page, 'none');
         await recorded;
         await expectPrintedOnce(page, sale, card);
-        expect(fixtures.arrange('kitchen.items', { invoice: sale.invoice }).statuses).toEqual(['accepted']);
+        expect(arrange('kitchen.items', { invoice: sale.invoice }).statuses).toEqual(['accepted']);
     });
 
-    test('Coba lagi prints the original ticket once', { tag: ['@REQ-004-AC-08'] }, async (fixtures) => {
-        const { page, sale, card } = await failedSale(fixtures);
+    test('Coba lagi prints the original ticket once', { tag: ['@REQ-004-AC-08'] }, async ({ asRole, arrange, uniq }) => {
+        const { page, sale, card } = await failedSale({ asRole, arrange, uniq });
 
         // Hold the next poll's request, so only the button can print (an earlier poll has long been answered).
         const held = [];
