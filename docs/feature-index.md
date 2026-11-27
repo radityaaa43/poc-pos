@@ -20,6 +20,7 @@
 | Multi-Warehouse & Stock Transfer | `docs/features/multi-warehouse.md` | ✅ |
 | Batch / Expiry Tracking | `docs/features/inventory-stock.md` | ✅ |
 | Composite Products (Kits) | `docs/features/inventory-stock.md` | ✅ |
+| Modifier (pilihan per menu) | `docs/features/modifiers.md` | Pengaturan grup, opsi, pasang ke menu, aktif per outlet; penjualan belum |
 | Reorder Point | `docs/features/inventory-stock.md` | ✅ |
 | Unit Conversion (Multi-Satuan) | `docs/features/unit-conversion.md` | ✅ |
 
