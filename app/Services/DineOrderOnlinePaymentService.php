@@ -139,13 +139,13 @@ class DineOrderOnlinePaymentService
             }
         } catch (Throwable $exception) {
             // Failed, so the bill is payable at the counter again; any failure counts (also a timeout).
-            $this->storeResult($bill, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
+            Transaction::storeChargeResult($bill->id, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
             Log::warning('Dine guest payment could not be started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'message' => $exception->getMessage()]);
 
             throw ValidationException::withMessages(['payment' => ['gateway_error']]);
         }
 
-        $this->storeResult($bill, $attempt, [
+        Transaction::storeChargeResult($bill->id, $attempt, [
             'payment_reference' => $charge['reference'] ?? null,
             'payment_url' => $charge['payment_url'] ?? null,
             'qr_string' => $charge['qr_string'] ?? null,
@@ -227,19 +227,6 @@ class DineOrderOnlinePaymentService
             $bill->payment_failure_reason === 'gateway_error' => 'gateway_error',
             default => 'failed',
         };
-    }
-
-    /**
-     * Store a charge's outcome only while its attempt is still the bill's current one and still pending: a newer
-     * tap (the old charge is dead, its webhook is ignored) or a webhook that already settled the bill wins.
-     * One guarded UPDATE, so no lock is needed.
-     */
-    private function storeResult(Transaction $bill, int $attempt, array $values): void
-    {
-        Transaction::whereKey($bill->id)
-            ->where('payment_attempt', $attempt)
-            ->where('payment_status', 'pending')
-            ->update($values);
     }
 
     private function qrImage(string $qrString): string
