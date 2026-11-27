@@ -124,25 +124,25 @@ class CashierShiftService
         // Split payments: non-cash portion = grand_total minus cash tenders.
         $nonCashSalesTotal -= $splitCashTenderTotal;
 
-        // What an open bill (pay-later or dine-in) was never asked for is not money received, so it comes off the bucket
-        // the bill is counted in. Any other sale was asked for its grand total.
+        // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
+        // open bill (pay-later or dine-in) or a retried payment is asked for less than its grand total.
         $neverAsked = function ($sales): int {
-            $openBills = $sales
-                ->where(fn ($bills) => $bills->where('is_pay_later', true)->orWhereHas('dineOrder'))
+            $askedLater = $sales
+                ->where(fn ($later) => $later->where('is_pay_later', true)->orWhere('payment_attempt', '>', 0)->orWhereHas('dineOrder'))
                 ->doesntHave('receivable');
 
             // A counter payment wrote tenders totalling what it asked, so a return completed later changes nothing here.
-            $tenderedShort = (int) (clone $openBills)->whereHas('tenders')->sum('grand_total')
-                - (int) TransactionTender::query()->whereIn('transaction_id', (clone $openBills)->select('id'))->sum('amount');
+            $tenderedShort = (int) (clone $askedLater)->whereHas('tenders')->sum('grand_total')
+                - (int) TransactionTender::query()->whereIn('transaction_id', (clone $askedLater)->select('id'))->sum('amount');
 
             // Without tenders (guest online, retry) the asked amount is the total less the returns that refunded nothing.
-            // shortcut: a return completed while such a charge or transfer was already waiting comes off too, although the
-            // full amount may still arrive; store the amount asked on the bill to tell them apart.
+            // shortcut: a return made while a no-tender payment (guest online, retry) is waiting under-counts the recap;
+            // exact fix = store the asked amount on the bill.
             $returnedShort = (int) SalesReturn::query()
                 ->where('status', 'completed')
                 ->where('refund_amount', 0)
                 ->where('credited_amount', 0)
-                ->whereIn('transaction_id', (clone $openBills)->doesntHave('tenders')->select('id'))
+                ->whereIn('transaction_id', (clone $askedLater)->doesntHave('tenders')->select('id'))
                 ->sum('total_return_amount');
 
             return $tenderedShort + $returnedShort;

@@ -48,7 +48,7 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
         return errorAlert || null;
     }
 
-    // From the server: a pay-later bill with returns is asked less than its grand total.
+    // From the server: a sale with returns is asked less than its grand total.
     const total = Number(transaction.retry_amount ?? transaction.grand_total ?? 0);
     const change = Math.max(Number(cashReceived || 0) - total, 0);
 

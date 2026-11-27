@@ -35,15 +35,10 @@ class TransactionPaymentRetryService
             && ! $transaction->wasRestocked();
     }
 
-    /** What a retry asks for: a pay-later bill (no receivable) what it still owes after returns, any other sale its grand total. */
+    /** What a retry asks for: what the sale still owes after returns. A credit sale (a receivable) keeps its grand total. */
     public function amountDue(Transaction $sale): int
     {
-        return $this->isPayLaterBill($sale) ? $sale->remainingTotal() : (int) $sale->grand_total;
-    }
-
-    private function isPayLaterBill(Transaction $sale): bool
-    {
-        return $sale->is_pay_later && ! $sale->receivable()->exists();
+        return $sale->receivable()->exists() ? (int) $sale->grand_total : $sale->remainingTotal();
     }
 
     /**
@@ -92,7 +87,7 @@ class TransactionPaymentRetryService
 
             $total = $this->amountDue($sale);
 
-            if ($this->isPayLaterBill($sale) && (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1)) {
+            if (! $sale->receivable()->exists() && (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1)) {
                 throw ValidationException::withMessages(['payment' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);
             }
 
