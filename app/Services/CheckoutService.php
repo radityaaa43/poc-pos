@@ -28,6 +28,7 @@ class CheckoutService
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
         private readonly KitchenIntakeService $kitchenIntake,
+        private readonly AddOnOrderService $addOnOrderService,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
@@ -90,9 +91,13 @@ class CheckoutService
                 ? (collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null)
                 : ($ctx->paymentGateway === 'bank_transfer' ? $ctx->bankAccountId : null);
 
+            // Resolved inside this transaction, under a lock on the original, which is only read (BR-5).
+            $parentId = $ctx->addOnTo ? $this->addOnOrderService->resolveForPos($ctx->addOnTo, $activeShift) : null;
+
             $transaction = Transaction::create([
                 'cashier_id' => $ctx->userId,
                 'cashier_shift_id' => $activeShift->id,
+                'parent_transaction_id' => $parentId,
                 'warehouse_id' => $activeShift->warehouse_id,
                 'customer_id' => $ctx->customer?->id,
                 'invoice' => 'TRX-'.strtoupper(Str::random(10)),
@@ -122,6 +127,10 @@ class CheckoutService
 
             if ($ctx->useTenders) {
                 $transaction->tenders()->createMany($tenders);
+            }
+
+            if ($parentId) {
+                $this->addOnOrderService->record($transaction);
             }
 
             $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);

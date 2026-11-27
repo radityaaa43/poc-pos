@@ -734,6 +734,7 @@ class PosApiController extends Controller
             'transactions.*.payment_method' => ['nullable', 'in:cash,pay_later,bank_transfer'],
             'transactions.*.bank_account_id' => ['nullable', 'integer', 'exists:bank_accounts,id'],
             'transactions.*.pay_later' => ['nullable', 'boolean'],
+            'transactions.*.add_on_to' => ['nullable', 'string'],
             'transactions.*.due_date' => ['nullable', 'date'],
             'transactions.*.order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
             'transactions.*.note' => ['nullable', 'string', 'max:1000'],
@@ -793,9 +794,10 @@ class PosApiController extends Controller
             return ['status' => 'failed', 'reason' => 'Tidak terautentikasi.'];
         }
 
-        // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
-        if (($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later') {
-            return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
+        // Neither can be replayed blind: pay later needs the online outlet setting and a note, an add-on the original order.
+        $payLater = ($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later';
+        if ($payLater || isset($payload['add_on_to'])) {
+            return ['status' => 'failed', 'reason' => $payLater ? 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online' : 'Pesanan tambahan tidak tersedia saat offline'];
         }
 
         // Rebuild cart rows from the offline items, then reuse the normal

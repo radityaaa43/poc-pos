@@ -48,6 +48,7 @@ class DineOrder extends Model
         'payment_url',
         'cashier_id',
         'transaction_id',
+        'add_on_to_dine_order_id',
         'subtotal',
         'item_count',
         'submitted_at',
@@ -104,6 +105,16 @@ class DineOrder extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    /**
+     * The order whose status page this one was ordered from (#251).
+     *
+     * @return BelongsTo<DineOrder, $this>
+     */
+    public function addOnTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'add_on_to_dine_order_id');
     }
 
     public function items(): HasMany
