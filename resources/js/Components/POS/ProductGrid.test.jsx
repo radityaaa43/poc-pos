@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import i18n from "@/i18n";
 import ProductGrid from "./ProductGrid";
 
 const kopi = {
@@ -133,6 +134,14 @@ describe("ProductGrid", () => {
         expect(rotiButton).toBeDisabled();
         await user.click(rotiButton);
         expect(onAddToCart).not.toHaveBeenCalled();
+    });
+
+    it("shows a menu with a required group sold out as Habis and not tappable", async () => {
+        await i18n.changeLanguage("id");
+        renderGrid({ products: [{ ...kopi, modifiers_sold_out: true }] });
+
+        expect(screen.getByText("Habis")).toBeInTheDocument();
+        expect(cardButton("Kopi Susu")).toBeDisabled();
     });
 
     it("clicking an in-stock product adds it with the base unit", async () => {

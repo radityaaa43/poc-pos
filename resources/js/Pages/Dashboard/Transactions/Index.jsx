@@ -19,6 +19,9 @@ import HeldTransactions, {
 import OpenBills from "@/Components/POS/OpenBills";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
+import ModifierPanel from "@/Components/POS/ModifierPanel";
+import LineModifiers from "@/Components/Modifiers/LineModifiers";
+import useAddToCart from "@/Hooks/useAddToCart";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
@@ -68,6 +71,7 @@ export default function Index({
     warehouses = [],
     loyaltyTierOptions = [],
     payLaterEnabled = false,
+    modifierGroups = {},
 }) {
     const {
         auth,
@@ -92,7 +96,7 @@ export default function Index({
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [addingProductId, setAddingProductId] = useState(null);
+    const { addToCart: handleAddToCart, addingProductId, panel: modifierPanel } = useAddToCart(modifierGroups);
     const [removingItemId, setRemovingItemId] = useState(null);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [pricingPreview, setPricingPreview] = useState(initialPricingPreview);
@@ -163,8 +167,7 @@ export default function Index({
 
             if (product) {
                 if (product.stock > 0) {
-                    handleAddToCart(product);
-                    toast.success(`${product.title} ditambahkan (barcode)`);
+                    if (handleAddToCart(product)) toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
                     toast.error(`${product.title} stok habis`);
                 }
@@ -378,34 +381,6 @@ export default function Index({
             warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
         });
-    };
-
-    // Handle add product to cart
-    const handleAddToCart = async (product, unit = null) => {
-        if (!product?.id) return;
-
-        setAddingProductId(product.id);
-
-        router.post(
-            route("transactions.addToCart"),
-            {
-                product_id: product.id,
-                sell_price: unit ? unit.sell_price : product.sell_price,
-                qty: 1,
-                unit_id: unit ? unit.unit_id : undefined,
-            },
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success(`${product.title}${unit ? ` (${unit.code})` : ""} ditambahkan`);
-                    setAddingProductId(null);
-                },
-                onError: (errors) => {
-                    toast.error(errors?.message || "Gagal menambahkan produk");
-                    setAddingProductId(null);
-                },
-            }
-        );
     };
 
     // Handle update cart quantity
@@ -743,11 +718,12 @@ export default function Index({
 
         setIsSubmitting(true);
 
-        if (!navigator.onLine && (splitMode || payLater)) {
+        // The offline queue carries no options or notes: queuing such a line would sell it without them.
+        if (!navigator.onLine && (splitMode || payLater || carts.some((item) => item.line_key))) {
             toast.error(
                 splitMode
                     ? "Split pembayaran tidak tersedia saat offline"
-                    : i18n.t("pos.payLater.offline")
+                    : i18n.t(payLater ? "pos.payLater.offline" : "pos.modifiers.offline")
             );
             setIsSubmitting(false);
             return;
@@ -851,7 +827,7 @@ export default function Index({
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.modifiers || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1157,6 +1133,7 @@ export default function Index({
                                                     {item.product?.title ||
                                                         "Produk"}
                                                 </p>
+                                                <LineModifiers item={{ options: pricingItem?.options, note: item.note }} />
                                                 <div className="text-xs text-slate-500">
                                                     {pricingRule &&
                                                         effectiveUnitPrice <
@@ -2004,6 +1981,7 @@ export default function Index({
             </div>
 
             {/* Numpad Modal */}
+            {modifierPanel && <ModifierPanel {...modifierPanel} />}
             <NumpadModal
                 isOpen={numpadOpen}
                 onClose={() => setNumpadOpen(false)}
