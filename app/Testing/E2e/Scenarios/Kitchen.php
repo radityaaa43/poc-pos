@@ -195,6 +195,7 @@ class Kitchen
             // "<prefix> Masak <i>" (needs_preparation) x --arg=flagged and "<prefix> Kemasan <i>" x --arg=plain,
             // and sells one of each. --arg=status=paid (default) or pending (a bank transfer nobody confirmed).
             // --arg=pay_later=1 sells it on "Bayar belakangan" instead (unpaid, a guest, with the note the rule needs).
+            // --arg=add_on_to=<invoice> sells it as an add-on of that order, through the same checkout rule as Tambah pesanan.
             // --arg=dine=1 instead has a guest order on a new table accepted and paid in cash, flagged lines only;
             // --arg=note=<text> is then the note on every dine-in line (it reaches the kitchen item).
             // Returns the invoice (or table_name and the guest page's access_token for dine), and the flagged and plain titles.
@@ -232,6 +233,7 @@ class Kitchen
                     [...$flagged, ...$plain],
                     ($options['status'] ?? 'paid') === 'pending',
                     ($options['pay_later'] ?? '0') === '1',
+                    $options['add_on_to'] ?? null,
                 );
 
                 return $titles + ['invoice' => $transaction->invoice, 'transaction_id' => $transaction->id];
@@ -333,7 +335,7 @@ class Kitchen
     }
 
     /** One POS sale of one unit of each product: paid in cash, a bank transfer left pending, or on pay-later (unpaid). */
-    private static function sell(User $cashier, array $products, bool $pending, bool $payLater = false): Transaction
+    private static function sell(User $cashier, array $products, bool $pending, bool $payLater = false, ?string $addOnTo = null): Transaction
     {
         $shift = CashierShift::open()->where('user_id', $cashier->id)->with('warehouse.outlet')->firstOrFail();
         Cart::where('cashier_id', $cashier->id)->delete();
@@ -371,6 +373,7 @@ class Kitchen
             tenderInput: $pending ? [['method' => 'bank_transfer', 'amount' => $total, 'bank_account_id' => $bankId]] : [],
             outlet: $shift->warehouse?->outlet,
             bankAccountId: null,
+            addOnTo: $addOnTo,
         ))->transaction;
     }
 }
