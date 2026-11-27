@@ -78,8 +78,14 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
   (filter "Perlu refund"); the refund itself is manual. History also marks a gateway sale that was paid after its shift closed
-  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A sale of attempt 0 that
-  is `failed` stays final (portal sales); only a dine bill whose own gateway charge failed can still be booked late.
+  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
+  QRIS, Midtrans or Xendit sale (the web POS writes no tender rows for it), or a credit sale charged through the customer portal (a receivable;
+  its late payment settles the receivable, and the amount it must match is what the receivable still owes, so a partly paid one can be booked). A gateway payment on a credit sale the cashier already paid in full through the receivable is flagged (a second payment), and so is any part of a gateway payment beyond the receivable's balance: the balance is booked, the rest is flagged "Bayar ganda — refund manual" (audit `payment.late_superseded`, `excess`). A settlement that arrives later is booked when the sale is not paid, no pending or paid tender holds
+  it, nothing was restocked and the amount equals the remaining total; otherwise it is flagged "Bayar ganda — refund manual" (audit
+  `payment.late_after_failed`, `booked: true|false`). A sale `transactions:expire` already cancelled and restocked is always flagged. A sale
+  settled by cash after the QR expired, or with a paid cash part in a split, is flagged too, its payment unchanged. Booked after the sale's shift
+  closed, it is marked "Dibayar setelah shift ditutup" and the closed recap is unchanged; a credit sale paid late through the portal is never flagged paid after close, because the closed recap already counted it by method.
+  A failed sale with no gateway charge of its own (no gateway tender, no receivable, a non-gateway method such as a pay-later guest bill) stays failed.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.

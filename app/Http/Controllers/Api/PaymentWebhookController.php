@@ -187,19 +187,22 @@ class PaymentWebhookController extends Controller
     /**
      * A gateway payment of a pay-later sale settles its receivable like a manual receivable payment:
      * a ReceivablePayment for the amount actually paid, capped at what is still owed. Returns the
-     * sale's payment_status ('paid' only once nothing is owed). A sale without a receivable is paid.
+     * sale's payment_status ('paid' only once nothing is owed) and the part of the payment beyond the balance (not booked).
+     * A sale without a receivable is paid.
      */
-    private function settleReceivable(Transaction $transaction, mixed $paidAmount, string $method): string
+    private function settleReceivable(Transaction $transaction, mixed $paidAmount, string $method): array
     {
         return DB::transaction(function () use ($transaction, $paidAmount, $method) {
             $receivable = Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->first();
 
             if (! $receivable) {
-                return 'paid';
+                return ['paid', 0.0];
             }
 
             // No amount in the notification: take it as the whole balance.
             $applied = min((float) ($paidAmount ?: $receivable->remaining), $receivable->remaining);
+            // What the gateway took beyond the balance is not booked: record() flags it for a manual refund.
+            $excess = $paidAmount ? max(0.0, (float) $paidAmount - $applied) : 0.0;
 
             if ($applied > 0) {
                 ReceivablePayment::create([
@@ -218,7 +221,7 @@ class PaymentWebhookController extends Controller
             }
             $receivable->save();
 
-            return $receivable->status === 'paid' ? 'paid' : 'unpaid';
+            return [$receivable->status === 'paid' ? 'paid' : 'unpaid', $excess];
         });
     }
 
@@ -346,8 +349,13 @@ class PaymentWebhookController extends Controller
         }
 
         if ($bill->payment_status === 'paid') {
-            // Attempt 0 bills (portal and plain POS sales) keep today's rule: a repeat is ignored.
-            return ($attempt === 0 && $current === 0) || $this->isRedelivery($bill, $attempt, $reference) ? 'ignore' : 'flag';
+            // Attempt 0 bills (portal and POS sales) keep today's rule: a repeat is ignored. Except a bill the cashier settled
+            // without a gateway (cash after the QR expired): a gateway payment on it is a second payment, never silently dropped.
+            if ($attempt === 0 && $current === 0) {
+                return $this->settledWithoutGateway($bill, $reference) ? 'flag' : 'ignore';
+            }
+
+            return $this->isRedelivery($bill, $attempt, $reference) ? 'ignore' : 'flag';
         }
 
         if ($attempt === $current) {
@@ -355,19 +363,56 @@ class PaymentWebhookController extends Controller
                 return 'record';
             }
 
-            // Failed is final for attempt 0 (portal and plain POS sales). A bill with a payment history, or a dine bill whose own
-            // gateway charge failed, can still receive its late payment: the money must not be recorded nowhere.
-            return $current === 0 && ! $this->failedCashierChargeOfDineBill($bill) ? 'ignore' : 'late';
+            // A bill with a payment history, or a sale whose own gateway charge failed (see hasOwnGatewayCharge), can still
+            // receive its late payment: the money must not be recorded nowhere. Any other failed sale at attempt 0 stays final.
+            return $current === 0 && ! $this->hasOwnGatewayCharge($bill) ? 'ignore' : 'late';
         }
 
         return $current > 0 && $attempt < $current ? 'late' : 'flag';
     }
 
-    /** A dine bill at attempt 0 whose own gateway charge failed or expired: the tender row is what tells it from a portal sale. */
-    private function failedCashierChargeOfDineBill(Transaction $bill): bool
+    /**
+     * Did a gateway charge of this sale's own (a cashier's, or the customer portal's) end up failed at attempt 0? Then a
+     * payment that still arrives is a late payment (booked or flagged), never silently dropped. The one place that rule lives.
+     * Not so for a sale that has no gateway charge of its own, which keeps "failed is final".
+     *
+     * - A gateway tender row, whatever its status: a sale transactions:expire failed leaves its tender pending.
+     * - A credit sale (a receivable): the customer portal charges the receivable's balance under the bare invoice and writes
+     *   no tender; the late payment then settles the receivable (BR-4 on #380).
+     * - A single-method sale (qris, midtrans, xendit) of the web POS: it writes no tender rows, only payment_method.
+     *   A pay-later sale is not one: its method is not a gateway method until a cashier settles it (and then it has tenders).
+     */
+    private function hasOwnGatewayCharge(Transaction $bill): bool
     {
-        return $bill->dineOrder()->exists()
-            && $bill->tenders()->where('payment_status', TransactionTender::STATUS_FAILED)->exists();
+        $methods = $bill->tenders()->pluck('method');
+
+        if ($methods->isNotEmpty()) {
+            return $methods->intersect(TransactionTenderService::GATEWAY_METHODS)->isNotEmpty();
+        }
+
+        return $bill->receivable()->exists()
+            || (! $bill->is_pay_later && in_array($bill->payment_method, TransactionTenderService::GATEWAY_METHODS, true));
+    }
+
+    /**
+     * Is a gateway payment on this paid attempt-0 bill a second payment, not a repeat of the one that paid it?
+     * - Paid by tenders and none of them a gateway one (cash, transfer): there is no gateway payment of its own to repeat.
+     * - A credit sale pays through receivable payments, not tenders: it is a second payment unless a gateway receivable payment
+     *   already booked it and this is that payment's reference again (the bill keeps the reference it was booked with).
+     */
+    private function settledWithoutGateway(Transaction $bill, ?string $reference): bool
+    {
+        $receivable = $bill->receivable()->first();
+
+        if ($receivable) {
+            $bookedByGateway = $receivable->payments()->whereIn('method', TransactionTenderService::GATEWAY_METHODS)->exists();
+
+            return ! $bookedByGateway || (filled($reference) && $reference !== $bill->payment_reference);
+        }
+
+        $methods = $bill->tenders()->pluck('method');
+
+        return $methods->isNotEmpty() && $methods->intersect(TransactionTenderService::GATEWAY_METHODS)->isEmpty();
     }
 
     /**
@@ -394,8 +439,11 @@ class PaymentWebhookController extends Controller
         $meta = ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'order_attempt' => $attempt, 'bill_attempt' => $bill->payment_attempt, 'prior_status' => $priorStatus];
 
         // A sale that expired and was restocked has no goods left to pay for: refund, do not book.
+        // A credit sale is charged what its receivable still owes (it may be partly paid), any other sale its remaining total.
+        $receivable = $bill->receivable()->first();
+        $owed = $receivable ? (int) round($receivable->remaining) : $bill->remainingTotal();
         $booked = ! $bill->hasBlockingTenders()
-            && is_numeric($amount) && (int) round((float) $amount) === $bill->remainingTotal()
+            && is_numeric($amount) && (int) round((float) $amount) === $owed
             && ! $bill->wasRestocked();
 
         if ($booked) {
@@ -428,6 +476,8 @@ class PaymentWebhookController extends Controller
      */
     private function record(Transaction $bill, ?CashierShift $shift, string $gateway, string $providerId, string $newStatus, bool $expired, ?string $reference, mixed $amount, bool $late = false): void
     {
+        $excess = 0.0;
+
         // Split payments: tender-level update when the order id targets one (invoice-{method}[-r{attempt}]).
         // A late payment of a bill whose own gateway charge failed (it blocks nothing, see hasBlockingTenders) settles that tender.
         // Every failed tender is settled: one left failed would keep the whole bill failed after the money was booked.
@@ -456,8 +506,9 @@ class PaymentWebhookController extends Controller
                 $values['payment_reference'] = $reference ?: $bill->payment_reference;
             }
         } else {
+            [$status, $excess] = $newStatus === 'paid' ? $this->settleReceivable($bill, $amount, $gateway) : [$newStatus, 0.0];
             $values = [
-                'payment_status' => $newStatus === 'paid' ? $this->settleReceivable($bill, $amount, $gateway) : $newStatus,
+                'payment_status' => $status,
                 'payment_reference' => $reference ?: $bill->payment_reference,
                 ...$this->failureReason($newStatus, $expired),
                 ...($late ? ['payment_failure_reason' => null] : []),
@@ -469,6 +520,11 @@ class PaymentWebhookController extends Controller
             && ! CashierShiftService::countedInClosedRecap($bill->payment_method);
 
         $bill->update($afterClose ? [...$values, 'paid_after_close_at' => now()] : $values);
+
+        // The gateway took more than the receivable owed: the balance is booked, the rest must be refunded by hand.
+        if ($excess > 0) {
+            $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} melebihi sisa piutang; kelebihan perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'excess' => $excess], $reference);
+        }
 
         if ($afterClose) {
             app(AuditLogService::class)->log(
