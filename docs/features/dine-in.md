@@ -286,9 +286,20 @@ page ships with the second half of #325; until then only the endpoint and the `p
   charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::claim`), so the guest's charge is
   superseded in the same transaction; invalid input changes nothing. The cashier's own gateway call comes after that commit: if it
   fails, the bill is `failed` / `gateway_error` with no tender, the guest's charge stays superseded, and a guest payment that still
-  arrives is booked by the late-payment rule above. Nothing is cancelled at the gateway (refund of a second payment stays manual).
+  arrives is booked by the late-payment rule above. The guest's charge is expired at the gateway (next bullet); the refund of a
+  second payment that still arrives stays manual.
   Audit `dine_order.online_payment_taken_over`. The cashier's gateway charge uses the order id `{invoice}-r{attempt}`, so its
   settlement is booked.
+- **Superseded guest charges are expired.** When a guest charge that is still pending is superseded (a newer press, or a
+  cashier takeover, whether or not her own charge then succeeds), `ExpireSupersededGatewayCharge` is queued after the commit,
+  so neither request waits for the gateway. A charge still being created is queued when its answer finds it superseded. The job
+  asks the gateway to expire it (Midtrans Core API `/v2/{order_id}/expire`, Xendit `/invoices/{id}/expire!`, never Midtrans
+  `cancel`), with no lock held. It writes audit rows only (`payment.superseded_charge_expired`,
+  `payment.superseded_charge_not_expired`, `payment.superseded_charge_cancel_error`) and never changes the bill: a settlement
+  that wins the race follows the late-payment rule above. A temporary failure is tried 5 times over about 11 minutes. If it
+  fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
+  never expired. Not yet verified on a sandbox: a Midtrans payment page the guest never opened may be unknown to the Core API,
+  so it stays payable until its own 15 minute expiry.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).

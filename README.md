@@ -111,6 +111,13 @@ Ingin langsung mencoba dengan data contoh? Jalankan `php artisan seed:demo --for
 
 End-to-end tests (Playwright, `npm run e2e:up` then `npm run test:e2e`): see [`tests/e2e/README.md`](tests/e2e/README.md).
 
+### Queue worker
+
+With `QUEUE_CONNECTION=database` (the default in `.env.example`) a worker must run: `php artisan queue:work --tries=3`
+(`composer run dev` and the Docker `queue` service start one). It expires a guest's online dine-in charge at the gateway once a
+newer charge or a cashier's payment replaces it. Restart the worker on every deploy (`php artisan queue:restart`). Without a
+worker the jobs wait in the `jobs` table, and a double payment is only flagged for a manual refund.
+
 ## Agent setup
 
 We work with AI coding agents under the rules in [`AGENTS.md`](AGENTS.md). The workflow skills come
