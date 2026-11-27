@@ -9,6 +9,7 @@ use App\Models\PricingRule;
 use App\Models\PricingRuleBuyGetItem;
 use App\Models\PricingRuleQtyBreak;
 use App\Models\Product;
+use App\Services\Modifiers\ModifierSelection;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -176,18 +177,25 @@ class PricingService
 
     private function buildPreview(Collection $carts, ?Customer $customer, Collection $rules, ?Outlet $outlet = null): array
     {
-        $items = $carts->map(function (Cart $cart) use ($customer, $outlet) {
+        $options = ModifierSelection::preview($carts);
+        $items = $carts->map(function (Cart $cart) use ($customer, $outlet, $options) {
             // ponytail: composite and non-base-unit (BOX) lines are priced at stored cart price / qty (cart price
             // comes from Product::compositeSellPrice() / the unit's own sell price); base-unit lines use the price list.
-            $baseUnitPrice = $cart->product->is_composite || $this->isUnitLine($cart)
-                ? (int) round($cart->price / max(1, (int) $cart->qty))
+            // The stored price includes the options as they cost when added; they are priced again here.
+            $menuUnitPrice = $cart->product->is_composite || $this->isUnitLine($cart)
+                ? (int) round($cart->price / max(1, (int) $cart->qty)) - (int) $cart->modifier_total
                 : $this->basePriceFor($cart->product, $customer, $outlet);
+            $optionUnitTotal = (int) array_sum(array_column($options->get($cart->id, []), 'price_delta'));
+            $baseUnitPrice = $menuUnitPrice + $optionUnitTotal;
 
             return [
                 'cart_id' => $cart->id,
                 'product_id' => $cart->product_id,
                 'product_title' => $cart->product?->title,
                 'qty' => (int) $cart->qty,
+                'menu_unit_price' => $menuUnitPrice,
+                'option_unit_total' => $optionUnitTotal,
+                'options' => $options->get($cart->id, []),
                 'base_unit_price' => $baseUnitPrice,
                 'effective_unit_price' => $baseUnitPrice,
                 'line_base_total' => $baseUnitPrice * (int) $cart->qty,
@@ -244,7 +252,9 @@ class PricingService
                     PricingRule::KIND_QTY_BREAK,
                     PricingRule::KIND_STANDARD_DISCOUNT,
                 ], true))
-                ->map(fn (PricingRule $rule) => $this->calculateLineCandidate($rule, $cartProduct, $remainingQty, $customer, $outlet))
+                ->map(fn (PricingRule $rule) => $this->calculateLineCandidate(
+                    $rule, $cartProduct, $remainingQty, $customer, $outlet, $items->get($cartId)['option_unit_total']
+                ))
                 ->filter()
                 ->sortBy([
                     ['rule.priority', 'desc'],
@@ -364,7 +374,6 @@ class PricingService
         }
 
         $participants = [];
-        $baseTotal = 0;
         $tempRemaining = $remainingQuantities;
 
         foreach ($rule->bundleItems as $bundleItem) {
@@ -382,18 +391,16 @@ class PricingService
             $participants = array_merge($participants, $matched);
         }
 
-        foreach ($participants as $participant) {
-            $baseTotal += (int) $participant['base_total'];
-        }
-
+        // The bundle price replaces the menu prices; paid options stay on top (REQ-008 decision 16).
+        $menuTotal = (int) collect($participants)->sum('menu_total');
         $bundlePrice = (int) round((float) $rule->discount_value);
-        if ($bundlePrice >= $baseTotal) {
+        if ($bundlePrice >= $menuTotal) {
             return null;
         }
 
         $allocations = $this->allocateDiscount(
             $participants,
-            $baseTotal - $bundlePrice
+            $menuTotal - $bundlePrice
         );
 
         return [
@@ -402,7 +409,7 @@ class PricingService
             'priority' => (int) $rule->priority,
             'group_key' => 'bundle-'.$rule->id.'-'.str()->uuid(),
             'group_label' => $rule->name,
-            'discount_total' => $baseTotal - $bundlePrice,
+            'discount_total' => $menuTotal - $bundlePrice,
             'participants' => $allocations,
         ];
     }
@@ -455,7 +462,8 @@ class PricingService
             }
 
             foreach ($matched as $match) {
-                $match['discount_total'] = (int) $match['base_total'];
+                // The free item's paid options stay charged (REQ-008 decision 5).
+                $match['discount_total'] = (int) $match['menu_total'];
                 $rewardParticipants[] = $match;
                 $participants[] = $match;
             }
@@ -507,6 +515,7 @@ class PricingService
                 'product_title' => $item['product_title'],
                 'quantity' => $take,
                 'base_total' => (int) $item['base_unit_price'] * $take,
+                'menu_total' => (int) $item['menu_unit_price'] * $take,
             ];
             $required -= $take;
             // Taken units are gone for the next match: a unit is never both "buy" and "get", nor two bundle items.
@@ -518,7 +527,7 @@ class PricingService
 
     private function allocateDiscount(array $participants, int $discountTotal): array
     {
-        $baseTotal = max(1, (int) collect($participants)->sum('base_total'));
+        $baseTotal = max(1, (int) collect($participants)->sum('menu_total'));
         $allocated = [];
         $running = 0;
         $lastIndex = array_key_last($participants);
@@ -526,8 +535,8 @@ class PricingService
         foreach ($participants as $index => $participant) {
             $share = $index === $lastIndex
                 ? $discountTotal - $running
-                : (int) floor($discountTotal * ((int) $participant['base_total'] / $baseTotal));
-            $share = max(0, min((int) $participant['base_total'], $share));
+                : (int) floor($discountTotal * ((int) $participant['menu_total'] / $baseTotal));
+            $share = max(0, min((int) $participant['menu_total'], $share));
             $running += $share;
             $participant['discount_total'] = $share;
             $allocated[] = $participant;
@@ -536,13 +545,16 @@ class PricingService
         return $allocated;
     }
 
-    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null): ?array
+    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null, int $optionUnitTotal = 0): ?array
     {
         if (! $this->matchesTarget($rule, $product)) {
             return null;
         }
 
-        $baseUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
+        // Percentage and amount discounts act on menu + options; a rule that sets a price (quantity break, fixed
+        // price) acts on the menu price only, so paid options are charged on top (REQ-008 decisions 5 and 16).
+        $menuUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
+        $baseUnitPrice = $menuUnitPrice + $optionUnitTotal;
         $lineBaseTotal = $baseUnitPrice * $quantity;
 
         if ($rule->kind === PricingRule::KIND_QTY_BREAK) {
@@ -562,7 +574,7 @@ class PricingService
             $discount = $this->resolveLineDiscount(
                 $break->discount_type,
                 (float) $break->discount_value,
-                $baseUnitPrice,
+                $menuUnitPrice,
                 $quantity
             );
 
@@ -579,7 +591,7 @@ class PricingService
         $discount = $this->resolveLineDiscount(
             $rule->discount_type,
             (float) $rule->discount_value,
-            $baseUnitPrice,
+            $rule->discount_type === PricingRule::TYPE_FIXED_PRICE ? $menuUnitPrice : $baseUnitPrice,
             $quantity
         );
 
