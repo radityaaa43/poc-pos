@@ -878,6 +878,16 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
         });
 
+        it("marks the grouped card for an add-on's own unprinted ticket (#251)", () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[0].items, { id: 99, title: "Es Jeruk", qty: 1, status: "accepted", add_on }];
+            use({ unprinted: [entry(11)] });
+            render(<Index orders={[{ ...orders[0], items }]} outlet={outlet} />);
+
+            expect(screen.getByText("Belum tercetak")).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+        });
+
         it("says Not printed in English", async () => {
             await i18n.changeLanguage("en");
             use({ unprinted: [entry(7)] });
@@ -917,7 +927,6 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
             expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-        });
         });
     });
 });

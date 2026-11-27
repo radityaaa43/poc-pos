@@ -119,8 +119,12 @@ export default function Index({ orders, outlet, stations = [] }) {
     const connectionLost = offline || now - lastOk > STALE_MS;
     // The print UI only exists on a display with a print device, and the warnings only while it auto-prints.
     const hasPrinter = Boolean(outlet && printDevice.device);
+    // Tickets stay one per sale, so a grouped card also answers for its add-ons' tickets.
     const notPrinted = (order) =>
-        printDevice.autoPrint && isNotPrinted(printDevice.unprinted?.find((entry) => entry.key === `t${order.id}`), now);
+        printDevice.autoPrint &&
+        [order.id, ...order.items.map((item) => item.add_on?.id)].some((id) =>
+            isNotPrinted(printDevice.unprinted?.find((entry) => entry.key === `t${id}`), now),
+        );
     const minutesSince = (time) => Math.max(0, Math.floor((now - Date.parse(time)) / 60000));
 
     return (
