@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\ModifierGroup;
+use App\Models\ModifierOption;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
@@ -39,7 +40,7 @@ class ModifierGroupService
                 $kept[] = $option->getKey();
             }
 
-            $existing->except($kept)->each->delete();
+            $existing->except($kept)->each($this->deleteOption(...));
 
             $this->auditLogService->log(
                 event: $before ? 'modifier_group.updated' : 'modifier_group.created',
@@ -64,7 +65,7 @@ class ModifierGroupService
             $before = $group->snapshot();
 
             $productsDetached = $group->products()->detach();
-            $group->options()->delete();
+            $group->options->each($this->deleteOption(...));
             $group->delete();
 
             $this->auditLogService->log(
@@ -76,5 +77,12 @@ class ModifierGroupService
                 meta: ['products_detached' => $productsDetached]
             );
         });
+    }
+
+    /** Soft delete without the recipe, so its ingredients stay deletable; the audit "before" already records it. */
+    private function deleteOption(ModifierOption $option): void
+    {
+        $option->components()->detach();
+        $option->delete();
     }
 }

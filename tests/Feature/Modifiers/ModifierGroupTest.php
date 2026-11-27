@@ -257,6 +257,28 @@ class ModifierGroupTest extends TestCase
         $this->assertTrue(ModifierCatalog::forOutlet(null, collect([$menu->id]))->isEmpty());
     }
 
+    public function test_a_deleted_option_or_group_releases_its_ingredients(): void
+    {
+        [$milk, $syrup] = [$this->product(['is_raw_material' => true]), $this->product(['is_raw_material' => true])];
+        $recipe = fn (Product $product) => ['components' => [['product_id' => $product->id, 'qty' => 1]]];
+        $group = $this->createGroup(['options' => [
+            $this->option('Regular', ['is_default' => true] + $recipe($milk)),
+            $this->option('Large', $recipe($syrup)),
+        ]]);
+
+        // Large is left out of the save, then the whole group goes.
+        $kept = $this->option('Regular', ['id' => $group->options()->value('id'), 'is_default' => true] + $recipe($milk));
+        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [$kept]]))->assertSessionHasNoErrors();
+        $syrup->delete();
+        $this->delete(route('settings.modifiers.destroy', $group));
+        $milk->delete();
+
+        $this->assertModelMissing($syrup);
+        $this->assertModelMissing($milk);
+        $deleted = AuditLog::where('event', 'modifier_group.deleted')->firstOrFail();
+        $this->assertSame($milk->id, $deleted->before['options'][0]['components'][0]['product_id']);
+    }
+
     public function test_every_change_is_audited(): void
     {
         $outlet = $this->outlet('MOD-B');
