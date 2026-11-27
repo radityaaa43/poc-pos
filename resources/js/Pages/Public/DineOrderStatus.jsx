@@ -33,7 +33,6 @@ export default function DineOrderStatus({ order, table, storeName, payment: page
     const { t } = useTranslation();
     const [currentOrder, setCurrentOrder] = useState(order);
     const [refreshing, setRefreshing] = useState(false);
-    const { t } = useTranslation();
     const [payment, setPayment] = useState(() => mergePayment(null, pagePayment));
     // The attempt whose QR this page already received or asked for (the page load carries it).
     const qrAsked = useRef(pagePayment?.payment_url ? pagePayment.attempt : null);
