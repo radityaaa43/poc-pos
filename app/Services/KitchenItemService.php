@@ -10,6 +10,7 @@ use App\Models\SalesReturnItem;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -96,6 +97,32 @@ class KitchenItemService
 
             $this->syncDineOrder($transaction);
         });
+    }
+
+    /**
+     * The display's card: Semua siap over the original order and its add-ons (#251).
+     *
+     * @param  array<int, int>|null  $stationIds
+     */
+    public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
+    {
+        DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds)));
+    }
+
+    /**
+     * Serahkan semua over the original order and its add-ons (#251): each sale keeps its own dine order sync.
+     *
+     * @param  array<int, int>|null  $stationIds
+     */
+    public function handOverOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
+    {
+        DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds)));
+    }
+
+    /** @return Collection<int, Transaction> the sale and, when it is an original order, its add-ons */
+    private function orderGroup(Transaction $root): Collection
+    {
+        return Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderBy('id')->get();
     }
 
     /**
