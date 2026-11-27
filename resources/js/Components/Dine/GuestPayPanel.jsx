@@ -15,22 +15,21 @@ const RETRYABLE = ["failed", "expired", "gateway_error"];
 
 /**
  * The payment the guest sees, merged from the server's answers (page load, 5 s poll, pay request), which can arrive out of
- * order. The QR and the gateway link belong to one charge (`charge`, its attempt). The poll carries no QR, and a double tap
- * can be answered for an attempt whose charge is not stored yet: neither takes them away. A newer attempt replaces them
- * as soon as it brings its own QR or link.
+ * order. The QR and the gateway link belong to one charge (`charge`, its attempt). The poll carries no QR, and an answer can
+ * arrive before the charge is stored: neither takes them away from the same attempt. A newer attempt drops them at once,
+ * because the older charge may still be payable and a guest must never scan it.
  */
 export function mergePayment(shown, next) {
     if (!next) return null;
     // A stale answer: attempts only grow, and paid is final.
     if (shown && (next.attempt < shown.attempt || (shown.state === "paid" && next.state !== "paid"))) return shown;
 
-    const kept = next.state === "pending" && shown?.state === "pending" ? shown : null;
-    if (next.state !== "pending" || (!next.qr && !next.payment_url)) {
-        return { ...next, charge: kept?.charge ?? null, qr: kept?.qr ?? null, payment_url: kept?.payment_url ?? null };
-    }
-    const same = kept?.charge === next.attempt ? kept : null;
+    const pending = next.state === "pending";
+    const kept = pending && shown?.charge === next.attempt ? shown : null;
+    const qr = pending ? (next.qr ?? kept?.qr ?? null) : null;
+    const payment_url = pending ? (next.payment_url ?? kept?.payment_url ?? null) : null;
 
-    return { ...next, charge: next.attempt, qr: next.qr ?? same?.qr ?? null, payment_url: next.payment_url ?? same?.payment_url ?? null };
+    return { ...next, charge: qr || payment_url ? next.attempt : null, qr, payment_url };
 }
 
 /**

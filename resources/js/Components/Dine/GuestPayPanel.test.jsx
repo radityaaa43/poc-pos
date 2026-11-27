@@ -209,9 +209,9 @@ describe("mergePayment", () => {
         expect(merged(raw("pending", second), raw("pending", { ...second, qr: null }))).toMatchObject({ qr: second.qr });
     });
 
-    it("keeps the older charge on screen until the newer attempt brings its own", () => {
+    it("drops the superseded charge as soon as a newer attempt is known, then shows the new one", () => {
         const waiting = merged(raw("pending", charge), raw("pending", { attempt: 2 }));
-        expect(waiting).toMatchObject({ attempt: 2, charge: 1, qr: charge.qr, payment_url: charge.payment_url });
+        expect(waiting).toMatchObject({ attempt: 2, charge: null, qr: null, payment_url: null });
 
         expect(mergePayment(waiting, raw("pending", second))).toMatchObject({ ...second, charge: 2 });
     });

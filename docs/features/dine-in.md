@@ -262,9 +262,9 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   **Terlalu banyak percobaan. Coba lagi sebentar.** (429) or **Tidak ada koneksi. Pembayaran belum dibuat.**. A second press
   is ignored while a request is in flight.
 - Answers can arrive out of order and the poll has no QR, so the page keeps the QR and link of the newest charge it has seen
-  (`mergePayment`): nothing blank replaces them, an older attempt is ignored, **Lunas** is never undone, and a newer attempt
-  takes their place once it brings its own QR or link. A charge started elsewhere (another tab) gets its QR by one partial
-  reload of the `payment` prop.
+  (`mergePayment`): nothing blank replaces them for the same attempt, an older attempt is ignored and **Lunas** is never
+  undone. A newer attempt drops them at once, because the older charge may still be payable; its own QR and link appear
+  once the charge is stored. A charge started elsewhere (another tab) gets its QR by one partial reload of the `payment` prop.
 - A pending attempt that still has no page and no QR after 60 s offers **Coba lagi**.
 
 - `POST /dine-order/{accessToken}/pay` is public (the order token is the only credential, no permission, no login).

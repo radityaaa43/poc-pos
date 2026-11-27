@@ -95,6 +95,26 @@ describe("DineOrderStatus online payment", () => {
         expect(screen.queryByRole("button", { name: /Bayar/ })).toBeNull();
     });
 
+    it("never leaves a superseded QR up: it goes away and the new charge is asked for once", async () => {
+        accepted({ payment: payment("pending", charge) });
+        const gone = () => {
+            expect(screen.queryByRole("img", { name: "QRIS" })).toBeNull();
+            expect(screen.queryByRole("link", { name: "Buka di aplikasi e-wallet" })).toBeNull();
+        };
+
+        // Another phone claimed attempt 2; its charge is not stored yet, so there is nothing to ask for.
+        await poll({ order: { status: "accepted" }, payment: payment("pending", { attempt: 2 }) });
+        gone();
+        expect(router.reload).not.toHaveBeenCalled();
+
+        const stored = payment("pending", { attempt: 2, payment_url: "https://pay.test/r2" });
+        await poll({ order: { status: "accepted" }, payment: stored });
+        await poll({ order: { status: "accepted" }, payment: stored });
+        expect(screen.queryByRole("img", { name: "QRIS" })).toBeNull();
+        expect(router.reload).toHaveBeenCalledTimes(1);
+        expect(router.reload).toHaveBeenCalledWith(expect.objectContaining({ only: ["payment"] }));
+    });
+
     it("asks once for the QR of a charge started elsewhere", async () => {
         accepted({ payment: payment("can_pay", { attempt: 0 }) });
         const elsewhere = payment("pending", { payment_url: charge.payment_url });
