@@ -1,7 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@inertiajs/react";
+import i18n from "@/i18n";
 import DineMenu from "./DineMenu";
 
 // The page has no layout, so it renders its own Toaster; without one the guest
@@ -120,5 +121,40 @@ describe("DineMenu pay later", () => {
         await user.click(bayarNanti());
 
         expect(await screen.findByText(refusal)).toBeTruthy();
+    });
+});
+
+describe("DineMenu online payment (REQ-005)", () => {
+    const hint = "Bisa bayar online setelah pesanan diterima";
+
+    beforeAll(() => i18n.changeLanguage("id"));
+
+    it("keeps Bayar di Kasir and no hint at an outlet without a gateway", async () => {
+        await orderOne();
+
+        expect(pesan()).toBeTruthy();
+        expect(screen.queryByText("Pesan", { exact: true })).toBeNull();
+        expect(screen.queryByText(hint)).toBeNull();
+    });
+
+    it("says Pesan with the hint at a gateway outlet and still posts pay_at_counter", async () => {
+        const user = await orderOne({ onlinePayment: true });
+
+        expect(screen.queryByText("Pesan — Bayar di Kasir")).toBeNull();
+        expect(screen.getByText(hint)).toBeTruthy();
+        await user.click(screen.getByText("Pesan", { exact: true }));
+
+        expect(router.post).toHaveBeenCalledWith(
+            "/dine/t/order",
+            expect.objectContaining({ payment_option: "pay_at_counter" }),
+            expect.any(Object)
+        );
+    });
+
+    it("leaves the pay-later button and its helper as they are", async () => {
+        await orderOne({ onlinePayment: true, payLaterEnabled: true });
+
+        expect(screen.getByText("Pesan — Bayar Belakangan")).toBeTruthy();
+        expect(screen.getByText("Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.")).toBeTruthy();
     });
 });

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\ExpireSupersededGatewayCharge;
 use App\Models\DineOrder;
+use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
@@ -44,6 +45,12 @@ class DineOrderOnlinePaymentService
         private readonly PaymentGatewayManager $gatewayManager,
         private readonly AuditLogService $auditLogService,
     ) {}
+
+    /** Whether a guest at this outlet can pay online at all (the menu says so before there is any bill). */
+    public function isReadyFor(?Outlet $outlet): bool
+    {
+        return $this->gateway($outlet) !== null;
+    }
 
     /**
      * What the guest page shows about paying, or null while there is nothing to show (not accepted, rejected,
@@ -100,7 +107,7 @@ class DineOrderOnlinePaymentService
 
             $this->refuseUnlessPayable($this->payable($order, $bill, $amount));
 
-            [$setting, $gateway] = $this->gateway($bill) ?? throw ValidationException::withMessages(['payment' => [self::NO_GATEWAY]]);
+            [$setting, $gateway] = $this->gateway($bill->warehouse?->outlet) ?? throw ValidationException::withMessages(['payment' => [self::NO_GATEWAY]]);
             $attempt = (int) $bill->payment_attempt + 1;
 
             // A guest charge never has tender rows; the ones left are a failed cashier attempt's, which held no money.
@@ -201,7 +208,7 @@ class DineOrderOnlinePaymentService
             return self::COUNTER;
         }
 
-        return $this->gateway($bill) ? self::OK : self::NO_GATEWAY;
+        return $this->isReadyFor($bill->warehouse?->outlet) ? self::OK : self::NO_GATEWAY;
     }
 
     /** @throws ValidationException */
@@ -214,9 +221,9 @@ class DineOrderOnlinePaymentService
     }
 
     /** The outlet's setting and the gateway a charge goes to (Midtrans first, as the QRIS charge picks), or null when none is ready. */
-    private function gateway(Transaction $bill): ?array
+    private function gateway(?Outlet $outlet): ?array
     {
-        $setting = PaymentSetting::forOutlet($bill->warehouse?->outlet);
+        $setting = PaymentSetting::forOutlet($outlet);
 
         foreach ([PaymentSetting::GATEWAY_MIDTRANS, PaymentSetting::GATEWAY_XENDIT] as $gateway) {
             if ($setting?->isGatewayReady($gateway)) {

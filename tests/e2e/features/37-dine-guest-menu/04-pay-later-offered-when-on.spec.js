@@ -1,7 +1,8 @@
 import { test, expect } from '../../support/fixtures.js';
 
 const PAY_LATER_BUTTON = 'Pesan — Bayar Belakangan';
-const PAY_AT_COUNTER_BUTTON = 'Pesan — Bayar di Kasir';
+// The E2E outlet has a payment gateway, so its counter button reads Pesan (REQ-005); exact, so Bayar Belakangan never matches.
+const PAY_AT_COUNTER_BUTTON = 'Pesan';
 const HELPER_TEXT = 'Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.';
 const REFUSAL = 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.';
 
@@ -26,7 +27,7 @@ test.describe('37-dine-guest-menu', () => {
         arrange('paylater.setting', { enabled: 1 });
         try {
             const cart = await openCart(page, token, title);
-            await expect(cart.getByRole('button', { name: PAY_AT_COUNTER_BUTTON })).toBeVisible();
+            await expect(cart.getByRole('button', { name: PAY_AT_COUNTER_BUTTON, exact: true })).toBeVisible();
             await expect(cart.getByRole('button', { name: PAY_LATER_BUTTON })).toBeVisible();
             await expect(cart.getByText(HELPER_TEXT)).toBeVisible();
         } finally {
@@ -41,7 +42,7 @@ test.describe('37-dine-guest-menu', () => {
 
         arrange('paylater.setting', { enabled: 0 });
         const cart = await openCart(page, token, title);
-        await expect(cart.getByRole('button', { name: PAY_AT_COUNTER_BUTTON })).toBeVisible();
+        await expect(cart.getByRole('button', { name: PAY_AT_COUNTER_BUTTON, exact: true })).toBeVisible();
         await expect(cart.getByRole('button', { name: PAY_LATER_BUTTON })).toHaveCount(0);
         await expect(cart.getByText(HELPER_TEXT)).toHaveCount(0);
     });

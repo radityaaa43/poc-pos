@@ -162,6 +162,17 @@ class DineOrderOnlinePaymentTest extends TestCase
                 ->where('state', 'can_pay')->where('amount', self::TOTAL)->where('attempt', 0)->where('payment_url', null)->where('qr', null)));
     }
 
+    public function test_menu_says_whether_the_guest_can_pay_online(): void
+    {
+        $this->get(route('dine.menu', $this->table->token))
+            ->assertInertia(fn (Assert $page) => $page->where('onlinePayment', false));
+
+        $this->enableMidtrans();
+
+        $this->get(route('dine.menu', $this->table->token))
+            ->assertInertia(fn (Assert $page) => $page->where('onlinePayment', true));
+    }
+
     public function test_check_response_carries_payment_without_the_qr_image(): void
     {
         $this->enableMidtrans();
