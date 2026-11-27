@@ -50,7 +50,8 @@ class ModifierGroupService
                 after: ModifierGroup::findOrFail($group->getKey())->snapshot()
             );
 
-            return $group;
+            // The relations loaded for the "before" snapshot are stale now.
+            return $group->unsetRelations();
         });
     }
 
