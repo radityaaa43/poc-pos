@@ -112,6 +112,46 @@ class RecapUnowedReturnTest extends TestCase
         $this->assertRecap(cash: 0, nonCash: 0, expectedCash: 100000);
     }
 
+    public function test_a_return_after_a_counter_transfer_was_asked_is_not_taken_off(): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '123', 'account_name' => 'Toko', 'is_active' => true, 'sort_order' => 0]);
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [['method' => 'bank_transfer', 'amount' => self::TOTAL, 'bank_account_id' => $account->id]]);
+
+        $this->returnFromBill($this->bill($order), $this->plain);
+
+        // the guest was asked for 25000 and the return refunded nothing: all of it is still to be received
+        $this->assertRecap(cash: 0, nonCash: self::TOTAL, expectedCash: 100000);
+    }
+
+    public function test_a_split_takes_off_only_what_was_returned_before_it_was_asked(): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '123', 'account_name' => 'Toko', 'is_active' => true, 'sort_order' => 0]);
+        $order = $this->acceptedOrder();
+        $this->returnFromBill($this->bill($order), $this->plain);
+        $this->payAtCounter($order, [
+            ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+            ['method' => 'bank_transfer', 'amount' => 15000, 'bank_account_id' => $account->id],
+        ]);
+
+        $this->returnFromBill($this->bill($order), $this->flagged);
+
+        $this->assertRecap(cash: 5000, nonCash: 15000, expectedCash: 105000);
+    }
+
+    public function test_a_return_while_a_counter_gateway_charge_waits_is_not_taken_off_once_paid(): void
+    {
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [['method' => 'qris', 'amount' => self::TOTAL]]);
+        $this->returnFromBill($this->bill($order), $this->plain);
+
+        $this->notify('midtrans', $this->bill($order)->invoice.'-r1', 'paid')->assertOk();
+        $this->assertSame('paid', $this->bill($order)->payment_status);
+
+        $this->assertRecap(cash: 0, nonCash: self::TOTAL, expectedCash: 100000);
+    }
+
     /** Only an open bill is asked for less after a return. A plain POS sale was asked for its grand total at checkout. */
     public function test_only_a_bill_asked_after_the_return_is_reduced(): void
     {

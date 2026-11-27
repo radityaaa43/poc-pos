@@ -11,6 +11,7 @@ use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\SalesReturn;
 use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -574,6 +575,64 @@ class PaymentRetryTest extends TestCase
         $migration->up();
         $this->assertTrue(Schema::hasColumn('transactions', 'payment_attempt'));
         $this->assertTrue(Schema::hasColumn('transactions', 'late_superseded_payment_at'));
+    }
+
+    public function test_retry_of_a_pay_later_bill_asks_what_it_still_owes_and_the_drawer_matches(): void
+    {
+        $sale = $this->returnedPayLaterSale(returnedQty: 1);
+
+        $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('transaction.retry_amount', 10000));
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 10000])
+            ->assertSessionHasNoErrors();
+
+        $sale->refresh();
+        $this->assertSame(['paid', 10000, 0], [$sale->payment_status, $sale->cash, $sale->change]);
+        $this->assertSame(10000, app(CashierShiftService::class)->calculateSummary($this->shift)['expected_cash']);
+    }
+
+    public function test_gateway_retry_of_a_pay_later_bill_charges_what_it_still_owes(): void
+    {
+        Http::fake(['https://app.sandbox.midtrans.com/*' => Http::response(['token' => 'tok', 'redirect_url' => 'https://pay.test/new'], 200)]);
+        $sale = $this->returnedPayLaterSale(returnedQty: 1);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'midtrans'])
+            ->assertSessionHasNoErrors();
+
+        Http::assertSent(fn ($request) => $request['transaction_details']['gross_amount'] === 10000);
+    }
+
+    public function test_retry_of_a_fully_returned_pay_later_bill_is_refused(): void
+    {
+        $sale = $this->returnedPayLaterSale(returnedQty: 2);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
+            ->assertSessionHasErrors(['payment' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);
+
+        $this->assertSame(['failed', 0], [$sale->fresh()->payment_status, $sale->fresh()->payment_attempt]);
+    }
+
+    /** A failed pay-later bill of 2 x 10000, with $returnedQty of them returned before anything was paid. */
+    private function returnedPayLaterSale(int $returnedQty): Transaction
+    {
+        $sale = $this->makeSale('midtrans', ['is_pay_later' => true]);
+        $product = $this->product();
+        $detail = $sale->details()->create(['product_id' => $product->id, 'qty' => 2, 'price' => 20000]);
+        $return = SalesReturn::create([
+            'code' => 'SR-RETRY-'.$sale->id, 'transaction_id' => $sale->id, 'cashier_id' => $this->cashier->id,
+            'status' => 'completed', 'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0,
+            'total_return_amount' => $returnedQty * 10000, 'completed_at' => now(),
+        ]);
+        $return->items()->create([
+            'transaction_detail_id' => $detail->id, 'product_id' => $product->id, 'qty_sold' => 2,
+            'qty_returned_before' => 0, 'qty_return' => $returnedQty, 'unit_price' => 10000, 'subtotal' => $returnedQty * 10000,
+            'return_reason' => 'Retur', 'restock_to_inventory' => false,
+        ]);
+
+        return $sale;
     }
 
     private function makeSale(string $method, array $overrides = []): Transaction

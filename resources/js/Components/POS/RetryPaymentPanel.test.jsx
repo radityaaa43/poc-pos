@@ -44,6 +44,17 @@ describe("RetryPaymentPanel", () => {
         expect(screen.getByRole("button", { name: "Bayar dengan cara lain" })).toBeEnabled();
     });
 
+    it("says what the sale still owes and computes the change from it", async () => {
+        const user = userEvent.setup();
+        renderPanel({ transaction: { ...failed, retry_amount: 30000 } });
+
+        expect(screen.getByText(/Sisa tagihan: Rp\s*30\.000/)).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Bayar dengan cara lain" }));
+        await user.type(screen.getByLabelText("Uang diterima"), "50000");
+
+        expect(screen.getByText(/Kembalian: Rp\s*20\.000/)).toBeInTheDocument();
+    });
+
     it("renders nothing when the sale is not retryable (paid, pending, restocked)", () => {
         renderPanel({ retryable: false, transaction: { ...failed, payment_status: "paid" } });
 
