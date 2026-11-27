@@ -1,6 +1,6 @@
 # REQ-009: Meja dan tagihan dine-in
 
-- **Status:** draft
+- **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:dine-in
 - **Updated:** 2026-11-28
@@ -41,6 +41,10 @@ Hari ini pesanan meja hanya datang dari QR tamu (REQ-003, REQ-005). Satu meja bi
 17. **Nama pesanan** opsional, maks 20 karakter, untuk semua pesanan POS; tampil di struk, kartu layar dapur, dan ticket dapur. Pesanan meja tetap menampilkan nama meja. (Business/PM, 2026-11-28)
 18. **Retur pada tagihan yang di-split** memakai alur retur yang ada pada penjualan asalnya; kasir memilih cara refund seperti sekarang, dan struk bagian yang sudah dicetak tidak berubah. Alasan: split hanya mengatur siapa membayar, bukan apa yang terjual. Ditolak: retur per struk bagian, karena bagi rata tidak punya item per bagian. (Business/PM, 2026-11-28)
 19. **Meja yang Terisi atau Dipesan** tidak bisa dinonaktifkan atau dihapus; ditolak dengan pesan yang menyebut pesanan atau reservasinya. Alasan: tagihan dan reservasi tidak boleh kehilangan mejanya. (Business/PM, 2026-11-28)
+20. **Satu metode bayar per bagian split** di versi ini; tamu yang butuh dua metode mengambil dua bagian. Alasan: setiap bagian punya satu struk dan satu pembayaran di ledger. Ditolak: split payment di dalam satu bagian, ditunda. (Business/PM, 2026-11-28, Q-A feasibility #422)
+21. **Retur pada penjualan dengan split yang masih terbuka** ditolak sampai bagian yang belum lunas dibatalkan; setelah split selesai, alur retur yang ada berlaku (keputusan 18). Alasan: kalau tidak, jumlah bagian tidak lagi sama dengan tagihan. (Business/PM, 2026-11-28, Q-B)
+22. **Pindah meja memindahkan pesanan asal beserta semua pesanan tambahannya** (REQ-003 AC-21), karena dapur menampilkannya sebagai satu kartu. (Business/PM, 2026-11-28, Q-C)
+23. **Selama split terbuka, tamu tidak bisa membayar tagihan itu online** (REQ-005); halaman status meminta tamu membayar di kasir. Ini kebalikan dari keputusan 13, supaya tagihan tidak dibayar penuh oleh tamu sementara bagian dibayar di kasir. (Business/PM, 2026-11-28, dari feasibility #422)
 
 ## Process
 
@@ -189,10 +193,10 @@ stateDiagram-v2
 - **AC-06:** Given kasir dengan izin bayar dine-in membuka meja, when memilih **Bayar**, then semua tagihan Belum Lunas meja itu tampil dalam satu daftar, dari QR, POS, dan pesanan tambahan.
 - **AC-07:** Given **Split per item**, when kasir menetapkan item (per qty utuh) ke tiap bagian, then tiap bagian menampilkan item, subtotal, diskon tagihan yang dibagi proporsional, dan total; semua item harus ditetapkan sebelum lanjut.
 - **AC-08:** Given **Bagi rata** ke N bagian (2 sampai 20), when dihitung, then N bagian sama besar dalam rupiah dan sisa pembulatan masuk bagian terakhir; jumlah semua bagian sama dengan total tagihan.
-- **AC-09:** Given sebuah bagian, when dibayar dengan metode mana pun yang tersedia di bayar dine-in, then bagian itu lunas dan struk bagian itu tercetak dengan item (split per item) atau porsi (bagi rata) dan totalnya.
+- **AC-09:** Given sebuah bagian, when dibayar dengan satu metode yang tersedia di bayar dine-in (keputusan 20), then bagian itu lunas dan struk bagian itu tercetak dengan item (split per item) atau porsi (bagi rata) dan totalnya.
 - **AC-10:** Given bagian lunas dan bagian belum lunas, when waktu berjalan, then bagian sisa tetap Belum Lunas dan menahan tutup shift seperti tagihan dine-in; tiap pembayaran masuk shift yang menerimanya; tagihan meja lunas saat semua bagian lunas.
 - **AC-11:** Given split dengan sebagian bagian lunas, when kasir mengubah atau membatalkan split, then hanya bagian belum lunas yang berubah, dan bagian lunas beserta pembayarannya tetap.
-- **AC-12:** Given tagihan meja dengan pembayaran online tamu yang masih menunggu (REQ-005), when kasir mencoba split atau pindah meja, then ditolak dengan pesan untuk menunggu atau mengambil alih pembayaran (takeover).
+- **AC-12:** Given tagihan meja dengan pembayaran online tamu yang masih menunggu (REQ-005), when kasir mencoba split atau pindah meja, then ditolak dengan pesan untuk menunggu atau mengambil alih pembayaran (takeover); sebaliknya, selama split terbuka, pembayaran online tamu untuk tagihan itu ditolak dan halaman status meminta tamu membayar di kasir (keputusan 23).
 
 ### Pindah meja dan bayar bersama
 
@@ -213,13 +217,13 @@ stateDiagram-v2
 
 ### Izin dan teks
 
-- **AC-21:** Given pengguna tanpa izin pindah meja atau reservasi, when membuka atau mengirim aksinya, then tombol tidak tampil dan server menolak (403); split dan bayar memakai izin bayar dine-in yang ada.
+- **AC-21:** Given pengguna tanpa `dine-orders-move` atau `dine-reservations-manage`, when membuka atau mengirim aksinya, then tombol tidak tampil dan server menolak (403); split dan bayar memakai izin bayar dine-in yang ada; saat POS offline, pesanan meja, split, pindah, dan bayar bersama ditolak dengan pesan bahwa fitur itu butuh koneksi.
 - **AC-23:** Given meja yang Terisi atau Dipesan, when dinonaktifkan atau dihapus, then ditolak dengan pesan yang menyebut pesanan atau reservasinya (keputusan 19).
 - **AC-22:** Given setiap teks baru (status meja, split, pindah, reservasi, nama pesanan, pesan tolak), when bahasa diubah, then tersedia dalam bahasa Indonesia dan English.
 
 <!-- Edge cases:
-     - offline (POS queued sale): pesanan meja dan split butuh server (tagihan meja ada di server); offline POS menolak dengan pesan — tech-lead mengonfirmasi di feasibility read (Q2)
-     - split payment: AC-09 (tiap bagian boleh beberapa metode seperti bayar dine-in)
+     - offline (POS queued sale): ditolak dengan pesan (Q2), AC-21
+     - split payment: keputusan 20 (satu metode per bagian)
      - insufficient stock: AC-02 (aturan stok pesanan meja)
      - cancellation before payment: AC-05, AC-11
      - cancellation or refund after payment: keputusan 18 (alur retur yang ada)
@@ -279,8 +283,8 @@ stateDiagram-v2
 
 ## Open questions
 
-- **Q1:** Feasibility read oleh tech-lead (struktur bagian split terhadap transaksi yang ada, ukuran ticket) — decides: tech-lead. `?`
-- **Q2:** POS offline: pesanan meja dan split ditolak saat offline? — decides: tech-lead (teknis), default ya. `?`
+- **Q1:** Feasibility read — **answered** (#422, 2026-11-28): layak dengan satu struktur baru, **ledger pembayaran tagihan** (satu pembayaran bisa untuk satu bagian split atau beberapa tagihan sekaligus; recap shift menghitung pembayaran ledger di shift penerimanya). Penjualan tetap satu penjualan (item, stok, dapur, retur tidak berubah). Izin baru: `dine-orders-move` dan `dine-reservations-manage`. Nomor HP reservasi tidak tercatat terbuka di audit log. Dipotong menjadi enam ticket: T1 J1 + J2 + J6 (±1.300 baris), T2 ledger + bagi rata + bagian tunai/transfer/EDC + recap + guard AC-12 (±1.300), T3 split per item (±800), T4 bagian lewat gateway (±900), T5 J4 pindah meja + bayar bersama (±900), T6 J5 reservasi (±1.100). Urutan: T1 ∥ T6, lalu T2, lalu T3, T4, T5 paralel. Q-A..Q-C menjadi keputusan 20-22.
+- **Q2:** POS offline — **answered**: pesanan meja, split, pindah, dan bayar bersama ditolak saat offline dengan pesan bahwa fitur itu butuh koneksi; tidak ada yang masuk antrean offline.
 - **Q3:** Retur pada tagihan yang di-split — **answered** (keputusan 18).
 - **Q4:** Meja dinonaktifkan atau dihapus saat Terisi atau Dipesan — **answered** (keputusan 19).
 
