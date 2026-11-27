@@ -66,6 +66,13 @@ class SalesReportController extends Controller
             ')
             ->first();
 
+        // Gateway sales paid after their shift closed: a breakdown inside the totals above, by the sale's own date.
+        $paidAfterClose = (clone $aggregateQuery)
+            ->where('payment_status', 'paid')
+            ->whereNotNull('paid_after_close_at')
+            ->selectRaw('COUNT(*) as bills_count, COALESCE(SUM(grand_total), 0) as bills_total')
+            ->first();
+
         $transactionIds = (clone $aggregateQuery)->pluck('id');
 
         $itemsSold = $transactionIds->isNotEmpty()
@@ -85,6 +92,8 @@ class SalesReportController extends Controller
             'average_order' => ($totals->orders_count ?? 0) > 0
                 ? (int) round($totals->revenue_total / $totals->orders_count)
                 : 0,
+            'paid_after_close_count' => (int) ($paidAfterClose->bills_count ?? 0),
+            'paid_after_close_total' => (int) ($paidAfterClose->bills_total ?? 0),
         ];
 
         return [

@@ -60,6 +60,23 @@ describe("sidebar Menu", () => {
         expect(granted).toHaveLength(count);
     });
 
+    it.each([
+        [["products-edit"], 1],
+        [["products-access"], 0],
+        [["dine-orders-prepare"], 0],
+    ])("shows the kitchen stations entry for %j: %i entry", (perms, count) => {
+        const granted = leaves(
+            renderMenu({
+                auth: {
+                    super: false,
+                    permissions: Object.fromEntries(perms.map((p) => [p, true])),
+                },
+            }),
+        ).filter((i) => i.href === "/settings.kitchen-stations.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
+    });
+
     it("marks only the item for the current url as active", () => {
         const items = leaves(
             renderMenu({ url: "/dashboard/categories", auth: { super: true } }),
@@ -77,6 +94,14 @@ describe("sidebar Menu", () => {
 
         expect(hrefs.length).toBeGreaterThan(0);
         expect(new Set(hrefs).size).toBe(hrefs.length);
+    });
+
+    it("shows the kitchen speed report to users with reports-access", () => {
+        const granted = leaves(
+            renderMenu({ auth: { super: false, permissions: { "reports-access": true } } }),
+        ).filter((i) => i.permissions === true);
+
+        expect(granted.map((i) => i.href)).toContain("/reports.kitchen-speed.index");
     });
 
     it("every menu permission exists in PermissionSeeder", () => {

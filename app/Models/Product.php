@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Product extends Model
@@ -26,6 +27,7 @@ class Product extends Model
         'is_raw_material' => 'boolean',
         'needs_preparation' => 'boolean',
         'prep_target_minutes' => 'integer',
+        'kitchen_station_id' => 'integer',
     ];
 
     protected $fillable = [
@@ -46,12 +48,23 @@ class Product extends Model
         'is_raw_material',
         'needs_preparation',
         'prep_target_minutes',
+        'kitchen_station_id',
         'purchased_by',
     ];
 
     public function category()
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /**
+     * Null means the default station (Dapur).
+     *
+     * @return BelongsTo<KitchenStation, $this>
+     */
+    public function kitchenStation(): BelongsTo
+    {
+        return $this->belongsTo(KitchenStation::class);
     }
 
     public function warehouses(): BelongsToMany

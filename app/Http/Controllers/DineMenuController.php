@@ -67,6 +67,7 @@ class DineMenuController extends Controller
             'categories' => $categories,
             'products' => $products,
             'selfOrderEnabled' => $selfOrderEnabled,
+            'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'storeName' => $storeName,
             'storeLogo' => $storeLogo,
         ]);

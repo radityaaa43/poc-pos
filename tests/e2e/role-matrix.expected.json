@@ -49,10 +49,11 @@
         "/dashboard/settings/warehouses": "allowed",
         "/dashboard/settings/outlets": "allowed",
         "/dashboard/settings/units": "allowed",
+        "/dashboard/settings/kitchen-stations": "allowed",
         "/dashboard/settings/whatsapp": "allowed",
         "/dashboard/access": "allowed"
       },
-      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Shift Kasir", "Audit Log", "Hak Akses", "Akses Group", "Pengguna", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Outlet", "Satuan", "WhatsApp"],
+      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Hak Akses", "Akses Group", "Pengguna", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Outlet", "Satuan", "Stasiun dapur", "WhatsApp"],
       "submenu": { "Pengguna": ["Data Pengguna", "Tambah Data Pengguna"] }
     },
     "manager": {
@@ -102,10 +103,11 @@
         "/dashboard/settings/warehouses": "allowed",
         "/dashboard/settings/outlets": "forbidden",
         "/dashboard/settings/units": "allowed",
+        "/dashboard/settings/kitchen-stations": "allowed",
         "/dashboard/settings/whatsapp": "forbidden",
         "/dashboard/access": "allowed"
       },
-      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Shift Kasir", "Audit Log", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Satuan"]
+      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Satuan", "Stasiun dapur"]
     },
     "cashier": {
       "pages": {
@@ -154,6 +156,7 @@
         "/dashboard/settings/warehouses": "forbidden",
         "/dashboard/settings/outlets": "forbidden",
         "/dashboard/settings/units": "forbidden",
+        "/dashboard/settings/kitchen-stations": "forbidden",
         "/dashboard/settings/whatsapp": "forbidden",
         "/dashboard/access": "allowed"
       },
@@ -206,6 +209,7 @@
         "/dashboard/settings/warehouses": "forbidden",
         "/dashboard/settings/outlets": "forbidden",
         "/dashboard/settings/units": "forbidden",
+        "/dashboard/settings/kitchen-stations": "forbidden",
         "/dashboard/settings/whatsapp": "forbidden",
         "/dashboard/access": "allowed"
       },
@@ -258,6 +262,7 @@
         "/dashboard/settings/warehouses": "forbidden",
         "/dashboard/settings/outlets": "forbidden",
         "/dashboard/settings/units": "forbidden",
+        "/dashboard/settings/kitchen-stations": "forbidden",
         "/dashboard/settings/whatsapp": "forbidden",
         "/dashboard/access": "allowed"
       },

@@ -34,6 +34,12 @@ class AppServiceProvider extends ServiceProvider
                 ->by($request->user()?->id ?: $request->ip());
         });
 
+        // A guest pays from the QR menu: per order token and IP. The plain `throttle:5,1` keys on domain + IP only,
+        // so one cafe Wi-Fi (one IP) would share a single bucket across all its guests.
+        RateLimiter::for('dine-order-pay', function (Request $request) {
+            return Limit::perMinute(5)->by($request->route('accessToken').'|'.$request->ip());
+        });
+
         // API documentation (Scramble) is public — open source project, docs should be viewable
         // by anyone. Protect via SCRAMBLE_DOCS_TOKEN env if desired (RestrictedDocsAccess).
         Gate::define('viewApiDocs', fn () => true);

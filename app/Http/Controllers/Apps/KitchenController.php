@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
+use App\Models\Transaction;
 use App\Models\Warehouse;
+use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
+use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -16,47 +20,79 @@ class KitchenController extends Controller
     public function index(Request $request)
     {
         $outlet = $this->outletAccessService->activeOutlet($request);
-        // Open items of the current outlet, oldest first. Release rows from the #236 backfill have no accepted_at.
+        // Open items (and ones cancelled in the last 2 minutes) of the current outlet, oldest first. Release rows from the #236 backfill have no accepted_at.
         // Every warehouse of the outlet: a shift may sell from any of them, not only the first one.
         $items = $outlet
-            ? KitchenItem::open()
-                ->whereIn('warehouse_id', Warehouse::where('outlet_id', $outlet->id)->select('id'))
-                ->with([
-                    'transaction:id,invoice,order_type,payment_status,created_at',
-                    'transaction.dineOrder:id,transaction_id,dine_table_id',
-                    'transaction.dineOrder.table:id,name',
-                    'product:id,title',
-                ])
+            ? KitchenItem::onDisplay()
+                ->inOutlet($outlet->id)
+                ->with(KitchenOrders::RELATIONS)
                 ->orderByRaw('COALESCE(accepted_at, created_at)')
                 ->orderBy('id')
                 ->get()
             : collect();
 
-        // groupBy keeps first-seen order, so the order with the oldest item comes first.
-        $orders = $items->groupBy('transaction_id')->map(function ($lines) {
-            $first = $lines->first();
-            $transaction = $first->transaction;
-            $dineOrder = $transaction->dineOrder;
-
-            return [
-                'id' => $transaction->id,
-                'number' => $dineOrder ? $dineOrder->table?->name : $transaction->invoice,
-                'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
-                'unpaid' => $transaction->payment_status !== 'paid',
-                'since' => $first->accepted_at ?? $first->created_at,
-                'items' => $lines->map(fn (KitchenItem $item) => [
-                    'id' => $item->id,
-                    'title' => $item->product?->title,
-                    'qty' => $item->qty,
-                    'note' => $item->note ?? null, // the column arrives with a later #236 change
-                    'status' => $item->status,
-                ])->values(),
-            ];
-        })->values();
-
         return Inertia::render('Dashboard/Kitchen/Index', [
-            'orders' => $orders,
+            'orders' => KitchenOrders::fromItems($items),
             'outlet' => $outlet?->only('id', 'name'),
+            // Active stations only (the model's soft-delete scope); the display filters by them in the browser.
+            'stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
         ]);
+    }
+
+    public function start(Request $request, KitchenItem $kitchenItem, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $kitchenItem->warehouse_id);
+        $service->start($kitchenItem, $request->user());
+
+        return back();
+    }
+
+    public function ready(Request $request, KitchenItem $kitchenItem, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $kitchenItem->warehouse_id);
+        $service->ready($kitchenItem, $request->user());
+
+        return back();
+    }
+
+    public function allReady(Request $request, Transaction $transaction, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $transaction->warehouse_id);
+        $data = $request->validate([
+            'station_ids' => ['sometimes', 'array'],
+            'station_ids.*' => ['integer'],
+        ]);
+        $service->allReady($transaction, $request->user(), $data['station_ids'] ?? null);
+
+        return back();
+    }
+
+    public function handOver(Request $request, KitchenItem $kitchenItem, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $kitchenItem->warehouse_id);
+        $service->handOver($kitchenItem, $request->user());
+
+        return back();
+    }
+
+    public function handOverAll(Request $request, Transaction $transaction, KitchenItemService $service)
+    {
+        $this->ensureOutlet($request, $transaction->warehouse_id);
+        $data = $request->validate([
+            'station_ids' => ['sometimes', 'array'],
+            'station_ids.*' => ['integer'],
+        ]);
+        $service->handOverAll($transaction, $request->user(), $data['station_ids'] ?? null);
+
+        return back();
+    }
+
+    /** The display only works on the current outlet's items. */
+    private function ensureOutlet(Request $request, int $warehouseId): void
+    {
+        $outlet = $this->outletAccessService->activeOutlet($request);
+
+        // Any warehouse of the outlet, as on the display: a shift may sell from any of them.
+        abort_unless($outlet && Warehouse::whereKey($warehouseId)->where('outlet_id', $outlet->id)->exists(), 403);
     }
 }

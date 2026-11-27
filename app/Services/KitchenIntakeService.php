@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\DineOrderItem;
 use App\Models\KitchenItem;
+use App\Models\KitchenStation;
 use App\Models\Transaction;
 use Illuminate\Support\Facades\DB;
 
@@ -20,10 +22,24 @@ class KitchenIntakeService
         }
     }
 
-    /** A pay-later sale goes to the kitchen at checkout, unpaid; paying its receivable later records nothing more. */
+    /**
+     * A pay-later sale goes to the kitchen at checkout, or a QR pay-later order at accept, unpaid; paying it later records nothing more.
+     * Marked by the flag, not payment_method: an accepted QR bill is an open_bill, not 'pay_later'.
+     */
     public function intakeUnpaid(Transaction $transaction): void
     {
-        if ($transaction->payment_method === 'pay_later' && $transaction->payment_status === 'unpaid') {
+        if ($transaction->is_pay_later && $transaction->payment_status === 'unpaid') {
+            $this->record($transaction);
+        }
+    }
+
+    /**
+     * Recovery of a pay-later sale whose intake at creation never ran, in whatever payment state it is in now (unpaid, a payment
+     * attempt in flight, failed, expired or paid): the food is owed either way. Once-only like the others.
+     */
+    public function intakePayLater(Transaction $transaction): void
+    {
+        if ($transaction->is_pay_later) {
             $this->record($transaction);
         }
     }
@@ -41,15 +57,20 @@ class KitchenIntakeService
             return;
         }
 
-        $transaction->load('details.product:id,needs_preparation', 'dineOrder.items');
+        $transaction->load('details.product:id,needs_preparation,kitchen_station_id', 'dineOrder.items');
+        // Active stations in one query; a product pointing at a deleted or no station goes to the default one.
+        $stations = KitchenStation::get(['id', 'is_default']);
+        $defaultStationId = $stations->firstWhere('is_default', true)->id ?? KitchenStation::defaultId();
         // Dine-in lines carry a note ("no sugar"); match each sale line to the first unused order line of the same product and unit.
+        /** @var list<DineOrderItem> $dineItems */
         $dineItems = $transaction->dineOrder?->items->all() ?? [];
 
         // All or nothing: a failure midway must not leave some lines recorded, or the once-only guard above would skip the rest forever.
-        DB::transaction(function () use ($transaction, $dineItems) {
+        DB::transaction(function () use ($transaction, $dineItems, $stations, $defaultStationId) {
             foreach ($transaction->details as $detail) {
-                // The flag is read now: a later product edit must not change items already in the kitchen.
-                if (! $detail->product?->needs_preparation) {
+                // The line's sale-time snapshot decides (the product's flag only for lines written before it existed),
+                // so a later product edit changes neither the items in the kitchen nor a retry's result.
+                if (! $detail->goesToKitchen()) {
                     continue;
                 }
 
@@ -66,6 +87,7 @@ class KitchenIntakeService
                     'transaction_id' => $transaction->id,
                     'product_id' => $detail->product_id,
                     'warehouse_id' => $transaction->warehouse_id,
+                    'kitchen_station_id' => $stations->contains('id', $detail->product->kitchen_station_id) ? $detail->product->kitchen_station_id : $defaultStationId,
                     'qty' => $detail->qty,
                     'note' => $note,
                     'status' => KitchenItem::STATUS_ACCEPTED,
@@ -74,5 +96,10 @@ class KitchenIntakeService
                 ]);
             }
         });
+
+        // BR-1 for Pay now only: a pay-later sale (unpaid here) is served at accept in #279.
+        if ($transaction->payment_status === 'paid') {
+            app(KitchenItemService::class)->serveIfNoKitchenItems($transaction);
+        }
     }
 }

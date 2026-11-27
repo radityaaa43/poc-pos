@@ -21,6 +21,7 @@ const props = {
 
 beforeEach(() => {
     vi.clearAllMocks();
+    router.post.mockReset(); // clearAllMocks keeps a previous test's mockImplementation
     global.route = () => "/dine/t/order";
     window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} });
     // jsdom has no <dialog> methods; the page only calls them to open/close the cart.
@@ -72,5 +73,52 @@ describe("DineMenu order feedback", () => {
         await user.click(pesan());
 
         expect(await screen.findByText("Gagal mengirim pesanan.")).toBeTruthy();
+    });
+});
+
+describe("DineMenu pay later", () => {
+    const bayarNanti = () => screen.getByText("Pesan — Bayar Belakangan");
+    const helper = "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.";
+
+    it("offers only Bayar di Kasir when the outlet has pay later off", async () => {
+        await orderOne();
+
+        expect(screen.queryByText("Pesan — Bayar Belakangan")).toBeNull();
+        expect(screen.queryByText(helper)).toBeNull();
+        expect(pesan()).toBeTruthy();
+    });
+
+    it("offers a second button with the exact helper text when it is on", async () => {
+        const user = await orderOne({ payLaterEnabled: true });
+
+        expect(pesan()).toBeTruthy();
+        expect(screen.getByText(helper)).toBeTruthy();
+
+        await user.click(bayarNanti());
+        expect(router.post).toHaveBeenCalledWith(
+            "/dine/t/order",
+            expect.objectContaining({ payment_option: "pay_later" }),
+            expect.any(Object)
+        );
+    });
+
+    it("still posts pay_at_counter from the existing button", async () => {
+        const user = await orderOne({ payLaterEnabled: true });
+        await user.click(pesan());
+
+        expect(router.post).toHaveBeenCalledWith(
+            "/dine/t/order",
+            expect.objectContaining({ payment_option: "pay_at_counter" }),
+            expect.any(Object)
+        );
+    });
+
+    it("shows the server's refusal when pay later was switched off while the menu was open", async () => {
+        const refusal = "Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.";
+        router.post.mockImplementation((url, data, opts) => opts.onError({ order: refusal }));
+        const user = await orderOne({ payLaterEnabled: true });
+        await user.click(bayarNanti());
+
+        expect(await screen.findByText(refusal)).toBeTruthy();
     });
 });

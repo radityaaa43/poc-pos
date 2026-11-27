@@ -291,6 +291,7 @@
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
+            "kitchenSpeedReport": "Kitchen Speed Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
             "permissions": "Permissions",
@@ -307,6 +308,7 @@
             "warehouses": "Warehouses / Branches",
             "outlets": "Outlets",
             "units": "Units",
+            "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp"
         },
         "menu": {
@@ -423,7 +425,8 @@
         },
         "preparation": {
             "needsPreparation": "Needs preparation (made to order in the kitchen)",
-            "targetMinutes": "Prep target (minutes)"
+            "targetMinutes": "Prep target (minutes)",
+            "station": "Kitchen station"
         }
     },
     "categories": {
@@ -509,7 +512,16 @@
         "noHeldCarts": "No held transactions",
         "searchProduct": "Search product (barcode/name)...",
         "productNotFound": "Product not found",
-        "stockInsufficient": "Insufficient stock"
+        "stockInsufficient": "Insufficient stock",
+        "lateRefund": {
+            "badge": "Paid twice — manual refund",
+            "filter": "Needs refund",
+            "notice": "The old payment was received after the sale was paid again — manual refund needed"
+        },
+        "paidAfterClose": {
+            "badge": "Paid after shift closed",
+            "filter": "Paid after shift closed"
+        }
     },
     "receivables": {
         "title": "Receivables",
@@ -538,7 +550,8 @@
         "refundAmount": "Refund Amount",
         "exchangeItem": "Exchange Item",
         "cashRefund": "Cash Refund",
-        "storeCredit": "Store Credit"
+        "storeCredit": "Store Credit",
+        "restockKitchenHint": "Already being made in the kitchen: not restocked by default"
     },
     "cashierShifts": {
         "title": "Cashier Shifts",
@@ -859,6 +872,29 @@
             "repeatCustomers": "Repeat Customers",
             "productTrends": "Product Trends",
             "lowPerformers": "Low Performers"
+        },
+        "kitchenSpeed": {
+            "title": "Kitchen Speed Report",
+            "outlet": "Outlet",
+            "startDate": "Start date",
+            "endDate": "End date",
+            "apply": "Apply",
+            "item": "Menu",
+            "orders": "Orders",
+            "portions": "Portions",
+            "makeMedian": "Median make time",
+            "makeAvg": "Average make time",
+            "waitMakeMedian": "Median wait + make",
+            "waitMakeAvg": "Average wait + make",
+            "target": "Target",
+            "withinTarget": "Within target",
+            "handover": "Payment to handover",
+            "minutes": "{{value}} min",
+            "empty": "No kitchen data for this period",
+            "station": "Station",
+            "allStations": "All stations",
+            "stationDeleted": "(deleted)",
+            "handoverAllStations": "All orders from all stations"
         }
     },
     "auditLogs": {
@@ -1048,10 +1084,56 @@
         "status": {
             "accepted": "Accepted",
             "preparing": "Preparing",
-            "ready": "Ready"
+            "ready": "Ready",
+            "cancelled": "Cancelled"
+        },
+        "print": {
+            "open": "Kitchen printer settings",
+            "deviceName": "Print device name",
+            "devicePlaceholder": "Kitchen 1",
+            "save": "Save",
+            "nameTaken": "This print device name is already used in this outlet",
+            "connect": "Connect printer",
+            "disconnect": "Disconnect",
+            "paper": "Paper size (58 mm / 80 mm)",
+            "test": "Test print",
+            "auto": "Auto-print",
+            "ready": "Printer ready",
+            "notConnected": "Printer not connected",
+            "otherTab": "Tickets are printed from another tab on this device",
+            "unpaid": "UNPAID",
+            "cancelled": "CANCELLED"
+        },
+        "actions": {
+            "start": "Start",
+            "ready": "Ready",
+            "allReady": "All ready",
+            "saveFailed": "Not saved — check the connection and try again",
+            "handOver": "Hand over",
+            "handOverAll": "Hand over all"
+        },
+        "stations": {
+            "label": "Station",
+            "all": "All stations",
+            "progress": "{{ready}} of {{total}} ready",
+            "removed": "The selected station was removed. Showing all stations.",
+            "emptyForSelection": "No orders for this station yet"
         }
     },
     "pos": {
+        "retryPayment": {
+            "failed": "Payment failed",
+            "expired": "Expired",
+            "retry": "Try again",
+            "other": "Pay another way",
+            "method": "Payment method",
+            "cash": "Cash",
+            "qris": "QRIS",
+            "cashReceived": "Cash received",
+            "change": "Change",
+            "bankAccount": "Destination account",
+            "pay": "Pay"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Prepared now, paid later. Marked Belum lunas.",
@@ -1060,6 +1142,15 @@
             "noteLabel": "Note (required for a guest)",
             "notePlaceholder": "Who is it for? At least 2 characters",
             "noteRequired": "Add a note of at least 2 characters for a guest"
+        },
+        "unpaidBills": {
+            "title": "Unpaid",
+            "pay": "Pay",
+            "ageMinutes": "{{count}} min",
+            "ageHours": "{{count}} h",
+            "awaitingOnline": "Waiting for online payment",
+            "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
+            "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
         }
     },
     "outlets": {
@@ -1067,5 +1158,27 @@
             "label": "Bayar Belakangan",
             "hint": "Let the POS of this outlet sell now and collect payment later."
         }
+    },
+    "dineMenu": {
+        "payLater": {
+            "button": "Order — Pay later",
+            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave."
+        }
+    },
+    "kitchenStations": {
+        "title": "Kitchen stations",
+        "add": "Add station",
+        "rename": "Rename station",
+        "renameLabel": "Rename {{name}}",
+        "deleteLabel": "Delete station {{name}}",
+        "name": "Station name",
+        "default": "Built-in",
+        "empty": "No stations yet",
+        "deleteTitle": "Delete station {{name}}?",
+        "deleteConfirm": "Its products move to {{default}}. Items already in the kitchen stay where they are.",
+        "created": "Station added",
+        "renamed": "Station renamed",
+        "deleted": "Station deleted",
+        "failed": "Could not save the station"
     }
 }

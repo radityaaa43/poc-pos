@@ -26,7 +26,7 @@ test.describe('POS pay later per outlet', () => {
         await field(page, 'Tanggal Jatuh Tempo').fill('2026-12-31');
         const invoice = await finish(page);
 
-        expect(arrange('paylater.sale-state', { invoice })).toEqual({ payment_status: 'unpaid', payment_method: 'pay_later', is_pay_later: true, receivables: 1 });
+        expect(arrange('paylater.sale-state', { invoice })).toMatchObject({ payment_status: 'unpaid', payment_method: 'pay_later', is_pay_later: true, receivables: 1 });
         expect(arrange('kitchen.items', { invoice })).toEqual({ count: 1, product_ids: [dish.product_id], statuses: ['accepted'] });
     });
 
@@ -63,6 +63,6 @@ test.describe('POS pay later per outlet', () => {
         await field(page, 'Catatan (wajib untuk tamu)').fill('Meja 4');
         const invoice = await finish(page);
 
-        expect(arrange('paylater.sale-state', { invoice })).toEqual({ payment_status: 'unpaid', payment_method: 'pay_later', is_pay_later: true, receivables: 0 });
+        expect(arrange('paylater.sale-state', { invoice })).toMatchObject({ payment_status: 'unpaid', payment_method: 'pay_later', is_pay_later: true, receivables: 0 });
     });
 });

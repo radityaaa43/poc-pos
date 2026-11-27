@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\Category;
+use App\Models\KitchenStation;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Unit;
@@ -18,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ProductController extends Controller
@@ -72,6 +74,7 @@ class ProductController extends Controller
             'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
             'default_tax_rate' => app(TaxService::class)->getDefaultRate($this->outletAccessService->activeOutlet($request)),
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
+            'kitchen_stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
         ]);
     }
 
@@ -126,6 +129,7 @@ class ProductController extends Controller
             'is_raw_material' => $request->boolean('is_raw_material'),
             'needs_preparation' => $request->boolean('needs_preparation'),
             'prep_target_minutes' => $this->prepTargetMinutes($request),
+            'kitchen_station_id' => $this->kitchenStationId($request),
             'purchased_by' => $this->purchasedBy($request),
         ]);
 
@@ -180,6 +184,7 @@ class ProductController extends Controller
             'products' => $this->componentCandidates($request, $product),
             'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
+            'kitchen_stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
         ]);
     }
 
@@ -248,6 +253,7 @@ class ProductController extends Controller
                 'is_raw_material' => $request->boolean('is_raw_material'),
                 'needs_preparation' => $request->boolean('needs_preparation'),
                 'prep_target_minutes' => $this->prepTargetMinutes($request),
+                'kitchen_station_id' => $this->kitchenStationId($request),
                 'purchased_by' => $this->purchasedBy($request),
             ]);
 
@@ -279,6 +285,7 @@ class ProductController extends Controller
             'is_raw_material' => $request->boolean('is_raw_material'),
             'needs_preparation' => $request->boolean('needs_preparation'),
             'prep_target_minutes' => $this->prepTargetMinutes($request),
+            'kitchen_station_id' => $this->kitchenStationId($request),
             'purchased_by' => $this->purchasedBy($request),
         ]);
 
@@ -341,6 +348,12 @@ class ProductController extends Controller
         return $request->boolean('needs_preparation') ? $request->integer('prep_target_minutes') ?: null : null;
     }
 
+    /** The station only means something on a product that needs preparation; otherwise null (= Dapur). */
+    private function kitchenStationId(Request $request): ?int
+    {
+        return $request->boolean('needs_preparation') ? $request->integer('kitchen_station_id') ?: null : null;
+    }
+
     private function compositeRules(): array
     {
         return [
@@ -348,6 +361,7 @@ class ProductController extends Controller
             'is_raw_material' => 'nullable|boolean',
             'needs_preparation' => 'nullable|boolean',
             'prep_target_minutes' => 'exclude_unless:needs_preparation,1,true|nullable|integer|min:1|max:65535',
+            'kitchen_station_id' => ['exclude_unless:needs_preparation,1,true', 'nullable', 'integer', Rule::exists('kitchen_stations', 'id')->whereNull('deleted_at')],
             'purchased_by' => 'exclude_unless:is_raw_material,1,true|required|in:central,outlet',
             // The form always sends `components: []`; only a composite needs at least one.
             'components' => 'exclude_unless:is_composite,1,true|required|array|min:1',

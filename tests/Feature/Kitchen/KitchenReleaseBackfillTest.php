@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class KitchenReleaseBackfillTest extends TestCase
@@ -74,6 +75,22 @@ class KitchenReleaseBackfillTest extends TestCase
         return $transaction;
     }
 
+    /**
+     * Re-run the kitchen_items migration over the legacy rows. The station column goes first and comes back after:
+     * dropping the table loses it, and on MySQL (DDL commits) later tests would otherwise see the table without it.
+     */
+    private function rebuildKitchenItems(): void
+    {
+        $station = require database_path('migrations/2026_12_02_100003_add_kitchen_station_to_kitchen_items_table.php');
+        $migration = require database_path('migrations/2026_11_29_100001_create_kitchen_items_table.php');
+
+        $station->down();
+        // kitchen_ticket_prints references kitchen_items, and MySQL refuses to drop a referenced table.
+        Schema::withoutForeignKeyConstraints(fn () => $migration->down());
+        $migration->up();
+        $station->up();
+    }
+
     public function test_release_backfill_copies_in_progress_paid_dine_orders_only(): void
     {
         $flagged = $this->product(true);
@@ -84,9 +101,7 @@ class KitchenReleaseBackfillTest extends TestCase
         $oldPosSale = $this->sale($flagged, 'paid');
         $unflagged = $this->sale($plain, 'paid', DineOrder::STATUS_READY);
 
-        $migration = require database_path('migrations/2026_11_29_100001_create_kitchen_items_table.php');
-        $migration->down();
-        $migration->up();
+        $this->rebuildKitchenItems();
 
         $this->assertSame(1, KitchenItem::count());
 
@@ -114,9 +129,7 @@ class KitchenReleaseBackfillTest extends TestCase
         $sale = $this->sale($flagged, 'paid', DineOrder::STATUS_ACCEPTED);
         $sale->dineOrder->items()->create(['product_id' => $flagged->id, 'qty' => 2, 'price' => 10000, 'note' => 'tanpa gula']);
 
-        $migration = require database_path('migrations/2026_11_29_100001_create_kitchen_items_table.php');
-        $migration->down();
-        $migration->up();
+        $this->rebuildKitchenItems();
 
         $this->assertSame('tanpa gula', KitchenItem::sole()->note);
     }

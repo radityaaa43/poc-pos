@@ -44,6 +44,12 @@ Mengelola konfigurasi bisnis dan pembayaran yang dipakai aplikasi secara operasi
 - payment gateway settings memengaruhi checkout
 - bank account aktif memengaruhi transfer manual dan pembayaran finansial lain
 - `APP_URL` yang salah dapat membuat webhook tidak usable
+- A guest paying an accepted dine-in order from the QR menu status page (REQ-005, `docs/features/dine-in.md`) uses the
+  gateway of the **bill's outlet** (`PaymentSetting::forOutlet`, Midtrans first, then Xendit), the same setting the
+  webhook verifies with. No ready gateway there means the guest is told to pay at the counter. Turning the gateway off
+  takes effect on the guest's next poll. The guest's QRIS and hosted page expire after 15 minutes and the gateway
+  sends the guest back to the order status page (`PaymentGatewayManager` takes an optional return URL and expiry;
+  every other caller keeps the receipt page and the gateway's default expiry).
 
 ## Batasan Saat Ini
 

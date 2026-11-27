@@ -54,8 +54,10 @@ low bcrypt cost, no SSR. The bot-guard honeypot and token stay on.
 
 `.github/workflows/tests.yml`: `E2E (shard i/N)` jobs run the same suite against a MySQL service
 container (`--shard=i/N`, blob reporter); the `E2E` job merges the blob reports into one HTML report
-artifact and fails if any shard failed. There is one shard today; to add shards, extend the `shard`
-matrix only (the job names and `--shard` both follow it). Each shard job resets its own database.
+artifact and fails if any shard failed. The suite runs in three shards (`shard: [1, 2, 3]`), always the whole
+suite split between them, never a subset; to change the number of shards, edit the `shard` matrix only (the job
+names and `--shard` both follow it). The ruleset requires the aggregate `E2E` check, not the shard jobs. Each
+shard job resets its own database.
 
 ## Adding e2e for a new feature
 
@@ -70,6 +72,10 @@ This creates `features/08-purchase-orders/01-create-order.spec.js` from `support
 
 - A step arranges its own data and never depends on another step: call `arrange('open-shift', { cash: 100000 })`
   and use `uniq('product')` for names, so reruns and shards do not collide.
+- Specs must not depend on folder order. Shared data created by other specs (outlets, warehouses) may exist,
+  so assert on the cell you mean (`warehouseCell` in `support/inventory.js`), not on a whole row's text.
+- A scenario that creates an outlet or warehouse must give it a code that sorts after `E2E` / `WH-E2E`:
+  the super admin's default outlet and the first warehouse are the lowest code, and other features' steps rely on them.
 - Need data no scenario creates? Add a closure to `app/Testing/E2e/Scenarios.php` (name -> options in,
   created ids out) and call it with `arrange('<name>', { ... })`.
 - `asRole(role)` gives a page already signed in as a role from `support/roles.js`. Do not log out

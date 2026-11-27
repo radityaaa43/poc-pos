@@ -4,6 +4,9 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import OpenBillPayModal from "@/Components/POS/OpenBillPayModal";
+import LateRefundBadge from "./LateRefundBadge";
+import PaidAfterCloseBadge from "./PaidAfterCloseBadge";
+import { useTranslation } from "react-i18next";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -26,6 +29,8 @@ const defaultFilters = {
     start_date: "",
     end_date: "",
     warehouse_id: "",
+    late_payment: "",
+    paid_after_close: "",
 };
 
 const formatCurrency = (value = 0) =>
@@ -51,7 +56,7 @@ const isOpenBill = (transaction) =>
     (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
         (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"));
 
-// The cashier pays an open bill from here or from the POS "Tagihan Terbuka" section. A pending gateway payment
+// The cashier pays an unpaid bill from here or from the POS "Belum Lunas" section. A pending gateway payment
 // (QRIS) cannot be charged twice: it links to the receipt, which shows the QR, until the webhook marks it paid.
 const OpenBillStatus = ({ transaction, canPay, onPay }) => (
     <span className="inline-flex items-center gap-2">
@@ -88,6 +93,7 @@ const OpenBillStatus = ({ transaction, canPay, onPay }) => (
 
 const History = ({ transactions, filters, warehouses = [], bankAccounts = [], paymentGateways = [] }) => {
     const { can } = useAuthorization();
+    const { t } = useTranslation();
     const canCreateSalesReturn = can("sales-returns-create");
     const canConfirmPayment = can("transactions-confirm-payment");
     const canPayOpenBill = can("dine-orders-process");
@@ -136,6 +142,25 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         });
     };
 
+    // Sales paid twice (a late payment of a superseded attempt) that need a manual refund.
+    // filters.late_payment comes back from the server as a boolean (Request::boolean), the chip sends "1".
+    const lateOnly = [true, "1", 1].includes(filterData.late_payment);
+    const toggleLatePayment = () =>
+        router.get(
+            route("transactions.history"),
+            { ...filterData, late_payment: lateOnly ? "" : "1" },
+            { preserveScroll: true, preserveState: true }
+        );
+
+    // Gateway sales paid after their shift closed; same boolean-or-"1" handling as the chip above.
+    const afterCloseOnly = [true, "1", 1].includes(filterData.paid_after_close);
+    const togglePaidAfterClose = () =>
+        router.get(
+            route("transactions.history"),
+            { ...filterData, paid_after_close: afterCloseOnly ? "" : "1" },
+            { preserveScroll: true, preserveState: true }
+        );
+
     const rows = transactions?.data ?? [];
     const links = transactions?.links ?? [];
     const currentPage = transactions?.current_page ?? 1;
@@ -144,7 +169,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         : rows.length || 1;
 
     const hasActiveFilters =
-        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id;
+        filterData.invoice || filterData.start_date || filterData.end_date || filterData.warehouse_id || lateOnly || afterCloseOnly;
 
     return (
         <>
@@ -166,6 +191,30 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                         </p>
                     </div>
                     <div className="flex gap-2">
+                        <button
+                            type="button"
+                            aria-pressed={lateOnly}
+                            onClick={toggleLatePayment}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                                lateOnly
+                                    ? "bg-danger-50 border-danger-200 text-danger-700 dark:bg-danger-950/50 dark:border-danger-800 dark:text-danger-400"
+                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {t("transactions.lateRefund.filter")}
+                        </button>
+                        <button
+                            type="button"
+                            aria-pressed={afterCloseOnly}
+                            onClick={togglePaidAfterClose}
+                            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
+                                afterCloseOnly
+                                    ? "bg-warning-50 border-warning-200 text-warning-700 dark:bg-warning-950/50 dark:border-warning-800 dark:text-warning-400"
+                                    : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                            }`}
+                        >
+                            {t("transactions.paidAfterClose.filter")}
+                        </button>
                         <button
                             onClick={() => setShowFilters(!showFilters)}
                             className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-colors ${
@@ -399,6 +448,8 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                             "-"}
                                                     </span>
                                                 )}
+                                                <LateRefundBadge transaction={transaction} />
+                                                <PaidAfterCloseBadge transaction={transaction} />
                                             </td>
                                             <td className="px-4 py-4">
                                                 <div className="flex items-center justify-center gap-2">
@@ -530,6 +581,8 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                             "-"}
                                                     </span>
                                                 )}
+                                                <LateRefundBadge transaction={transaction} />
+                                                <PaidAfterCloseBadge transaction={transaction} />
                                             </div>
                                             <p className="text-sm font-semibold text-slate-900 dark:text-white">
                                                 {formatCurrency(

@@ -41,13 +41,13 @@ const VIEWS = [
 
 const PAY_CONFIG = {
     pay_at_counter: { label: "Bayar di Kasir", color: "text-slate-600 dark:text-slate-400" },
+    pay_later: { label: "Bayar Belakangan", color: "text-slate-600 dark:text-slate-400" },
 };
 
 export default function Index({ orders }) {
     const { auth } = usePage().props;
     const { can } = useAuthorization();
     const canProcess = can("dine-orders-process");
-    const canPrepare = can("dine-orders-prepare");
     const canHandover = can("dine-orders-handover");
     const [view, setView] = useState("all");
     const visibleOrders = orders.filter(VIEWS.find((item) => item.key === view).match);
@@ -64,14 +64,14 @@ export default function Index({ orders }) {
         );
     };
 
-    // Fulfillment steps: kitchen marks ready, then someone verifies the hand over. Each has its own permission.
-    const handleStep = (order, routeName, successMessage) => {
+    // Hand over: only for a ready order the kitchen display does not track (no kitchen items); the others are handed over there.
+    const handleServe = (order) => {
         router.post(
-            route(routeName, order.id),
+            route("dine-orders.serve", order.id),
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success(successMessage),
+                onSuccess: () => toast.success("Pesanan ditandai diserahkan."),
                 onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal menandai pesanan."),
             }
         );
@@ -161,31 +161,13 @@ export default function Index({ orders }) {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
-                                            {canPrepare && order.status === "accepted" && isPaid(order) && (
-                                                <Button
-                                                    type={"button"}
-                                                    label={"Mulai Buat"}
-                                                    icon={<IconClock size={16} strokeWidth={1.5} />}
-                                                    className={"bg-primary-500 hover:bg-primary-600 text-white"}
-                                                    onClick={() => handleStep(order, "dine-orders.prepare", "Pesanan mulai dibuat.")}
-                                                />
-                                            )}
-                                            {canPrepare && order.status === "preparing" && (
-                                                <Button
-                                                    type={"button"}
-                                                    label={"Siap"}
-                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
-                                                    className={"bg-success-500 hover:bg-success-600 text-white"}
-                                                    onClick={() => handleStep(order, "dine-orders.ready", "Pesanan ditandai siap.")}
-                                                />
-                                            )}
-                                            {canHandover && order.status === "ready" && (
+                                            {canHandover && order.status === "ready" && !order.has_kitchen_items && (
                                                 <Button
                                                     type={"button"}
                                                     label={"Serahkan"}
                                                     icon={<IconCheck size={16} strokeWidth={1.5} />}
                                                     className={"bg-primary-500 hover:bg-primary-600 text-white"}
-                                                    onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
+                                                    onClick={() => handleServe(order)}
                                                 />
                                             )}
                                             {canProcess && order.status === "submitted" && (

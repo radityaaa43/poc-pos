@@ -46,6 +46,7 @@ class DiningTable extends Model
         });
     }
 
+    /** @return BelongsTo<DineArea, $this> */
     public function area(): BelongsTo
     {
         return $this->belongsTo(DineArea::class, 'dine_area_id');

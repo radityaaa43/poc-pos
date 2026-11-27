@@ -8,18 +8,18 @@ use Illuminate\Support\Facades\Http;
 
 class MidtransGateway
 {
-    public function createCharge(Transaction $transaction, array $config, ?int $amount = null, ?string $orderId = null): array
+    public function createCharge(Transaction $transaction, array $config, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
-        return $this->createTransaction($transaction, $config, null, $amount, $orderId);
+        return $this->createTransaction($transaction, $config, null, $amount, $orderId, $returnUrl, $expiresInMinutes);
     }
 
     /**
      * Dynamic QRIS charge — Snap transaction restricted to QR-compatible
      * e-wallet payments; returns qr_string for on-counter rendering.
      */
-    public function createQrisCharge(Transaction $transaction, array $config, ?int $amount = null, ?string $orderId = null): array
+    public function createQrisCharge(Transaction $transaction, array $config, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
-        $result = $this->createTransaction($transaction, $config, ['qris', 'gopay', 'shopeepay'], $amount, $orderId);
+        $result = $this->createTransaction($transaction, $config, ['qris', 'gopay', 'shopeepay'], $amount, $orderId, $returnUrl, $expiresInMinutes);
 
         return [
             ...$result,
@@ -27,7 +27,7 @@ class MidtransGateway
         ];
     }
 
-    private function createTransaction(Transaction $transaction, array $config, ?array $enabledPayments = null, ?int $amount = null, ?string $orderId = null): array
+    private function createTransaction(Transaction $transaction, array $config, ?array $enabledPayments = null, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
         if (! ($config['enabled'] ?? false)) {
             throw new PaymentGatewayException('Midtrans tidak aktif atau belum dikonfigurasi.');
@@ -50,9 +50,13 @@ class MidtransGateway
                 'phone' => optional($customer)->no_telp,
             ],
             'callbacks' => [
-                'finish' => route('transactions.print', $transaction->invoice),
+                'finish' => $returnUrl ?? route('transactions.print', $transaction->invoice),
             ],
         ];
+
+        if ($expiresInMinutes !== null) {
+            $payload['expiry'] = ['unit' => 'minutes', 'duration' => $expiresInMinutes];
+        }
 
         if ($enabledPayments !== null) {
             $payload['enabled_payments'] = $enabledPayments;

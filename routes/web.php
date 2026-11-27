@@ -17,6 +17,8 @@ use App\Http\Controllers\Apps\DiscountApprovalController;
 use App\Http\Controllers\Apps\GoodsReceivingController;
 use App\Http\Controllers\Apps\ImportExportController;
 use App\Http\Controllers\Apps\KitchenController;
+use App\Http\Controllers\Apps\KitchenPrintDeviceController;
+use App\Http\Controllers\Apps\KitchenStationController;
 use App\Http\Controllers\Apps\MemberController;
 use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PayableController;
@@ -35,11 +37,14 @@ use App\Http\Controllers\Apps\StockTransferController;
 use App\Http\Controllers\Apps\SupplierController;
 use App\Http\Controllers\Apps\SupplierReturnController;
 use App\Http\Controllers\Apps\TransactionController;
+use App\Http\Controllers\Apps\TransactionRetryController;
+use App\Http\Controllers\Apps\TransactionSettleController;
 use App\Http\Controllers\Apps\UnitController;
 use App\Http\Controllers\Apps\WarehouseController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DineMenuController;
 use App\Http\Controllers\DineOrderController;
+use App\Http\Controllers\DineOrderPaymentController;
 use App\Http\Controllers\DocumentController;
 use App\Http\Controllers\LanguageController;
 use App\Http\Controllers\NotificationController;
@@ -49,6 +54,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\PublicPortalController;
 use App\Http\Controllers\RegionController;
 use App\Http\Controllers\Reports\AdvancedSalesInsightsController;
+use App\Http\Controllers\Reports\KitchenSpeedReportController;
 use App\Http\Controllers\Reports\ProfitReportController;
 use App\Http\Controllers\Reports\SalesReportController;
 use App\Http\Controllers\RoleController;
@@ -266,8 +272,12 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::delete('/transactions/{holdId}/clearHold', [TransactionController::class, 'clearHold'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.clearHold');
     Route::get('/transactions/held', [TransactionController::class, 'getHeldCarts'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.held');
 
+    // the POS "Belum Lunas" list, polled by the browser
+    Route::get('/transactions/open-bills', [TransactionController::class, 'openBills'])->middleware('permission:transactions-access')->name('transactions.open-bills');
+
     // route transaction store
     Route::post('/transactions/store', [TransactionController::class, 'store'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.store');
+    Route::post('/transactions/{transaction}/settle', TransactionSettleController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.settle');
     // offline queue flush from the browser (session auth); the shift is checked per sale in syncOne()
     Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware('permission:transactions-access')->name('transactions.sync');
     Route::get('/transactions/{invoice}/status', [TransactionController::class, 'status'])->middleware('permission:transactions-access')->name('transactions.status');
@@ -411,8 +421,17 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
         ->middlewareFor('update', 'permission:units-update')
         ->middlewareFor('destroy', 'permission:units-delete');
 
+    // settings kitchen stations (shop-wide, REQ-006)
+    Route::resource('/settings/kitchen-stations', KitchenStationController::class)
+        ->except(['create', 'edit', 'show'])
+        ->names('settings.kitchen-stations')
+        ->middleware('permission:products-edit');
+
     // confirm payment for bank transfer
     Route::patch('/transactions/{transaction}/confirm-payment', [TransactionController::class, 'confirmPayment'])->middleware(['permission:transactions-confirm-payment', 'step_up'])->name('transactions.confirm-payment');
+
+    // retry a failed or expired POS payment, same method or another one
+    Route::post('/transactions/{transaction}/retry-payment', TransactionRetryController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.retry-payment');
 
     // discount approval
     Route::get('/discount-approvals', [DiscountApprovalController::class, 'pending'])->middleware('permission:discounts-approve')->name('discount-approvals.pending');
@@ -423,6 +442,7 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::get('/reports/sales', [SalesReportController::class, 'index'])->middleware('permission:reports-access')->name('reports.sales.index');
     Route::get('/reports/profits', [ProfitReportController::class, 'index'])->middleware('permission:profits-access')->name('reports.profits.index');
     Route::get('/reports/insights', [AdvancedSalesInsightsController::class, 'index'])->middleware('permission:reports-access')->name('reports.insights.index');
+    Route::get('/reports/kitchen-speed', [KitchenSpeedReportController::class, 'index'])->middleware('permission:reports-access')->name('reports.kitchen-speed.index');
 
     // aging & reminders
     Route::get('/aging', [AgingController::class, 'index'])->middleware('permission:receivables-access')->name('aging.index');
@@ -448,6 +468,15 @@ Route::group(['prefix' => 'dashboard', 'middleware' => ['auth']], function () {
     Route::post('/dine-orders/{dineOrder}/pay', [App\Http\Controllers\Apps\DineOrderController::class, 'pay'])->middleware(['permission:dine-orders-process', 'active_shift'])->name('dine-orders.pay');
     Route::post('/dine-orders/{dineOrder}/reject', [App\Http\Controllers\Apps\DineOrderController::class, 'reject'])->middleware('permission:dine-orders-process')->name('dine-orders.reject');
     Route::get('/kitchen', [KitchenController::class, 'index'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.index');
+    Route::post('/kitchen/items/{kitchenItem}/start', [KitchenController::class, 'start'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.start');
+    Route::post('/kitchen/items/{kitchenItem}/ready', [KitchenController::class, 'ready'])->middleware('permission:dine-orders-prepare')->name('kitchen.items.ready');
+    Route::post('/kitchen/orders/{transaction}/all-ready', [KitchenController::class, 'allReady'])->middleware('permission:dine-orders-prepare')->name('kitchen.orders.all-ready');
+    Route::post('/kitchen/print-devices', [KitchenPrintDeviceController::class, 'store'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.store');
+    Route::get('/kitchen/print-devices/{device}/tickets', [KitchenPrintDeviceController::class, 'tickets'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.tickets');
+    Route::post('/kitchen/print-devices/{device}/prints', [KitchenPrintDeviceController::class, 'prints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.prints');
+    Route::post('/kitchen/print-devices/{device}/cancellation-prints', [KitchenPrintDeviceController::class, 'cancellationPrints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.cancellation-prints');
+    Route::post('/kitchen/items/{kitchenItem}/hand-over', [KitchenController::class, 'handOver'])->middleware('permission:dine-orders-handover')->name('kitchen.items.hand-over');
+    Route::post('/kitchen/orders/{transaction}/hand-over-all', [KitchenController::class, 'handOverAll'])->middleware('permission:dine-orders-handover')->name('kitchen.orders.hand-over-all');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
@@ -459,5 +488,6 @@ Route::get('/dine/{token}', [DineMenuController::class, 'show'])->name('dine.men
 Route::post('/dine/{token}/order', [DineOrderController::class, 'store'])->name('dine-order.store');
 Route::get('/dine-order/{accessToken}', [DineOrderController::class, 'status'])->name('dine-order.status');
 Route::get('/dine-order/{accessToken}/check', [DineOrderController::class, 'statusCheck'])->middleware('throttle:30,1')->name('dine-order.status-check');
+Route::post('/dine-order/{accessToken}/pay', DineOrderPaymentController::class)->middleware('throttle:dine-order-pay')->name('dine-order.pay');
 
 require __DIR__.'/auth.php';

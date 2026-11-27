@@ -5,6 +5,9 @@ namespace App\Models;
 use App\Services\KitchenIntakeService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -56,6 +59,10 @@ class Transaction extends Model
         'grand_total',
         'payment_method',
         'payment_status',
+        'payment_attempt',
+        'payment_failure_reason',
+        'late_superseded_payment_at',
+        'paid_after_close_at',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -93,9 +100,13 @@ class Transaction extends Model
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
         'discount_approved_at' => 'datetime',
+        'payment_attempt' => 'integer',
+        'late_superseded_payment_at' => 'datetime',
+        'paid_after_close_at' => 'datetime',
     ];
 
-    public function details()
+    /** @return HasMany<TransactionDetail, $this> */
+    public function details(): HasMany
     {
         return $this->hasMany(TransactionDetail::class);
     }
@@ -125,7 +136,8 @@ class Transaction extends Model
         return $this->belongsTo(CashierShift::class);
     }
 
-    public function warehouse()
+    /** @return BelongsTo<Warehouse, $this> */
+    public function warehouse(): BelongsTo
     {
         return $this->belongsTo(Warehouse::class);
     }
@@ -140,12 +152,8 @@ class Transaction extends Model
         return $this->belongsTo(BankAccount::class);
     }
 
-    /**
-     * profits
-     *
-     * @return void
-     */
-    public function profits()
+    /** @return HasMany<Profit, $this> */
+    public function profits(): HasMany
     {
         return $this->hasMany(Profit::class);
     }
@@ -155,12 +163,14 @@ class Transaction extends Model
         return $this->hasOne(Receivable::class);
     }
 
-    public function dineOrder()
+    /** @return HasOne<DineOrder, $this> */
+    public function dineOrder(): HasOne
     {
         return $this->hasOne(DineOrder::class);
     }
 
-    public function kitchenItems()
+    /** @return HasMany<KitchenItem, $this> */
+    public function kitchenItems(): HasMany
     {
         return $this->hasMany(KitchenItem::class);
     }
@@ -168,21 +178,89 @@ class Transaction extends Model
     /** Statuses of an open bill the cashier may still pay: nothing paid, or a gateway attempt that failed or expired. */
     public const OPEN_BILL_PAYABLE = ['unpaid', 'failed', 'expired'];
 
-    /** Accepted dine-in orders whose bill is unsettled (a pending gateway or transfer included). Not a credit sale: no receivable. */
+    /** Unsettled bills a cashier can take payment for: accepted dine-in orders, or guest pay-later sales. Not a credit sale: no receivable. */
     public function scopeOpenBills($query)
     {
-        return $query->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
-            ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS));
+        return $query->where(fn ($bills) => $bills
+            ->where(fn ($dine) => $dine->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+                ->whereHas('dineOrder', fn ($order) => $order->whereIn('status', DineOrder::IN_PROGRESS)))
+            ->orWhere(fn ($posBills) => $posBills->payLaterBills()));
     }
 
-    public function salesReturns()
+    /** POS pay-later sales left unpaid (a pending gateway attempt included): no receivable, no dine order, not fully returned. */
+    public function scopePayLaterBills($query)
+    {
+        return $query->where('is_pay_later', true)
+            ->whereIn('payment_status', [...self::OPEN_BILL_PAYABLE, 'pending'])
+            ->doesntHave('receivable')
+            ->doesntHave('dineOrder')
+            ->notFullyReturned()
+            // A bill-level discount can leave nothing owed while some quantity is unreturned: such a bill can't be paid.
+            ->whereRaw('transactions.grand_total > coalesce((select sum(sr2.total_return_amount) from sales_returns sr2'
+                ." where sr2.transaction_id = transactions.id and sr2.status = 'completed'), 0)");
+    }
+
+    /** Some quantity is still unreturned (no completed return, or returned qty below sold qty). */
+    public function scopeNotFullyReturned($query)
+    {
+        return $query->where(fn ($q) => $q
+            ->whereDoesntHave('salesReturns', fn ($returns) => $returns->where('status', 'completed'))
+            ->orWhereRaw('(select coalesce(sum(sri.qty_return), 0) from sales_return_items sri'
+                .' join sales_returns sr on sr.id = sri.sales_return_id'
+                ." where sr.transaction_id = transactions.id and sr.status = 'completed')"
+                .' < (select coalesce(sum(td.qty), 0) from transaction_details td where td.transaction_id = transactions.id)'));
+    }
+
+    public function salesReturns(): HasMany
     {
         return $this->hasMany(SalesReturn::class);
+    }
+
+    /** What is still owed after partial returns: grand_total minus completed returns' total_return_amount (the sum SalesReturnController::calculateSettlement subtracts from a receivable). */
+    public function remainingTotal(): int
+    {
+        return max(0, (int) $this->grand_total
+            - (int) $this->salesReturns()->where('status', 'completed')->sum('total_return_amount'));
     }
 
     public function tenders()
     {
         return $this->hasMany(TransactionTender::class);
+    }
+
+    /**
+     * Does a cashier's tender hold the bill, so a late online payment must not be booked on top of it?
+     * A pending or paid tender does (the cashier is collecting, or money was taken); a failed or expired one never held
+     * money and does not (business answer on #327). The one place this rule lives.
+     */
+    public function hasBlockingTenders(): bool
+    {
+        return $this->tenders()->whereIn('payment_status', [TransactionTender::STATUS_PENDING, TransactionTender::STATUS_PAID])->exists();
+    }
+
+    /** ExpirePendingTransactionsCommand returned the stock of this sale: it is cancelled for good. */
+    public function wasRestocked(): bool
+    {
+        return StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $this->id)->exists();
+    }
+
+    /**
+     * The guest's online charge is in flight: pending, charged at least once, and no tender rows. A guest charge
+     * never writes tenders; a cashier's own charge or transfer always does (whatever its attempt number, since a
+     * cashier's gateway charge after a guest attempt also carries one).
+     */
+    public function isAwaitingGuestPayment(): bool
+    {
+        if ($this->payment_status !== 'pending' || $this->payment_attempt < 1) {
+            return false;
+        }
+
+        // The POS list selects a tenders_exists column (1 or null), so a list of bills costs no query per row.
+        $hasTenders = array_key_exists('tenders_exists', $this->attributes)
+            ? (bool) $this->attributes['tenders_exists']
+            : $this->tenders()->exists();
+
+        return ! $hasTenders;
     }
 
     public function usedCustomerVoucher()

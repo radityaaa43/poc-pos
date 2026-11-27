@@ -143,7 +143,7 @@ class CheckoutService
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
                 Receivable::create([
-                    'customer_id' => $ctx->customer?->id,
+                    'customer_id' => $ctx->customer->id,
                     'transaction_id' => $transaction->id,
                     'invoice' => $transaction->invoice,
                     'total' => $grandTotal,
@@ -210,6 +210,7 @@ class CheckoutService
                 'price' => $lineTotal,
                 'discount_total' => $linePromoDiscount,
                 'cost_total' => $costTotal,
+                'needs_preparation' => $product->needs_preparation, // frozen: intake and self-heal read the sale-time flag
                 'pricing_rule_id' => data_get($pricingItem, 'pricing_rule.id'),
                 'pricing_rule_name' => data_get($pricingItem, 'pricing_rule.name'),
                 'pricing_rule_kind' => data_get($pricingItem, 'pricing_rule.kind'),

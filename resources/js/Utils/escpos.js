@@ -70,6 +70,80 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     return new Uint8Array(bytes);
 }
 
+// Guest notes come from the QR menu: drop every control byte so they cannot carry printer
+// commands (e.g. the drawer kick). Line breaks and tabs become spaces so words do not fuse.
+function printable(value) {
+    return String(value ?? "")
+        .replace(/[\r\n\t]+/g, " ")
+        .replace(/[\x00-\x1f\x7f]/g, ""); // eslint-disable-line no-control-regex
+}
+
+// Word wrap to `width`; a word longer than the paper is split over lines, never dropped.
+function wrapLines(text, width) {
+    const lines = [];
+    let line = "";
+    for (let word of text.split(/\s+/).filter(Boolean)) {
+        while (word.length > width) {
+            if (line) lines.push(line);
+            line = "";
+            lines.push(word.slice(0, width));
+            word = word.slice(width);
+        }
+        if (line && line.length + 1 + word.length > width) {
+            lines.push(line);
+            line = word;
+        } else {
+            line = line ? `${line} ${word}` : word;
+        }
+    }
+    if (line) lines.push(line);
+    return lines;
+}
+
+function clockTime(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "";
+    return [date.getHours(), date.getMinutes()].map((n) => String(n).padStart(2, "0")).join(":");
+}
+
+// Kitchen ticket: no prices, ever. `labels` are already translated (this file stays free of i18n).
+// `ticket.kind === "cancel"` prints a DIBATALKAN ticket: `labels.cancelled` on top, `since` is the cancel
+// time and each item's `qty` is the cancelled quantity.
+function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
+    const width = paperSize === "58mm" ? 32 : 48;
+    const bytes = [ESC, 0x40];
+    const write = (text) => bytes.push(...textBytes(text + "\n"));
+    const rule = () => write("-".repeat(width));
+
+    const cancel = ticket.kind === "cancel";
+
+    // Double size halves the characters per line.
+    bytes.push(GS, 0x21, 0x11);
+    if (cancel) wrapLines(printable(labels.cancelled), Math.floor(width / 2)).forEach(write);
+    wrapLines(printable(ticket.number), Math.floor(width / 2)).forEach(write);
+    bytes.push(GS, 0x21, 0x00);
+
+    const type = printable(labels.type);
+    const time = clockTime(ticket.since);
+    write(type + " ".repeat(Math.max(1, width - type.length - time.length)) + time);
+    if (ticket.unpaid && !cancel) {
+        bytes.push(ESC, 0x45, 0x01);
+        wrapLines(printable(labels.unpaid), width).forEach(write);
+        bytes.push(ESC, 0x45, 0x00);
+    }
+    rule();
+
+    for (const item of ticket.items || []) {
+        wrapLines(`${printable(item.qty)} x ${printable(item.title)}`, width).forEach(write);
+        wrapLines(printable(item.note), width - 2).forEach((l) => write(`  ${l}`));
+    }
+
+    rule();
+    bytes.push(...textBytes("\n\n"));
+    bytes.push(GS, 0x56, 0x42, 0x00);
+    return new Uint8Array(bytes);
+}
+
 function drawerKickBytes(pin = 2) {
     // ESC p m t1 t2 — kick drawer pin 2, ~50ms pulse
     return new Uint8Array([ESC, 0x70, pin === 5 ? 0x01 : 0x00, 0x19, 0xfa]);
@@ -119,15 +193,29 @@ async function configurePrinter(device) {
     device._endpoint = endpointNumber;
 }
 
-async function getPrinter() {
-    if (getPrinter.cached && getPrinter.cached.opened) {
+export function printerKey(device) {
+    return `${device.vendorId}:${device.productId}:${device.serialNumber ?? ""}`;
+}
+
+// With a key: the granted device with that key (the kitchen printer). Without one: the first granted
+// device that is not the kitchen printer, so a PC with both printers granted keeps its receipt printer.
+export async function getPrinter(key) {
+    const kitchenKey = localStorage.getItem("kitchen.printerKey");
+    const wanted = (device) => (key ? printerKey(device) === key : printerKey(device) !== kitchenKey);
+    if (getPrinter.cached && getPrinter.cached.opened && wanted(getPrinter.cached)) {
         return getPrinter.cached;
     }
     // Re-attach to previously granted device
     if (!navigator.usb) throw new Error("WebUSB tidak didukung browser ini.");
     const devices = await navigator.usb.getDevices();
-    if (devices.length === 0) return null;
-    const device = devices[0];
+    // A shop with one printer for both receipts and kitchen tickets: when excluding the kitchen printer leaves
+    // nothing and exactly one device is granted, that one is used, as before the kitchen printer existed.
+    const device = devices.find(wanted) ?? (!key && devices.length === 1 ? devices[0] : undefined);
+    if (!device) return null;
+    if (device.opened && device._endpoint) {
+        getPrinter.cached = device;
+        return device;
+    }
     try {
         await configurePrinter(device);
         getPrinter.cached = device;
@@ -138,8 +226,8 @@ async function getPrinter() {
     }
 }
 
-export async function printBytes(bytes) {
-    const device = await getPrinter();
+export async function printBytes(bytes, { deviceKey } = {}) {
+    const device = await getPrinter(deviceKey);
     if (!device) throw new Error("Printer belum terhubung.");
     if (!device.opened || !device._endpoint) {
         throw new Error("Printer tidak siap menerima data. Hubungkan ulang printer.");
@@ -174,4 +262,4 @@ export function hasCachedPrinter() {
     return Boolean(getPrinter.cached?.opened);
 }
 
-export { buildReceiptBytes, drawerKickBytes };
+export { buildKitchenTicketBytes, buildReceiptBytes, drawerKickBytes };

@@ -18,7 +18,7 @@ BAYAR DULU, BARU DIBUAT. Dua siklus berjalan berdampingan, dengan satu gerbang d
   submitted                                     (transaksi belum ada)
      │ Terima        dine-orders-process
   accepted  "Menunggu Pembayaran" ────────────► unpaid  (payment_method = open_bill, tanpa piutang)
-     │                                              │ Bayar dari POS "Tagihan Terbuka" atau Riwayat:
+     │                                              │ Bayar dari POS "Belum Lunas" atau Riwayat:
      │                                              │   tunai ................... paid
      │                                              │   transfer ................ pending → paid (konfirmasi kasir)
      │                                              │   QRIS / Midtrans / Xendit  pending → paid (webhook)
@@ -37,6 +37,7 @@ Aturan:
 - **Pembayaran dulu.** "Mulai Buat" (`accepted → preparing`) ditolak kecuali `payment_status` transaksi `paid`. `pending`
   (transfer menunggu konfirmasi, gateway menunggu webhook) belum dianggap lunas. Gerbang dicek di server, di dalam
   transaksi DB yang sama dengan perubahan status dan dengan baris transaksi terkunci (`lockForUpdate`), bukan hanya di UI.
+- [BR-1] An order whose items are all unflagged (no `needs_preparation`) skips the kitchen: it is served when paid and completes at once (served_by stays empty); the Pay-later half lands in ticket #279.
 - Setiap langkah pesanan hanya sah dari status sebelumnya; status yang salah ditolak (error `order`), langkah yang sudah
   diambil diulang = tidak berbuat apa-apa.
 - Karena sudah lunas sebelum dibuat, `served` langsung menjadi `completed` pada saat "Serahkan". Keadaan "disajikan tapi
@@ -44,10 +45,10 @@ Aturan:
   jaring pengaman.
 - Siapa yang menjalankan tiap langkah ditentukan lewat permission di Settings → Roles, bukan role tetap.
 - Antrean staff punya tampilan: **Baru** (`submitted`), **Menunggu Pembayaran** (`accepted` dan belum lunas, juga tampil di
-  POS Tagihan Terbuka dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
+  POS "Belum Lunas" dan Riwayat sebagai "Belum Lunas"), **Dapur** (`accepted` yang sudah lunas + `preparing`) dan
   **Penyerahan** (`ready`). Pesanan yang belum lunas tidak muncul di Dapur. `completed` hilang dari antrean.
 
-Tagihan terbuka (*open bill*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
+Tagihan belum lunas (*Belum Lunas*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
 metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
 ## Database
@@ -85,7 +86,7 @@ Header pesanan pelanggan.
 | `access_token` | uuid | Token unik untuk halaman status |
 | `status` | string | submitted/accepted/preparing/ready/served/completed, plus rejected/cancelled. Sumber kebenaran siklus pesanan; `completed` = served dan transaksi lunas |
 | `notes` | text | Catatan pesanan |
-| `payment_option` | enum | pay_at_counter / pay_online |
+| `payment_option` | enum | pay_at_counter / pay_later (pay_online ditolak) |
 | `payment_method` | string | midtrans/xendit (nullable) |
 | `payment_status` | string | pending/paid/failed (nullable) |
 | `payment_reference` | string | Reference dari gateway (nullable) |
@@ -148,7 +149,8 @@ Dikontrol via `Setting` table:
 | GET | `/dine/{token}` | Halaman menu publik |
 | POST | `/dine/{token}/order` | Submit pesanan |
 | GET | `/dine-order/{accessToken}` | Halaman status pesanan |
-| GET | `/dine-order/{accessToken}/check` | Endpoint polling status (JSON) |
+| GET | `/dine-order/{accessToken}/check` | Endpoint polling status (JSON); also carries `payment` (see "Guest online payment") |
+| POST | `/dine-order/{accessToken}/pay` | Guest starts the online payment of an accepted order (`dine-order.pay`, limiter `dine-order-pay`) |
 
 ## Permissions
 
@@ -184,7 +186,7 @@ Dikontrol via `Setting` table:
 - Pilih kategori & produk
 - Keranjang real-time
 - Catatan opsional per item
-- Opsi saat ini: Bayar di Kasir (`pay_at_counter`)
+- Opsi saat ini: Bayar di Kasir (`pay_at_counter`) dan, bila outlet mengaktifkan Bayar Belakangan, Bayar Belakangan (`pay_later`)
 
 ### Polling Status
 - Halaman status auto-refresh setiap 5 detik selama pesanan belum completed/rejected/cancelled
@@ -194,20 +196,21 @@ Dikontrol via `Setting` table:
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
 - Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
-- Bayar: lihat "Pembayaran tagihan terbuka" di bawah
+- Kitchen steps moved to the kitchen display (`docs/features/kitchen-display.md`): Mulai Buat / Siap are no longer on the Orders page, and the order's `preparing` / `ready` status and trail now follow its kitchen items. Serahkan moved there too (#238): the Orders page no longer has a Serahkan button, and the old `dine-orders.serve` route hands over the order's ready kitchen items
+- Bayar: lihat "Pembayaran tagihan belum lunas" di bawah
 
 ## Pembayaran
 
-Saat ini endpoint `/dine/{token}/order` hanya menerima `payment_option: pay_at_counter`.
+Saat ini endpoint `/dine/{token}/order` menerima `payment_option: pay_at_counter` dan `pay_later`; `pay_later` ditolak server bila setting outlet *Bayar Belakangan* mati (pesan: "Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir."). Menu menampilkan tombol "Pesan — Bayar Belakangan" hanya bila setting aktif. Saat staf menerima pesanan `pay_later`, tagihannya diberi `is_pay_later` (tanpa piutang), item dapur yang perlu dibuat langsung tercatat (Belum lunas), dan pesanan tanpa item dapur langsung `served` lalu `completed` setelah dibayar; pelunasan tetap lewat `dine-orders.pay`.
 `pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
 
-### Pembayaran tagihan terbuka
+### Pembayaran tagihan belum lunas
 
 Pesanan yang sudah diterima (accepted sampai ready) dibayar dari dua tempat, keduanya memakai satu endpoint
 (`POST /dashboard/dine-orders/{order}/pay`) dan **memperbarui transaksi yang dibuat saat accept** (tidak ada transaksi baru).
 Pembayaran harus selesai sebelum pesanan dibuat (gerbang "Mulai Buat" di atas):
 
-- **POS** → bagian "Tagihan Terbuka" (pesanan yang belum lunas di outlet kasir).
+- **POS** → bagian "Belum Lunas" (pesanan yang belum lunas di outlet kasir; kini juga penjualan Bayar Belakangan tanpa piutang, lihat pos-transactions.md).
 - **Riwayat Transaksi** → baris dengan pesanan dine-in yang belum lunas tampil "Belum Lunas · Meja X" (badge amber) dengan tombol "Bayar".
 
 Payload memakai `tenders[]` yang sama dengan checkout POS (`TransactionTenderService::normalize`). Layar bayar menawarkan
@@ -221,13 +224,14 @@ satu metode per tagihan:
   Percobaan gateway yang `failed`/`expired` boleh diganti metode lain (tender lamanya diganti).
 - Tender gateway tidak boleh digabung (split) dengan tender lain pada tagihan dine-in.
 - Selama pembayaran gateway/transfer masih `pending`, membayar lagi ditolak (tidak ada charge kedua, tidak ada tender
-  kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk.
+  kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
+  (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
 - `payment_method`, `cash`, `change`, `bank_account_id` dan tender dicatat.
 - `cashier_id` dan `cashier_shift_id` pindah ke kasir yang menerima uang dan **shift aktifnya**. Kas yang diharapkan shift
-  (`expected_cash`) hanya bertambah saat tunai benar-benar `paid`; tagihan terbuka tidak dihitung sama sekali.
+  (`expected_cash`) hanya bertambah saat tunai benar-benar `paid`; tagihan belum lunas tidak dihitung sama sekali.
 - Stok tidak dipotong lagi (sudah dipotong saat accept).
 - Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
 - Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
@@ -235,10 +239,74 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
 
+### Guest online payment (REQ-005, server half)
+
+After staff accept an order, the guest can pay its unpaid bill (Belum Lunas) online from the status page, at an outlet whose Midtrans or
+Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_online` stays rejected). The pay panel on the
+page ships with the second half of #325; until then only the endpoint and the `payment` payload exist.
+
+- `POST /dine-order/{accessToken}/pay` is public (the order token is the only credential, no permission, no login).
+  It reads only `method` (`qris`, the default, or `gateway` for the gateway's own page with every enabled method); an
+  `amount` in the body is never read. The limiter `dine-order-pay` allows 5 requests a minute per order token **and**
+  IP (not one bucket per IP, so one cafe Wi-Fi does not block other tables).
+- The amount is always `Transaction::remainingTotal()` of the accepted bill, worked out by the server. A bill with
+  nothing left (fully returned) is refused without calling the gateway.
+- Each press is a new **payment attempt** (`transactions.payment_attempt`, order id `{invoice}-r{n}`): the charge is claimed and
+  committed under the bill's row lock, then the gateway is called with **no DB transaction open**, then the result is
+  stored only if the bill is still on that attempt. A second press (or a retry after failed/expired) supersedes the
+  first. The existing webhook settles the bill and the existing paid hook sends the flagged items to the kitchen, once.
+- **The webhook decides under locks** (`PaymentWebhookController::applyNotification`): one short DB transaction, lock order
+  owning shift (shared), dine order, receivable (a pay-later sale's gateway payment settles it; the receivable controllers lock it before the bill), bill (`FOR UPDATE`, re-read), no network call inside. The bill's shift is re-checked under
+  its lock: if a takeover or retry moved the bill meanwhile, the transaction ends and runs once more with the new shift; a second
+  move fails closed (500, nothing booked, the gateway redelivers). `TransactionPaymentRetryService::retry` locks in the same order (shift, then sale).
+  For a **paid** notification:
+  the current attempt books the bill; a repeat of the booked payment (same gateway reference) is ignored; an older
+  attempt, or the failed attempt itself, is a **late payment** and is booked as the payment when the bill is not paid, no **pending or paid** tender holds it
+  (`Transaction::hasBlockingTenders()`; a failed or expired tender never held money) and the amount equals `remainingTotal()` (first payment wins; audit `payment.late_after_failed`, `booked: true`),
+  otherwise it is flagged (`late_superseded_payment_at`, "Bayar ganda — refund manual", audit `payment.late_superseded` or
+  `payment.late_after_failed` with `booked: false`) and never booked. A second payment with another reference on a paid bill is flagged. `late_superseded_payment_at` is only the "needs refund" flag (set once);
+  every distinct gateway reference is audited (`meta.reference`, `meta.order_id`), a redelivery of the same one is not.
+  A failed bill of attempt 0 with no tender row stays final (portal sales); a **dine** bill of attempt 0 whose own gateway charge failed takes the late path above, so that money is not recorded nowhere. A late payment of a sale that was restocked is flagged, not booked.
+  When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
+- **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
+  pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
+  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::collect`), so the guest's charge is
+  superseded in the same transaction; a failed takeover changes nothing. Nothing is cancelled at the gateway (refund of a guest
+  payment that still arrives stays manual). Audit `dine_order.online_payment_taken_over`. The cashier's own gateway charge on such a
+  bill uses the order id `{invoice}[-{method}]-r{attempt}`, so its settlement is booked.
+- **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
+  `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
+  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
+- **What the cashier sees** (REQ-005 AC-06, AC-08, AC-10). The POS unpaid bill (Belum Lunas) section marks a dine-in bill whose
+  guest charge is pending **Menunggu pembayaran online** (`awaiting_online`, from `Transaction::isAwaitingGuestPayment()`), in place of
+  "Menunggu Pembayaran"; **Bayar** stays, and **Lihat QR** stays only for the cashier's own pending charge. Opening **Bayar** on such a
+  bill first shows a notice: ask the guest whether they already paid; taking payment now makes the guest's online payment not count and
+  the refund is manual. A bill that received a payment flagged "Bayar ganda — refund manual" (`late_payment`) shows that marker on its row.
+  The section refreshes itself every 10 seconds (paused while the tab is hidden, the last list kept when the request fails) from
+  `GET /dashboard/transactions/open-bills` (`transactions.open-bills`, permission `transactions-access`, the rows and outlet scope of the
+  POS page). Transactions History marks a sale paid after its shift closed with the badge **Dibayar setelah shift ditutup** and has a
+  chip with the same name (`paid_after_close=1`); the sales report shows count and total of those sales for the period as a line under
+  the summary cards (`summary.paid_after_close_count`, `summary.paid_after_close_total`; the web page and `/api/v1/reports/sales`), inside
+  the period's totals, by the sale's own date.
+- A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
+- It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
+  transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
+  A pay-later bill (`is_pay_later`) is also `counter` for now.
+- Refusals are 422 `errors.payment[0]`: `not_payable` (not accepted, rejected, nothing left, cashier's charge, pay-later bill),
+  `already_paid`, `no_gateway`, `gateway_error` (the call failed: the bill is set to `failed` with reason `gateway_error`, so
+  the cashier can pay at the counter). 404 for an unknown token, 429 over the limit.
+- `transactions.payment_failure_reason` is `expired` when the gateway reported an expiry (Midtrans `expire`, Xendit `EXPIRED`), `gateway_error` when
+  the charge could not be created, null otherwise; it lets the page tell Kedaluwarsa from Pembayaran gagal.
+- The guest's QRIS and hosted page expire after 15 minutes, and the gateway's finish redirect goes back to the status page
+  (not the staff-only receipt).
+- `payment` on the status page props and on the `/check` response: `{state, amount, attempt, payment_url, qr}`, or `null` while there is nothing to show.
+  `state` is `can_pay`, `pending`, `failed`, `expired`, `gateway_error`, `counter` (pay at the counter) or `paid`. `qr` (an SVG data URI) is
+  only on the page, never on the poll. It holds no invoice, bill id, customer, outlet or gateway reference.
+
 ## Catatan Teknis
 
 - QR generator: `simplesoftwareio/simple-qrcode`
 - Status polling: fetch JSON setiap 5 detik (tanpa broadcast/realtime dependency)
 - Stok dipotong saat `accept` — bukan saat submit
-- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data Tagihan Terbuka (POS) dan relasi pesanan di Riwayat
+- Core POS (`CheckoutService`) tidak dimodifikasi; `TransactionController` hanya menambah data Belum Lunas (POS) dan relasi pesanan di Riwayat
 - Cart tetap berbasis `cashier_id` — tidak terpengaruh oleh dine-in

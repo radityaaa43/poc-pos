@@ -30,6 +30,8 @@ class DineOrder extends Model
 
     public const PAY_AT_COUNTER = 'pay_at_counter';
 
+    public const PAY_LATER = 'pay_later';
+
     /** Accepted but not completed: the bill can still be open and the order is being fulfilled. */
     public const IN_PROGRESS = [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY, self::STATUS_SERVED];
 
@@ -83,6 +85,7 @@ class DineOrder extends Model
         });
     }
 
+    /** @return BelongsTo<DiningTable, $this> */
     public function table(): BelongsTo
     {
         return $this->belongsTo(DiningTable::class, 'dine_table_id');

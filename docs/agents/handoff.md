@@ -77,6 +77,30 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 - **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
   isn't cancelled and restarted.
 
+### 0f. Multi-agent: build in parallel
+
+Set by the maintainer on 2026-11-26. Developers **use subagents to build faster**.
+
+- **One subagent and one git worktree per ticket** (`git worktree add ../poc-pos-wt-<issue> …`, each
+  with its own `npm ci`). Up to the 0c limit: 1 main, 1 stacked and 2 `low` tickets in parallel per
+  developer.
+- **Inside one ticket, split independent parts across subagents**: for example backend with its
+  PHPUnit, frontend with its Vitest, and the e2e per AC. The developer merges the parts in one branch
+  and owns the result.
+- **The developer stays accountable.** They read every subagent diff, run the fast checks locally
+  (Pint, Vitest, build; PHPUnit and e2e run only on CI), run `/code-review` on the combined diff and
+  write the Evidence table themselves. A subagent never pushes, opens a PR, merges or moves a card.
+- **Subagents get the full context they need in their brief:**
+  - the issue number
+  - its AC, BR and TC lines
+  - the plan sections that apply
+  - the files they own
+  - which files they must not touch
+- **Two subagents never edit the same file at the same time.** Hotspot files (AGENTS.md → Working in
+  parallel) belong to the developer, who edits them after the parts are merged.
+- **Model and effort:** `sonnet` with high effort for building, and `/code-review` low on `sonnet` for
+  the self-review.
+
 ### 0e. Talk less, show more
 
 - **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
@@ -249,7 +273,7 @@ that order, with the tag in the first column (`AC-01`, `BR-1`, `TC-1`).
 |---|---|---|---|
 | 1 | [AC-01] <criterion, in the REQ's words> | ✓ | `ProductPreparationTest::test_store_saves_…` pass; e2e `41-products/04-…` `@REQ-003-AC-01` pass |
 | 2 | Plan: migration reversible | ✓ | `down()` drops both columns; `test_release_backfill_…` runs down → up |
-| 3 | Full suite | ✓ | PHPUnit 831 pass / 0 fail / 1 skip (skips on main too); Vitest 225 pass; `npm run build` ok |
+| 3 | Full suite | ✓ | CI run <link>: PHPUnit 831 pass / 0 fail / 1 skip, e2e all shards green; locally Vitest 225 pass, `npm run build` ok |
 | 4 | CI | ✓ | <link to the green run> |
 | 5 | Manual test as <role> | ✓ | <steps> → <what you saw>; screenshot before / after |
 ```

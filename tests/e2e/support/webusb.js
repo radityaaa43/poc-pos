@@ -5,6 +5,10 @@
 export const fakePrinter = (page, { granted = false } = {}) => page.addInitScript((granted) => {
     window.__usbSent = [];
     const device = {
+        // Identity of a real USB printer: escpos.js printerKey() joins these (see PRINTER_KEY below).
+        vendorId: 0x0483,
+        productId: 0x5740,
+        serialNumber: 'E2E-PRINTER',
         opened: false,
         configuration: { interfaces: [{ interfaceNumber: 0, alternates: [{ interfaceClass: 7, endpoints: [{ direction: 'out', endpointNumber: 1 }] }] }] },
         open: async () => { device.opened = true; },
@@ -30,5 +34,8 @@ export const sentToPrinter = (page) => page.evaluate(() => window.__usbSent);
 export const INIT = [0x1b, 0x40];
 export const CUT = [0x1d, 0x56, 0x42, 0x00];
 export const DRAWER_KICK = [0x1b, 0x70, 0x00, 0x19, 0xfa];
+
+// printerKey(device) of the fake printer, as the kitchen panel saves it in localStorage (kitchen.printerKey).
+export const PRINTER_KEY = '1155:22336:E2E-PRINTER';
 
 export const asText = (bytes) => String.fromCharCode(...bytes);

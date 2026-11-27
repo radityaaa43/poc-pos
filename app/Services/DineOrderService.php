@@ -2,15 +2,13 @@
 
 namespace App\Services;
 
-use App\Exceptions\PaymentGatewayException;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
-use App\Models\PaymentSetting;
+use App\Models\KitchenItem;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
 use App\Models\User;
-use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -23,8 +21,8 @@ class DineOrderService
         private StockMutationService $stockMutationService,
         private InventoryCostService $inventoryCostService,
         private CashierShiftService $cashierShiftService,
-        private TransactionTenderService $tenderService,
-        private PaymentGatewayManager $gatewayManager,
+        private TransactionSettlementService $settlementService,
+        private KitchenItemService $kitchenItemService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -75,6 +73,7 @@ class DineOrderService
                 'grand_total' => (int) $order->subtotal,
                 'payment_method' => Transaction::METHOD_OPEN_BILL, // chosen by the cashier when the bill is settled
                 'payment_status' => 'unpaid',
+                'is_pay_later' => $order->payment_option === DineOrder::PAY_LATER, // no receivable: the guest settles at the counter
                 'order_type' => 'in_store',
                 'note' => $order->notes,
             ]);
@@ -97,6 +96,7 @@ class DineOrderService
                     'price' => $lineTotal,
                     'discount_total' => 0,
                     'cost_total' => $costTotal,
+                    'needs_preparation' => $product->needs_preparation, // the bill is paid later: freeze the flag at accept
                 ]);
 
                 $transaction->profits()->create([
@@ -214,6 +214,15 @@ class DineOrderService
                 'transaction_id' => $transaction->id,
                 'cashier_id' => $userId,
             ]);
+
+            // Money first: a kitchen failure is reported, never allowed to roll back the accept. Both steps share one rescue,
+            // so a failed intake never leaves "no kitchen items" to be read as "nothing to make".
+            if ($transaction->is_pay_later) {
+                DB::afterCommit(fn () => rescue(function () use ($transaction) {
+                    app(KitchenIntakeService::class)->intakeUnpaid($transaction);
+                    $this->kitchenItemService->serveIfNoKitchenItems($transaction); // BR-10: nothing to make is served now, completed once paid
+                }));
+            }
         });
     }
 
@@ -244,8 +253,11 @@ class DineOrderService
                 ]);
             }
 
-            // A pending gateway payment or transfer already holds the bill: no second charge or tender, finish that one.
-            if ($transaction->payment_status === 'pending') {
+            // The guest's online charge does not hold the bill: the cashier can always take the money (takeover below).
+            $takeover = $transaction->isAwaitingGuestPayment();
+
+            // A pending gateway payment or transfer of the cashier already holds the bill: no second charge or tender, finish that one.
+            if ($transaction->payment_status === 'pending' && ! $takeover) {
                 throw ValidationException::withMessages([
                     'order' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
                 ]);
@@ -257,43 +269,22 @@ class DineOrderService
                 ]);
             }
 
-            $tenders = $this->tenderService->normalize($tenderInput, (int) $transaction->grand_total, allowEmpty: false, outlet: $outlet);
-            $gatewayMethods = collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS);
+            $guestAttempt = (int) $transaction->payment_attempt;
+            $guestReference = $transaction->payment_reference;
 
-            // shortcut: a gateway tender cannot share the bill with another tender, so a failed or expired one can be replaced without losing a paid part; allow split when someone needs it
-            if ($gatewayMethods->isNotEmpty() && count($tenders) > 1) {
-                throw ValidationException::withMessages([
-                    'tenders' => 'Pembayaran gateway tidak dapat digabung dengan metode lain pada tagihan dine-in.',
-                ]);
-            }
+            // collect() moves the attempt counter, so the guest's charge is superseded in the same transaction as the payment.
+            // If the input is invalid or the cashier's gateway call fails, everything rolls back and the guest's charge stays valid.
+            $transaction = $this->settlementService->collect($transaction, $cashier, $shift, $outlet, $tenderInput);
 
-            // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
-            $transaction->tenders()->delete();
-            $tenderModels = $transaction->tenders()->createMany($tenders);
-
-            $transaction->update([
-                'cashier_id' => $cashier->id,
-                'cashier_shift_id' => $shift->id,
-                'cash' => (int) collect($tenders)->sum('cash_received'),
-                'change' => (int) collect($tenders)->sum('change'),
-                'payment_method' => count($tenders) > 1 ? 'split' : $tenders[0]['method'],
-                'payment_status' => $this->tenderService->aggregateStatus($tenders),
-                'bank_account_id' => collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null,
-                'payment_reference' => null,
-                'payment_url' => null,
-                'qr_string' => null,
-            ]);
-
-            foreach ($tenderModels->whereIn('method', TransactionTenderService::GATEWAY_METHODS) as $tender) {
-                try {
-                    $charge = $this->gatewayManager->createTenderPayment($transaction, $tender, PaymentSetting::forOutlet($outlet));
-                } catch (PaymentGatewayException $exception) {
-                    // rolls the whole settlement back: the bill stays unpaid and the cashier can pick another method
-                    throw ValidationException::withMessages(['tenders' => $exception->getMessage()]);
-                }
-
-                $tender->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
-                $transaction->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
+            if ($takeover) {
+                app(AuditLogService::class)->log(
+                    event: 'dine_order.online_payment_taken_over',
+                    module: 'transactions',
+                    auditable: $transaction,
+                    description: "Kasir mengambil alih pembayaran online tamu invoice {$transaction->invoice}; pembayaran tamu tidak berlaku, refund manual bila sudah terbayar.",
+                    meta: ['guest_attempt' => $guestAttempt, 'attempt' => $transaction->payment_attempt, 'guest_reference' => $guestReference, 'cashier_id' => $cashier->id],
+                    actor: $cashier,
+                );
             }
 
             return $transaction;
@@ -303,19 +294,55 @@ class DineOrderService
     /** Kitchen starts making an accepted order, but only once its bill is paid. */
     public function startPreparing(DineOrder $order): void
     {
+        // Paid orders with kitchen items (#236): the items carry the trail, the order status follows them (#237).
+        if ($this->hasKitchenItems($order)) {
+            // One transaction, items locked and re-read as accepted: a double tap or a cook who took one item first
+            // leaves the rest to start, not a half-started order plus an error.
+            DB::transaction(function () use ($order) {
+                $items = KitchenItem::where('transaction_id', $order->transaction_id)
+                    ->where('status', KitchenItem::STATUS_ACCEPTED)
+                    ->lockForUpdate()
+                    ->get();
+
+                foreach ($items as $item) {
+                    $this->kitchenItemService->start($item, auth()->user());
+                }
+            });
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, 'preparing');
     }
 
     /** Kitchen marks a preparing order ready. */
     public function markReady(DineOrder $order): void
     {
+        if ($this->hasKitchenItems($order)) {
+            $this->kitchenItemService->allReady(Transaction::findOrFail($order->transaction_id), auth()->user());
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY, 'ready');
     }
 
     /** Someone verifies a ready order was handed to the customer. The bill is already paid by then, so this completes the order. */
     public function serve(DineOrder $order): void
     {
+        // Not ready yet (or already served): advance() keeps its error / no-op, so only a ready order is handed over item by item.
+        if ($order->status === DineOrder::STATUS_READY && $this->hasKitchenItems($order)) {
+            $this->kitchenItemService->handOverAll(Transaction::findOrFail($order->transaction_id), auth()->user());
+
+            return;
+        }
+
         $this->advance($order, DineOrder::STATUS_READY, DineOrder::STATUS_SERVED, 'served');
+    }
+
+    private function hasKitchenItems(DineOrder $order): bool
+    {
+        return $order->transaction_id && KitchenItem::where('transaction_id', $order->transaction_id)->exists();
     }
 
     /** One fulfillment step: valid only from the previous status; repeating a step already taken is a no-op. */

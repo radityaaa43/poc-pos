@@ -291,6 +291,7 @@
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
+            "kitchenSpeedReport": "Laporan Kecepatan Dapur",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -307,6 +308,7 @@
             "warehouses": "Gudang / Cabang",
             "outlets": "Outlet",
             "units": "Satuan",
+            "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp"
         },
         "menu": {
@@ -423,7 +425,8 @@
         },
         "preparation": {
             "needsPreparation": "Perlu dibuat di dapur",
-            "targetMinutes": "Target waktu buat (menit)"
+            "targetMinutes": "Target waktu buat (menit)",
+            "station": "Stasiun dapur"
         }
     },
     "categories": {
@@ -509,7 +512,16 @@
         "noHeldCarts": "Tidak ada transaksi ditahan",
         "searchProduct": "Cari produk (barcode/nama)...",
         "productNotFound": "Produk tidak ditemukan",
-        "stockInsufficient": "Stok tidak mencukupi"
+        "stockInsufficient": "Stok tidak mencukupi",
+        "lateRefund": {
+            "badge": "Bayar ganda — refund manual",
+            "filter": "Perlu refund",
+            "notice": "Pembayaran lama diterima setelah dibayar ulang — perlu refund manual"
+        },
+        "paidAfterClose": {
+            "badge": "Dibayar setelah shift ditutup",
+            "filter": "Dibayar setelah shift ditutup"
+        }
     },
     "receivables": {
         "title": "Piutang",
@@ -538,7 +550,8 @@
         "refundAmount": "Jumlah Refund",
         "exchangeItem": "Tukar Barang",
         "cashRefund": "Refund Tunai",
-        "storeCredit": "Saldo Toko"
+        "storeCredit": "Saldo Toko",
+        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok"
     },
     "cashierShifts": {
         "title": "Shift Kasir",
@@ -859,6 +872,29 @@
             "repeatCustomers": "Pelanggan Berulang",
             "productTrends": "Tren Produk",
             "lowPerformers": "Produk Kurang Laris"
+        },
+        "kitchenSpeed": {
+            "title": "Laporan Kecepatan Dapur",
+            "outlet": "Outlet",
+            "startDate": "Tanggal Mulai",
+            "endDate": "Tanggal Akhir",
+            "apply": "Terapkan",
+            "item": "Menu",
+            "orders": "Jumlah pesanan",
+            "portions": "Jumlah porsi",
+            "makeMedian": "Median buat",
+            "makeAvg": "Rata-rata buat",
+            "waitMakeMedian": "Median tunggu + buat",
+            "waitMakeAvg": "Rata-rata tunggu + buat",
+            "target": "Target",
+            "withinTarget": "Dalam target",
+            "handover": "Waktu bayar sampai diserahkan",
+            "minutes": "{{value}} mnt",
+            "empty": "Belum ada data dapur untuk periode ini",
+            "station": "Stasiun",
+            "allStations": "Semua stasiun",
+            "stationDeleted": "(dihapus)",
+            "handoverAllStations": "Semua pesanan dari semua stasiun"
         }
     },
     "auditLogs": {
@@ -1048,10 +1084,56 @@
         "status": {
             "accepted": "Diterima",
             "preparing": "Sedang dibuat",
-            "ready": "Siap"
+            "ready": "Siap",
+            "cancelled": "Dibatalkan"
+        },
+        "print": {
+            "open": "Pengaturan printer dapur",
+            "deviceName": "Nama perangkat cetak",
+            "devicePlaceholder": "Dapur 1",
+            "save": "Simpan",
+            "nameTaken": "Nama perangkat cetak sudah dipakai di outlet ini",
+            "connect": "Hubungkan printer",
+            "disconnect": "Putuskan",
+            "paper": "Ukuran kertas (58 mm / 80 mm)",
+            "test": "Cetak percobaan",
+            "auto": "Cetak otomatis",
+            "ready": "Printer siap",
+            "notConnected": "Printer belum terhubung",
+            "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
+            "unpaid": "BELUM LUNAS",
+            "cancelled": "DIBATALKAN"
+        },
+        "actions": {
+            "start": "Mulai buat",
+            "ready": "Siap",
+            "allReady": "Semua siap",
+            "saveFailed": "Gagal menyimpan — periksa koneksi, lalu coba lagi",
+            "handOver": "Serahkan",
+            "handOverAll": "Serahkan semua"
+        },
+        "stations": {
+            "label": "Stasiun",
+            "all": "Semua stasiun",
+            "progress": "{{ready}} dari {{total}} siap",
+            "removed": "Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.",
+            "emptyForSelection": "Belum ada pesanan untuk stasiun ini"
         }
     },
     "pos": {
+        "retryPayment": {
+            "failed": "Pembayaran gagal",
+            "expired": "Kedaluwarsa",
+            "retry": "Coba lagi",
+            "other": "Bayar dengan cara lain",
+            "method": "Metode pembayaran",
+            "cash": "Tunai",
+            "qris": "QRIS",
+            "cashReceived": "Uang diterima",
+            "change": "Kembalian",
+            "bankAccount": "Rekening tujuan",
+            "pay": "Bayar"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
@@ -1060,6 +1142,15 @@
             "noteLabel": "Catatan (wajib untuk tamu)",
             "notePlaceholder": "Untuk siapa? Minimal 2 karakter",
             "noteRequired": "Isi catatan minimal 2 karakter untuk pelanggan tamu"
+        },
+        "unpaidBills": {
+            "title": "Belum Lunas",
+            "pay": "Bayar",
+            "ageMinutes": "{{count}} mnt",
+            "ageHours": "{{count}} j",
+            "awaitingOnline": "Menunggu pembayaran online",
+            "takeoverNotice": "Tamu sedang membayar online. Tanyakan dulu apakah tamu sudah membayar. Kalau Anda menerima pembayaran sekarang, pembayaran online tamu tidak berlaku dan uangnya harus dikembalikan manual.",
+            "billGone": "Tagihan ini sudah tidak ada di daftar Belum Lunas (sudah dibayar atau dibatalkan). Tutup jendela ini dan periksa Riwayat Transaksi."
         }
     },
     "outlets": {
@@ -1067,5 +1158,27 @@
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
         }
+    },
+    "dineMenu": {
+        "payLater": {
+            "button": "Pesan — Bayar Belakangan",
+            "helper": "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi."
+        }
+    },
+    "kitchenStations": {
+        "title": "Stasiun dapur",
+        "add": "Tambah stasiun",
+        "rename": "Ubah nama stasiun",
+        "renameLabel": "Ubah nama {{name}}",
+        "deleteLabel": "Hapus stasiun {{name}}",
+        "name": "Nama stasiun",
+        "default": "Bawaan",
+        "empty": "Belum ada stasiun",
+        "deleteTitle": "Hapus stasiun {{name}}?",
+        "deleteConfirm": "Produknya pindah ke {{default}}. Item yang sudah ada di dapur tetap di tempatnya.",
+        "created": "Stasiun ditambahkan",
+        "renamed": "Nama stasiun diubah",
+        "deleted": "Stasiun dihapus",
+        "failed": "Stasiun tidak bisa disimpan"
     }
 }

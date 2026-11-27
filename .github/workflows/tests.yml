@@ -30,6 +30,9 @@ jobs:
       - name: Install dependencies
         run: PUPPETEER_SKIP_DOWNLOAD=true npm ci --no-audit --no-fund
 
+      - name: Lint (ESLint)
+        run: npm run lint
+
       - name: Run frontend tests with coverage
         run: npm run test:coverage
 
@@ -103,6 +106,9 @@ jobs:
       - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
+      - name: Static analysis (Larastan)
+        run: composer analyse
+
       # On push to main origin/main is HEAD, so the diff would be empty: PRs only.
       - name: Code style (Pint, changed files)
         if: github.event_name == 'pull_request'
@@ -154,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1]
+        shard: [1, 2, 3]
     services:
       mysql:
         image: mysql:8.4

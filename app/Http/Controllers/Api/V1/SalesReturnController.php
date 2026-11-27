@@ -11,6 +11,7 @@ use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
+use App\Services\KitchenItemService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -179,20 +180,30 @@ class SalesReturnController extends AppsSalesReturnController
         $this->ensureSalesReturnTablesExist();
 
         $salesReturn = $this->resolveAccessibleSalesReturn($request, $salesReturn->id);
-        $this->ensureDraft($salesReturn);
-        $before = $this->salesReturnAuditPayload($salesReturn);
+        $before = [];
 
-        DB::transaction(function () use ($request, $salesReturn) {
+        DB::transaction(function () use ($request, $salesReturn, &$before) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $request->user()->id,
                 lockForUpdate: true
             );
+
+            // Re-read under a row lock, and work on that row from here on: two completions of one draft could both
+            // pass an unlocked check and restock, refund and cancel kitchen items twice (#355), and the copy loaded
+            // before the lock may hold lines or totals an edit has since changed. The second one is refused here.
+            $salesReturn = SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail();
+            $this->ensureDraft($salesReturn);
 
             $salesReturn->load([
                 'transaction.receivable',
                 'items.product',
                 'items.transactionDetail',
             ]);
+
+            // The state that is actually completed, for the audit: the locked row, before anything changes.
+            $before = $this->salesReturnAuditPayload($salesReturn);
+
+            app(KitchenItemService::class)->cancelForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([

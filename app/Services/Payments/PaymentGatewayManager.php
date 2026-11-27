@@ -14,11 +14,11 @@ class PaymentGatewayManager
         private XenditGateway $xenditGateway
     ) {}
 
-    public function createPayment(Transaction $transaction, string $gateway, PaymentSetting $setting, ?int $amount = null, ?string $orderId = null): array
+    public function createPayment(Transaction $transaction, string $gateway, PaymentSetting $setting, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
         return match ($gateway) {
-            PaymentSetting::GATEWAY_MIDTRANS => $this->midtransGateway->createCharge($transaction, $setting->midtransConfig(), $amount, $orderId),
-            PaymentSetting::GATEWAY_XENDIT => $this->xenditGateway->createInvoice($transaction, $setting->xenditConfig(), $amount, $orderId),
+            PaymentSetting::GATEWAY_MIDTRANS => $this->midtransGateway->createCharge($transaction, $setting->midtransConfig(), $amount, $orderId, $returnUrl, $expiresInMinutes),
+            PaymentSetting::GATEWAY_XENDIT => $this->xenditGateway->createInvoice($transaction, $setting->xenditConfig(), $amount, $orderId, $returnUrl, $expiresInMinutes),
             default => throw new PaymentGatewayException("Gateway {$gateway} belum didukung."),
         };
     }
@@ -27,14 +27,14 @@ class PaymentGatewayManager
      * Dynamic QRIS charge — uses whichever gateway is ready (midtrans
      * preferred, xendit fallback). Returns reference/payment_url/qr_string.
      */
-    public function createQrisPayment(Transaction $transaction, PaymentSetting $setting, ?int $amount = null, ?string $orderId = null): array
+    public function createQrisPayment(Transaction $transaction, PaymentSetting $setting, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
     {
         if ($setting->isGatewayReady(PaymentSetting::GATEWAY_MIDTRANS)) {
-            return $this->midtransGateway->createQrisCharge($transaction, $setting->midtransConfig(), $amount, $orderId);
+            return $this->midtransGateway->createQrisCharge($transaction, $setting->midtransConfig(), $amount, $orderId, $returnUrl, $expiresInMinutes);
         }
 
         if ($setting->isGatewayReady(PaymentSetting::GATEWAY_XENDIT)) {
-            return $this->xenditGateway->createQrisInvoice($transaction, $setting->xenditConfig(), $amount, $orderId);
+            return $this->xenditGateway->createQrisInvoice($transaction, $setting->xenditConfig(), $amount, $orderId, $returnUrl, $expiresInMinutes);
         }
 
         throw new PaymentGatewayException('Tidak ada gateway aktif untuk QRIS. Aktifkan Midtrans atau Xendit di pengaturan pembayaran.');
@@ -50,6 +50,12 @@ class PaymentGatewayManager
         $orderId = $transaction->tenders()->count() > 1
             ? $transaction->invoice.'-'.$tender->method
             : $transaction->invoice;
+
+        // A bill with a payment history (a guest attempt, a retry) is charged under its current attempt: without the
+        // suffix the callback reads as attempt 0 and is treated as superseded, so the cashier's own payment would never be booked.
+        if ($transaction->payment_attempt > 0) {
+            $orderId .= '-r'.$transaction->payment_attempt;
+        }
 
         $response = $tender->method === TransactionTender::METHOD_QRIS
             ? $this->createQrisPayment($transaction, $setting, $tender->amount, $orderId)
