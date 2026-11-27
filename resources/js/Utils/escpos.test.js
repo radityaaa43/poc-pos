@@ -222,6 +222,37 @@ describe("printer connection", () => {
             expect(error.cause).toBe(failure);
         });
 
+        const connect = async (device) => {
+            vi.stubGlobal("navigator", {
+                usb: { requestDevice: vi.fn().mockResolvedValue(device), getDevices: vi.fn().mockResolvedValue([]) },
+            });
+            await requestPrinter();
+        };
+
+        it("a stalled transfer is a failed send, and the endpoint is cleared (#410 D3)", async () => {
+            const device = makeDevice({ transferOut: vi.fn().mockResolvedValue({ status: "stall" }) });
+            device.clearHalt = vi.fn();
+            await connect(device);
+
+            expect(await rejected(printBytes(new Uint8Array([1])))).toMatchObject({ code: "transfer" });
+            expect(device.clearHalt).toHaveBeenCalledWith("out", 2);
+        });
+
+        it("a transfer that never settles fails after 15 s and closes the device (#410 D6)", async () => {
+            const device = makeDevice({ transferOut: vi.fn(() => new Promise(() => {})) });
+            await connect(device);
+            vi.useFakeTimers();
+            try {
+                const outcome = rejected(printBytes(new Uint8Array([1])));
+                await vi.advanceTimersByTimeAsync(15000);
+
+                expect(await outcome).toMatchObject({ code: "transfer" });
+                expect(device.close).toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        }, 4000);
+
         it("a claimInterface failure is coded claim_failed, keeps its message and cause, and closes the device", async () => {
             const failure = dom("NetworkError");
             const device = makeDevice();

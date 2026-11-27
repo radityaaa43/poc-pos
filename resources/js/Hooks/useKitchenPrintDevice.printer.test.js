@@ -369,3 +369,92 @@ describe("useKitchenPrintDevice: USB events and connect errors (REQ-004 K2)", ()
         expect(result.current.status).toBeNull();
     });
 });
+
+describe("useKitchenPrintDevice: print defects (#410)", () => {
+    beforeEach(() => setStorage());
+
+    it("D1: sends and records nothing without a chosen kitchen printer", async () => {
+        setStorage({ "kitchen.printerKey": null });
+        const { result } = mount();
+        await flush();
+
+        expect(printBytes).not.toHaveBeenCalled();
+        expect(postedIds()).toEqual([]);
+        expect(result.current.status).toBe("not_connected");
+        await expect(result.current.testPrint()).rejects.toMatchObject({ code: "not_connected" });
+    });
+
+    it("D2: switching auto-print off stops the backlog", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        let release;
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+        await flush();
+
+        act(() => result.current.setAutoPrint(false));
+        await act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(10000);
+        });
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+    });
+
+    it("D2: off and on again during a slow send prints each ticket once", async () => {
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        let release;
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+        await flush();
+
+        act(() => result.current.setAutoPrint(false));
+        act(() => result.current.setAutoPrint(true));
+        await advance(10000);
+        expect(printBytes).toHaveBeenCalledTimes(1); // the new queue waits for the send in flight
+        tickets = [ticket(2, [21])]; // the server stops listing what gets recorded
+        await act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(printBytes).toHaveBeenCalledTimes(2);
+    });
+
+    it("D4: records a large backlog in calls of at most 200 ids", async () => {
+        const ids = Array.from({ length: 450 }, (_, i) => i + 1);
+        localStorage.setItem("kitchen.unconfirmed", JSON.stringify(ids));
+        localStorage.setItem("kitchen.unconfirmedCancellations", JSON.stringify(ids.slice(0, 201)));
+        tickets = [];
+        mount();
+        await flush();
+
+        expect(postedIds().map((batch) => batch.length)).toEqual([200, 200, 50]);
+        const cancelled = axios.post.mock.calls.filter((call) => call[0].includes("cancellation-prints"));
+        expect(cancelled.map((call) => call[1].cancellation_ids.length)).toEqual([200, 1]);
+        expect(localStorage.getItem("kitchen.unconfirmed")).toBe("[]");
+    });
+
+    it("D4: a refused record call keeps the ids, still prints new tickets, and warns", async () => {
+        localStorage.setItem("kitchen.unconfirmed", JSON.stringify([99]));
+        axios.post.mockRejectedValue({ response: { status: 422 } });
+        tickets = [ticket(1, [11])];
+        const { result } = mount();
+        await flush();
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(localStorage.getItem("kitchen.unconfirmed"))).toEqual([99, 11]);
+        expect(result.current.status).toBe("failed");
+    });
+
+    it.each([
+        ["not among the connected printers", [], "not_connected"],
+        ["connected", [{ key: "1:2:abc" }], null],
+    ])("D5: at page load, a saved printer that is %s shows the right status", async (_case, devices, status) => {
+        usb.getDevices = vi.fn().mockResolvedValue(devices);
+        tickets = [];
+        const { result } = mount();
+        await flush();
+
+        expect(result.current.status).toBe(status);
+    });
+});
