@@ -177,7 +177,7 @@ class TransactionController extends Controller
             'warehouses' => $this->outletAccessService->salesWarehousesFor(auth()->user())->values(),
             'shiftSummary' => $this->cashierShiftService->summarizeForDisplay($activeShift),
             'loyaltyTierOptions' => $this->loyaltyService->tierOptions(),
-            'addOn' => $activeShift && request()->filled('add_on_to') ? app(AddOnOrderService::class)->preview((string) request('add_on_to'), $activeShift) : null,
+            'addOn' => $activeShift && is_string(request('add_on_to')) ? app(AddOnOrderService::class)->preview(request('add_on_to'), $activeShift) : null,
         ]);
     }
 
