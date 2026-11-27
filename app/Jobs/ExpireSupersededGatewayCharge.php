@@ -79,6 +79,8 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
 
     public function handle(PaymentGatewayManager $gateways, TransactionTenderService $tenders, AuditLogService $audit): void
     {
+        $check = null;
+
         try {
             $check = $this->check($tenders);
 
@@ -92,6 +94,11 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
         } catch (Throwable $exception) {
             report($exception);
             $result = 'transient';
+
+            // Nothing was audited for this try, and after the last one nothing else will be. rescue(): never throw.
+            if ($this->attempts() >= $this->tries) {
+                rescue(fn () => $this->record($audit, $check, 'error'));
+            }
         }
 
         if ($result === 'transient' && $this->attempts() < $this->tries) {
@@ -144,8 +151,8 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
         });
     }
 
-    /** @param  array{gateway: string, setting: PaymentSetting, seen: array<int, mixed>}  $check */
-    private function record(AuditLogService $audit, array $check, string $result): void
+    /** @param  array{gateway: string, setting: PaymentSetting, seen: array<int, mixed>}|null  $check  null: the check itself failed */
+    private function record(AuditLogService $audit, ?array $check, string $result): void
     {
         DB::transaction(function () use ($audit, $check, $result) {
             $bill = $this->lockedBill();
@@ -154,18 +161,22 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
                 return;
             }
 
-            [$event, $description, $extra] = match ($result) {
+            $settled = $check && $this->settlement($bill) !== $check['seen'];
+            // A settlement that arrived while the gateway was answering wins in the record too.
+            $outcome = $result === 'expired' && $settled ? 'settled_during_call' : $result;
+
+            [$event, $description, $extra] = match ($outcome) {
                 'expired' => [self::EXPIRED, 'dikedaluwarsakan di gateway', []],
-                'not_pending', 'not_found' => [self::NOT_EXPIRED, "tidak dikedaluwarsakan (jawaban gateway: {$result})", ['reason' => $result]],
+                'not_pending', 'not_found', 'settled_during_call' => [self::NOT_EXPIRED, "tidak dikedaluwarsakan ({$outcome})", ['reason' => $outcome]],
                 default => [self::CANCEL_ERROR, "gagal dikedaluwarsakan (percobaan {$this->attempts()} dari {$this->tries})", ['final' => $result === 'permanent' || $this->attempts() >= $this->tries]],
             };
             $meta = [
-                'gateway' => $check['gateway'],
+                'gateway' => $check['gateway'] ?? $this->method,
                 'order_id' => $this->orderId,
                 'attempt' => $this->attempt,
                 'bill_attempt' => $bill->payment_attempt,
                 'result' => $result,
-                'settled_during_call' => $this->settlement($bill) !== $check['seen'],
+                'settled_during_call' => $settled,
                 'job_attempt' => $this->attempts(),
                 ...$extra,
             ];

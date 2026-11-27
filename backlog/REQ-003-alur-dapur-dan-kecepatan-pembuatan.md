@@ -221,9 +221,13 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
 - **Pesanan tambahan (keputusan Business/PM, 2026-11-26 dan 2026-11-28, #251):** pesanan tambahan
   (AC-21) hanya bergabung ke pesanan asalnya. Di POS lewat **Tambah pesanan** pada struk, di QR meja
   lewat **Tambah pesanan** pada halaman status pesanan. Pesanan baru dari meja yang sama tanpa tombol
-  itu tetap pesanan terpisah. Pesanan asal selesai: dibuat sebagai pesanan baru tanpa tautan. Pesanan
-  asal dibatalkan, ditolak, gagal, atau kedaluwarsa: ditolak di POS dan QR dengan pesan *"Pesanan
-  asal sudah dibatalkan — buat pesanan baru"*.
+  itu tetap pesanan terpisah. Pesanan dianggap selesai hanya bila pesanan asal **dan** semua pesanan
+  tambahannya yang tidak dibatalkan sudah lunas dan tidak ada yang masih terbuka di dapur; baru
+  setelah itu dibuat sebagai pesanan baru tanpa tautan. Ditolak di POS dan QR dengan pesan *"Pesanan
+  asal sudah dibatalkan — buat pesanan baru"* hanya bila pesanan asal benar-benar batal: pesanan
+  dine-in dibatalkan atau ditolak, penjualan dibatalkan dan stoknya dikembalikan (kedaluwarsa atau
+  tutup shift), atau diretur penuh. Pembayaran yang gagal atau kedaluwarsa pada tagihan yang masih
+  bisa dibayar tidak termasuk batal (koreksi 2026-11-28, #251 BR-12 dan BR-13).
 
 ## Kebutuhan non-fungsional
 

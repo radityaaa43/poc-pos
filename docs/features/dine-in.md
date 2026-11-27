@@ -322,7 +322,8 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   asks the gateway to expire it (Midtrans Core API `/v2/{order_id}/expire`, Xendit `/invoices/{id}/expire!`, never Midtrans
   `cancel`), with no lock held. It writes audit rows only (`payment.superseded_charge_expired`,
   `payment.superseded_charge_not_expired`, `payment.superseded_charge_cancel_error`) and never changes the bill: a settlement
-  that wins the race follows the late-payment rule above. A temporary failure is tried 5 times over about 11 minutes. If it
+  that wins the race follows the late-payment rule above and is audited as not expired (`reason: settled_during_call`).
+  A temporary failure is tried 5 times over about 11 minutes; the last try is audited, an unexpected error included. If it
   fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
   never expired. Not yet verified on a sandbox: a Midtrans payment page the guest never opened may be unknown to the Core API,
   so it stays payable until its own 15 minute expiry.

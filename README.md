@@ -116,7 +116,8 @@ End-to-end tests (Playwright, `npm run e2e:up` then `npm run test:e2e`): see [`t
 With `QUEUE_CONNECTION=database` (the default in `.env.example`) a worker must run: `php artisan queue:work --tries=3`
 (`composer run dev` and the Docker `queue` service start one). It expires a guest's online dine-in charge at the gateway once a
 newer charge or a cashier's payment replaces it. Restart the worker on every deploy (`php artisan queue:restart`). Without a
-worker the jobs wait in the `jobs` table, and a double payment is only flagged for a manual refund.
+worker the jobs wait in the `jobs` table, and a double payment is only flagged for a manual refund. Production must not
+run `QUEUE_CONNECTION=sync`: the expiry would then run inside the cashier's or guest's request.
 
 ## Agent setup
 
