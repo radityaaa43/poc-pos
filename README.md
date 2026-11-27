@@ -157,10 +157,12 @@ On macOS or Linux, install the same versions and PHP extensions your usual way.
    In the same terminal, make the service restart itself after a crash:
 
    ```bat
-   sc failure MySQL84 reset= 86400 actions= restart/5000/restart/15000/restart/60000
+   sc failure MySQL84 reset= 3600 actions= restart/5000/restart/15000/restart/60000
    sc failureflag MySQL84 1
    ```
 
+   - Let Windows grow the page file: `mysqld` dies when the commit limit is reached. Under *System → About →
+     Advanced system settings → Performance → Virtual memory*, set a custom size of 8192 to 24576 MB.
    - Don't use Laragon's bundled MySQL 8.4.3: its zip lacks `lib/private` (ICU) and `mysqld` crashes during migrations.
    - Don't press Laragon's "Start All" for MySQL: the `MySQL84` service already holds port 3306.
 5. Add the PHP folder, `C:\laragon\bin\composer` and the MySQL `bin` folder to your user `PATH`. In a new terminal,
