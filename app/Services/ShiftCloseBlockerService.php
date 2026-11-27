@@ -15,7 +15,7 @@ class ShiftCloseBlockerService
 {
     /**
      * @param  bool  $lock  true inside the close's DB::transaction: the rows cannot be paid or served under it
-     * @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>}
+     * @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>}
      */
     public function blockersFor(CashierShift $shift, bool $lock = false): array
     {
@@ -39,11 +39,21 @@ class ShiftCloseBlockerService
             ->orderBy('id')
             ->get();
 
-        return ['items' => $items, 'bills' => $bills];
+        // #396: a Bayar sekarang split sale with only part of its money in.
+        $splits = Transaction::query()
+            ->partlyPaidSplit()
+            ->where('cashier_shift_id', $shift->id)
+            ->when($lock, fn ($query) => $query->lockForUpdate())
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Transaction $sale) => $sale->unpaidAmount() > 0)
+            ->values();
+
+        return ['items' => $items, 'bills' => $bills, 'splits' => $splits];
     }
 
     /**
-     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>}  $blockers
+     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>}  $blockers
      * @return array<int, array{type: string, order: string, label: ?string, amount: int}>
      */
     public function rows(array $blockers): array
@@ -63,6 +73,13 @@ class ShiftCloseBlockerService
             'amount' => $bill->unpaidAmount(),
         ]);
 
-        return $items->concat($bills)->values()->all();
+        $splits = $blockers['splits']->toBase()->map(fn (Transaction $sale) => [
+            'type' => 'split',
+            'order' => $sale->invoice,
+            'label' => data_get($sale, 'customer.name') ?? $sale->note,
+            'amount' => $sale->unpaidAmount(),
+        ]);
+
+        return $items->concat($bills)->concat($splits)->values()->all();
     }
 }

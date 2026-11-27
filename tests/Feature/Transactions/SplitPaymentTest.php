@@ -85,7 +85,7 @@ class SplitPaymentTest extends TestCase
         $summary = app(CashierShiftService::class)->calculateSummary($shift);
 
         $this->assertSame(5000, $summary['cash_sales_total']);
-        $this->assertSame(5000, $summary['non_cash_sales_total']);
+        $this->assertSame(0, $summary['non_cash_sales_total']); // #396 BR-2: the waiting transfer is not received yet
         $this->assertSame(5000, $summary['expected_cash']);
     }
 

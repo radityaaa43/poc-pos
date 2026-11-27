@@ -34,11 +34,13 @@ class TransactionSettlementService
     {
         return DB::transaction(function () use ($transaction, $cashier, $tenderInput) {
             $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
-            $shift->load('warehouse.outlet');
-            $outlet = $shift->warehouse?->outlet;
 
             // First cashier wins: the second one waits on this lock, then finds the bill paid.
             $transaction = Transaction::with('warehouse')->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
+
+            // Read after the bill's lock, so that on MySQL every later plain read sees a close that held it.
+            $shift->load('warehouse.outlet');
+            $outlet = $shift->warehouse?->outlet;
 
             if ($transaction->payment_status === 'paid') {
                 throw ValidationException::withMessages(['bill' => 'Tagihan ini sudah dilunasi.']);
@@ -71,7 +73,19 @@ class TransactionSettlementService
                 ]);
             }
 
-            return $this->collect($transaction, $cashier, $shift, $outlet, $tenderInput, $transaction->remainingTotal());
+            // collect() moves the bill to the paying shift: keep what it was, to mark a payment its old shift's recap lacks.
+            $ownerShiftId = $transaction->cashier_shift_id;
+            $methodBefore = $transaction->payment_method;
+            $owed = $transaction->remainingTotal();
+
+            $settled = $this->collect($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
+
+            $this->tenderService->flagPaidAfterClose(
+                $settled, CashierShift::find($ownerShiftId), $settled->payment_status, $owed, $methodBefore,
+            );
+            $settled->save();
+
+            return $settled;
         });
     }
 

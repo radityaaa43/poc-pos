@@ -3,6 +3,7 @@
 namespace Tests\Feature\CashierShifts;
 
 use App\Models\AuditLog;
+use App\Models\BankAccount;
 use App\Models\CashierShift;
 use App\Models\KitchenItem;
 use App\Models\Receivable;
@@ -13,19 +14,22 @@ use App\Models\User;
 use App\Services\CashierShiftService;
 use App\Services\KitchenSpeedReportService;
 use App\Services\ShiftCloseBlockerService;
+use App\Services\TransactionSettlementService;
 use App\Services\TransactionTenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Tests\Feature\DineIn\Concerns\MakesDineBills;
 use Tests\TestCase;
 
-/** REQ-003 AC-12, AC-13, AC-17, AC-20, AC-27 (#242): what holds a shift open, forced close, and the close's auto-cancel. */
+/** REQ-003 AC-12, AC-13, AC-17, AC-20, AC-27 (#242, #396): what holds a shift open, forced close, and the close's auto-cancel. */
 class ShiftCloseHoldTest extends TestCase
 {
     use MakesDineBills;
@@ -202,23 +206,16 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertSame(TransactionTender::STATUS_FAILED, $tender->fresh()->payment_status);
     }
 
-    public function test_paid_sales_bills_partly_paid_splits_and_returned_sales_are_left_alone(): void
+    public function test_paid_and_returned_sales_are_neither_held_nor_cancelled(): void
     {
         $paid = $this->sale($this->shift, 'qris', 'paid');
-        $split = $this->sale($this->shift, 'split', 'pending');
-        $this->tender($split, TransactionTender::METHOD_CASH, TransactionTender::STATUS_PAID, 5000);
         $returned = $this->sale($this->shift, 'qris', 'pending');
-        DB::table('sales_returns')->insert([
-            'code' => 'SR-1', 'transaction_id' => $returned->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
-            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 0,
-            'completed_at' => now(), 'created_at' => now(), 'updated_at' => now(),
-        ]);
+        $this->completedReturn($returned);
         $stock = $this->stock();
 
         $this->close($this->shift)->assertSessionHasNoErrors(); // BR-15: none of these holds the close either
 
         $this->assertSame('paid', $paid->fresh()->payment_status);
-        $this->assertSame('pending', $split->fresh()->payment_status);
         $this->assertSame('pending', $returned->fresh()->payment_status);
         $this->assertSame($stock, $this->stock());
     }
@@ -321,6 +318,259 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertTrue(Schema::hasColumn('cashier_shifts', 'unpaid_bills_total'));
     }
 
+    // ---- #396: partly paid split sales ----------------------------------------------------------------
+
+    public function test_partly_paid_split_holds_the_close_with_amount_owed(): void
+    {
+        $split = $this->splitSale($this->shift);
+        $stock = $this->stock();
+        $this->close($this->shift)->assertSessionHasErrors('shift');
+        $this->assertTrue($this->shift->fresh()->isOpen());
+        $this->assertSame('pending', $split->fresh()->payment_status);
+        $this->assertSame($stock, $this->stock());
+        $this->assertSame(0, AuditLog::where('event', 'like', 'cashier_shift.%')->count());
+        $this->actingAs($this->cashier)->get(route('cashier-shifts.show', $this->shift))->assertInertia(fn (Assert $page) => $page
+            ->has('closeBlockers', 1)
+            ->where('closeBlockers.0', ['type' => 'split', 'order' => $split->invoice, 'label' => null, 'amount' => 15000]));
+    }
+
+    public function test_both_close_apis_refuse_with_the_partly_paid_split(): void
+    {
+        Sanctum::actingAs($this->cashier, ['*']);
+        cache()->put('api_step_up:user:'.$this->cashier->id, time());
+        $split = $this->splitSale($this->shift);
+        $closes = ['/api/v1/pos/shift/close' => 'closing_cash', "/api/v1/cashier-shifts/{$this->shift->id}/close" => 'actual_cash'];
+        foreach ($closes as $url => $field) {
+            $this->postJson($url, [$field => 105000])->assertStatus(422)
+                ->assertJsonPath('errors.blockers.0.type', 'split')
+                ->assertJsonPath('errors.blockers.0.order', $split->invoice)
+                ->assertJsonPath('errors.blockers.0.amount', 15000);
+        }
+        $this->assertTrue($this->shift->fresh()->isOpen());
+    }
+
+    public function test_split_with_failed_gateway_part_still_holds(): void
+    {
+        $split = $this->splitSale($this->shift, 'failed', [['cash', 'paid', 8000], ['qris', 'failed', 12000]]);
+        $this->close($this->shift)->assertSessionHasErrors('shift');
+        $this->assertSame(12000, app(ShiftCloseBlockerService::class)->blockersFor($this->shift)['splits']->sole()->unpaidAmount());
+        $this->assertFalse($split->fresh()->wasRestocked());
+    }
+
+    public function test_unpaid_split_is_cancelled_not_held(): void
+    {
+        $split = $this->splitSale($this->shift, 'pending', [['bank_transfer', 'pending', 8000], ['qris', 'pending', 12000]]);
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertTrue($split->fresh()->wasRestocked());
+        $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
+    }
+
+    public function test_an_unsettled_split_with_money_is_held_and_one_without_is_cancelled_never_both(): void
+    {
+        $held = collect(['pending', 'pending_approval', 'failed', 'expired', 'unpaid'])
+            ->map(fn (string $status) => $this->splitSale($this->shift, $status)->id);
+        $cancelled = collect(['pending', 'failed', 'expired'])
+            ->map(fn (string $status) => $this->splitSale($this->shift, $status, [['bank_transfer', 'pending', 20000]])->id);
+        $this->splitSale($this->shift, 'paid', [['cash', 'paid', 5000], ['bank_transfer', 'paid', 15000]]);
+
+        $this->assertEqualsCanonicalizing($held->all(), Transaction::query()->partlyPaidSplit()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing($cancelled->all(), Transaction::query()->unpaidPayNow()->pluck('id')->all());
+    }
+
+    public function test_split_with_completed_return_does_not_hold(): void
+    {
+        $split = $this->splitSale($this->shift);
+        $this->completedReturn($split);
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertSame('pending', $split->fresh()->payment_status);
+        $this->assertFalse($split->fresh()->wasRestocked());
+    }
+
+    public function test_other_shifts_partly_paid_split_does_not_hold(): void
+    {
+        $other = $this->splitSale($this->openShiftFor(User::factory()->create()));
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertSame('pending', $other->fresh()->payment_status);
+        $this->assertSame(0, $this->shift->fresh()->cash_sales_total);
+    }
+
+    public function test_force_close_keeps_partly_paid_split_payable(): void
+    {
+        $split = $this->splitSale($this->shift);
+        $stock = $this->stock();
+
+        $this->close($this->shift, $this->manager(), ['actual_cash' => 105000, 'close_notes' => 'Transfer ditunggu'])
+            ->assertSessionHasNoErrors();
+
+        $closed = $this->shift->fresh();
+        $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, $closed->status);
+        $this->assertSame('pending', $split->fresh()->payment_status);
+        $this->assertSame(['paid', 'pending'], $split->tenders()->orderBy('id')->pluck('payment_status')->all());
+        $this->assertSame($stock, $this->stock());
+        $this->assertSame(
+            ['cash_sales_total' => 5000, 'non_cash_sales_total' => 0, 'expected_cash' => 105000, 'cash_difference' => 0, 'unpaid_bills_total' => 0],
+            Arr::mapWithKeys(
+                ['cash_sales_total', 'non_cash_sales_total', 'expected_cash', 'cash_difference', 'unpaid_bills_total'],
+                fn (string $column) => [$column => $closed->{$column}],
+            ),
+        );
+        $meta = AuditLog::where('event', 'cashier_shift.hold_overridden')->sole()->meta;
+        // assertEquals: MySQL's JSON column does not keep the key order.
+        $this->assertEquals([['invoice' => $split->invoice, 'owed' => 15000]], $meta['partly_paid_splits']);
+    }
+
+    /** @return array<string, array<int, string>> */
+    public static function confirmActions(): array
+    {
+        return ['dashboard' => ['web'], 'API' => ['api']];
+    }
+
+    #[DataProvider('confirmActions')]
+    public function test_split_transfer_confirmed_after_force_close_is_flagged(string $via): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+        $split = $this->splitSale($this->shift, attributes: ['bank_account_id' => $account->id]);
+        $this->forceClose($this->shift, $this->cashier);
+        $next = $this->openShiftFor($this->cashier);
+        $this->cashier->givePermissionTo(Permission::firstOrCreate(['name' => 'transactions-confirm-payment', 'guard_name' => 'web']));
+
+        if ($via === 'web') {
+            $this->withSession($this->recentlyConfirmedSession())->actingAs($this->cashier)
+                ->patch(route('transactions.confirm-payment', $split))->assertSessionHas('success');
+        } else {
+            Sanctum::actingAs($this->cashier, ['*']);
+            cache()->put('api_step_up:user:'.$this->cashier->id, time());
+            $this->postJson("/api/v1/transactions/{$split->getRouteKey()}/confirm-payment")->assertOk();
+        }
+
+        $split->refresh();
+        $this->assertSame('paid', $split->payment_status);
+        $this->assertNotNull($split->paid_after_close_at);
+        $this->assertSame($this->shift->id, $split->cashier_shift_id);
+        $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
+        $this->assertSame([$this->shift->id, 15000], [$meta['shift_id'], $meta['amount']]);
+        // Counted once: the closed recap keeps only what it received, and no other shift takes the late part.
+        $this->assertSame(0, $this->shift->fresh()->non_cash_sales_total);
+        $summary = app(CashierShiftService::class)->calculateSummary($next);
+        $this->assertSame([0, 0], [$summary['cash_sales_total'], $summary['non_cash_sales_total']]);
+    }
+
+    public function test_split_gateway_part_paid_after_force_close_is_flagged(): void
+    {
+        $this->useGateway('midtrans', false);
+        $split = $this->splitSale($this->shift, 'pending', [['cash', 'paid', 5000], ['qris', 'pending', 15000]]);
+        $this->forceClose($this->shift, $this->cashier);
+
+        $this->notify('midtrans', "{$split->invoice}-qris", 'paid', amount: 15000)->assertOk();
+
+        $this->assertSame('paid', $split->fresh()->payment_status);
+        $this->assertNotNull($split->fresh()->paid_after_close_at);
+        $this->assertEquals(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
+        $this->assertSame(0, $this->shift->fresh()->non_cash_sales_total);
+    }
+
+    public function test_split_paid_in_open_shift_is_not_flagged(): void
+    {
+        $split = $this->splitSale($this->shift);
+        app(TransactionTenderService::class)->confirmTransfer($split);
+        $this->assertSame('paid', $split->fresh()->payment_status);
+        $this->assertNull($split->fresh()->paid_after_close_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
+        $this->assertSame(15000, app(CashierShiftService::class)->calculateSummary($this->shift)['non_cash_sales_total']);
+    }
+
+    public function test_recap_counts_only_received_split_money(): void
+    {
+        $waiting = $this->splitSale($this->shift);
+        $this->splitSale($this->shift, 'failed', [['cash', 'paid', 8000], ['qris', 'failed', 12000]]);
+        $this->splitSale($this->shift, 'pending', [['bank_transfer', 'paid', 4000], ['qris', 'pending', 16000]]);
+        $recap = fn () => Arr::only(
+            app(CashierShiftService::class)->calculateSummary($this->shift),
+            ['cash_sales_total', 'non_cash_sales_total', 'expected_cash'],
+        );
+
+        $this->assertSame(['cash_sales_total' => 13000, 'non_cash_sales_total' => 4000, 'expected_cash' => 113000], $recap());
+
+        app(TransactionTenderService::class)->confirmTransfer($waiting);
+
+        $this->assertSame(['cash_sales_total' => 13000, 'non_cash_sales_total' => 19000, 'expected_cash' => 113000], $recap());
+    }
+
+    public function test_closed_shift_keeps_its_stored_recap_after_the_rule_change(): void
+    {
+        $this->splitSale($this->shift);
+        // Closed before #396: the stored totals hold the waiting transfer as non-cash.
+        $this->shift->update([
+            'status' => CashierShift::STATUS_CLOSED, 'closed_at' => now(),
+            'cash_sales_total' => 5000, 'non_cash_sales_total' => 15000, 'expected_cash' => 105000,
+        ]);
+
+        $this->actingAs($this->cashier)->get(route('cashier-shifts.show', $this->shift))
+            ->assertInertia(fn (Assert $page) => $page->where('cashierShift.non_cash_sales_total', 15000));
+        $this->get(route('cashier-shifts.report', [$this->shift, 'Z']))->assertOk()
+            ->assertSeeInOrder(['Penjualan Non Tunai', '15.000']);
+    }
+
+    // ---- #396 BR-7: pay later without a receivable ----------------------------------------------------
+
+    public function test_unpaid_pay_later_sale_without_receivable_is_not_non_cash(): void
+    {
+        $this->guestPayLater($this->shift);
+        $credit = $this->guestPayLater($this->shift);
+        Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 10000, 'paid' => 0,
+            'due_date' => now()->addWeek(), 'status' => 'unpaid']);
+        $recap = fn () => app(CashierShiftService::class)->calculateSummary($this->shift)['non_cash_sales_total'];
+
+        $this->assertSame(10000, $recap()); // only the credit sale, counted when sold
+    }
+
+    public function test_force_closed_shift_counts_unpaid_pay_later_once(): void
+    {
+        $this->guestPayLater($this->shift);
+        $this->forceClose($this->shift, $this->cashier);
+
+        $closed = $this->shift->fresh();
+        $this->assertSame(
+            [0, 10000, -10000],
+            [$closed->non_cash_sales_total, $closed->unpaid_bills_total, $closed->cash_difference],
+        );
+    }
+
+    public function test_a_pay_later_sale_settled_after_its_shift_closed_is_flagged_and_counts_in_the_taking_shift(): void
+    {
+        $bill = $this->guestPayLater($this->shift);
+        $this->forceClose($this->shift, $this->cashier);
+        $next = $this->openShiftFor($this->cashier);
+
+        $this->settleInCash($bill);
+
+        $bill->refresh();
+        $this->assertNotNull($bill->paid_after_close_at);
+        $this->assertSame($next->id, $bill->cashier_shift_id);
+        $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
+        $this->assertSame([$this->shift->id, 10000], [$meta['shift_id'], $meta['amount']]);
+        $this->assertSame(10000, app(CashierShiftService::class)->calculateSummary($next)['cash_sales_total']);
+        $this->assertSame(0, $this->shift->fresh()->cash_sales_total);
+    }
+
+    public function test_a_pay_later_sale_settled_while_its_shift_is_open_is_not_flagged(): void
+    {
+        $bill = $this->guestPayLater($this->shift);
+
+        $this->settleInCash($bill);
+
+        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $this->assertNull($bill->fresh()->paid_after_close_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
+    }
+
+    private function settleInCash(Transaction $bill): void
+    {
+        app(TransactionSettlementService::class)->settle($bill, $this->cashier, [
+            ['method' => 'cash', 'amount' => 10000, 'cash_received' => 10000],
+        ]);
+    }
+
     private function openShiftFor(User $user): CashierShift
     {
         return app(CashierShiftService::class)->openShift($user, $user, 100000, null, $this->warehouse->id);
@@ -356,6 +606,36 @@ class ShiftCloseHoldTest extends TestCase
         DB::table('product_warehouse')->where('product_id', $this->flagged->id)->decrement('stock', 2);
 
         return $sale;
+    }
+
+    /**
+     * A Bayar sekarang split sale of 20000: by default 5000 paid in cash and a 15000 transfer still waiting.
+     *
+     * @param  array<int, array{string, string, int}>  $tenders  method, status, amount
+     * @param  array<string, mixed>  $attributes
+     */
+    private function splitSale(
+        CashierShift $shift,
+        string $status = 'pending',
+        array $tenders = [['cash', 'paid', 5000], ['bank_transfer', 'pending', 15000]],
+        array $attributes = [],
+    ): Transaction {
+        $sale = $this->sale($shift, 'split', $status, $attributes);
+        foreach ($tenders as [$method, $state, $amount]) {
+            $this->tender($sale, $method, $state, $amount);
+        }
+
+        return $sale;
+    }
+
+    /** A completed return of no value, enough to take the sale out of the close's cancel and hold (BR-15). */
+    private function completedReturn(Transaction $sale): void
+    {
+        DB::table('sales_returns')->insert([
+            'code' => "SR-{$sale->id}", 'transaction_id' => $sale->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
+            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 0,
+            'completed_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
     }
 
     /** A guest's unpaid Bayar Belakangan sale of 10000. */

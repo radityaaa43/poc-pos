@@ -531,7 +531,7 @@ class PaymentWebhookController extends Controller
 
         // The owning shift closed first: its recap is a stored snapshot and stays as it was; the payment is only flagged.
         $afterClose = $values['payment_status'] === 'paid' && $shift && ! $shift->isOpen()
-            && ! CashierShiftService::countedInClosedRecap($bill->payment_method);
+            && ! CashierShiftService::countedInClosedRecap($bill);
 
         $bill->update($afterClose ? [...$values, 'paid_after_close_at' => now()] : $values);
 

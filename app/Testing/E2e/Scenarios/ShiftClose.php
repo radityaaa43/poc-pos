@@ -9,7 +9,9 @@ use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\StockMutation;
 use App\Models\Transaction;
+use App\Models\TransactionTender;
 use App\Models\User;
+use App\Testing\E2e\Scenarios;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Hash;
@@ -52,6 +54,21 @@ class ShiftClose
                     'restocks' => StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $transaction->id)->count(),
                     'audit' => self::auditCounts($transaction),
                 ];
+            },
+
+            // A partly paid Bayar sekarang split sale of 20.000 in the open shift of --arg=cashier=<email> (default
+            // cashier@e2e.test): 5.000 paid in cash, 15.000 by a bank transfer still to be confirmed. Stock already taken.
+            'shiftclose.split-sale' => function (array $options): array {
+                $sale = Scenarios::registry()['posretry.failed-sale']([...$options, 'qty' => '2', 'status' => 'pending']);
+                $accountId = Scenarios::registry()['pos.bank-account']([])['bank_account_id'];
+                $transaction = Transaction::findOrFail($sale['transaction_id']);
+                $transaction->update(['payment_method' => 'split', 'bank_account_id' => $accountId, 'cash' => 5000]);
+                $transaction->tenders()->createMany([
+                    ['method' => TransactionTender::METHOD_CASH, 'amount' => 5000, 'cash_received' => 5000, 'payment_status' => TransactionTender::STATUS_PAID],
+                    ['method' => TransactionTender::METHOD_BANK_TRANSFER, 'amount' => 15000, 'bank_account_id' => $accountId, 'payment_status' => TransactionTender::STATUS_PENDING],
+                ]);
+
+                return $sale + ['owed' => 15000];
             },
 
             // A new manager of the outlet of the shift --arg=shift_id=<id> (password 'password'), for a shift in an outlet

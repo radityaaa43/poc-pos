@@ -125,6 +125,20 @@ describe("Shift close", () => {
         expect(screen.getByText(/Selisih closing: -Rp\s*25\.000/)).toBeInTheDocument();
     });
 
+    it("warns that a split stays payable, only when one holds the shift, and books nothing for it", async () => {
+        const note = "Split pembayaran yang belum lunas tetap bisa dibayar.";
+        const { unmount } = renderShow({ canForceClose: true, closeBlockers: held });
+        expect(screen.queryByText(note)).not.toBeInTheDocument();
+        unmount();
+
+        const split = { type: "split", order: "TRX-3", label: null, amount: 15000 };
+        renderShow({ canForceClose: true, closeBlockers: [split] });
+        expect(screen.getByText(note)).toBeInTheDocument();
+        expect(screen.getByLabelText("Catatan tutup paksa")).toHaveAccessibleDescription(new RegExp(note));
+        await fillCash();
+        expect(screen.getByText(/Selisih closing: Rp\s*0/)).toBeInTheDocument();
+    });
+
     it("shows the unpaid bills booked on the recap only when there are any", () => {
         const { unmount } = renderShow({ cashierShift: { status: "force_closed" } });
         expect(screen.queryByText("Tagihan belum lunas dibukukan")).not.toBeInTheDocument();

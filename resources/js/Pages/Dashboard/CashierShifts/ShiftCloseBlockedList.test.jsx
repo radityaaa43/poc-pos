@@ -26,4 +26,19 @@ describe("ShiftCloseBlockedList", () => {
         expect(bill).toHaveTextContent(/Rp\s45\.000/);
         expect(within(bill).getByText("Belum lunas")).toBeInTheDocument();
     });
+
+    it.each([
+        ["id", /^Split pembayaran belum lunas — sisa Rp\s15\.000$/],
+        ["en", /^Split payment not fully paid — Rp\s15\.000 still owed$/],
+    ])("says in %s what a partly paid split still owes, once", async (language, wording) => {
+        await i18n.changeLanguage(language);
+        render(<ShiftCloseBlockedList blockers={[{ type: "split", order: "TRX-3", label: "Budi", amount: 15000 }]} />);
+
+        const row = screen.getByRole("listitem");
+        expect(row).toHaveTextContent("TRX-3");
+        expect(row).toHaveTextContent("Budi");
+        expect(within(row).getByText(wording)).toBeInTheDocument();
+        expect(row.textContent.match(/15\.000/g)).toHaveLength(1);
+        await i18n.changeLanguage("id");
+    });
 });
