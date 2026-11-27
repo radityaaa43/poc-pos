@@ -5,6 +5,7 @@ namespace Tests\Feature\DineIn;
 use App\Exceptions\PaymentGatewayException;
 use App\Models\AuditLog;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\KitchenItem;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
@@ -61,6 +62,17 @@ class DineOrderGatewayChargeTest extends TestCase
         }
 
         $this->fail('The payment should have been refused.');
+    }
+
+    /** What is committed when a request dies between saving the payment and the gateway's answer. */
+    private function claimLeftBehind(DineOrder $order): void
+    {
+        $bill = $this->bill($order);
+        $shift = CashierShift::findOrFail($bill->cashier_shift_id);
+
+        DB::transaction(fn () => app(TransactionSettlementService::class)->claim(
+            $bill, $this->cashier, $shift, null, [['method' => 'qris', 'amount' => self::TOTAL]],
+        ));
     }
 
     public function test_the_gateway_is_called_with_no_transaction_open(): void
@@ -281,5 +293,70 @@ class DineOrderGatewayChargeTest extends TestCase
 
         $this->assertEquals([$cash->id], $bill->tenders()->pluck('id')->all());
         $this->assertSame('unpaid', $this->bill($order)->payment_status);
+    }
+
+    public function test_a_fresh_claim_is_not_replaced(): void
+    {
+        $this->freezeTime();
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $this->claimLeftBehind($order);
+        $this->travel(119)->seconds();
+
+        $errors = $this->refusal(fn () => $this->cashierPays($order, 'qris'));
+
+        $this->assertStringContainsString('menunggu pembayaran', $errors['order'][0]);
+        $this->assertSame(1, $this->bill($order)->payment_attempt);
+        $this->assertSame(1, $this->bill($order)->tenders()->count());
+        Http::assertNothingSent();
+    }
+
+    public function test_an_abandoned_claim_is_replaced_after_two_minutes(): void
+    {
+        $this->freezeTime();
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $this->claimLeftBehind($order);
+        $this->travel(121)->seconds();
+
+        $this->cashierPays($order, 'qris');
+
+        $bill = $this->bill($order);
+        $this->assertSame(['pending', 2, "{$bill->invoice}-r2"], [$bill->payment_status, $bill->payment_attempt, $bill->payment_reference]);
+        $this->assertSame("{$bill->invoice}-r2", $bill->tenders()->sole()->payment_reference);
+    }
+
+    public function test_a_late_payment_of_an_abandoned_claim_is_flagged_not_booked_twice(): void
+    {
+        $this->freezeTime();
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $this->claimLeftBehind($order);
+        $this->travel(121)->seconds();
+        $this->cashierPays($order, 'qris');
+        $bill = $this->bill($order);
+
+        // The gateway had created the first charge after all, and it is paid now.
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
+
+        $bill->refresh();
+        $this->assertSame('pending', $bill->payment_status);
+        $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
+    }
+
+    public function test_a_failed_charge_that_replaced_an_abandoned_claim_leaves_the_bill_payable(): void
+    {
+        $this->freezeTime();
+        $this->fakeCharge(fn () => throw new PaymentGatewayException('Gateway down'));
+        $order = $this->acceptedOrder();
+        $this->claimLeftBehind($order);
+        $this->travel(121)->seconds();
+
+        $this->refusal(fn () => $this->cashierPays($order, 'qris'));
+
+        $bill = $this->bill($order);
+        $this->assertSame(['failed', 'gateway_error', 2], [$bill->payment_status, $bill->payment_failure_reason, $bill->payment_attempt]);
+        $this->assertSame(0, $bill->tenders()->count());
     }
 }

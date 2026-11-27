@@ -260,7 +260,8 @@ class DineOrderService
             $takeover = $transaction->isAwaitingGuestPayment();
 
             // A pending gateway payment or transfer of the cashier already holds the bill: no second charge or tender, finish that one.
-            if ($transaction->payment_status === 'pending' && ! $takeover) {
+            // An abandoned claim does not: it is replaced.
+            if ($transaction->payment_status === 'pending' && ! $takeover && ! $transaction->tenders()->abandonedClaim()->exists()) {
                 throw ValidationException::withMessages([
                     'order' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
                 ]);

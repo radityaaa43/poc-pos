@@ -375,6 +375,26 @@ class SettleGuestBillTest extends TestCase
         $this->assertSame(1, $bill->tenders()->count());
     }
 
+    public function test_an_abandoned_settle_claim_is_replaced_after_two_minutes(): void
+    {
+        $this->freezeTime();
+        $this->enableMidtrans();
+        $bill = $this->guestBill();
+        // What is committed when the request dies before the gateway's answer: pending, a gateway tender, no reference.
+        $bill->update(['payment_method' => 'qris', 'payment_status' => 'pending', 'payment_attempt' => 1]);
+        $bill->tenders()->create(['method' => 'qris', 'amount' => 10000, 'payment_status' => 'pending']);
+
+        $this->travel(119)->seconds();
+        $this->settle($bill, $this->cash())->assertSessionHasErrors('bill');
+
+        $this->travel(2)->seconds();
+        $this->settle($bill, $this->cash())->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame(['paid', 'cash', 2], [$bill->payment_status, $bill->payment_method, $bill->payment_attempt]);
+        $this->assertSame(1, $bill->tenders()->count());
+    }
+
     public function test_settle_refused_for_receivable_bill(): void
     {
         $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62811', 'address' => 'Jl. Satu']);

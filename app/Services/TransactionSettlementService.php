@@ -61,14 +61,15 @@ class TransactionSettlementService
             }
 
             // A pending gateway payment or transfer already holds the bill: no second charge or tender, finish that one.
-            if ($transaction->payment_status === 'pending') {
+            // An abandoned claim does not: it is replaced.
+            if ($transaction->payment_status === 'pending' && ! $transaction->tenders()->abandonedClaim()->exists()) {
                 throw ValidationException::withMessages([
                     'bill' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
                 ]);
             }
 
-            // Only an unpaid, failed or expired bill can be settled (a pending one was refused above).
-            if (! in_array($transaction->payment_status, Transaction::OPEN_BILL_PAYABLE, true)) {
+            // Only an unpaid, failed or expired bill can be settled (a pending one still here is an abandoned claim).
+            if (! in_array($transaction->payment_status, [...Transaction::OPEN_BILL_PAYABLE, 'pending'], true)) {
                 throw ValidationException::withMessages(['bill' => 'Tagihan ini tidak bisa dilunasi di sini.']);
             }
 
