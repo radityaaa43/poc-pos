@@ -575,8 +575,8 @@ describe("Kitchen/Index stations", () => {
 
             await user.click(chip("Bar"));
 
-            expect(allReadyButton(cards()[0])).not.toBeInTheDocument();
-            expect(allReadyButton(cards()[1])).toBeInTheDocument();
+            expect(allReadyButton(cards()[1])).not.toBeInTheDocument();
+            expect(allReadyButton(cards()[0])).toBeInTheDocument();
         });
     });
 
@@ -599,7 +599,7 @@ describe("Kitchen/Index stations", () => {
             renderIndex();
 
             await user.click(chip("Bar"));
-            await user.click(handOverAll(cards()[0]));
+            await user.click(handOverAll(cards()[1]));
 
             expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.hand-over-all", { station_ids: [2] }, expect.anything());
         });

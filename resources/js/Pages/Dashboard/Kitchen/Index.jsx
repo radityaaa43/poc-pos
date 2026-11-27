@@ -2,12 +2,14 @@ import React, { useEffect, useState } from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, router, usePoll } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
-import { IconClock, IconPrinter, IconWifiOff } from "@tabler/icons-react";
+import { IconPrinter, IconWifiOff } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { useAuthorization } from "@/Utils/authorization";
 import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
 import { isNotPrinted } from "@/Utils/printerStatus";
+import OrderCard from "@/Components/Kitchen/OrderCard";
 import PrinterStatusBanner from "@/Components/Kitchen/PrinterStatusBanner";
+import ReadyForPickup from "@/Components/Kitchen/ReadyForPickup";
 import PrintDevicePanel from "./PrintDevicePanel";
 
 const POLL_MS = 5000;
@@ -78,6 +80,8 @@ export default function Index({ orders, outlet, stations = [] }) {
     const canHandOver = can("dine-orders-handover");
     // shortcut: two tabs on one device do not sync until reload; add a storage listener if a shop needs it.
     const [selected, setSelected] = useState(readSaved);
+    // On the page so the 5 s poll keeps the choice (#361 BR-4).
+    const [expanded, setExpanded] = useState(false);
 
     const multi = stations.length > 1;
     const chosen = selected.filter((id) => stations.some((s) => s.id === id));
@@ -90,6 +94,11 @@ export default function Index({ orders, outlet, stations = [] }) {
     const shownOrders = orders
         .map((order) => ({ ...order, items: order.items.filter(isShown) }))
         .filter((order) => order.items.length > 0);
+    // A station screen sets a fully ready order aside, longest ready first; without ready_at, since counts (#361).
+    const waitsForPickup = (order) => !showAll && order.items.every((item) => item.status === "ready");
+    const readySince = (order) => Math.max(...order.items.map((item) => Date.parse(item.ready_at ?? order.since)));
+    const working = shownOrders.filter((order) => !waitsForPickup(order));
+    const pickup = shownOrders.filter(waitsForPickup).sort((a, b) => readySince(a) - readySince(b));
 
     const choose = (next) => {
         setSelected(next);
@@ -167,6 +176,9 @@ export default function Index({ orders, outlet, stations = [] }) {
         <PrintAction order={order} notPrinted={notPrinted(order)} reprintable={reprintable(order)} printDevice={printDevice} />
     );
 
+    const cardProps = { orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction };
+    const card = (order) => <OrderCard key={order.id} order={order} {...cardProps} />;
+
     return (
         <>
             <Head title={t("kitchen.title")} />
@@ -236,88 +248,10 @@ export default function Index({ orders, outlet, stations = [] }) {
             ) : shownOrders.length === 0 ? (
                 <p className="py-16 text-center text-slate-500 dark:text-slate-400">{t("kitchen.stations.emptyForSelection")}</p>
             ) : (
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {shownOrders.map((order) => (
-                        <article
-                            key={order.id}
-                            className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
-                        >
-                            <header className="border-b border-slate-100 p-4 dark:border-slate-800">
-                                <div className="flex items-start justify-between gap-3">
-                                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{order.number}</h2>
-                                    <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
-                                        <IconClock size={16} aria-hidden="true" />
-                                        {t("kitchen.minutes", {
-                                            count: Math.max(0, Math.floor((now - Date.parse(order.since)) / 60000)),
-                                        })}
-                                    </span>
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                        {t(`kitchen.types.${order.type}`, { defaultValue: order.type })}
-                                    </span>
-                                    {order.unpaid && (
-                                        <span className="rounded-full bg-danger-100 px-2.5 py-0.5 text-xs font-medium text-danger-700 dark:bg-danger-900/50 dark:text-danger-400">
-                                            {t("kitchen.unpaid")}
-                                        </span>
-                                    )}
-                                    {notPrinted(order) && (
-                                        <span className="rounded-full bg-warning-100 px-2.5 py-0.5 text-xs font-medium text-warning-700 dark:bg-warning-900/50 dark:text-warning-400">
-                                            {t("kitchen.print.notPrinted")}
-                                        </span>
-                                    )}
-                                    {multi && showAll && (
-                                        <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                            {t("kitchen.stations.progress", {
-                                                ready: order.items.filter((i) => i.status === "ready").length,
-                                                total: order.items.length,
-                                            })}
-                                        </span>
-                                    )}
-                                </div>
-                            </header>
-                            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {order.items.map((item) => (
-                                    <li key={item.id} className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 px-4 py-2">
-                                        <div>
-                                            <p className={`font-medium ${item.status === "cancelled" ? "text-slate-500 line-through dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
-                                                {item.qty} × {item.title}
-                                            </p>
-                                            {item.note && (
-                                                <p className="text-sm italic text-slate-600 dark:text-slate-300">{item.note}</p>
-                                            )}
-                                        </div>
-                                        <span
-                                            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${item.status === "cancelled" ? "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-400" : "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-400"}`}
-                                        >
-                                            {t(`kitchen.status.${item.status}`, { defaultValue: item.status })}
-                                        </span>
-                                        {/* An item of a removed station on a filtered device keeps its old name: the kitchen sees where it came from (B1). */}
-                                        {multi && (showAll || !activeIds.has(item.station_id)) && item.station && (
-                                            <span className="shrink-0 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                                                {item.station}
-                                            </span>
-                                        )}
-                                        {canPrepare && item.status === "accepted" &&
-                                            stepButton(`start-${item.id}`, "kitchen.items.start", item.id, t("kitchen.actions.start"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
-                                        {canPrepare && item.status === "preparing" &&
-                                            stepButton(`ready-${item.id}`, "kitchen.items.ready", item.id, t("kitchen.actions.ready"), "bg-success-600 hover:bg-success-700 focus-visible:ring-success-600")}
-                                        {canHandOver && item.status === "ready" &&
-                                            stepButton(`hand-over-${item.id}`, "kitchen.items.hand-over", item.id, t("kitchen.actions.handOver"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
-                                    </li>
-                                ))}
-                            </ul>
-                            {/* empty:hidden drops the footer when no button applies */}
-                            <footer className="flex flex-col gap-3 border-t border-slate-100 p-4 empty:hidden dark:border-slate-800">
-                                {canPrepare && order.items.some((item) => item.status === "accepted" || item.status === "preparing") &&
-                                    stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600", showAll ? {} : { station_ids: chosen })}
-                                {canHandOver && order.items.some((item) => item.status === "ready") &&
-                                    stepButton(`hand-over-all-${order.id}`, "kitchen.orders.hand-over-all", order.id, t("kitchen.actions.handOverAll"), "w-full bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500", showAll ? {} : { station_ids: chosen })}
-                            </footer>
-                            {hasPrinter && printAction(orders.find((each) => each.id === order.id))}
-                        </article>
-                    ))}
-                </div>
+                <>
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">{working.map(card)}</div>
+                    <ReadyForPickup orders={pickup} expanded={expanded} onToggle={() => setExpanded((open) => !open)} renderCard={card} />
+                </>
             )}
         </>
     );

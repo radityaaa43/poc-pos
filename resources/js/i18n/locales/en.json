@@ -1138,6 +1138,11 @@
             "progress": "{{ready}} of {{total}} ready",
             "removed": "The selected station was removed. Showing all stations.",
             "emptyForSelection": "No orders for this station yet"
+        },
+        "pickup": {
+            "title": "Ready for pickup ({{count}})",
+            "all": "Show all ({{count}})",
+            "less": "Show less"
         }
     },
     "pos": {

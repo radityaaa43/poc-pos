@@ -57,7 +57,8 @@ class KitchenStationDisplayTest extends TestCase
         $bar = KitchenStation::create(['name' => 'Bar']);
         $gone = KitchenStation::create(['name' => 'Panggang']);
         $sale = $this->sale();
-        $this->item($sale, $bar);
+        $readyAt = now()->startOfSecond();
+        $this->item($sale, $bar)->update(['status' => KitchenItem::STATUS_READY, 'ready_at' => $readyAt]);
         $this->item($sale, $dapur);
         $gone->delete();
 
@@ -65,6 +66,8 @@ class KitchenStationDisplayTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->where('orders.0.items.0.station_id', $bar->id)
                 ->where('orders.0.items.0.station', 'Bar')
+                ->where('orders.0.items.0.ready_at', $readyAt->toJSON())
+                ->where('orders.0.items.1.ready_at', null)
                 ->where('orders.0.items.1.station_id', $dapur->id)
                 ->where('orders.0.items.1.station', 'Dapur')
                 ->has('stations', 2)

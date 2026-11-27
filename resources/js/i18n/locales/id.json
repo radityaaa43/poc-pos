@@ -1138,6 +1138,11 @@
             "progress": "{{ready}} dari {{total}} siap",
             "removed": "Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.",
             "emptyForSelection": "Belum ada pesanan untuk stasiun ini"
+        },
+        "pickup": {
+            "title": "Siap diambil ({{count}})",
+            "all": "Lihat semua ({{count}})",
+            "less": "Tampilkan lebih sedikit"
         }
     },
     "pos": {
