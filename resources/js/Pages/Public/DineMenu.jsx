@@ -272,7 +272,9 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                                     >
                                         Pesan — Bayar Belakangan
                                     </button>
-                                    <p className="text-xs text-slate-500 text-center">Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.</p>
+                                    <p className="text-xs text-slate-500 text-center">
+                                        {t(onlinePayment ? "dineMenu.payLater.helperOnline" : "dineMenu.payLater.helper")}
+                                    </p>
                                 </>
                             )}
                         </div>

@@ -3,7 +3,8 @@ import { test, expect } from '../../support/fixtures.js';
 const PAY_LATER_BUTTON = 'Pesan — Bayar Belakangan';
 // The E2E outlet has a payment gateway, so its counter button reads Pesan (REQ-005); exact, so Bayar Belakangan never matches.
 const PAY_AT_COUNTER_BUTTON = 'Pesan';
-const HELPER_TEXT = 'Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.';
+// The E2E outlet's helper also names paying online (REQ-005, #328).
+const HELPER_TEXT = 'Pesanan langsung dibuat. Bayar di kasir atau online dari halaman pesanan sebelum Anda pergi.';
 const REFUSAL = 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.';
 
 // Opens the table menu, puts one item in the cart and opens the cart dialog.

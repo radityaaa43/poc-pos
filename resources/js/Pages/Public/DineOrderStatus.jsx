@@ -19,6 +19,8 @@ const STATUS_CONFIG = {
     // payment comes first: the kitchen starts only on a paid bill
     waiting_payment: { label: "Menunggu Pembayaran", color: "bg-amber-100 text-amber-700", icon: IconClock, desc: "Pesanan diterima. Silakan menuju kasir untuk membayar, setelah itu pesanan mulai dibuat." },
     accepted: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pembayaran diterima. Pesanan akan segera dibuat." },
+    // pay later: the kitchen has the order before it is paid; its text depends on whether the guest can pay online
+    accepted_pay_later: { label: "Diterima", color: "bg-primary-100 text-primary-700", icon: IconCheck },
     preparing: { label: "Sedang dibuat", color: "bg-primary-100 text-primary-700", icon: IconClock, desc: "Pesanan Anda sedang dibuat." },
     ready: { label: "Siap", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan Anda sudah siap." },
     served: { label: "Disajikan", color: "bg-primary-100 text-primary-700", icon: IconCheck, desc: "Pesanan sudah disajikan." },
@@ -28,6 +30,7 @@ const STATUS_CONFIG = {
 };
 
 export default function DineOrderStatus({ order, table, storeName, payment: pagePayment }) {
+    const { t } = useTranslation();
     const [currentOrder, setCurrentOrder] = useState(order);
     const [refreshing, setRefreshing] = useState(false);
     const { t } = useTranslation();
@@ -70,12 +73,18 @@ export default function DineOrderStatus({ order, table, storeName, payment: page
     }, [currentOrder.status, currentOrder.access_token]);
 
     // progress shown once the order is accepted: Diterima, Menunggu Pembayaran, Sedang dibuat, Siap, Disajikan, Selesai
-    const statusKey = currentOrder.status === "accepted" && !currentOrder.is_paid ? "waiting_payment" : currentOrder.status;
-    const stepIndex = { waiting_payment: 1, accepted: 1, preparing: 2, ready: 3, served: 4, completed: 5 }[statusKey];
+    const unpaid = currentOrder.status === "accepted" && !currentOrder.is_paid;
+    const payLater = unpaid && payment?.pay_later && payment.state !== "paid";
+    const statusKey = payLater ? "accepted_pay_later" : unpaid ? "waiting_payment" : currentOrder.status;
+    const stepIndex = { waiting_payment: 1, accepted_pay_later: 1, accepted: 1, preparing: 2, ready: 3, served: 4, completed: 5 }[statusKey];
     const status = STATUS_CONFIG[statusKey] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
     const StatusIcon = status.icon;
     // The pay panel says what to do instead, unless the guest has to pay at the counter.
-    const desc = statusKey === "waiting_payment" && payment && payment.state !== "counter" ? "" : status.desc;
+    let desc = statusKey === "waiting_payment" && payment && payment.state !== "counter" ? "" : status.desc;
+    // A pay-later order is already being made, so with nothing to pay (a fully returned bill) it gets no pay-first text.
+    if (unpaid && !payment && currentOrder.payment_option === "pay_later") desc = "";
+    // The same answer the panel reads ("counter": no online payment), so the banner never offers what the panel cannot do.
+    if (payLater) desc = t(payment.state === "counter" ? "dine.pay.payLaterAcceptedCounter" : "dine.pay.payLaterAcceptedOnline");
 
     return (
         <>

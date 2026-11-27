@@ -15,7 +15,7 @@ test.describe('80-dine-online-payment', () => {
         expect(response.body.payment.qr).toMatch(/^data:image\/svg\+xml;base64,/);
         expect(response.body.payment.payment_url).toContain(`${bill.invoice}-r1`);
         // Nothing about the bill or the gateway beyond what the guest needs.
-        expect(Object.keys(response.body.payment).sort()).toEqual(['amount', 'attempt', 'payment_url', 'qr', 'state']);
+        expect(Object.keys(response.body.payment).sort()).toEqual(['amount', 'attempt', 'pay_later', 'payment_url', 'qr', 'state']);
 
         const state = arrange('dine.order-state', { access_token: bill.access_token });
         expect(state).toMatchObject({ payment_status: 'pending', payment_attempt: 1, grand_total: bill.grand_total });

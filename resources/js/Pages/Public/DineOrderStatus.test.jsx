@@ -132,6 +132,71 @@ describe("DineOrderStatus online payment", () => {
         expect(router.reload).toHaveBeenCalledWith(expect.objectContaining({ only: ["payment"] }));
     });
 
+    // REQ-005 AC-05: a pay-later order is in the kitchen while unpaid, so the banner never says it was paid or waits for payment.
+    describe("pay later", () => {
+        const later = (state, overrides) => payment(state, { pay_later: true, ...overrides });
+        const online = "Pesanan diterima. Belum lunas: bayar sekarang atau di kasir sebelum Anda pergi.";
+        const atCounter = "Pesanan diterima. Belum lunas: bayar di kasir sebelum Anda pergi.";
+
+        it.each([
+            ["can_pay", online],
+            ["pending", online],
+            ["failed", online],
+            ["expired", online],
+            ["gateway_error", online],
+            ["counter", atCounter],
+        ])("says Diterima and not paid yet while %s", (state, banner) => {
+            accepted({ payment: later(state) });
+
+            expect(screen.getByTestId("dine-status")).toHaveTextContent("Diterima");
+            expect(screen.getByText(banner)).toBeInTheDocument();
+            expect(screen.getByText("Belum lunas")).toBeInTheDocument();
+            expect(screen.queryByText(/Pembayaran diterima/)).toBeNull();
+            expect(screen.queryByText(counterText)).toBeNull();
+            expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Menunggu Pembayaran");
+        });
+
+        // A fully returned bill has no payment data: a pay-later order must not be told to pay before it is made.
+        it("never sends a pay-later order with nothing to pay to the cashier first", () => {
+            render(<DineOrderStatus order={{ ...base, status: "accepted", payment_option: "pay_later" }} table={table} storeName="Toko" payment={null} />);
+
+            expect(screen.queryByText(counterText)).toBeNull();
+        });
+
+        it("says the payment was received only once paid", () => {
+            render(<DineOrderStatus order={{ ...base, status: "accepted", is_paid: true }} table={table} storeName="Toko" payment={later("paid")} />);
+
+            expect(screen.getByText(/Pembayaran diterima/)).toBeInTheDocument();
+            expect(screen.queryByText(/Belum lunas/)).toBeNull();
+        });
+
+        it("shows Lunas and Selesai from one poll when a served order is paid", async () => {
+            render(<DineOrderStatus order={{ ...base, status: "served" }} table={table} storeName="Toko" payment={later("pending", charge)} />);
+            expect(screen.getByText("Belum lunas")).toBeInTheDocument();
+
+            await poll({ order: { status: "completed", is_paid: true }, payment: later("paid") });
+
+            expect(screen.getByRole("heading", { name: "Lunas" })).toBeInTheDocument();
+            expect(screen.getByTestId("dine-status")).toHaveTextContent("Selesai");
+            expect(screen.queryByText("Belum lunas")).toBeNull();
+        });
+
+        it.each([
+            ["can_pay", "Order received. Not paid yet: pay now or at the counter before you leave."],
+            ["counter", "Order received. Not paid yet: please pay at the counter before you leave."],
+        ])("speaks English to an English browser: %s", async (state, banner) => {
+            await i18n.changeLanguage("en");
+            try {
+                accepted({ payment: later(state) });
+
+                expect(screen.getByText(banner)).toBeInTheDocument();
+                expect(screen.getByText("Not paid yet")).toBeInTheDocument();
+            } finally {
+                await i18n.changeLanguage("id");
+            }
+        });
+    });
+
     it("asks once for the QR of a charge started elsewhere", async () => {
         accepted({ payment: payment("can_pay", { attempt: 0 }) });
         const elsewhere = payment("pending", { payment_url: charge.payment_url });

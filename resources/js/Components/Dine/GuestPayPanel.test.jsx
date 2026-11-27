@@ -195,6 +195,47 @@ describe("GuestPayPanel states", () => {
     });
 });
 
+describe("GuestPayPanel pay later (REQ-005 AC-05)", () => {
+    const later = (state) => view(state, { pay_later: true });
+
+    it.each(["can_pay", "pending", "failed", "expired", "gateway_error", "counter"])("marks the bill Belum lunas while %s", (state) => {
+        panel(later(state));
+
+        expect(screen.getByText("Belum lunas")).toBeInTheDocument();
+    });
+
+    it("keeps the total and the mark while the Bayar sekarang request is in flight", async () => {
+        axios.post.mockReturnValue(new Promise(() => {}));
+        panel(later("can_pay"));
+
+        await press("Bayar sekarang");
+
+        expect(screen.getByText(/Rp\s*20\.000/)).toBeInTheDocument();
+        expect(screen.getByText("Belum lunas")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Bayar sekarang" })).toBeDisabled();
+    });
+
+    it("sends an outlet without online payment to the counter, with no button", () => {
+        panel(later("counter"));
+
+        expect(screen.getByRole("heading", { name: "Silakan bayar di kasir" })).toBeInTheDocument();
+        expect(buttons()).toEqual([]);
+    });
+
+    it("drops the mark once paid", () => {
+        panel(later("paid"));
+
+        expect(screen.getByRole("heading", { name: "Lunas" })).toBeInTheDocument();
+        expect(screen.queryByText("Belum lunas")).toBeNull();
+    });
+
+    it("never marks a pay-now bill", () => {
+        panel(view("can_pay", { pay_later: false }));
+
+        expect(screen.queryByText("Belum lunas")).toBeNull();
+    });
+});
+
 describe("mergePayment", () => {
     const second = { attempt: 2, payment_url: "https://pay.test/r2", qr: "data:image/svg+xml;base64,QR2" };
     const merged = (...answers) => answers.reduce(mergePayment, null);

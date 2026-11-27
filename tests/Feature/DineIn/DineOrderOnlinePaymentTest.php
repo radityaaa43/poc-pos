@@ -156,7 +156,7 @@ class DineOrderOnlinePaymentTest extends TestCase
 
         $this->get(route('dine-order.status', $submitted->access_token))
             ->assertInertia(fn (Assert $page) => $page->has('payment', fn (Assert $payment) => $payment
-                ->where('state', 'can_pay')->where('amount', self::TOTAL)->where('attempt', 0)->where('payment_url', null)->where('qr', null)));
+                ->where('state', 'can_pay')->where('amount', self::TOTAL)->where('attempt', 0)->where('payment_url', null)->where('qr', null)->where('pay_later', false)));
     }
 
     public function test_menu_says_whether_the_guest_can_pay_online(): void
@@ -198,7 +198,7 @@ class DineOrderOnlinePaymentTest extends TestCase
 
         $payload = $this->pay($order)->assertOk()->json('payment');
 
-        $this->assertSame(['state', 'amount', 'attempt', 'payment_url', 'qr'], array_keys($payload));
+        $this->assertSame(['state', 'amount', 'attempt', 'payment_url', 'qr', 'pay_later'], array_keys($payload));
         $this->assertStringNotContainsString($invoice, json_encode($payload));
         $this->assertStringNotContainsString('-r1', json_encode($payload));
     }
@@ -458,18 +458,6 @@ class DineOrderOnlinePaymentTest extends TestCase
         $this->assertRefused($this->pay($order), 'no_gateway');
         Http::assertNothingSent();
         $this->assertSame('unpaid', $this->bill($order)->payment_status);
-    }
-
-    public function test_pay_later_bill_shows_counter_and_start_refuses_it(): void
-    {
-        $this->enableMidtrans();
-        $this->fakeGateways();
-        $order = $this->order();
-        $this->bill($order)->update(['is_pay_later' => true]);
-
-        $this->check($order)->assertJsonPath('payment.state', 'counter');
-        $this->assertRefused($this->pay($order), 'not_payable');
-        Http::assertNothingSent();
     }
 
     public function test_fully_returned_bill_cannot_be_paid_online(): void
