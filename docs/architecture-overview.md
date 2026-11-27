@@ -13,7 +13,7 @@ Kembali ke indeks dokumentasi: `docs/README.md`
 
 ## Struktur Area Penting
 
-- `routes/web.php` — ~190+ route dashboard, public share, portal
+- `routes/web.php`, `routes/web/*.php` — ~190+ route dashboard, public share, portal
 - `routes/api.php` — webhook Midtrans & Xendit (tanpa auth), REST `/api/v1/*` master-data + POS
 - `app/Http/Controllers/Apps/` — controller per modul dashboard (~36 file)
 - `app/Http/Controllers/Reports/` — controller laporan (sales, profit, insights)

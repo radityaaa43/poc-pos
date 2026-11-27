@@ -142,8 +142,16 @@ merges:
   default branch in instead. A resolved conflict is a code change: let CI re-run.
 - **Don't mix in unrelated changes**: no drive-by refactors, renames or reformatting outside the
   issue. Do them as their own issue.
-- **Hotspot files** (`routes/web.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): prefer appending over reordering, and mention the edit in the
+- **Hotspot files** (`routes/web.php`, `routes/web/*.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): prefer appending over reordering, and mention the edit in the
   PR so reviewers merge in a sensible order.
+- **Dashboard routes** live in one file per module, `routes/web/<module>.php`, required by the
+  `/dashboard` group of `routes/web.php`. Append to your module's file; the order of the `require`
+  lines is the route registration order. Two PRs that append to the same file still conflict.
+- **Union merge** (`.gitattributes`): `GLOSSARY.md` and `tests/e2e/features/*/COVERAGE.md` keep both
+  sides instead of conflicting. Add rows; a row two branches edit comes back twice (CI's *Glossary
+  terms* check catches it in the glossary, review catches it elsewhere). Git reads the attribute from
+  the branch you are on, so a branch cut before it commits `main`'s `.gitattributes` before merging
+  `main`. Locale JSON is not union-merged: the result can be invalid JSON.
 - **Migrations** (`database/migrations/`): when the default branch has a newer migration than yours,
   rename yours to a fresh timestamp before merging, so files sort in apply order. CI's *Migration
   order* check turns red when you need to. Never rename or edit a migration after it has merged.

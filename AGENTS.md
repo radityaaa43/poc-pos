@@ -106,7 +106,11 @@ issue, stdlib and native features before new libraries.
   refactors, renames or reformatting outside the issue.
 - Sync with `main` daily and before the PR: `git fetch && git rebase origin/main`
   on your own unreviewed branch (`--force-with-lease` is fine); after review, merge it in instead.
-- Hotspot files (`routes/web.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): append rather than reorder, and name them in the PR.
+- Hotspot files (`routes/web.php`, `routes/web/*.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): append rather than reorder, and name them in the PR.
+- Dashboard routes: append to your module's file in `routes/web/`, not to `routes/web.php` (a new
+  module adds a file and its `require` there).
+- `GLOSSARY.md` and e2e `COVERAGE.md` merge with `union` (`.gitattributes`): add rows, and never let
+  two tickets edit the same row at once, because both versions are kept.
 - Migrations: if `main` has a newer one than yours, rename yours to a fresh
   timestamp before merging. Never rename or edit a merged migration.
 - Lockfiles: never hand-edit conflicts; take the default branch's, re-run the package manager.
