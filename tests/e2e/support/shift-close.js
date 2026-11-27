@@ -1,4 +1,4 @@
-// Shared setup of the shift close steps (25-cashier-shifts/06..10; 30-offline-sale/05 and 06 take `cashier` from here).
+// Shared setup of the shift close steps (25-cashier-shifts/06..10).
 import { test, expect as baseExpect } from './fixtures.js';
 import { roles } from './roles.js';
 

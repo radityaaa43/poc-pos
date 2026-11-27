@@ -16,7 +16,6 @@ const DB_VERSION = 2;
  *   last_attempt_at,          // ISO timestamp of last sync attempt
  *   synced_at,                // ISO timestamp of confirmed sync
  *   created_at,               // ISO timestamp queued
- *   needs_kitchen,            // POS sale with a line the kitchen has to make
  * }
  *
  * v1 records (no metadata) are normalized lazily on read/write so an
@@ -85,12 +84,11 @@ export async function getCachedCustomers() {
     return db.getAll("customers");
 }
 
-export async function queueTransaction(transactionData, scopeKey = null, meta = {}) {
+export async function queueTransaction(transactionData, scopeKey = null) {
     const db = await dbPromise;
     return db.add(
         "pending_transactions",
         normalizeQueueRecord({
-            ...meta,
             data: transactionData,
             scope_key: scopeKey,
             created_at: new Date().toISOString(),
@@ -124,22 +122,6 @@ export async function getPendingCount(scopeKey = null) {
 
     return rows.filter(
         (row) => !["synced", "duplicate"].includes(row.status)
-    ).length;
-}
-
-/**
- * Sales a cashier queued on this device that the server does not have yet (REQ-003 BR-12). Counted by cashier,
- * not by the full scope key: the POS builds that key without a warehouse id. A `conflict` row is not counted: it
- * is never sent again and the server holds that sale (BR-17).
- */
-export async function getUnsyncedCount(cashierId) {
-    const db = await dbPromise;
-    const rows = (await db.getAll("pending_transactions")).map(normalizeQueueRecord);
-
-    return rows.filter(
-        (row) =>
-            (row.scope_key === null || row.scope_key.startsWith(`${cashierId}:`)) &&
-            !["synced", "duplicate", "conflict"].includes(row.status)
     ).length;
 }
 

@@ -20,7 +20,6 @@ import {
 import Notification from "@/Components/Dashboard/Notification";
 import { useTour } from "@/Hooks/useTour";
 import i18n from "@/i18n";
-import { OfflineKitchenMarker } from "@/Components/POS/OfflineKitchenNotice";
 import {
     getPendingCount,
     pruneExpiredPendingTransactions,
@@ -270,8 +269,6 @@ export default function POSLayout({ children }) {
                     {pendingSyncCount} transaksi menunggu sinkronisasi
                 </div>
             )}
-
-            <OfflineKitchenMarker scopeKey={offlineScopeKey} />
 
             {/* Mobile Menu Overlay */}
             {showMobileMenu && (

@@ -7,7 +7,6 @@ use App\Models\Cart;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerVoucher;
-use App\Models\KitchenItem;
 use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -666,20 +665,6 @@ class PosTransactionSyncTest extends TestCase
         ])->assertJsonPath('data.results.0.status', 'failed');
 
         $this->assertModelExists($queued);
-    }
-
-    // REQ-003 AC-14: a sale queued offline reaches the kitchen at sync, timed from when the server received it.
-    public function test_a_synced_offline_sale_is_timed_from_server_receipt(): void
-    {
-        Sanctum::actingAs($this->cashier, ['*']);
-        $this->openShift();
-        $this->product->update(['needs_preparation' => true]);
-        $this->travelTo(now()->addHours(3)->startOfSecond()); // synced hours after the sale was made offline
-        $this->postJson('/api/v1/pos/transactions/sync', ['transactions' => [$this->syncPayload()]])
-            ->assertJsonPath('data.results.0.status', 'synced');
-        $item = KitchenItem::sole();
-        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->status);
-        $this->assertEquals(now(), $item->accepted_at);
     }
 
     private function openShift(): void
