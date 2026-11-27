@@ -29,6 +29,6 @@ test.describe('POS checkout: late payment of an old attempt', () => {
 
         await page.goto(`/dashboard/transactions/${sale.invoice}/print`);
 
-        await expect(page.getByText('Pembayaran lama diterima setelah dibayar ulang — perlu refund manual')).toBeVisible();
+        await expect(page.getByText('Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual')).toBeVisible();
     });
 });
