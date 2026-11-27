@@ -99,7 +99,7 @@ issue, stdlib and native features before new libraries.
   agents check their human's). Exception: tickets the Tech Lead rated Effort `low` may run in
   parallel, up to three, when they touch different files. Claim before starting (`gh issue edit <n> --add-assignee @me`); never
   start on someone else's issue.
-- Small, short-lived PRs: aim under 300 counted lines; over 2000 needs
+- One short-lived PR per issue: aim under 1500 counted lines (tests count); over 2000 needs
   another person's approval, over 3000 fails CI unless an Owner adds
   `large-pr`. Code files stay under 1000 lines. No drive-by
   refactors, renames or reformatting outside the issue.

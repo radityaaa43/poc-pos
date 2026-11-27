@@ -28,6 +28,14 @@ labels: needs-triage
 5. Where does the data come from?
 Unanswered → write `?` and add `needs-info`. -->
 
+## User stories
+
+<!-- Business/PM: the REQ's user stories this ticket covers, with their journeys, e.g.
+| US | As a … I want … so that … | Journey | AC |
+|---|---|---|---|
+| US-1 | As a cashier I want … so that … | J-1 (main), J-1.3 (failure) | AC-01 |
+The trace runs US → J → AC / BR → TC → test. `n/a — <reason>` for tech-only tickets. -->
+
 ## Scope
 
 - [ ]

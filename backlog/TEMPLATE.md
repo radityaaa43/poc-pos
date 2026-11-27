@@ -93,7 +93,12 @@ stateDiagram-v2
      - insufficient stock                       - cancellation before payment
      - cancellation or refund after payment     - shift close with open work
      - failed or expired payment                - permission denied (UI and server)
-     - two users acting at the same time        - existing data on release (defaults, backfill) -->
+     - two users acting at the same time        - existing data on release (defaults, backfill)
+     - an event that comes late or twice         - master data deleted or renamed while in use
+       (webhook, retry, double tap)
+     - the same action from another channel     - what another outlet sees (shared customers,
+       (POS, table QR, portal, API)               shop-wide lists)
+     - every new UI text, in Indonesian and English -->
 
 ## Business rules
 
