@@ -4,7 +4,7 @@ import { roles } from '../../support/roles.js';
 const cashier = roles.find((role) => role.key === 'cashier');
 // Seeded by E2eSeeder; the webhook checks it.
 const XENDIT_CALLBACK_TOKEN = 'e2e-xendit-callback-token';
-const NOTICE = 'Pembayaran lama diterima setelah dibayar ulang — perlu refund manual';
+const NOTICE = 'Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual';
 
 test.describe('POS checkout: second gateway payment of a paid sale', () => {
     test.describe.configure({ timeout: 240_000 });

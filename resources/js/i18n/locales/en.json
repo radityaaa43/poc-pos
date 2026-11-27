@@ -516,7 +516,7 @@
         "lateRefund": {
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
-            "notice": "The old payment was received after the sale was paid again — manual refund needed"
+            "notice": "A gateway payment was received but not booked — manual refund needed"
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
