@@ -9,6 +9,7 @@ use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Transaction;
@@ -209,6 +210,7 @@ class SalesReturnController extends Controller
 
             // Before any stock row is locked: the kitchen item lock comes first, as in a start tap (#241).
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
+            $this->lockSaleForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -684,6 +686,23 @@ class SalesReturnController extends Controller
             })
             ->groupBy('transaction_detail_id')
             ->pluck('total_qty', 'transaction_detail_id');
+    }
+
+    /**
+     * Locks the sale a return is completed against, so the return and a payment of that sale are serialised: the second
+     * one waits and reads what the first did. Call it after cancelForReturn (kitchen and dine-order locks) and before any
+     * stock row: dine order, receivable, sale is the order of pay(), the payment webhook and the receivable payments, and
+     * sale before stock is that of transactions:expire.
+     */
+    protected function lockSaleForReturn(SalesReturn $salesReturn): void
+    {
+        // A sale gets its receivable at checkout, never later: locking only a known one, by key, takes no gap lock.
+        $receivableId = Receivable::where('transaction_id', $salesReturn->transaction_id)->value('id');
+        $receivable = $receivableId ? Receivable::whereKey($receivableId)->lockForUpdate()->first() : null;
+        $sale = Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->firstOrFail();
+
+        // The copy loaded before the lock may predate a payment: the settlement is worked out on the locked rows.
+        $salesReturn->setRelation('transaction', $sale->setRelation('receivable', $receivable));
     }
 
     protected function ensureDraft(SalesReturn $salesReturn): void

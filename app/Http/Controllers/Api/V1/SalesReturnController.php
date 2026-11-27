@@ -204,6 +204,7 @@ class SalesReturnController extends AppsSalesReturnController
             $before = $this->salesReturnAuditPayload($salesReturn);
 
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
+            $this->lockSaleForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([
