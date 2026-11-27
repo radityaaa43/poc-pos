@@ -27,7 +27,7 @@ test.describe('37-dine-guest-menu', () => {
 
             // The cart is kept: the guest reopens it and sends the order as Bayar di Kasir.
             await page.getByRole('button', { name: /1 item/ }).click();
-            await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+            await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
             await expect(page).toHaveURL(/\/dine-order\/[0-9a-f-]{36}$/);
             await expect(page.getByText('Menunggu Konfirmasi', { exact: true })).toBeVisible();
             expect(arrange('dine.table-state', { name: table_name }).orders).toBe(1);

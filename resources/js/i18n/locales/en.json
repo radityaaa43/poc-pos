@@ -516,7 +516,7 @@
         "lateRefund": {
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
-            "notice": "The old payment was received after the sale was paid again — manual refund needed"
+            "notice": "A gateway payment was received but not booked — manual refund needed"
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
@@ -1205,5 +1205,29 @@
         "cancelled": "The original order was cancelled — start a new order",
         "offline": "Add-ons are not available offline",
         "cancel": "Cancel"
+    },
+    "dine": {
+        "pay": {
+            "button": "Pay now",
+            "paid": "Paid",
+            "waiting": "Waiting for payment",
+            "failed": "Payment failed",
+            "expired": "Expired",
+            "retry": "Try again",
+            "counter": "Please pay at the counter",
+            "notPayable": "Not payable yet",
+            "alreadyPaid": "Already paid",
+            "openWallet": "Open in your e-wallet app",
+            "otherMethod": "Pay another way",
+            "payAtCounterInstead": "Or pay at the counter",
+            "gatewayError": "Online payment is having trouble — please pay at the counter",
+            "tooMany": "Too many attempts. Try again in a moment.",
+            "offline": "No connection. The payment was not created.",
+            "scanQris": "Scan the QRIS with your bank or e-wallet app"
+        },
+        "menu": {
+            "submitOnline": "Order",
+            "submitOnlineHint": "You can pay online after your order is accepted"
+        }
     }
 }

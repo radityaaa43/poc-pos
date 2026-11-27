@@ -2,10 +2,12 @@ import React, { useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import { IconShoppingCart, IconMinus, IconPlus } from "@tabler/icons-react";
 import toast, { Toaster } from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
-export default function DineMenu({ table, categories, products, selfOrderEnabled, payLaterEnabled = false, storeName }) {
+export default function DineMenu({ table, categories, products, selfOrderEnabled, payLaterEnabled = false, onlinePayment = false, storeName }) {
+    const { t } = useTranslation();
     const [cart, setCart] = useState([]);
     const [activeCategory, setActiveCategory] = useState("all");
     const [notes, setNotes] = useState("");
@@ -248,10 +250,16 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                                     handleSubmit("pay_at_counter");
                                 }}
                                 disabled={submitting}
+                                aria-describedby={onlinePayment ? "online-payment-hint" : undefined}
                                 className="btn bg-primary-500 hover:bg-primary-600 text-white"
                             >
-                                {submitting ? "Mengirim..." : "Pesan — Bayar di Kasir"}
+                                {submitting ? "Mengirim..." : onlinePayment ? t("dine.menu.submitOnline") : "Pesan — Bayar di Kasir"}
                             </button>
+                            {onlinePayment && (
+                                <p id="online-payment-hint" className="text-xs text-slate-500 text-center">
+                                    {t("dine.menu.submitOnlineHint")}
+                                </p>
+                            )}
                             {payLaterEnabled && (
                                 <>
                                     <button

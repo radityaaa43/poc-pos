@@ -25,7 +25,7 @@ describe("LateRefundBadge", () => {
 
         rerender(<LateRefundNotice transaction={{ late_superseded_payment_at: "2026-11-25T10:00:00Z" }} />);
         expect(screen.getByRole("status")).toHaveTextContent(
-            "Pembayaran lama diterima setelah dibayar ulang — perlu refund manual"
+            "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual"
         );
     });
 });

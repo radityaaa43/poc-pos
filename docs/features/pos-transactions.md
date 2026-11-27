@@ -86,6 +86,11 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   settled by cash after the QR expired, or with a paid cash part in a split, is flagged too, its payment unchanged. Booked after the sale's shift
   closed, it is marked "Dibayar setelah shift ditutup" and the closed recap is unchanged; a credit sale paid late through the portal is never flagged paid after close, because the closed recap already counted it by method.
   A failed sale with no gateway charge of its own (no gateway tender, no receivable, a non-gateway method such as a pay-later guest bill) stays failed.
+- **Second payment on a paid sale** (POS, customer portal or dine-in, #391): a gateway settlement whose reference the sale does not store (on the
+  sale or a tender), such as the same QR paid twice, is flagged "Bayar ganda — refund manual" and audited (`payment.late_superseded`), never
+  booked. The same reference delivered again changes nothing. A paid sale that stores no reference cannot be compared: unless something else
+  shows a second payment (settled without a gateway, or another attempt's order id), it is not flagged, only audited once per reference
+  (`meta.flagged: false`) for the owner to reconcile with the gateway statement.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
@@ -123,6 +128,6 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 
 ## File Sentral
 
-- `routes/web.php`
+- `routes/web/transactions.php`
 - `app/Http/Controllers/Apps/TransactionController.php`
 - `resources/js/Pages/Dashboard/Transactions`

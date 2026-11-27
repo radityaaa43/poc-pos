@@ -304,6 +304,8 @@ class PaymentWebhookController extends Controller
 
                 if ($outcome === 'flag') {
                     $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran lama invoice {$bill->invoice} diterima setelah dibayar ulang; perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount], $reference);
+                } elseif ($outcome === 'unmatched') {
+                    $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} diterima setelah lunas, tanpa referensi tersimpan untuk dibandingkan; tidak ditandai, cocokkan dengan laporan gateway.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'flagged' => false], $reference);
                 } elseif ($outcome === 'late') {
                     $this->settleLatePayment($bill, $shift, $gateway, $providerId, $attempt, $reference, $amount);
                 } elseif ($outcome === 'record') {
@@ -337,6 +339,7 @@ class PaymentWebhookController extends Controller
     /**
      * What a notification does to the bill, read under its lock.
      * record = the normal update; flag = a second or stale payment, never booked, marked for a manual refund;
+     * unmatched = paid on a paid bill that stores no reference to compare with: audited only, not marked;
      * late = a paid notification for an older or failed attempt (booked or flagged by settleLatePayment); ignore = nothing.
      */
     private function decide(Transaction $bill, int $attempt, bool $paid, ?string $reference): string
@@ -349,13 +352,16 @@ class PaymentWebhookController extends Controller
         }
 
         if ($bill->payment_status === 'paid') {
-            // Attempt 0 bills (portal and POS sales) keep today's rule: a repeat is ignored. Except a bill the cashier settled
-            // without a gateway (cash after the QR expired): a gateway payment on it is a second payment, never silently dropped.
-            if ($attempt === 0 && $current === 0) {
-                return $this->settledWithoutGateway($bill, $reference) ? 'flag' : 'ignore';
+            // A bill the cashier settled without a gateway (cash after the QR expired) has no gateway payment to repeat.
+            if ($attempt === 0 && $current === 0 && $this->settledWithoutGateway($bill)) {
+                return 'flag';
             }
 
-            return $this->isRedelivery($bill, $attempt, $reference) ? 'ignore' : 'flag';
+            if (! $this->isRedelivery($bill, $attempt, $reference)) {
+                return 'flag';
+            }
+
+            return $this->knownReferences($bill) === [] ? 'unmatched' : 'ignore';
         }
 
         if ($attempt === $current) {
@@ -395,19 +401,17 @@ class PaymentWebhookController extends Controller
     }
 
     /**
-     * Is a gateway payment on this paid attempt-0 bill a second payment, not a repeat of the one that paid it?
+     * Was this paid attempt-0 bill settled without a gateway? Then any gateway payment on it is a second payment.
      * - Paid by tenders and none of them a gateway one (cash, transfer): there is no gateway payment of its own to repeat.
      * - A credit sale pays through receivable payments, not tenders: it is a second payment unless a gateway receivable payment
-     *   already booked it and this is that payment's reference again (the bill keeps the reference it was booked with).
+     *   booked some of it (then the reference decides, see isRedelivery).
      */
-    private function settledWithoutGateway(Transaction $bill, ?string $reference): bool
+    private function settledWithoutGateway(Transaction $bill): bool
     {
         $receivable = $bill->receivable()->first();
 
         if ($receivable) {
-            $bookedByGateway = $receivable->payments()->whereIn('method', TransactionTenderService::GATEWAY_METHODS)->exists();
-
-            return ! $bookedByGateway || (filled($reference) && $reference !== $bill->payment_reference);
+            return ! $receivable->payments()->whereIn('method', TransactionTenderService::GATEWAY_METHODS)->exists();
         }
 
         $methods = $bill->tenders()->pluck('method');
@@ -421,11 +425,21 @@ class PaymentWebhookController extends Controller
      */
     private function isRedelivery(Transaction $bill, int $attempt, ?string $reference): bool
     {
-        $known = $bill->tenders()->pluck('payment_reference')->push($bill->payment_reference)->filter()->all();
+        $known = $this->knownReferences($bill);
 
         return filled($reference) && $known !== []
             ? in_array($reference, $known, true)
             : $attempt === (int) $bill->payment_attempt;
+    }
+
+    /**
+     * Every gateway reference the bill stores. A tender's settlement updates only the tender, so the bill's own is not enough.
+     *
+     * @return array<int, string>
+     */
+    private function knownReferences(Transaction $bill): array
+    {
+        return $bill->tenders()->pluck('payment_reference')->push($bill->payment_reference)->filter()->all();
     }
 
     /**
@@ -566,7 +580,7 @@ class PaymentWebhookController extends Controller
      * A payment that must not be booked. The marker (late_superseded_payment_at) is only the "needs refund" flag and is set once;
      * the audit is written for every distinct gateway reference (the order id when there is none), so a second late payment
      * is not lost behind the first and a redelivery of the same callback is not audited twice. Marker and audit commit together:
-     * if the audit fails the redelivery must find both unset.
+     * if the audit fails the redelivery must find both unset. Meta `flagged: false` writes the audit without the marker.
      *
      * @param  array<string, mixed>  $meta
      */
@@ -576,7 +590,8 @@ class PaymentWebhookController extends Controller
         $key = filled($reference) ? $reference : (string) ($meta['order_id'] ?? '');
 
         [$marked, $audited] = DB::transaction(function () use ($bill, $event, $description, $meta, $key) {
-            $marked = (bool) Transaction::whereKey($bill->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
+            $marked = ($meta['flagged'] ?? true)
+                && Transaction::whereKey($bill->id)->whereNull('late_superseded_payment_at')->update(['late_superseded_payment_at' => now()]);
 
             $seen = $this->lateAuditKeys($bill, [$event])->contains($key);
 

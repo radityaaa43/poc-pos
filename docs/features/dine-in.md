@@ -194,6 +194,7 @@ Dikontrol via `Setting` table:
 - Keranjang real-time
 - Catatan opsional per item
 - Opsi saat ini: Bayar di Kasir (`pay_at_counter`) dan, bila outlet mengaktifkan Bayar Belakangan, Bayar Belakangan (`pay_later`)
+- Tombol kirim `pay_at_counter`: di outlet meja yang gateway-nya siap (prop `onlinePayment`, aturan yang sama dengan pembayaran online tamu) berbunyi **Pesan** dengan petunjuk **Bisa bayar online setelah pesanan diterima**; di outlet lain tetap **Pesan — Bayar di Kasir**. Opsi yang dikirim sama
 
 ### Polling Status
 - Halaman status auto-refresh setiap 5 detik selama pesanan belum completed/rejected/cancelled
@@ -209,7 +210,7 @@ Dikontrol via `Setting` table:
 ## Pembayaran
 
 Saat ini endpoint `/dine/{token}/order` menerima `payment_option: pay_at_counter` dan `pay_later`; `pay_later` ditolak server bila setting outlet *Bayar Belakangan* mati (pesan: "Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir."). Menu menampilkan tombol "Pesan — Bayar Belakangan" hanya bila setting aktif. Saat staf menerima pesanan `pay_later`, tagihannya diberi `is_pay_later` (tanpa piutang), item dapur yang perlu dibuat langsung tercatat (Belum lunas), dan pesanan tanpa item dapur langsung `served` lalu `completed` setelah dibayar; pelunasan tetap lewat `dine-orders.pay`.
-`pay_online` belum terhubung ke payment gateway dan akan ditolak oleh validasi backend.
+`pay_online` saat mengirim pesanan ditolak oleh validasi backend: pembayaran online dilakukan setelah pesanan diterima (lihat "Guest online payment").
 
 ### Pembayaran tagihan belum lunas
 
@@ -246,11 +247,32 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
 
-### Guest online payment (REQ-005, server half)
+### Guest online payment (REQ-005)
 
 After staff accept an order, the guest can pay its unpaid bill (Belum Lunas) online from the status page, at an outlet whose Midtrans or
-Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_online` stays rejected). The pay panel on the
-page ships with the second half of #325; until then only the endpoint and the `payment` payload exist.
+Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_online` stays rejected).
+
+**The pay panel** (`resources/js/Components/Dine/GuestPayPanel.jsx`, texts `dine.pay.*` in id and en) shows the `payment` payload:
+
+| `state` | The guest sees |
+|---|---|
+| none (`payment` null: not accepted, rejected) | no panel |
+| `can_pay` | total, **Bayar sekarang** (QRIS), **Bayar dengan metode lain** (`method=gateway`) |
+| `pending` | **Menunggu pembayaran**, total, the QRIS image, **Buka di aplikasi e-wallet** (gateway page, new tab), **Bayar dengan metode lain**; only the link when the gateway gave no QR |
+| `failed`, `expired`, `gateway_error` | **Pembayaran gagal**, **Kedaluwarsa** or **Pembayaran online sedang bermasalah — bayar di kasir**, total, **Coba lagi** (the last method); **Atau bayar di kasir** for the first two |
+| `counter` | **Silakan bayar di kasir**, no button |
+| `paid` | **Lunas**, no button |
+
+- It learns the result from the page's 5 s status poll, without a reload. While an order is accepted and unpaid, the page's
+  "walk to the counter" text shows only when `payment` is null or `counter`.
+- A refused press reads **Belum bisa dibayar**, **Sudah lunas**, **Silakan bayar di kasir**, the gateway text above,
+  **Terlalu banyak percobaan. Coba lagi sebentar.** (429) or **Tidak ada koneksi. Pembayaran belum dibuat.**. A second press
+  is ignored while a request is in flight.
+- Answers can arrive out of order and the poll has no QR, so the page keeps the QR and link of the newest charge it has seen
+  (`mergePayment`): nothing blank replaces them for the same attempt, an older attempt is ignored and **Lunas** is never
+  undone. A newer attempt drops them at once, because the older charge may still be payable; its own QR and link appear
+  once the charge is stored. A charge started elsewhere (another tab) gets its QR by one partial reload of the `payment` prop.
+- A pending attempt that still has no page and no QR after 60 s offers **Coba lagi**.
 
 - `POST /dine-order/{accessToken}/pay` is public (the order token is the only credential, no permission, no login).
   It reads only `method` (`qris`, the default, or `gateway` for the gateway's own page with every enabled method); an

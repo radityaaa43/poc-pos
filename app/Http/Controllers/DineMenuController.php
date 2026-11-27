@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\DineOrderOnlinePaymentService;
 use App\Services\PricingService;
 use Inertia\Inertia;
 
@@ -13,6 +14,7 @@ class DineMenuController extends Controller
 {
     public function __construct(
         private PricingService $pricingService,
+        private DineOrderOnlinePaymentService $onlinePayment,
     ) {}
 
     public function show(string $token)
@@ -68,6 +70,7 @@ class DineMenuController extends Controller
             'products' => $products,
             'selfOrderEnabled' => $selfOrderEnabled,
             'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
+            'onlinePayment' => $this->onlinePayment->isReadyFor($outlet),
             'storeName' => $storeName,
             'storeLogo' => $storeLogo,
         ]);

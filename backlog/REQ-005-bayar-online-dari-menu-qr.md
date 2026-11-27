@@ -287,3 +287,10 @@ stateDiagram-v2
 ## Delivered by
 
 <!-- Issues and PRs, filled in as work ships. -->
+
+- AC-02, AC-09 (endpoint bayar tamu, batas permintaan): #356 · PR #367.
+- AC-06, AC-08, AC-10 (kasir dan gateway bersamaan, shift ditutup, label POS): #357 · PR #379, #327 · PR #384.
+- AC-01, AC-03, AC-04, AC-07 (panel bayar di halaman status, tombol menu): #325.
+- Belum: AC-05 (Bayar Belakangan dari halaman tamu, #328).
+- Bukti e2e per AC (`tests/e2e/features/80-dine-online-payment/`): AC-02 `01` · AC-09 `02` · AC-06 `03` ·
+  AC-08 `04` · AC-10 `05` · AC-01 `06` · AC-03 `07` · AC-04 `08` · AC-07 `09`.

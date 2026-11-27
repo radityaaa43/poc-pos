@@ -24,7 +24,7 @@ test.describe('37-dine-guest-menu', () => {
         await expect(cart.getByText(title)).toBeVisible();
         await expect(cart.getByText('Total').locator('..')).toContainText(/Rp\s*20\.000/);
         await cart.getByPlaceholder('Catatan pesanan (opsional)').fill(note);
-        await cart.getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+        await cart.getByRole('button', { name: 'Pesan', exact: true }).click();
 
         // Status page for this order.
         await expect(page).toHaveURL(/\/dine-order\/[0-9a-f-]{36}$/);

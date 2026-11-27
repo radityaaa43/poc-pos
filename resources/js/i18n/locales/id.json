@@ -516,7 +516,7 @@
         "lateRefund": {
             "badge": "Bayar ganda — refund manual",
             "filter": "Perlu refund",
-            "notice": "Pembayaran lama diterima setelah dibayar ulang — perlu refund manual"
+            "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual"
         },
         "paidAfterClose": {
             "badge": "Dibayar setelah shift ditutup",
@@ -1205,5 +1205,29 @@
         "cancelled": "Pesanan asal sudah dibatalkan — buat pesanan baru",
         "offline": "Pesanan tambahan tidak tersedia saat offline",
         "cancel": "Batal"
+    },
+    "dine": {
+        "pay": {
+            "button": "Bayar sekarang",
+            "paid": "Lunas",
+            "waiting": "Menunggu pembayaran",
+            "failed": "Pembayaran gagal",
+            "expired": "Kedaluwarsa",
+            "retry": "Coba lagi",
+            "counter": "Silakan bayar di kasir",
+            "notPayable": "Belum bisa dibayar",
+            "alreadyPaid": "Sudah lunas",
+            "openWallet": "Buka di aplikasi e-wallet",
+            "otherMethod": "Bayar dengan metode lain",
+            "payAtCounterInstead": "Atau bayar di kasir",
+            "gatewayError": "Pembayaran online sedang bermasalah — bayar di kasir",
+            "tooMany": "Terlalu banyak percobaan. Coba lagi sebentar.",
+            "offline": "Tidak ada koneksi. Pembayaran belum dibuat.",
+            "scanQris": "Scan QRIS dengan aplikasi bank atau e-wallet"
+        },
+        "menu": {
+            "submitOnline": "Pesan",
+            "submitOnlineHint": "Bisa bayar online setelah pesanan diterima"
+        }
     }
 }
