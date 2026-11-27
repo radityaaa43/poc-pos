@@ -205,10 +205,10 @@
         "name": "laravel",
         "path": ".",
         "kind": "php",
-        "install": "docker compose up -d app mysql",
+        "install": "composer install",
         "commands": [
-          "docker compose exec -T app vendor/bin/pint --test --diff=main",
-          "docker compose exec -T app php artisan test --compact"
+          "vendor/bin/pint --test --diff=main",
+          "php artisan test --compact"
         ],
         "ci_commands": [
           "vendor/bin/pint --test --diff=origin/main",

@@ -124,7 +124,8 @@ machine's CPU and memory. Locally, run only the fast checks:
 
 ```bash
 # laravel
-docker compose exec -T app vendor/bin/pint --test --diff=main
+vendor/bin/pint --test --diff=main
+composer analyse
 # frontend
 npm test
 npm run build
@@ -178,7 +179,8 @@ covered by the hook; review and CI still apply.
 
 Detail and the reasons: [`docs/agents/project-guide.md`](docs/agents/project-guide.md).
 
-- Local PHP and MySQL run in Docker: prefix `php`/`composer` with `docker compose exec -T app`.
+- Local PHP and MySQL run on the host (Laragon, PHP 8.4, MySQL 8.4; setup: `README.md` → Local setup).
+  Dev, checks, e2e and review apps use no containers.
 - Stock: `product_warehouse.stock` is operational; update `products.stock` in the same
   `DB::transaction`, with `lockForUpdate()` on the affected rows.
 - Never run the demo seeder (`DemoSeeder`, `seed:demo`) against production; it rebuilds demo data.
