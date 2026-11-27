@@ -339,10 +339,9 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                             <IconArrowLeft size={18} />
                             Kembali ke kasir
                         </Link>
+                        <AddOnButton transaction={transaction} allowed={canAddOn} />
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                            <AddOnButton transaction={transaction} allowed={canAddOn} />
-
                             {/* Print Mode Selector */}
                             <div className="flex bg-slate-200 dark:bg-slate-800 rounded-xl p-1 w-full sm:w-auto">
                                 <button
