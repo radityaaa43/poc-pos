@@ -88,7 +88,7 @@ class DineIn
             // order of --arg=qty (default 2). --arg=accepted=1 (default) accepts it through the real service, 0 leaves it submitted.
             // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen;
             // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only).
-            // Returns access_token, invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
+            // Returns access_token, table_token (the table's menu), invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
             'dine.bill' => function (array $options): array {
                 $suffix = Str::upper(Str::random(5));
                 $gateway = $options['gateway'] ?? 'midtrans';
@@ -158,6 +158,7 @@ class DineIn
                     return [
                         'order_id' => $order->id,
                         'access_token' => $order->access_token,
+                        'table_token' => $table->token,
                         'invoice' => Transaction::find($order->fresh()->transaction_id)?->invoice,
                         'grand_total' => 10000 * $qty,
                         'shift_id' => $shift->id,

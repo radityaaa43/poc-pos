@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
-import { Head } from "@inertiajs/react";
+import React, { useEffect, useRef, useState } from "react";
+import { Head, router } from "@inertiajs/react";
 import { IconCheck, IconClock, IconX, IconRefresh } from "@tabler/icons-react";
+import GuestPayPanel, { mergePayment } from "@/Components/Dine/GuestPayPanel";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
@@ -22,9 +23,22 @@ const STATUS_CONFIG = {
     cancelled: { label: "Dibatalkan", color: "bg-slate-100 text-slate-500", icon: IconX, desc: "Pesanan dibatalkan." },
 };
 
-export default function DineOrderStatus({ order, table, storeName }) {
+export default function DineOrderStatus({ order, table, storeName, payment: pagePayment }) {
     const [currentOrder, setCurrentOrder] = useState(order);
     const [refreshing, setRefreshing] = useState(false);
+    const [payment, setPayment] = useState(() => mergePayment(null, pagePayment));
+    // The attempt whose QR this page already received or asked for (the page load carries it).
+    const qrAsked = useRef(pagePayment?.payment_url ? pagePayment.attempt : null);
+
+    // A charge this page did not start (another tab, say) arrives through the poll, which has no QR: ask for it once.
+    const qrMissing = payment?.state === "pending" && payment.charge === payment.attempt && !payment.qr;
+    const attempt = payment?.attempt;
+    useEffect(() => {
+        if (qrMissing && qrAsked.current !== attempt) {
+            qrAsked.current = attempt;
+            router.reload({ only: ["payment"], onSuccess: (page) => setPayment((shown) => mergePayment(shown, page.props.payment)) });
+        }
+    }, [qrMissing, attempt]);
 
     useEffect(() => {
         if (ACTIVE.includes(currentOrder.status)) {
@@ -38,6 +52,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
                     if (data.order) {
                         // status-check returns minimal scalar fields — merge so items/product rows from the initial render are kept
                         setCurrentOrder((prev) => ({ ...prev, ...data.order }));
+                        setPayment((shown) => mergePayment(shown, data.payment));
                         if (!ACTIVE.includes(data.order.status)) {
                             clearInterval(interval);
                         }
@@ -54,6 +69,8 @@ export default function DineOrderStatus({ order, table, storeName }) {
     const stepIndex = { waiting_payment: 1, accepted: 1, preparing: 2, ready: 3, served: 4, completed: 5 }[statusKey];
     const status = STATUS_CONFIG[statusKey] ?? { label: currentOrder.status, color: "bg-slate-100 text-slate-600", icon: IconClock, desc: "" };
     const StatusIcon = status.icon;
+    // The pay panel says what to do instead, unless the guest has to pay at the counter.
+    const desc = statusKey === "waiting_payment" && payment && payment.state !== "counter" ? "" : status.desc;
 
     return (
         <>
@@ -71,7 +88,7 @@ export default function DineOrderStatus({ order, table, storeName }) {
                             <StatusIcon size={24} />
                             <div>
                                 <p className="font-semibold" data-testid="dine-status">{status.label}</p>
-                                <p className="text-sm opacity-80">{status.desc}</p>
+                                <p className="text-sm opacity-80">{desc}</p>
                             </div>
                         </div>
 
@@ -110,6 +127,16 @@ export default function DineOrderStatus({ order, table, storeName }) {
                             <span className="font-semibold text-slate-700">Total</span>
                             <span className="font-bold text-lg text-primary-600">{fmt(currentOrder.subtotal)}</span>
                         </div>
+
+                        <GuestPayPanel
+                            token={currentOrder.access_token}
+                            payment={payment}
+                            onChange={(next) => {
+                                // The pay answer carries this charge's QR, if the gateway gave one.
+                                if (next?.payment_url) qrAsked.current = next.attempt;
+                                setPayment((shown) => mergePayment(shown, next));
+                            }}
+                        />
 
                         {currentOrder.notes && (
                             <div className="mt-4 p-3 bg-slate-50 rounded-lg">

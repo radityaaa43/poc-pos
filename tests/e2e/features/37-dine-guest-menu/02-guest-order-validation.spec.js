@@ -5,13 +5,13 @@ import { test, expect } from '../../support/fixtures.js';
 const causes = {
     'an emptied cart': async ({ page }) => {
         await page.getByRole('dialog').getByRole('button', { name: '−', exact: true }).click(); // remove the only item
-        await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
 
         return 'Pilih minimal satu item.';
     },
     'a note over 500 characters': async ({ page }) => {
         await page.getByRole('dialog').getByPlaceholder('Catatan pesanan (opsional)').fill('x'.repeat(501));
-        await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
 
         return 'Gagal mengirim pesanan.';
     },
@@ -20,7 +20,7 @@ const causes = {
             arrange('dine.self-order', { enabled: '0' });
             await page.reload(); // the setting reaches the page as a prop; the cart starts empty again
             await addToCart(page, title);
-            await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+            await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
         } finally {
             arrange('dine.self-order', { enabled: '1' });
         }
@@ -29,7 +29,7 @@ const causes = {
     },
     'stock gone before the guest sends': async ({ page, arrange, product_id }) => {
         arrange('dine.set-stock', { product_id, stock: 0 }); // someone else bought the last ones
-        await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
 
         return /tidak mencukupi/;
     },

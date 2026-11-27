@@ -25,6 +25,15 @@ export function midtransNotification(bill, orderId, status, overrides = {}) {
     return body;
 }
 
+// A guest opens a table's menu, puts one item (whichever is first) in the cart and opens it. Returns the cart dialog.
+export async function openMenuCart(page, tableToken) {
+    await page.goto(`/dine/${tableToken}`);
+    await page.getByRole('button', { name: '+ Tambah' }).first().click();
+    await page.getByRole('button', { name: /1 item/ }).click();
+
+    return page.getByRole('dialog');
+}
+
 // The guest of a `dine.bill` (see arrange options) presses Bayar sekarang with QRIS: attempt 1 is pending at the gateway.
 export async function guestStartsPaying(page, arrange, options = {}) {
     arrange('public.reset-throttle');
