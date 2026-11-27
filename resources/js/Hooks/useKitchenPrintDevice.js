@@ -160,6 +160,8 @@ export function useKitchenPrintDevice(outlet) {
     // (never with WebUSB in practice) every tab prints, as before.
     const hasLocks = typeof navigator !== "undefined" && Boolean(navigator.locks);
     const [leader, setLeader] = useState(!hasLocks);
+    // This tab still holds the lock only to let its own send finish: that is not "another tab is printing".
+    const [releasing, setReleasing] = useState(false);
     useEffect(() => {
         if (!active || !hasLocks) return undefined;
         const abort = new AbortController();
@@ -176,13 +178,19 @@ export function useKitchenPrintDevice(outlet) {
             abort.abort();
             // Not before a send in flight is over: the tab that takes over would print that ticket too. The print
             // effect's cleanup runs after this one, hence the microtask.
-            queueMicrotask(() => leaving.finally(() => release?.()));
+            setReleasing(true);
+            queueMicrotask(() =>
+                leaving.finally(() => {
+                    release?.();
+                    setReleasing(false);
+                })
+            );
             setLeader(false);
         };
     }, [active, hasLocks]);
 
     const printing = active && leader;
-    const otherTab = active && !leader;
+    const otherTab = active && !leader && !releasing;
 
     useEffect(() => {
         if (!printing) return undefined;
