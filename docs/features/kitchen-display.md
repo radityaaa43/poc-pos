@@ -31,6 +31,10 @@ One screen for the kitchen: every paid order that still has something to prepare
 - [BR-1] A dine-in order whose items are all unflagged never reaches the kitchen: it is served when paid and completes at once (Pay now here; the Pay-later half lands in ticket #279). A mixed order waits only for its flagged items.
 - Routes: `kitchen.items.start`, `kitchen.items.ready`, `kitchen.orders.all-ready`, `kitchen.items.hand-over`, `kitchen.orders.hand-over-all` (service: `app/Services/KitchenItemService.php`).
 
+## Add-on orders
+
+Items added to an order that is already in the kitchen are an add-on order (#251, REQ-003 AC-21): a sale of its own, linked to the original by `transactions.parent_transaction_id` (always the root order; see `docs/features/pos-transactions.md` and `docs/features/dine-in.md`). The display shows them inside the original order's card, which keeps the original's table name or invoice number: the original's lines first, then each add-on's under **Tambahan** / "Add-on" with its own age and, when it is unpaid, its own **Belum lunas** chip. The card's age is its oldest line. An add-on follows the payment rule of any sale, so it appears when it is paid (at once for pay later). **Semua siap** and **Serahkan semua** on the card cover the original and its add-ons (within the chosen stations); each sale's dine-in order still follows its own lines. The grouping is display only (`app/Support/Kitchen/KitchenOrderGroups.php`): kitchen tickets and DIBATALKAN tickets stay one per sale, with that sale's own number.
+
 ## Cancelled items
 
 An item whose sale line was returned (a completed sales return, #241) shows **Dibatalkan**, struck through and without buttons, for 2 minutes after the return (`KitchenItem::onDisplay()`, measured on `updated_at`), then leaves the queue on a later poll. A partial return only lowers the quantity shown. A start or ready tap on a cancelled item answers "Sudah dibatalkan".
