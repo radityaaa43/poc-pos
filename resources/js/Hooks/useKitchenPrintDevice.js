@@ -29,6 +29,14 @@ const readJson = (key, fallback) => {
 // Answers that end the printing: the session is gone, or the device is not this user's.
 const ENDED = [401, 404, 419];
 
+// A record call that gives no answer must fail, or every later poll would wait behind it.
+const RECORD = { timeout: 10000 };
+
+// The sends that stopped queues are still finishing (auto-print switched off, or the page left). A new queue waits
+// for them, so each ticket is recorded before it is listed again and only one queue ever sends. Module level: it
+// has to outlive the page component.
+let leaving = Promise.resolve();
+
 // The server takes at most 200 ids per record call (the two Store*PrintsRequest rules).
 const batches = (ids) => Array.from({ length: Math.ceil(ids.length / 200) }, (_, i) => ids.slice(i * 200, (i + 1) * 200));
 
@@ -73,7 +81,7 @@ async function confirm(ids) {
     const device = readJson(DEVICE, null);
     if (!device) return;
     for (const batch of batches(ids)) {
-        await axios.post(route("kitchen.print-devices.prints", device.id), { item_ids: batch });
+        await axios.post(route("kitchen.print-devices.prints", device.id), { item_ids: batch }, RECORD);
         writeUnconfirmed(readUnconfirmed().filter((id) => !batch.includes(id)));
     }
 }
@@ -83,7 +91,7 @@ async function confirmCancellations(ids) {
     const device = readJson(DEVICE, null);
     if (!device) return;
     for (const batch of batches(ids)) {
-        await axios.post(route("kitchen.print-devices.cancellation-prints", device.id), { cancellation_ids: batch });
+        await axios.post(route("kitchen.print-devices.cancellation-prints", device.id), { cancellation_ids: batch }, RECORD);
         writeUnconfirmedCancellations(readUnconfirmedCancellations().filter((id) => !batch.includes(id)));
     }
 }
@@ -101,11 +109,9 @@ export function useKitchenPrintDevice(outlet) {
     const [disconnected, setDisconnected] = useState(false);
     // Drains the queue that is polling; null while this tab does not print.
     const runRef = useRef(null);
-    // The send a stopped queue is still finishing (see the print effect).
-    // shortcut: per mounted page; leaving the kitchen page mid-send and coming back is not covered.
-    const leavingRef = useRef(null);
     const connectErrorRef = useRef(null);
     const [recordFailed, setRecordFailed] = useState(false);
+    const [ended, setEnded] = useState(false);
 
     const setDevice = useCallback((value) => {
         // Unconfirmed ids belong to the old device: posting them to the new one would 404 and halt printing.
@@ -168,7 +174,9 @@ export function useKitchenPrintDevice(outlet) {
             .catch(() => {}); // aborted while waiting
         return () => {
             abort.abort();
-            release?.();
+            // Not before a send in flight is over: the tab that takes over would print that ticket too. The print
+            // effect's cleanup runs after this one, hence the microtask.
+            queueMicrotask(() => leaving.finally(() => release?.()));
             setLeader(false);
         };
     }, [active, hasLocks]);
@@ -184,10 +192,6 @@ export function useKitchenPrintDevice(outlet) {
         // Ids this tab has sent: a poll already in flight can still list one after Coba lagi printed and recorded it.
         const printed = new Set();
         const printedCancellations = new Set();
-
-        // The send a stopped queue (auto-print switched off) may still be finishing: this one waits for it, so
-        // that ticket is already recorded when the first poll lists it again, and only one queue ever sends.
-        const leaving = leavingRef.current;
 
         const queue = createPrintQueue({
             send: async (job) => {
@@ -282,6 +286,7 @@ export function useKitchenPrintDevice(outlet) {
                 if (ENDED.includes(error?.response?.status)) {
                     halted = true;
                     queue.stop();
+                    setEnded(true);
                 }
             }
             if (halted) return;
@@ -295,12 +300,13 @@ export function useKitchenPrintDevice(outlet) {
         return () => {
             halted = true;
             queue.stop();
-            leavingRef.current = queue.drain(); // resolves once a send in flight is over
+            leaving = Promise.all([leaving, queue.drain()]); // settles once a send in flight is over
             clearInterval(timer);
             window.removeEventListener("online", tick);
             runRef.current = null;
             setQueueState(NO_JOBS);
             setRecordFailed(false);
+            setEnded(false);
         };
     }, [printing, deviceId]);
 
@@ -365,7 +371,7 @@ export function useKitchenPrintDevice(outlet) {
     const status = derivePrinterStatus({
         supported: webUsbSupport() === "ok",
         autoPrint: printing,
-        errorCode: connectError ?? lastError?.code ?? (recordFailed ? "record" : null),
+        errorCode: connectError ?? lastError?.code ?? (recordFailed || ended ? "record" : null),
         disconnected: disconnected || (printing && !printerKey),
     });
 

@@ -420,6 +420,51 @@ describe("useKitchenPrintDevice: print defects (#410)", () => {
         expect(printBytes).toHaveBeenCalledTimes(2);
     });
 
+    it("D2: off, on, off and on again during one slow send still prints it once", async () => {
+        tickets = [ticket(1, [11])];
+        let release;
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+        await flush();
+
+        for (const on of [false, true, false, true]) act(() => result.current.setAutoPrint(on));
+        await advance(10000);
+        tickets = [];
+        await act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+    });
+
+    it("D2: leaving the page during a send and coming back prints it once", async () => {
+        tickets = [ticket(1, [11])];
+        let release;
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+        mount().unmount();
+        const first = mount();
+        await flush();
+        first.unmount();
+        mount();
+        await advance(10000);
+        tickets = [];
+        await act(async () => {
+            release?.();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(printBytes).toHaveBeenCalledTimes(1);
+    });
+
+    it("warns when the session has expired and printing stops", async () => {
+        axios.get.mockRejectedValue({ response: { status: 401 } });
+        const { result } = mount();
+        await flush();
+
+        expect(result.current.status).toBe("failed");
+    });
+
     it("D4: records a large backlog in calls of at most 200 ids", async () => {
         const ids = Array.from({ length: 450 }, (_, i) => i + 1);
         localStorage.setItem("kitchen.unconfirmed", JSON.stringify(ids));

@@ -468,7 +468,9 @@ describe("useKitchenPrintDevice: cancel tickets (DIBATALKAN)", () => {
             { type: "Dine-in", unpaid: "BELUM LUNAS", cancelled: "DIBATALKAN" }
         );
         expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
-        expect(cancelPosts()).toEqual([["/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }]]);
+        expect(cancelPosts()).toEqual([
+            ["/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }, { timeout: 10000 }],
+        ]);
         expect(itemPosts()).toEqual([]);
         expect(unconfirmedCancellations()).toEqual([]);
     });
