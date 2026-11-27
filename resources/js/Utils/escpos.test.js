@@ -188,6 +188,73 @@ describe("printer connection", () => {
         );
         expect(hasCachedPrinter()).toBe(false);
     });
+
+    describe("error codes (REQ-004 K2)", () => {
+        const dom = (name) => new DOMException("x", name);
+        const rejected = (promise) => promise.then(() => null, (error) => error);
+
+        it("requestPrinter without WebUSB is coded unsupported", async () => {
+            vi.stubGlobal("navigator", { usb: undefined });
+            expect(await rejected(requestPrinter())).toMatchObject({ code: "unsupported" });
+        });
+
+        it("getPrinter without WebUSB is coded unsupported", async () => {
+            vi.stubGlobal("navigator", { usb: undefined });
+            expect(await rejected(printBytes(new Uint8Array([1])))).toMatchObject({ code: "unsupported" });
+        });
+
+        it("printBytes with no granted printer is coded not_connected", async () => {
+            vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue([]) } });
+            expect(await rejected(printBytes(new Uint8Array([1])))).toMatchObject({ code: "not_connected" });
+        });
+
+        it("a failed transfer is coded transfer and keeps the browser's error as cause", async () => {
+            const failure = dom("NetworkError");
+            const device = makeDevice({ transferOut: vi.fn().mockRejectedValue(failure) });
+            vi.stubGlobal("navigator", {
+                usb: { requestDevice: vi.fn().mockResolvedValue(device), getDevices: vi.fn().mockResolvedValue([]) },
+            });
+            await requestPrinter();
+
+            const error = await rejected(printBytes(new Uint8Array([1])));
+
+            expect(error).toMatchObject({ code: "transfer", message: "Gagal mengirim data ke printer. Periksa koneksi printer." });
+            expect(error.cause).toBe(failure);
+        });
+
+        it("a claimInterface failure is coded claim_failed, keeps its message and cause, and closes the device", async () => {
+            const failure = dom("NetworkError");
+            const device = makeDevice();
+            device.claimInterface.mockRejectedValue(failure);
+            vi.stubGlobal("navigator", { usb: { requestDevice: vi.fn().mockResolvedValue(device) } });
+
+            const error = await rejected(requestPrinter());
+
+            expect(error).toMatchObject({ code: "claim_failed", message: failure.message });
+            expect(error.cause).toBe(failure);
+            expect(device.close).toHaveBeenCalled();
+        });
+
+        it("an open failure on re-attach is coded claim_failed", async () => {
+            const failure = dom("SecurityError");
+            const device = makeDevice();
+            device.open.mockRejectedValue(failure);
+            vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue([device]) } });
+
+            const error = await rejected(getPrinter());
+
+            expect(error).toMatchObject({ code: "claim_failed" });
+            expect(error.cause).toBe(failure);
+        });
+
+        it("a device without an output interface is coded claim_failed", async () => {
+            const device = makeDevice();
+            device.configuration.interfaces = [];
+            vi.stubGlobal("navigator", { usb: { requestDevice: vi.fn().mockResolvedValue(device) } });
+
+            expect(await rejected(requestPrinter())).toMatchObject({ code: "claim_failed" });
+        });
+    });
 });
 
 describe("buildKitchenTicketBytes", () => {

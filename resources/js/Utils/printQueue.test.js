@@ -351,3 +351,49 @@ describe("createPrintQueue: remove and replace (reconcile)", () => {
         expect(sent).toEqual([2]);
     });
 });
+
+describe("createPrintQueue: failure details (REQ-004 K2)", () => {
+    const failure = (code) => Object.assign(new Error(code), { code });
+
+    it("keeps the error code on the failed head job and clears it once the job prints", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        let error = failure("transfer");
+        const send = vi.fn(async () => {
+            if (error) throw error;
+        });
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a", payload: 1 });
+        queue.enqueue({ key: "b" });
+
+        await queue.drain();
+
+        expect(queue.jobs[0]).toMatchObject({ key: "a", payload: 1, lastError: { code: "transfer", message: "transfer" } });
+        expect(queue.jobs[1].lastError).toBeUndefined();
+
+        error = null;
+        await queue.drain();
+        expect(queue.jobs).toEqual([]);
+    });
+
+    it("updates lastError when the retry fails with another code", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const send = vi.fn().mockRejectedValueOnce(failure("transfer")).mockRejectedValueOnce(failure("not_connected"));
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a" });
+
+        await queue.drain();
+        await queue.drain();
+
+        expect(queue.jobs[0].lastError.code).toBe("not_connected");
+    });
+
+    it("logs the key and the code of a failed job", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const queue = createPrintQueue({ send: vi.fn().mockRejectedValue(failure("claim_failed")) });
+        queue.enqueue({ key: "t7" });
+
+        await queue.drain();
+
+        expect(warn).toHaveBeenCalledWith("kitchen print failed", "t7", "claim_failed");
+    });
+});
