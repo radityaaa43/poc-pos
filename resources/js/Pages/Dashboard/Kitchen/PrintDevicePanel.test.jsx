@@ -255,6 +255,16 @@ describe("PrintDevicePanel: no WebUSB and driver lock (REQ-004 K2)", () => {
         expect(screen.queryByRole("link")).not.toBeInTheDocument();
     });
 
+    it("does not call a saved printer ready when it is not among the connected ones (#410 D5)", async () => {
+        navigator.usb.getDevices = vi.fn().mockResolvedValue([]);
+        withDevice();
+        localStorage.setItem("kitchen.printerKey", "1:2:abc");
+        localStorage.setItem("kitchen.autoPrint", "true");
+        render(<Harness />);
+
+        await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Printer belum terhubung"));
+    });
+
     it("never calls a saved printer ready on a device without USB, and offers no test print", () => {
         delete navigator.usb;
         withDevice();
