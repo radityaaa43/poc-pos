@@ -74,9 +74,10 @@ Since 2026-11-25 the maintainer delegates day-to-day decisions by track:
   each decision with its date and "Business/PM, delegated by the maintainer", and merges `docs` PRs
   that only touch `backlog/`.
 - **The Tech Lead decides the technical track**: architecture, database, implementation, skills and
-  tooling, and the risk review of high-risk PRs.
-- **The Verifier decides whether a ticket is done, and runs the flow**: verification of every PR,
-  merge, the board and its limits, and the flow report.
+  tooling, and the pre-review of every developer PR against its plan (maintainer, 2026-11-28).
+- **The Verifier decides whether a ticket is done, and runs the flow**: all technical review (high
+  risk included) and the business review of every PR, merge, the board and its limits, and the flow
+  report (maintainer, 2026-11-28).
 - **Still the maintainer's call**: irreversible or outward-facing actions outside the repo
   (production data, deploys, paid services, credentials, legal), and weakening a CI gate or a Never
   rule. The maintainer can overrule any decision.
@@ -87,8 +88,8 @@ it on the issue.
 | Role | Does |
 |---|---|
 | **Maintainer** (`@radityaaa43`) | Makes business decisions (through Business/PM), is the Standards owner, can overrule any role or card |
-| **Business / PM** | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, checks feat PRs against their criteria, fills in *Delivered by* ([`handoff.md` → 4](handoff.md#4-business-track-business--pm)) |
-| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, reviews high-risk PRs and the Verifier's own |
+| **Business / PM** | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, answers business questions raised on PRs, fills in *Delivered by* ([`handoff.md` → 4](handoff.md#4-business-track-business--pm)) |
+| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, pre-reviews every developer PR against its plan, reviews the Verifier's own PRs |
 | **Verifier** (also scrum master) | Verifies every PR against its criteria by review and in the running app, merges, keeps the board and its limits, is the only session that polls GitHub, writes the daily flow report ([`handoff.md` → 5](handoff.md#5-flow-track-verifier)) |
 | **Developer** | Builds a planned ticket test-first, verifies it, opens the PR and fixes review findings |
 
@@ -97,9 +98,9 @@ it on the issue.
 | **Backlog** | Business / PM | It meets the business Definition of Ready (below) | Business / PM → Planning |
 | **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
-| **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → Technical review |
-| **Technical review** | Verifier | The Verifier's verdict is VERIFIED (and the Tech Lead's risk review passed, on a high-risk ticket). A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here | Verifier → Business review ([`handoff.md`](handoff.md) → 3); or merges |
-| **Business review** | Business / PM | Business / PM's AC check is OK and CI is green. On a failed check the card goes back to In progress | Verifier merges |
+| **In progress** | Developer | A PR with `Closes #<n>` is open, CI is green, and the Tech Lead's pre-review against the plan passed | Tech Lead → Technical review |
+| **Technical review** | Verifier | The Verifier's verdict is VERIFIED (high-risk checks included). A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here, after the `Verifier` status | Verifier → Business review ([`handoff.md`](handoff.md) → 3); or merges |
+| **Business review** | Verifier | The Verifier's AC check (`AC check — Business review (verifier)`) is OK, CI is green, and the `Verifier` status is posted on the head commit. On a failed check the card goes back to In progress | Verifier merges |
 | **Done** | Verifier | — | The *Item closed* workflow; the Verifier checks it, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
 
 New issues land in Backlog. Dependencies stay as `Blocked by #<n>` and sub-issues; there is no
