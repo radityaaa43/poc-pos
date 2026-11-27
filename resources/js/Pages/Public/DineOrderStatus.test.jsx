@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
+import i18n from "@/i18n";
 import DineOrderStatus from "./DineOrderStatus";
 
 vi.mock("@inertiajs/react", () => ({ Head: () => null }));
@@ -12,7 +13,24 @@ const label = (order) => {
     return screen.getByTestId("dine-status").textContent;
 };
 
+beforeAll(() => i18n.changeLanguage("id"));
+
 describe("DineOrderStatus", () => {
+    it.each(["accepted", "preparing", "ready", "served"])("offers Tambah pesanan while the order is %s", (status) => {
+        const route = vi.spyOn(globalThis, "route");
+        render(<DineOrderStatus order={{ ...base, status }} table={table} storeName="Toko" />);
+
+        expect(screen.getByRole("link", { name: "Tambah pesanan" })).toBeInTheDocument();
+        expect(route).toHaveBeenCalledWith("dine.menu", { token: "t", add_on_to: "tok" });
+        route.mockRestore();
+    });
+
+    it.each(["submitted", "completed", "rejected", "cancelled"])("offers no add-on for a %s order", (status) => {
+        render(<DineOrderStatus order={{ ...base, status }} table={table} storeName="Toko" />);
+
+        expect(screen.queryByRole("link", { name: "Tambah pesanan" })).not.toBeInTheDocument();
+    });
+
     it.each([
         ["submitted", "Menunggu Konfirmasi"],
         ["accepted", "Menunggu Pembayaran"],

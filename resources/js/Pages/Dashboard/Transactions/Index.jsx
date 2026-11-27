@@ -17,6 +17,7 @@ import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
+import AddOnBanner from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
@@ -68,6 +69,7 @@ export default function Index({
     warehouses = [],
     loyaltyTierOptions = [],
     payLaterEnabled = false,
+    addOn = null,
 }) {
     const {
         auth,
@@ -377,6 +379,7 @@ export default function Index({
             notes: shiftNotesInput,
             warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
+            add_on_to: new URLSearchParams(window.location.search).get("add_on_to") || undefined,
         });
     };
 
@@ -393,6 +396,7 @@ export default function Index({
                 sell_price: unit ? unit.sell_price : product.sell_price,
                 qty: 1,
                 unit_id: unit ? unit.unit_id : undefined,
+                add_on_to: addOn?.invoice,
             },
             {
                 preserveScroll: true,
@@ -743,11 +747,14 @@ export default function Index({
 
         setIsSubmitting(true);
 
-        if (!navigator.onLine && (splitMode || payLater)) {
+        if (!navigator.onLine && (splitMode || payLater || addOn)) {
+            // An add-on needs the original order from the server, so it is never queued.
             toast.error(
-                splitMode
-                    ? "Split pembayaran tidak tersedia saat offline"
-                    : i18n.t("pos.payLater.offline")
+                addOn
+                    ? i18n.t("addOn.offline")
+                    : splitMode
+                      ? "Split pembayaran tidak tersedia saat offline"
+                      : i18n.t("pos.payLater.offline")
             );
             setIsSubmitting(false);
             return;
@@ -829,6 +836,7 @@ export default function Index({
                 due_date: dueDate,
                 order_type: orderType,
                 note: orderNote || null,
+                add_on_to: addOn?.invoice,
             },
             {
                 onSuccess: () => {
@@ -851,7 +859,7 @@ export default function Index({
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.add_on_to || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1061,6 +1069,8 @@ export default function Index({
                             tierOptions={loyaltyTierOptions}
                         />
                     </div>
+
+                    <AddOnBanner addOn={addOn} />
 
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 

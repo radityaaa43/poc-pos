@@ -55,66 +55,47 @@ class KitchenAddOnGroupTest extends TestCase
         ]);
     }
 
-    // BR-2, TC-6
+    // BR-2, TC-6: one card, aged by its oldest item; Belum lunas stays with the sale that owes
     public function test_kitchen_query_groups_add_on_items_under_the_root(): void
     {
         $root = $this->sale('INV-ROOT');
         $first = $this->item($root, minutesAgo: 10);
         $other = $this->sale('INV-OTHER');
         $this->item($other, minutesAgo: 5);
-        $addOn = $this->sale('INV-ADD', parent: $root);
+        $addOn = $this->sale('INV-ADD', parent: $root, status: 'unpaid');
         $second = $this->item($addOn, minutesAgo: 1);
 
         $this->display()->assertInertia(fn (Assert $page) => $page
             ->has('orders', 2)
             ->where('orders.0.id', $root->id)
+            ->where('orders.0.unpaid', false)
+            ->where('orders.0.since', $first->accepted_at->toJSON())
             ->has('orders.0.items', 2)
             ->where('orders.0.items.0.id', $first->id)
             ->missing('orders.0.items.0.add_on')
             ->where('orders.0.items.1.id', $second->id)
             ->where('orders.0.items.1.add_on.id', $addOn->id)
+            ->where('orders.0.items.1.add_on.unpaid', true)
             ->where('orders.1.id', $other->id)
         );
     }
 
-    // BR-8: the card keeps the original order's number, also once the original's own items are gone
+    // BR-8: the card keeps the original order's number (invoice or table), also once the original's own items are gone
     public function test_add_on_shows_under_the_original_invoice(): void
     {
         $root = $this->sale('INV-ROOT');
         $this->item($root, status: KitchenItem::STATUS_SERVED);
         $addOn = $this->sale('INV-ADD', parent: $root);
-        $this->item($addOn);
+        $this->item($addOn, minutesAgo: 2);
+        $this->item($this->sale('INV-ADD-2', parent: $this->sale('INV-TABLE', table: 'Meja 4')));
 
         $this->display()->assertInertia(fn (Assert $page) => $page
-            ->has('orders', 1)
+            ->has('orders', 2)
             ->where('orders.0.id', $root->id)
             ->where('orders.0.number', 'INV-ROOT')
             ->where('orders.0.items.0.add_on.id', $addOn->id)
-        );
-    }
-
-    public function test_a_dine_in_original_names_the_card_by_its_table(): void
-    {
-        $root = $this->sale('INV-ROOT', table: 'Meja 4');
-        $addOn = $this->sale('INV-ADD', parent: $root);
-        $this->item($addOn);
-
-        $this->display()->assertInertia(fn (Assert $page) => $page
-            ->where('orders.0.number', 'Meja 4')
-            ->where('orders.0.type', 'dine_in')
-        );
-    }
-
-    public function test_the_card_age_is_its_oldest_item_and_the_unpaid_mark_stays_with_its_sale(): void
-    {
-        $root = $this->sale('INV-ROOT');
-        $oldest = $this->item($root, minutesAgo: 10);
-        $this->item($this->sale('INV-ADD', parent: $root, status: 'unpaid'), minutesAgo: 2);
-
-        $this->display()->assertInertia(fn (Assert $page) => $page
-            ->where('orders.0.unpaid', false)
-            ->where('orders.0.items.1.add_on.unpaid', true)
-            ->where('orders.0.since', $oldest->accepted_at->toJSON())
+            ->where('orders.1.number', 'Meja 4')
+            ->where('orders.1.type', 'dine_in')
         );
     }
 

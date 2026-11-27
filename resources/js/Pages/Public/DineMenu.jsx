@@ -61,11 +61,17 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
         setSubmitting(true);
         router.post(
             route("dine-order.store", table.token),
-            { items: cart, notes, payment_option: paymentOption },
+            {
+                items: cart,
+                notes,
+                payment_option: paymentOption,
+                // Set when the guest came from an order status page ("Tambah pesanan", #251); the server checks it.
+                add_on_to: new URLSearchParams(window.location.search).get("add_on_to") || undefined,
+            },
             {
                 onSuccess: () => setSubmitting(false),
                 onError: (errors) => {
-                    toast.error(errors.order ?? "Gagal mengirim pesanan.");
+                    toast.error(errors.add_on_to ?? errors.order ?? "Gagal mengirim pesanan.");
                     setSubmitting(false);
                 },
             }

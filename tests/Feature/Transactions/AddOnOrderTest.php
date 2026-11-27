@@ -85,6 +85,9 @@ class AddOnOrderTest extends TestCase
         $log = AuditLog::where('event', 'transaction.add_on_created')->sole();
         $this->assertSame($addOn->id, (int) $log->auditable_id);
         $this->assertSame($original->id, $log->meta['parent_transaction_id']);
+        // BR-8: the add-on's receipt names the original order.
+        $this->actingAs($this->cashier)->get(route('transactions.print', $addOn->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('transaction.parent.invoice', $original->invoice));
     }
 
     // TC-1: the link always points at the root
@@ -117,22 +120,13 @@ class AddOnOrderTest extends TestCase
     public function test_add_on_in_another_outlet_is_refused(): void
     {
         [, $warehouseB] = $this->outletWithWarehouse('B');
-        $elsewhere = $this->existingSale($warehouseB, 'unpaid');
+        $near = Warehouse::create(['outlet_id' => $this->outlet->id, 'code' => 'WH-A2', 'name' => 'Gudang A2', 'type' => 'branch', 'is_active' => true]);
 
-        $this->assertRefused($elsewhere->invoice, 'Buka shift di outlet pesanan ini');
-    }
-
-    public function test_add_on_from_another_warehouse_of_the_same_outlet_is_linked(): void
-    {
-        $second = Warehouse::create(['outlet_id' => $this->outlet->id, 'code' => 'WH-A2', 'name' => 'Gudang A2', 'type' => 'branch', 'is_active' => true]);
-        $original = $this->existingSale($second, 'unpaid');
-
-        $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
-    }
-
-    public function test_add_on_to_an_unknown_order_is_refused(): void
-    {
+        $this->assertRefused($this->existingSale($warehouseB, 'unpaid')->invoice, 'Buka shift di outlet pesanan ini');
         $this->assertRefused('TRX-TIDAKADA', 'Pesanan asal tidak ditemukan');
+        // Any warehouse of the shift's outlet will do; money still owed keeps an order open (BR-9).
+        $original = $this->existingSale($near, 'unpaid');
+        $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
     }
 
     // BR-4
@@ -249,14 +243,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(0, AuditLog::where('event', 'transaction.add_on_created')->count());
     }
 
-    // BR-9: money still owed keeps the order open even with nothing left in the kitchen
-    public function test_add_on_to_a_served_but_unpaid_order_is_linked(): void
-    {
-        $original = $this->existingSale($this->warehouse, 'unpaid');
-
-        $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
-    }
-
     // BR-7, BR-11
     public function test_add_on_to_a_cancelled_order_is_refused(): void
     {
@@ -339,16 +325,10 @@ class AddOnOrderTest extends TestCase
 
         $this->actingAs($this->cashier)->post(route('transactions.store'), ['payment_gateway' => 'midtrans', 'add_on_to' => $original->invoice])
             ->assertRedirect($withAddOn);
-    }
 
-    // BR-8: the add-on's receipt names the original order
-    public function test_receipt_of_an_add_on_names_the_original_invoice(): void
-    {
-        $original = $this->sell();
-        $addOn = $this->addOnTo($original);
-
-        $this->actingAs($this->cashier)->get(route('transactions.print', $addOn->invoice))
-            ->assertInertia(fn (Assert $page) => $page->where('transaction.parent.invoice', $original->invoice));
+        $this->actingAs($this->admin)->post(route('cashier-shifts.store'), [
+            'opening_cash' => 0, 'warehouse_id' => $this->warehouse->id, 'redirect_to' => 'transactions', 'add_on_to' => $original->invoice,
+        ])->assertRedirect($withAddOn);
     }
 
     // TC-1

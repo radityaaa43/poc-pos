@@ -75,16 +75,8 @@ class AddOnQrTest extends TestCase
 
         $this->assertSame($original->transaction_id, $addOn->transaction->parent_transaction_id);
         $this->assertSame($addOn->transaction_id, (int) AuditLog::where('event', 'transaction.add_on_created')->sole()->auditable_id);
-    }
-
-    public function test_qr_add_on_of_an_add_on_links_to_the_root(): void
-    {
-        $original = $this->accept($this->order());
-        $first = $this->accept($this->order(from: $original));
-
-        $second = $this->accept($this->order(from: $first));
-
-        $this->assertSame($original->transaction_id, $second->transaction->parent_transaction_id);
+        // An add-on of an add-on joins the root order.
+        $this->assertSame($original->transaction_id, $this->accept($this->order(from: $addOn))->transaction->parent_transaction_id);
     }
 
     // BR-10: the table alone never links two orders
@@ -135,26 +127,7 @@ class AddOnQrTest extends TestCase
         $this->assertSame(1, DineOrder::count());
     }
 
-    // BR-11
-    public function test_qr_add_on_to_cancelled_original_is_refused_at_submit(): void
-    {
-        $rejected = $this->order();
-        $rejected->update(['status' => DineOrder::STATUS_REJECTED]);
-        $cancelled = $this->accept($this->order());
-        $cancelled->update(['status' => DineOrder::STATUS_CANCELLED]);
-        $failed = $this->accept($this->order());
-        $failed->transaction->update(['payment_status' => 'failed']);
-
-        foreach ([$rejected, $cancelled, $failed] as $original) {
-            $this->postJson(route('dine-order.store', $this->table->token), $this->payload($original->access_token))
-                ->assertStatus(422)
-                ->assertJsonValidationErrors(['add_on_to' => self::CANCELLED]);
-        }
-
-        $this->assertSame(3, DineOrder::count());
-    }
-
-    // BR-11: cancelled between the guest's submit and the cashier's accept
+    // BR-11: cancelled between the guest's submit and the cashier's accept; a new submit is refused too
     public function test_qr_add_on_to_cancelled_original_is_refused_at_accept(): void
     {
         $cases = [
@@ -178,6 +151,9 @@ class AddOnQrTest extends TestCase
             $this->assertNull($addOn->fresh()->transaction_id, $case);
             $this->assertSame($sales, Transaction::count(), $case);
             $this->assertSame($stock, (int) $this->nasi->fresh()->stock, $case);
+            $this->postJson(route('dine-order.store', $this->table->token), $this->payload($original->access_token))
+                ->assertStatus(422)
+                ->assertJsonValidationErrors(['add_on_to' => self::CANCELLED]);
         }
     }
 

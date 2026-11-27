@@ -17,14 +17,17 @@ import ThermalReceipt, {
 } from "@/Components/Receipt/ThermalReceipt";
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
+import AddOnButton from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
+import { useTranslation } from "react-i18next";
 
 export default function Print({ transaction, retryable, bankAccounts, paymentGateways }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
+    const { t } = useTranslation();
     const [printMode, setPrintMode] = useState("invoice"); // 'invoice' | 'thermal80' | 'thermal58'
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -338,6 +341,8 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                         </Link>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                            <AddOnButton transaction={transaction} />
+
                             {/* Print Mode Selector */}
                             <div className="flex bg-slate-200 dark:bg-slate-800 rounded-xl p-1 w-full sm:w-auto">
                                 <button
@@ -605,6 +610,11 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                             <p className="text-lg sm:text-2xl font-bold leading-tight">
                                                 {transaction.invoice}
                                             </p>
+                                            {transaction.parent && (
+                                                <p className="text-xs sm:text-sm font-medium">
+                                                    {t("addOn.receipt", { invoice: transaction.parent.invoice })}
+                                                </p>
+                                            )}
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at

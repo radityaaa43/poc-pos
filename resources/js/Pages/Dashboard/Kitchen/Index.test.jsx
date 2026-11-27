@@ -918,5 +918,29 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
             expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         });
+        });
+    });
+});
+
+describe("add-on orders (#251)", () => {
+    it("shows an add-on's items under one Tambahan heading inside the original order, with its own unpaid mark", () => {
+        const add_on = { id: 11, since: minutesAgo(1), unpaid: true };
+        const items = [
+            { id: 3, title: "Mie Ayam", qty: 1, status: "accepted" },
+            { id: 4, title: "Es Jeruk", qty: 1, status: "ready", add_on },
+            { id: 5, title: "Kopi", qty: 1, status: "accepted", add_on },
+        ];
+
+        render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+        expect(screen.getAllByRole("article")).toHaveLength(1);
+        const [mie, part, jeruk, kopi] = screen.getAllByRole("listitem");
+        expect(mie).toHaveTextContent("Mie Ayam");
+        expect(within(part).getByRole("heading", { name: "Tambahan" })).toBeInTheDocument();
+        expect(part).toHaveTextContent("Belum lunas");
+        expect(part).toHaveTextContent("1 menit");
+        expect(jeruk).toHaveTextContent("Es Jeruk");
+        expect(kopi).toHaveTextContent("Kopi");
+        expect(screen.getAllByText("Belum lunas")).toHaveLength(1);
     });
 });

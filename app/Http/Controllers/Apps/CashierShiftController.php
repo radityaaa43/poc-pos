@@ -105,7 +105,7 @@ class CashierShiftController extends Controller
         );
 
         $target = $request->input('redirect_to') === 'transactions'
-            ? route('transactions.index')
+            ? route('transactions.index', $request->only('add_on_to')) // a pinned add-on survives opening the shift
             : route('cashier-shifts.show', $shift);
 
         return redirect($target)->with('success', 'Shift kasir berhasil dibuka.');

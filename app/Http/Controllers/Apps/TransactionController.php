@@ -756,7 +756,7 @@ class TransactionController extends Controller
     public function print(Request $request, $invoice)
     {
         // get transaction
-        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders', 'parent:id,invoice', 'dineOrder:id,transaction_id')
+        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders', 'parent:id,invoice')
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);
