@@ -438,6 +438,56 @@ describe("useKitchenPrintDevice: print defects (#410)", () => {
         expect(printBytes).toHaveBeenCalledTimes(1);
     });
 
+    it("D4: a failing ticket record does not hold back the cancellation record", async () => {
+        localStorage.setItem("kitchen.unconfirmed", "[11]");
+        localStorage.setItem("kitchen.unconfirmedCancellations", "[7]");
+        tickets = [];
+        axios.post.mockImplementation(async (url) => {
+            if (!url.includes("cancellation-prints")) throw new Error("offline");
+            return { status: 204 };
+        });
+        mount();
+        await flush();
+
+        expect(axios.post.mock.calls.map((call) => call[1].cancellation_ids).filter(Boolean)).toEqual([[7]]);
+    });
+
+    it("D6: a claim that never answers fails the send, and printing resumes after off and on", async () => {
+        const { printBytes: send } = await vi.importActual("@/Utils/escpos");
+        printBytes.mockImplementation(send);
+        tickets = [ticket(1, [11])];
+        const device = {
+            key: "1:2:abc",
+            vendorId: 1,
+            productId: 2,
+            serialNumber: "abc",
+            opened: false,
+            configuration: {
+                interfaces: [
+                    { interfaceNumber: 0, alternates: [{ interfaceClass: 7, endpoints: [{ direction: "out", endpointNumber: 2 }] }] },
+                ],
+            },
+            open: vi.fn(async () => (device.opened = true)),
+            close: vi.fn(async () => (device.opened = false)),
+            claimInterface: vi.fn(() => new Promise(() => {})),
+            transferOut: vi.fn().mockResolvedValue({ status: "ok" }),
+        };
+        usb.getDevices = vi.fn().mockResolvedValue([device]);
+        const { result } = mount();
+        await flush();
+
+        act(() => result.current.setAutoPrint(false));
+        act(() => result.current.setAutoPrint(true));
+        await advance(35000);
+
+        expect(device.claimInterface.mock.calls.length).toBeGreaterThan(1);
+        expect(result.current.status).toBe("failed");
+        device.claimInterface.mockResolvedValue(undefined);
+        await advance(30000);
+
+        expect(postedIds()).toEqual([[11]]);
+    });
+
     it("D2: leaving the page during a send and coming back prints it once", async () => {
         tickets = [ticket(1, [11])];
         let release;

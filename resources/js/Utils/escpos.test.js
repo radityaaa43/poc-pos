@@ -253,6 +253,26 @@ describe("printer connection", () => {
             }
         }, 4000);
 
+        it("a claim that never answers fails the send after 15 s, closes the device and prints nothing later (#410 D6)", async () => {
+            const device = makeDevice();
+            let claim;
+            device.claimInterface.mockImplementation(() => new Promise((resolve) => (claim = resolve)));
+            vi.stubGlobal("navigator", { usb: { getDevices: vi.fn().mockResolvedValue([device]) } });
+            vi.useFakeTimers();
+            try {
+                const outcome = rejected(printBytes(new Uint8Array([1])));
+                await vi.advanceTimersByTimeAsync(15000);
+
+                expect(await outcome).toMatchObject({ code: "transfer" });
+                expect(device.close).toHaveBeenCalled();
+                claim(); // the late answer
+                await vi.advanceTimersByTimeAsync(0);
+                expect(device.transferOut).not.toHaveBeenCalled();
+            } finally {
+                vi.useRealTimers();
+            }
+        }, 4000);
+
         it("a claimInterface failure is coded claim_failed, keeps its message and cause, and closes the device", async () => {
             const failure = dom("NetworkError");
             const device = makeDevice();

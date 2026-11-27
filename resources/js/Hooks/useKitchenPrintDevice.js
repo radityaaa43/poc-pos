@@ -245,14 +245,15 @@ export function useKitchenPrintDevice(outlet) {
             try {
                 // A record call that fails keeps its ids for the next tick and warns; the poll still runs, and
                 // the unconfirmed ids keep their tickets from printing again. A dead session ends it, as below.
-                try {
-                    await confirm(readUnconfirmed());
-                    await confirmCancellations(readUnconfirmedCancellations());
-                    setRecordFailed(false);
-                } catch (error) {
-                    if (ENDED.includes(error?.response?.status)) throw error;
-                    setRecordFailed(true);
-                }
+                // The two record calls fail separately: one never skips the other.
+                const records = await Promise.allSettled([
+                    confirm(readUnconfirmed()),
+                    confirmCancellations(readUnconfirmedCancellations()),
+                ]);
+                const failures = records.filter((record) => record.status === "rejected").map((record) => record.reason);
+                const ended = failures.find((error) => ENDED.includes(error?.response?.status));
+                if (ended) throw ended;
+                setRecordFailed(failures.length > 0);
                 const { data } = await axios.get(route("kitchen.print-devices.tickets", deviceId));
 
                 // A job that is queued or failed (not sending) was built from an older poll: drop it when its
