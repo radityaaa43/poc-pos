@@ -124,6 +124,29 @@ class CashierShiftService
         // Split payments: non-cash portion = grand_total minus cash tenders.
         $nonCashSalesTotal -= $splitCashTenderTotal;
 
+        // A return completed before an open bill (pay-later or dine-in) was paid refunded nothing: that part was never
+        // received, so it comes off the bucket the sale is counted in. Any other sale was asked for its grand total.
+        // shortcut: a return completed while the bill's charge or transfer was already waiting comes off too, although the
+        // full amount may still arrive; telling them apart needs the time the money was asked, when one is stored.
+        $neverReceived = fn ($sales) => (int) SalesReturn::query()
+            ->where('status', 'completed')
+            ->where('refund_amount', 0)
+            ->where('credited_amount', 0)
+            ->whereIn('transaction_id', $sales
+                ->where(fn ($openBills) => $openBills->where('is_pay_later', true)->orWhereHas('dineOrder'))
+                ->doesntHave('receivable')
+                ->select('id'))
+            ->sum('total_return_amount');
+
+        $cashSalesTotal -= $neverReceived((clone $transactions)
+            ->where('payment_method', 'cash')
+            ->where('payment_status', 'paid'));
+        $nonCashSalesTotal -= $neverReceived((clone $transactions)
+            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
+            ->where(fn ($sales) => $sales
+                ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
+                ->orWhere('payment_status', 'paid')));
+
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')
             ->sum('refund_amount');

@@ -839,7 +839,8 @@ class TransactionController extends Controller
         });
 
         if ($salesReturnTablesReady) {
-            $query->with('details.salesReturnItems.salesReturn:id,status');
+            $query->with('details.salesReturnItems.salesReturn:id,status')
+                ->withSum(['salesReturns as returned_total' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount');
         }
 
         if (! $request->user()->isSuperAdmin()) {
@@ -889,6 +890,8 @@ class TransactionController extends Controller
             return [
                 ...$transaction->toArray(),
                 'can_create_sales_return' => $canCreateSalesReturn,
+                // what an open bill still owes: the "Bayar" modal asks this, not the grand total
+                'owed_total' => max(0, (int) $transaction->grand_total - (int) $transaction->getAttribute('returned_total')),
             ];
         });
 

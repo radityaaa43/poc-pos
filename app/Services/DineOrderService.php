@@ -274,13 +274,17 @@ class DineOrderService
                 ]);
             }
 
+            if (! Transaction::whereKey($transaction->id)->notFullyReturned()->exists() || $transaction->remainingTotal() < 1) {
+                throw ValidationException::withMessages(['order' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);
+            }
+
             $guestAttempt = (int) $transaction->payment_attempt;
             $guestReference = $transaction->payment_reference;
 
             // claim() moves the attempt counter, so the guest's charge is superseded in the same transaction as the payment.
             // Invalid input rolls everything back. The cashier's gateway call comes after the commit: if it fails, the
             // guest's charge stays superseded and the bill is failed and payable.
-            $claim = $this->settlementService->claim($transaction, $cashier, $shift, $outlet, $tenderInput);
+            $claim = $this->settlementService->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $transaction->remainingTotal());
 
             if ($takeover) {
                 // After this commit, and whatever becomes of the cashier's own charge.

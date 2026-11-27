@@ -79,7 +79,7 @@ const OpenBillStatus = ({ transaction, canPay, onPay }) => (
                             order_id: transaction.dine_order.id,
                             invoice: transaction.invoice,
                             table: transaction.dine_order.table?.name,
-                            grand_total: transaction.grand_total,
+                            amount: transaction.owed_total,
                         })
                     }
                     className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
