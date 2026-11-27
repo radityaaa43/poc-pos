@@ -19,6 +19,7 @@ class UnpaidSaleCancellationService
     public function cancel(Transaction $sale, string $mutationNote, string $saleNote): void
     {
         $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
+        $this->lockStockRows($sale);
 
         foreach ($sale->details as $detail) {
             $product = $detail->product;
@@ -59,6 +60,21 @@ class UnpaidSaleCancellationService
             'payment_status' => 'failed',
             'note' => trim(($sale->note ? $sale->note.' | ' : '').$saleNote),
         ]);
+    }
+
+    /**
+     * Locks the stock rows the restock writes (warehouse rows then products, checkout's order, by product id), so
+     * each mutation records the before and after this restock really made.
+     */
+    private function lockStockRows(Transaction $sale): void
+    {
+        $ids = $sale->details
+            ->flatMap(fn ($detail) => [$detail->product_id, ...($detail->product ? $detail->product->components->modelKeys() : [])])
+            ->unique()->sort()->values();
+
+        DB::table('product_warehouse')->where('warehouse_id', $sale->warehouse_id)->whereIn('product_id', $ids)
+            ->orderBy('product_id')->lockForUpdate()->get();
+        DB::table('products')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
     }
 
     private function restock($product, ?int $warehouseId, int $qty): void

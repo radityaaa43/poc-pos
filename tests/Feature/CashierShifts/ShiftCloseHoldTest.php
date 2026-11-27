@@ -312,6 +312,35 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertTrue($report['empty']);
     }
 
+    public function test_credit_sale_with_an_expired_portal_charge_stays_in_the_recap(): void
+    {
+        $credit = $this->sale($this->shift, 'pay_later', 'failed', ['is_pay_later' => true]);
+        Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 20000, 'status' => 'unpaid']);
+
+        $this->close($this->shift)->assertSessionHasNoErrors();
+
+        $this->assertSame(1, $this->shift->fresh()->transactions_count);
+        $this->assertSame(20000, $this->shift->fresh()->non_cash_sales_total);
+    }
+
+    public function test_restock_locks_the_stock_rows(): void
+    {
+        $this->sale($this->shift, 'qris', 'pending');
+
+        DB::enableQueryLog();
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $lock = $first('/^select \* from [`"]product_warehouse[`"] where [`"]warehouse_id[`"]/');
+        $this->assertIsInt($lock);
+        $this->assertLessThan($first('/^update [`"]product_warehouse[`"]/'), $lock);
+        if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
+            $this->assertStringContainsString('for update', strtolower($queries[$lock]));
+        }
+    }
+
     public function test_unpaid_bills_total_migration_rolls_back(): void
     {
         $migration = require database_path('migrations/2026_12_08_100001_add_unpaid_bills_total_to_cashier_shifts_table.php');
