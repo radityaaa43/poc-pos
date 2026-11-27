@@ -251,7 +251,7 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
   `transaction.gateway_charge_failed`. If that charge is paid after all and the bill is still `open_bill`, the webhook
   records the gateway as its payment method, so the shift's non-cash total includes it.
 - When a cashier's gateway charge fails (at once, or by the gateway's failure or expiry notification), the payments flagged
-  on that bill are checked again (`recheckFlaggedPayments`): the oldest that is still due is booked (bill unpaid, no pending
+  while that charge was pending are checked again (`recheckFlaggedPayments`): the oldest that is still due is booked (bill unpaid, no pending
   or paid tender, the amount equals what is owed, not restocked; audit `payment.late_after_failed` with `rechecked`), and any
   other keeps its refund flag, audited `payment.late_rechecked` with the reason.
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil

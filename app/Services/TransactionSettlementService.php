@@ -220,11 +220,7 @@ class TransactionSettlementService
             : Arr::only($before, ['payment_status', 'payment_failure_reason']);
         $meta = ['attempt' => (int) $transaction->payment_attempt, 'method' => $tender?->method, 'exception' => $exception::class];
 
-        DB::transaction(function () use ($claim, $transaction, $before, $status, $meta) {
-            // The re-check below may book a payment: take the webhook's locks, in its order (shift, dine order, bill).
-            $shift = $before['cashier_shift_id'] ? CashierShift::whereKey($before['cashier_shift_id'])->sharedLock()->first() : null;
-            DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->value('id');
-
+        $restored = DB::transaction(function () use ($claim, $transaction, $before, $status, $meta) {
             $restored = Transaction::storeChargeResult($transaction->id, $meta['attempt'], [
                 ...Arr::only($before, self::RESTORED),
                 ...$status,
@@ -251,16 +247,32 @@ class TransactionSettlementService
                 actor: $claim['cashier'],
             );
 
-            if ($restored) {
-                // BR-4: payments flagged because this charge was pending. A savepoint: a failure keeps the restore.
-                rescue(fn () => DB::transaction(fn () => app(PaymentWebhookController::class)->recheckFlaggedPayments(
-                    Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail(), $shift, 'cashier_charge_failed',
-                )));
-            }
+            return $restored;
         });
+
+        if ($restored) {
+            // BR-4: payments flagged because this charge was pending. Not nested in the restore: a MySQL deadlock rolls
+            // back the whole transaction, and a savepoint does not survive it. A failure is reported and keeps the flags.
+            rescue(fn () => $this->recheckFlagged($transaction->id, $before['cashier_shift_id'], $meta['attempt']));
+        }
 
         throw ValidationException::withMessages([
             'tenders' => $refused ? $exception->getMessage() : 'Gagal menghubungi gateway pembayaran. Coba lagi.',
         ]);
+    }
+
+    /** The re-check may book a payment, so it takes the webhook's locks in its order: shift, dine order, bill. */
+    private function recheckFlagged(int $billId, ?int $shiftId, int $attempt): void
+    {
+        DB::transaction(function () use ($billId, $shiftId, $attempt) {
+            $shift = $shiftId ? CashierShift::whereKey($shiftId)->sharedLock()->first() : null;
+            DineOrder::where('transaction_id', $billId)->lockForUpdate()->value('id');
+            $bill = Transaction::whereKey($billId)->lockForUpdate()->firstOrFail();
+
+            // A newer claim took the bill meanwhile: it holds it now, and moved it to its own shift.
+            if ($bill->payment_attempt === $attempt) {
+                app(PaymentWebhookController::class)->recheckFlaggedPayments($bill, $shift, 'cashier_charge_failed', $attempt);
+            }
+        });
     }
 }

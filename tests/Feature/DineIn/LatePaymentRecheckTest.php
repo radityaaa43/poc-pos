@@ -5,12 +5,16 @@ namespace Tests\Feature\DineIn;
 use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Models\AuditLog;
 use App\Models\KitchenItem;
+use App\Models\SalesReturn;
 use App\Models\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
+use RuntimeException;
 use Tests\Feature\DineIn\Concerns\MakesDineBills;
 use Tests\TestCase;
 
@@ -127,6 +131,51 @@ class LatePaymentRecheckTest extends TestCase
         $this->assertSame([], $this->booked());
     }
 
+    public function test_a_flag_from_an_earlier_charge_stays_flagged_when_a_later_charge_ends(): void
+    {
+        // Both kinds of flag, raised while attempt 2 was pending: an older charge paid, and an order id above the bill's.
+        $bill = $this->flaggedWhileTheCashierCharges(amount: 20000);
+        $this->notify('midtrans', "{$bill->invoice}-r9", 'paid', amount: 20000)->assertOk();
+        $this->assertSame([2], AuditLog::where('event', 'payment.late_superseded')->get()->pluck('meta.bill_attempt')->all());
+        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // amount differs: both stay, refunded by hand
+        // A return makes the bill owe exactly that amount, and the cashier's next charge expires too.
+        SalesReturn::create([
+            'code' => 'SR-RECHECK', 'transaction_id' => $bill->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
+            'return_type' => 'refund_cash', 'refund_amount' => 5000, 'credited_amount' => 0, 'total_return_amount' => 5000,
+            'completed_at' => now(),
+        ]);
+        $this->cashierPays($bill->dineOrder()->sole(), 'qris');
+
+        $this->notify('midtrans', "{$bill->invoice}-r3", 'expired')->assertOk();
+
+        $bill->refresh();
+        $this->assertSame(['failed', 20000], [$bill->payment_status, $bill->remainingTotal()]);
+        $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertSame([], $this->booked());
+        $this->assertSame(2, AuditLog::where('event', 'payment.late_rechecked')->count()); // from attempt 2 only
+    }
+
+    public function test_a_failing_recheck_runs_on_its_own_leaves_the_restore_and_is_reported(): void
+    {
+        Exceptions::fake();
+        $baseline = DB::transactionLevel();
+        $level = null;
+        $this->partialMock(PaymentWebhookController::class)->shouldReceive('recheckFlaggedPayments')->once()
+            ->andReturnUsing(function () use (&$level) {
+                $level = DB::transactionLevel();
+
+                throw new RuntimeException('deadlock');
+            });
+
+        $bill = $this->cashierChargeRefusedAfterTheGuestPaid();
+
+        // Not nested in the restore's transaction: a deadlock there would take the restore with it.
+        $this->assertSame($baseline + 1, $level);
+        $this->assertSame(['failed', 'gateway_error', 0], [$bill->payment_status, $bill->payment_failure_reason, $bill->tenders()->count()]);
+        $this->assertNotNull($bill->late_superseded_payment_at); // the flag is still there for a refund by hand
+        Exceptions::assertReported(RuntimeException::class);
+    }
+
     public function test_recheck_never_books_twice_on_redelivery(): void
     {
         $bill = $this->flaggedWhileTheCashierCharges();
@@ -134,7 +183,7 @@ class LatePaymentRecheckTest extends TestCase
 
         $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk();
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
-        app(PaymentWebhookController::class)->recheckFlaggedPayments($bill->fresh(), null, 'expired');
+        app(PaymentWebhookController::class)->recheckFlaggedPayments($bill->fresh(), null, 'expired', 2);
 
         $this->assertCount(1, $this->booked());
         $this->assertSame(0, AuditLog::where('event', 'payment.late_rechecked')->count()); // a booked key is no flag any more
@@ -163,7 +212,7 @@ class LatePaymentRecheckTest extends TestCase
         $this->assertSame(0, $bill->tenders()->count());
 
         foreach (['expired', 'expired'] as $trigger) {
-            app(PaymentWebhookController::class)->recheckFlaggedPayments($bill->fresh(), null, $trigger);
+            app(PaymentWebhookController::class)->recheckFlaggedPayments($bill->fresh(), null, $trigger, 3);
         }
 
         $this->assertCount(1, $this->booked());

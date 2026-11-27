@@ -511,6 +511,26 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->assertFalse(AuditLog::where('event', self::EXPIRED)->sole()->meta['settled_during_call']);
     }
 
+    public function test_a_recheck_booking_another_charge_during_the_call_leaves_the_expiry_recorded(): void
+    {
+        $bill = null;
+        $this->gatewayAnswering('midtrans', function () use (&$bill) {
+            // The cashier's QR expires meanwhile: the flagged payment of r1 is booked and the refund marker cleared.
+            $this->notify('midtrans', "{$bill->invoice}-r3", 'expired');
+
+            return Http::response(['status_code' => '407'], 200);
+        });
+        $bill = $this->supersededCharge(); // guest taps r1 and r2
+        $this->cashierPays($bill->dineOrder()->sole(), 'qris'); // r3, pending
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
+        $this->assertNotNull($bill->fresh()->late_superseded_payment_at);
+
+        $this->work($this->jobFor($bill, attempt: 2));
+
+        $this->assertSame(['paid', null], [$bill->fresh()->payment_status, $bill->fresh()->late_superseded_payment_at]);
+        $this->assertFalse(AuditLog::where('event', self::EXPIRED)->sole()->meta['settled_during_call']);
+    }
+
     public function test_a_transient_failure_is_retried(): void
     {
         $this->gatewayAnswering('midtrans', Http::sequence()->push([], 503)->push(['status_code' => '407'], 200));

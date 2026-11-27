@@ -303,7 +303,7 @@ class PaymentWebhookController extends Controller
                 $outcome = $this->decide($bill, $attempt, $newStatus === 'paid', $reference);
 
                 if ($outcome === 'flag') {
-                    $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran lama invoice {$bill->invoice} diterima setelah dibayar ulang; perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount], $reference);
+                    $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran lama invoice {$bill->invoice} diterima setelah dibayar ulang; perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'bill_attempt' => $bill->payment_attempt], $reference);
                 } elseif ($outcome === 'unmatched') {
                     $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} diterima setelah lunas, tanpa referensi tersimpan untuk dibandingkan; tidak ditandai, cocokkan dengan laporan gateway.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'flagged' => false], $reference);
                 } elseif ($outcome === 'late') {
@@ -495,14 +495,16 @@ class PaymentWebhookController extends Controller
     }
 
     /**
-     * BR-4 (#358): a cashier charge that held the bill has failed or expired, so the payments flagged meanwhile are judged
-     * again by the late-payment rule, plus "the bill is unpaid": a booked late payment leaves no tender to hold it, so only
-     * the status stops a second one. The oldest that fits is booked; each other one keeps its flag and is audited once per
-     * trigger. Call with the bill locked.
+     * BR-4 (#358): a cashier charge that held the bill has failed or expired, so the payments flagged while it was pending
+     * are judged again by the late-payment rule, plus "the bill is unpaid": a booked late payment leaves no tender to hold
+     * it, so only the status stops a second one. The oldest that fits is booked; each other one keeps its flag and is
+     * audited once per trigger. A flag of an earlier charge is left alone: it may have been refunded by hand already.
+     * Call with the bill locked.
      *
      * @param  string  $trigger  cashier_charge_failed or expired
+     * @param  int  $attempt  the payment attempt of the charge that ended
      */
-    public function recheckFlaggedPayments(Transaction $bill, ?CashierShift $shift, string $trigger): void
+    public function recheckFlaggedPayments(Transaction $bill, ?CashierShift $shift, string $trigger, int $attempt): void
     {
         $audits = AuditLog::whereIn('event', ['payment.late_superseded', 'payment.late_after_failed', 'payment.late_rechecked'])
             ->where('auditable_type', $bill->getMorphClass())
@@ -510,9 +512,9 @@ class PaymentWebhookController extends Controller
             ->orderBy('id')
             ->get();
         $booked = $audits->filter(fn (AuditLog $log) => ($log->meta['booked'] ?? false) === true)->map($this->lateKey(...));
-        // Not flags to book: an audit-only note (flagged false), and the surplus of a payment that was booked (excess).
+        // Only a flag stores the bill's attempt: an audit-only note or a surplus of a booked payment has none.
         $flags = $audits->filter(fn (AuditLog $log) => $log->event !== 'payment.late_rechecked'
-            && ($log->meta['flagged'] ?? true) && ! isset($log->meta['excess']) && ! $booked->contains($this->lateKey($log)))
+            && ($log->meta['bill_attempt'] ?? null) === $attempt && ! $booked->contains($this->lateKey($log)))
             ->unique($this->lateKey(...));
 
         foreach ($flags as $flag) {
@@ -625,7 +627,7 @@ class PaymentWebhookController extends Controller
 
         // A tender matching a failed or expired order id is a cashier's charge: what it held back is judged again.
         if ($newStatus === 'failed' && $tenders->isNotEmpty()) {
-            $this->recheckFlaggedPayments($bill, $shift, $expired ? 'expired' : 'cashier_charge_failed');
+            $this->recheckFlaggedPayments($bill, $shift, $expired ? 'expired' : 'cashier_charge_failed', $this->attemptOf($providerId));
         }
     }
 
