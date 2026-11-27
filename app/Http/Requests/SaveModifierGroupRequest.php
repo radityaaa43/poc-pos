@@ -28,9 +28,8 @@ class SaveModifierGroupRequest extends FormRequest
             'options.*.price_delta' => ['required', 'integer', 'min:0', 'max:1000000000'],
             'options.*.is_default' => ['required', 'boolean'],
             'options.*.components' => ['nullable', 'array', 'max:20'],
-            // Only a product that holds stock can be deducted, so not a recipe.
+            // Only a product that holds stock can be deducted (not a recipe), in whole units: stock is an integer.
             'options.*.components.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->where('is_composite', 0)],
-            // Whole units, as in product recipes: stock is an integer.
             'options.*.components.*.qty' => ['required', 'integer', 'min:1', 'max:1000000000'],
             'options.*.disabled_outlet_ids' => ['nullable', 'array'],
             'options.*.disabled_outlet_ids.*' => ['integer', 'exists:outlets,id'],
@@ -49,6 +48,9 @@ class SaveModifierGroupRequest extends FormRequest
             }
 
             $options = array_filter((array) $this->input('options'), 'is_array');
+            if ((int) $this->input('min_select') > count($options)) {
+                $errors->add('options', __('messages.modifiers.too_few_options'));
+            }
             $defaults = count(array_filter($options, fn (array $option) => filter_var($option['is_default'] ?? false, FILTER_VALIDATE_BOOLEAN)));
 
             if ($defaults > 1) {

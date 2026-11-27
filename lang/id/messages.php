@@ -417,6 +417,7 @@ return [
         'option_needed' => 'Tambahkan minimal satu opsi.',
         'min_negative' => 'Minimum pilihan tidak boleh negatif.',
         'min_above_max' => 'Minimum pilihan tidak boleh lebih besar dari maksimum.',
+        'too_few_options' => 'Jumlah opsi lebih sedikit dari minimum pilihan.',
         'max_below_one' => 'Maksimum pilihan minimal 1.',
         'required_min' => 'Grup wajib harus punya minimum pilihan minimal 1.',
         'price_negative' => 'Tambahan harga tidak boleh negatif.',

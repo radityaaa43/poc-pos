@@ -93,6 +93,7 @@ class ModifierGroupTest extends TestCase
             [['min_select' => 3, 'max_select' => 2], 'min_select', 'min_above_max'],
             [['is_required' => false, 'min_select' => 0, 'max_select' => 0], 'max_select', 'max_below_one'],
             [['min_select' => 0], 'min_select', 'required_min'],
+            [['min_select' => 3, 'max_select' => 3], 'options', 'too_few_options'],
         ];
 
         foreach ($cases as [$overrides, $field, $message]) {
@@ -102,6 +103,8 @@ class ModifierGroupTest extends TestCase
         }
 
         $this->assertDatabaseCount('modifier_groups', 0);
+        // BR-4: deleting an option that leaves fewer than the minimum is refused too.
+        $this->put(route('settings.modifiers.update', $this->createGroup()), $this->payload(['min_select' => 2, 'max_select' => 2, 'options' => [$this->option('Regular', ['is_default' => true])]]))->assertSessionHasErrors('options');
     }
 
     public function test_option_rules_are_enforced(): void
@@ -120,7 +123,6 @@ class ModifierGroupTest extends TestCase
             [[$default + ['components' => [['product_id' => $recipe->id, 'qty' => 1]]]], 'options.0.components.0.product_id', 'component_invalid'],
             [[$default + ['components' => [$line, $line]]], 'options.0.components', 'component_duplicate'],
             [[$default + ['components' => [['product_id' => $milk->id, 'qty' => 0]]]], 'options.0.components.0.qty', 'qty_below_one'],
-            // An option id of another group is never accepted.
             [[$default + ['id' => $other->options()->value('id')]], 'options.0.id', 'gone'],
         ];
 

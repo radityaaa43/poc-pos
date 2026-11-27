@@ -9,21 +9,19 @@ REQ-008 berikutnya. Menu tanpa grup terjual seperti sebelumnya.
 - **Settings → Modifier** (`/dashboard/settings/modifiers`, permission `modifiers-manage`): daftar grup, **Tambah
   grup**, ubah, hapus.
 - **Grup**: nama, **Wajib** atau **Opsional**, minimum dan maksimum pilihan. Ditolak: minimum > maksimum, maksimum
-  < 1 (batas atas 50), grup wajib dengan minimum 0.
+  < 1 (batas atas 50), grup wajib dengan minimum 0, minimum > jumlah opsi (juga saat opsi dihapus).
 - **Opsi** (1–50 per grup): nama (unik dalam grup), tambahan harga bulat >= 0 (sama di semua outlet), penanda
   default (maksimal satu; grup wajib harus punya tepat satu), resep opsional (produk ber-stok, bukan resep;
   jumlah bulat >= 1 dalam satuan stok bahan).
-- **Per outlet**: saklar per opsi, default aktif. Yang disimpan hanya yang dimatikan, jadi outlet baru otomatis
-  aktif.
+- **Per outlet**: saklar per opsi, default aktif; hanya yang dimatikan disimpan, jadi outlet baru otomatis aktif.
 - **Pasang ke menu**: bagian **Modifier** di form produk (Tambah/Edit), urutan diatur dengan tombol naik/turun.
   Bahan baku tidak bisa diberi modifier, dan produk yang dijadikan bahan baku (dari layar atau API mana pun)
   kehilangan pasangannya. Tanpa `modifiers-manage` bagian ini tersembunyi dan server mengabaikan
   `modifier_group_ids`.
 - **Hapus**: grup dan opsi di-soft-delete (opsi yang hilang saat grup disimpan juga), grup dilepas dari semua menu
   dan resep opsi terhapus dilepas (tercatat di audit), jadi bahannya bisa dihapus; penjualan lama tidak berubah.
-- **Audit log** (modul `modifiers`): `modifier_group.created`, `.updated`, `.deleted` dengan nilai lama dan baru,
-  termasuk opsi, resep dan outlet yang dimatikan. Pemasangan ke menu ikut di `product.created` / `product.updated`
-  (`modifier_group_ids`).
+- **Audit log** (modul `modifiers`): `modifier_group.created`, `.updated`, `.deleted` dengan nilai lama dan baru, termasuk opsi,
+  resep dan outlet yang dimatikan. Pemasangan ke menu ikut di `product.created` / `product.updated` (`modifier_group_ids`).
 
 ## Kontrak untuk penjualan
 

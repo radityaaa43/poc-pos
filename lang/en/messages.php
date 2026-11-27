@@ -417,6 +417,7 @@ return [
         'option_needed' => 'Add at least one option.',
         'min_negative' => 'The minimum cannot be negative.',
         'min_above_max' => 'The minimum cannot be greater than the maximum.',
+        'too_few_options' => 'There are fewer options than the minimum.',
         'max_below_one' => 'The maximum must be at least 1.',
         'required_min' => 'A required group needs a minimum of at least 1.',
         'price_negative' => 'The extra price cannot be negative.',
