@@ -220,12 +220,16 @@ satu metode per tagihan:
 - **Transfer bank** → `pending` sampai kasir mengonfirmasi di Riwayat Transaksi (aturan #153), lalu `paid`.
 - **QRIS / Midtrans / Xendit** → tagihan dicharge lewat `PaymentGatewayManager::createTenderPayment` terhadap transaksi
   yang sama, status `pending`, lalu halaman struk menampilkan QR. Tagihan tetap "Belum Lunas" sampai webhook
-  (`PaymentWebhookController`) menandainya `paid`. Charge gagal = tagihan tetap `unpaid` dan kasir bisa memilih metode lain.
+  (`PaymentWebhookController`) menandainya `paid`.
+  A failed charge (refused or timed out) shows the gateway's message, or "Gagal menghubungi gateway pembayaran. Coba lagi.":
+  nothing is taken, the bill stays payable and the cashier can pick any method.
   Percobaan gateway yang `failed`/`expired` boleh diganti metode lain (tender lamanya diganti).
 - Tender gateway tidak boleh digabung (split) dengan tender lain pada tagihan dine-in.
 - Selama pembayaran gateway/transfer masih `pending`, membayar lagi ditolak (tidak ada charge kedua, tidak ada tender
   kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
   (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
+  Another exception: a gateway tender with no reference after 120 s belongs to a request that died before storing its charge.
+  The POS "Belum Lunas" row then offers **Bayar** again and paying replaces it (Riwayat Transaksi still shows "Lihat QR").
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
@@ -235,6 +239,14 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - Stok tidak dipotong lagi (sudah dipotong saat accept).
 - Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
 - Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
+- A gateway tender takes two steps (`TransactionSettlementService`, also used to settle a POS pay-later bill), so no lock or
+  transaction is held during the gateway call. `claim()` writes the payment and commits; `charge()` then calls the gateway
+  and stores the reference, URL and QR only while the bill is still pending on that attempt
+  (`Transaction::storeChargeResult()`, shared with the guest's online payment). A result that comes too late is dropped and
+  logged with its reference. Every gateway claim moves `payment_attempt`, so each charge has the order id `{invoice}-r{n}`
+  and a retry never reuses one. A failed charge restores the cashier, shift, method, cash and status of before (`failed` with
+  `gateway_error` if a charge was pending), deletes only the tender it created, keeps the attempt and writes the audit event
+  `transaction.gateway_charge_failed`.
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
@@ -271,10 +283,12 @@ page ships with the second half of #325; until then only the endpoint and the `p
   When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
-  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::collect`), so the guest's charge is
-  superseded in the same transaction; a failed takeover changes nothing. Nothing is cancelled at the gateway (refund of a guest
-  payment that still arrives stays manual). Audit `dine_order.online_payment_taken_over`. The cashier's own gateway charge on such a
-  bill uses the order id `{invoice}[-{method}]-r{attempt}`, so its settlement is booked.
+  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::claim`), so the guest's charge is
+  superseded in the same transaction; invalid input changes nothing. The cashier's own gateway call comes after that commit: if it
+  fails, the bill is `failed` / `gateway_error` with no tender, the guest's charge stays superseded, and a guest payment that still
+  arrives is booked by the late-payment rule above. Nothing is cancelled at the gateway (refund of a second payment stays manual).
+  Audit `dine_order.online_payment_taken_over`. The cashier's gateway charge uses the order id `{invoice}-r{attempt}`, so its
+  settlement is booked.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
