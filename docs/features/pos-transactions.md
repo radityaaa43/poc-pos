@@ -84,7 +84,7 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   it, nothing was restocked and the amount equals the remaining total; otherwise it is flagged "Bayar ganda — refund manual" (audit
   `payment.late_after_failed`, `booked: true|false`). A sale `transactions:expire` already cancelled and restocked is always flagged. A sale
   settled by cash after the QR expired, or with a paid cash part in a split, is flagged too, its payment unchanged. Booked after the sale's shift
-  closed, it is marked "Dibayar setelah shift ditutup" and the closed recap is unchanged; a sale with no shift (a portal sale) is booked without that flag.
+  closed, it is marked "Dibayar setelah shift ditutup" and the closed recap is unchanged; a credit sale paid late through the portal is never flagged paid after close, because the closed recap already counted it by method.
   A failed sale with no gateway charge of its own (no gateway tender, no receivable, a non-gateway method such as a pay-later guest bill) stays failed.
 - Stock is not touched by a retry. A sale that `ExpirePendingTransactionsCommand` already cancelled and restocked
   cannot be retried; the cashier is told to make a new sale.
