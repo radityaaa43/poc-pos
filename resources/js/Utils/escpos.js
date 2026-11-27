@@ -3,6 +3,8 @@
 
 const ESC = 0x1b;
 const GS = 0x1d;
+// A transfer that never settles would leave the queue, and Coba lagi, waiting until a reload.
+const SEND_TIMEOUT_MS = 15000;
 
 // Printer errors carry a machine `code` (unsupported, not_connected, claim_failed, transfer) and the browser's
 // own error as `cause`; printerStatus.js turns them into the status the kitchen sees.
@@ -246,11 +248,28 @@ export async function printBytes(bytes, { deviceKey } = {}) {
     if (!device.opened || !device._endpoint) {
         throw printerError("not_connected", "Printer tidak siap menerima data. Hubungkan ulang printer.");
     }
+    let timer;
+    let timedOut = false;
     try {
-        await device.transferOut(device._endpoint, bytes);
+        const hung = new Promise((_, reject) => {
+            timer = setTimeout(() => {
+                timedOut = true;
+                reject(new Error("USB transfer timeout"));
+            }, SEND_TIMEOUT_MS);
+        });
+        const result = await Promise.race([device.transferOut(device._endpoint, bytes), hung]);
+        // A stall resolves instead of rejecting: nothing printed, and the endpoint stays halted until cleared.
+        if (result?.status && result.status !== "ok") {
+            await Promise.resolve(device.clearHalt?.("out", device._endpoint)).catch(() => {});
+            throw new Error(`USB transfer ${result.status}`);
+        }
     } catch (cause) {
+        // Closing aborts a transfer that never settled, so it cannot print later on top of the retry.
+        if (timedOut) await Promise.resolve(device.close?.()).catch(() => {});
         getPrinter.cached = undefined;
         throw printerError("transfer", "Gagal mengirim data ke printer. Periksa koneksi printer.", cause);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

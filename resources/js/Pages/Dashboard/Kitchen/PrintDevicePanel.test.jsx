@@ -18,7 +18,7 @@ vi.mock("@/Utils/escpos", () => ({
     buildKitchenTicketBytes: vi.fn(() => new Uint8Array([1])),
 }));
 vi.mock("@/Utils/printQueue", () => ({
-    createPrintQueue: () => ({ enqueue: vi.fn(), drain: vi.fn(), jobs: [], status: "idle" }),
+    createPrintQueue: () => ({ enqueue: vi.fn(), drain: vi.fn(), stop: vi.fn(), jobs: [], status: "idle" }),
 }));
 
 // The page owns the hook and hands it to the panel; this wrapper does the same with the real hook.

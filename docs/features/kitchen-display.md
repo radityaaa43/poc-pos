@@ -83,8 +83,10 @@ When **Cetak otomatis** is on, the display shows at most one printer warning at 
 | Warning | When | What to do |
 |---|---|---|
 | **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB** | On Windows, connecting or re-attaching the printer failed with a USB "network error": the printer is on Windows' own driver. Also shown in the printer settings panel, with **Lihat langkah** (the five WinUSB steps, no link). Not retried by itself | Follow the steps; see "Windows: switch the printer to the WinUSB driver" in `docs/features/thermal-printer.md` |
-| **Printer dapur tidak terhubung** | No printer is connected, the saved printer is not found, or the browser reported it unplugged | Plug it in or press **Hubungkan printer**; the next poll prints what waits |
-| **Gagal mencetak — coba lagi** | The printer did not accept a ticket (USB transfer failed, or it could not be claimed off Windows). Has a **Coba lagi** button | Fix the printer; the next 5-second poll retries, or press **Coba lagi** |
+| **Printer dapur tidak terhubung** | No kitchen printer is chosen (nothing is sent to any other printer), the saved printer is not found (also when the page loads), or the browser reported it unplugged | Plug it in or press **Hubungkan printer**; the next poll prints what waits |
+| **Gagal mencetak — coba lagi** | The printer did not accept a ticket (USB transfer failed, stalled or gave no answer for 15 seconds, or it could not be claimed off Windows), or the server refused to record printed tickets (they are not printed again, and the record is retried). Has a **Coba lagi** button | Fix the printer; the next 5-second poll retries, or press **Coba lagi** |
+
+Switching **Cetak otomatis** off stops what still waits to print; switching it on again first lets a ticket already being sent finish, so none prints twice.
 
 - **Belum tercetak** / "Not printed": a chip on the order's card, shown when its ticket failed or is still unprinted after 30 seconds. It goes away when the original ticket prints. An order that is printed shows no chip.
 - A card with the chip has **Coba lagi**, which prints the normal ticket and records it as printed. Other cards have no print button.
