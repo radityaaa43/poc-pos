@@ -158,7 +158,8 @@ export default function Index({ orders, outlet, stations = [] }) {
     const printed = new Set(printDevice.printedIds);
     const reprintable = (order) => {
         const lines = order.items.filter((item) => item.status !== "cancelled");
-        const hasTarget = Boolean(printDevice.printerKey || printDevice.autoPrint);
+        // A tab that is not the printing one can't reach the printer: the leader tab holds it.
+        const hasTarget = Boolean(printDevice.printerKey || printDevice.autoPrint) && !printDevice.otherTab;
         return hasTarget && !queuedEntry(order) && lines.length > 0 && lines.every((item) => printed.has(item.id));
     };
     // `order` here is the whole order: a reprint is the same ticket, whatever the station filter shows.

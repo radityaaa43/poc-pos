@@ -935,6 +935,13 @@ describe("Kitchen/Index: printer status, Belum tercetak and reprint (REQ-004 K2)
             expect(reprintIn(cards()[1])).toBeInTheDocument();
         });
 
+        it("offers no Cetak ulang in a tab that is not the printing one", () => {
+            use({ printedIds: [1, 3], otherTab: true });
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(reprintIn(cards()[1])).not.toBeInTheDocument();
+        });
+
         it("ignores a cancelled line, and offers nothing for an order that is all cancelled", () => {
             const cancelled = (item) => ({ ...item, status: "cancelled" });
             const changed = [
