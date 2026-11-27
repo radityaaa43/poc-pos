@@ -430,7 +430,7 @@ class AddOnOrderTest extends TestCase
         foreach ($sale->details as $detail) {
             $return->items()->create([
                 'transaction_detail_id' => $detail->id, 'product_id' => $detail->product_id, 'qty_sold' => $detail->qty,
-                'qty_return' => $detail->qty, 'unit_price' => $detail->unit_price, 'subtotal' => $detail->price,
+                'qty_return' => $detail->qty, 'unit_price' => $detail->unit_price, 'subtotal' => $detail->price, 'return_reason' => 'Salah pesan',
             ]);
         }
     }
