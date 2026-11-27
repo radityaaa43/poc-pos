@@ -5,6 +5,7 @@ import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
 import Select, { PurchasedBySelect } from "@/Components/Dashboard/Select";
 import UnitRow from "./Partials/UnitRow";
+import ModifierGroupsField from "./Partials/ModifierGroupsField";
 import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
 import InputSelect from "@/Components/Dashboard/InputSelect";
@@ -29,6 +30,7 @@ export default function Create({
     cost_outlet: costOutlet,
     default_tax_rate: defaultTaxRate = 11,
     kitchen_stations: kitchenStations = [],
+    modifier_groups: modifierGroups = [],
 }) {
     const { errors } = usePage().props;
     const { t } = useTranslation();
@@ -55,6 +57,7 @@ export default function Create({
         kitchen_station_id: "",
         components: [],
         units: [],
+        modifier_group_ids: [],
     });
 
     const [selectedCategory, setSelectedCategory] = useState(null);
@@ -358,6 +361,7 @@ export default function Create({
                                         );
                                         if (!e.target.checked)
                                             setData("purchased_by", "");
+                                        if (e.target.checked) setData("modifier_group_ids", "");
                                     }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
@@ -790,6 +794,15 @@ export default function Create({
                                     </p>
                                 )}
                             </div>
+                        )}
+
+                        {!data.is_raw_material && (
+                            <ModifierGroupsField
+                                groups={modifierGroups}
+                                value={data.modifier_group_ids}
+                                onChange={(ids) => setData("modifier_group_ids", ids)}
+                                errors={errors}
+                            />
                         )}
 
                         {/* Submit */}

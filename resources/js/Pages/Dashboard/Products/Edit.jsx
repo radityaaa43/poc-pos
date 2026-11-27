@@ -20,6 +20,7 @@ import {
     IconPackages,
     IconRulerMeasure,
 } from "@tabler/icons-react";
+import ModifierGroupsField from "./Partials/ModifierGroupsField";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 
 export default function Edit({
@@ -29,6 +30,7 @@ export default function Edit({
     units = [],
     cost_outlet: costOutlet,
     kitchen_stations: kitchenStations = [],
+    modifier_groups: modifierGroups = [],
 }) {
     const { errors } = usePage().props;
     const { t } = useTranslation();
@@ -65,6 +67,7 @@ export default function Edit({
             is_purchase_default: !!u.pivot?.is_purchase_default,
             barcode: u.pivot?.barcode ?? "",
         })),
+        modifier_group_ids: (product.modifier_groups ?? []).map((g) => g.id),
         _method: "PUT",
     });
 
@@ -427,6 +430,7 @@ export default function Edit({
                                         );
                                         if (!e.target.checked)
                                             setData("purchased_by", "");
+                                        if (e.target.checked) setData("modifier_group_ids", "");
                                     }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />
@@ -821,6 +825,15 @@ export default function Edit({
                                 </div>
                             )}
                         </div>
+
+                        {!data.is_raw_material && (
+                            <ModifierGroupsField
+                                groups={modifierGroups}
+                                value={data.modifier_group_ids}
+                                onChange={(ids) => setData("modifier_group_ids", ids)}
+                                errors={errors}
+                            />
+                        )}
 
                         <div className="flex justify-end gap-3">
                             <Link

@@ -77,6 +77,22 @@ describe("sidebar Menu", () => {
         expect(granted).toHaveLength(count);
     });
 
+    it.each([
+        [["modifiers-manage"], 1],
+        [["products-edit"], 0],
+    ])("shows the modifier entry for %j: %i entry", (perms, count) => {
+        const granted = leaves(
+            renderMenu({
+                auth: {
+                    super: false,
+                    permissions: Object.fromEntries(perms.map((p) => [p, true])),
+                },
+            }),
+        ).filter((i) => i.href === "/settings.modifiers.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
+    });
+
     it("marks only the item for the current url as active", () => {
         const items = leaves(
             renderMenu({ url: "/dashboard/categories", auth: { super: true } }),
