@@ -36,7 +36,7 @@ class DineOrderOnlinePaymentService
 
     private const ALREADY_PAID = 'already_paid';
 
-    // Not for the guest to pay online (a pay-later bill, or a charge the cashier started): the counter settles it.
+    // Not for the guest to pay online (a charge the cashier started): the counter settles it.
     private const COUNTER = 'counter';
 
     private const NO_GATEWAY = 'no_gateway';
@@ -56,7 +56,7 @@ class DineOrderOnlinePaymentService
      * What the guest page shows about paying, or null while there is nothing to show (not accepted, rejected,
      * nothing left to pay). Holds no internal field: no invoice, bill id, customer, outlet or gateway reference.
      *
-     * @return array{state: string, amount: int, attempt: int, payment_url: ?string, qr: ?string}|null
+     * @return array{state: string, amount: int, attempt: int, payment_url: ?string, qr: ?string, pay_later: bool}|null
      */
     public function state(DineOrder $order, bool $withQr = true): ?array
     {
@@ -82,6 +82,7 @@ class DineOrderOnlinePaymentService
             'attempt' => (int) $bill->payment_attempt,
             'payment_url' => $pending ? $bill->payment_url : null,
             'qr' => $pending && $withQr && filled($bill->qr_string) ? $this->qrImage($bill->qr_string) : null,
+            'pay_later' => (bool) $bill->is_pay_later,
         ];
     }
 
@@ -131,7 +132,7 @@ class DineOrderOnlinePaymentService
                 module: 'transactions',
                 auditable: $bill,
                 description: "Tamu memulai pembayaran online invoice {$bill->invoice} (percobaan {$attempt}).",
-                meta: ['attempt' => $attempt, 'method' => $method, 'amount' => $amount],
+                meta: ['attempt' => $attempt, 'method' => $method, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later],
             );
 
             return [$bill, $attempt, $amount, $setting, $gateway];
@@ -167,7 +168,7 @@ class DineOrderOnlinePaymentService
             // current (a webhook settled it first) is left alone by the job.
             ExpireSupersededGatewayCharge::dispatchFor($bill, ['payment_attempt' => $attempt, 'payment_method' => $bill->payment_method, 'payment_reference' => $charge['reference'] ?? null]);
         }
-        Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount]);
+        Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later]);
 
         return $this->state($order) ?? throw ValidationException::withMessages(['payment' => [self::NOT_PAYABLE]]);
     }
@@ -193,11 +194,6 @@ class DineOrderOnlinePaymentService
             return self::NOT_PAYABLE;
         }
 
-        // #328 (pay later from the guest page) deletes this clause.
-        if ($bill->is_pay_later) {
-            return self::COUNTER;
-        }
-
         // A pending bill with tender rows is the cashier's own gateway charge or transfer (a guest charge never has tenders).
         // Money already taken in a split payment holds the bill too: either way the guest cannot start a second charge.
         $tenders = $bill->tenders();
@@ -215,7 +211,7 @@ class DineOrderOnlinePaymentService
     private function refuseUnlessPayable(string $answer): void
     {
         if ($answer !== self::OK) {
-            // The counter answer (pay-later bill, cashier's charge) reads as "not payable" to a request.
+            // The counter answer (cashier's charge) reads as "not payable" to a request.
             throw ValidationException::withMessages(['payment' => [$answer === self::COUNTER ? self::NOT_PAYABLE : $answer]]);
         }
     }
