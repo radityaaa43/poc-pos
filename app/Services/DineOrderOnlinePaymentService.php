@@ -115,7 +115,7 @@ class DineOrderOnlinePaymentService
             $bill->tenders()->delete();
             // A charge still pending is superseded by this tap: have the gateway expire it once this claim commits.
             if ($bill->payment_status === 'pending') {
-                ExpireSupersededGatewayCharge::dispatchFor($bill, $bill->only(['payment_attempt', 'payment_method', 'payment_reference']));
+                ExpireSupersededGatewayCharge::dispatchFor($bill, $bill->only(['payment_attempt', 'payment_method', 'payment_reference', 'payment_url']));
             }
             $bill->update([
                 'payment_attempt' => $attempt,
@@ -166,7 +166,7 @@ class DineOrderOnlinePaymentService
         if (! $stored) {
             // Superseded while the gateway answered: only now is this charge's reference known. A charge that is still
             // current (a webhook settled it first) is left alone by the job.
-            ExpireSupersededGatewayCharge::dispatchFor($bill, ['payment_attempt' => $attempt, 'payment_method' => $bill->payment_method, 'payment_reference' => $charge['reference'] ?? null]);
+            ExpireSupersededGatewayCharge::dispatchFor($bill, ['payment_attempt' => $attempt, 'payment_method' => $bill->payment_method, 'payment_reference' => $charge['reference'] ?? null, 'payment_url' => $charge['payment_url'] ?? null]);
         }
         Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later]);
 

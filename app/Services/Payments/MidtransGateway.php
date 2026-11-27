@@ -33,7 +33,7 @@ class MidtransGateway
      *
      * @return string expired, not_pending, not_found, transient or permanent
      */
-    public function expireCharge(array $config, string $orderId): string
+    public function expireCharge(array $config, string $orderId, ?string $pageUrl = null): string
     {
         $host = ($config['is_production'] ?? false) ? 'https://api.midtrans.com' : 'https://api.sandbox.midtrans.com';
 
@@ -50,10 +50,40 @@ class MidtransGateway
         return match (true) {
             $code === 407 => 'expired',
             $code === 412 => 'not_pending',
-            $code === 404 => 'not_found',
+            // No Core API transaction until a method is picked on the page: close the page itself.
+            $code === 404 => $pageUrl ? $this->cancelSnapSession($config, basename((string) parse_url($pageUrl, PHP_URL_PATH))) : 'not_found',
             $code === 429, $code >= 500 => 'transient',
             default => 'permanent',
         };
+    }
+
+    /**
+     * docs.midtrans.com/reference/cancel-a-snap-session, by the token that ends the page's URL. The docs name messages,
+     * no error codes and no sandbox URL (assumed on the host that creates the page): anything else is retried.
+     */
+    private function cancelSnapSession(array $config, string $token): string
+    {
+        try {
+            $response = Http::timeout(10)->withBasicAuth($config['server_key'], '')->acceptJson()
+                ->send('POST', $this->snapUrl($config).'/'.rawurlencode($token).'/cancel');
+        } catch (ConnectionException) {
+            return 'transient';
+        }
+
+        $error = strtolower(implode(' ', (array) $response->json('error_messages')));
+
+        return match (true) {
+            $response->successful() && filled($response->json('canceled_at')) => 'expired',
+            str_contains($error, 'already canceled') => 'not_pending',
+            str_contains($error, 'token not found') => 'not_found',
+            default => 'transient', // "Transaction is on progress" too: the next try finds the Core API transaction
+        };
+    }
+
+    /** Where a Snap payment page is created, and canceled. */
+    private function snapUrl(array $config): string
+    {
+        return config($config['is_production'] ?? false ? 'services.midtrans.snap_url' : 'services.midtrans.snap_sandbox_url');
     }
 
     private function createTransaction(Transaction $transaction, array $config, ?array $enabledPayments = null, ?int $amount = null, ?string $orderId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array
@@ -62,9 +92,7 @@ class MidtransGateway
             throw new PaymentGatewayException('Midtrans tidak aktif atau belum dikonfigurasi.');
         }
 
-        $endpoint = $config['is_production'] ?? false
-            ? 'https://app.midtrans.com/snap/v1/transactions'
-            : 'https://app.sandbox.midtrans.com/snap/v1/transactions';
+        $endpoint = $this->snapUrl($config);
 
         $customer = $transaction->customer;
 

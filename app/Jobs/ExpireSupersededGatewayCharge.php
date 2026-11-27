@@ -42,7 +42,7 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
     /** @var array<int, int> about 11 minutes in all: a guest charge expires by itself after 15 (DineOrderOnlinePaymentService::EXPIRES_IN_MINUTES) */
     public array $backoff = [15, 60, 180, 420];
 
-    public int $timeout = 20; // below the database queue's retry_after (90 s)
+    public int $timeout = 30; // two gateway calls of 10 s at most; below the database queue's retry_after (90 s)
 
     public int $uniqueFor = 1800;
 
@@ -52,12 +52,13 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
         public int $attempt,
         public string $method,
         public ?string $reference,
+        public ?string $pageUrl = null,
     ) {}
 
     /**
      * Queue the expiry of a superseded guest charge, to run once the surrounding transaction commits.
      *
-     * @param  array<string, mixed>  $charge  the bill's payment_attempt, payment_method and payment_reference of that charge
+     * @param  array<string, mixed>  $charge  that charge's payment_attempt, payment_method, payment_reference and payment_url
      */
     public static function dispatchFor(Transaction $bill, array $charge): void
     {
@@ -69,7 +70,7 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
             return;
         }
 
-        self::dispatch($bill->id, "{$bill->invoice}-r{$attempt}", $attempt, $charge['payment_method'], $charge['payment_reference'])->afterCommit();
+        self::dispatch($bill->id, "{$bill->invoice}-r{$attempt}", $attempt, $charge['payment_method'], $charge['payment_reference'], $charge['payment_url'] ?? null)->afterCommit();
     }
 
     public function uniqueId(): string
@@ -89,7 +90,7 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
             }
 
             // No transaction open: no lock is held while the gateway answers.
-            $result = $gateways->expireCharge($check['gateway'], $check['setting'], $this->orderId, $this->reference);
+            $result = $gateways->expireCharge($check['gateway'], $check['setting'], $this->orderId, $this->reference, $this->pageUrl);
             $this->record($audit, $check, $result);
         } catch (Throwable $exception) {
             report($exception);

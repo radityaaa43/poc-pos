@@ -324,8 +324,8 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   that wins the race follows the late-payment rule above and is audited as not expired (`reason: settled_during_call`).
   A temporary failure is tried 5 times over about 11 minutes; the last try is audited, an unexpected error included. If it
   fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
-  never expired. Not yet verified on a sandbox: a Midtrans payment page the guest never opened may be unknown to the Core API,
-  so it stays payable until its own 15 minute expiry.
+  never expired. A Midtrans page with no method picked is unknown to the Core API (404): the job then cancels the Snap session
+  by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).

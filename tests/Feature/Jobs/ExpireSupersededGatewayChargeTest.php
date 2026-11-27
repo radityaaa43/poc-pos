@@ -160,6 +160,54 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.midtrans.com/v2/INV-1-r1/expire');
     }
 
+    /** @return array<string, array{0: array<string, mixed>, 1: int, 2: string}> */
+    public static function snapAnswers(): array
+    {
+        return [
+            'canceled' => [['canceled_at' => '2026-01-01T00:00:00Z'], 200, 'expired'],
+            'already canceled' => [['error_messages' => ['token already canceled']], 400, 'not_pending'],
+            'unknown token' => [['error_messages' => ['token not found']], 404, 'not_found'],
+            'a method picked meanwhile' => [['error_messages' => ['Transaction is on progress']], 400, 'transient'],
+            'an unrecognised error' => [['error_messages' => ['something else']], 418, 'transient'],
+            'success without a cancel time' => [[], 200, 'transient'],
+        ];
+    }
+
+    /** @param array<string, mixed> $body */
+    #[DataProvider('snapAnswers')]
+    public function test_a_page_with_no_core_transaction_is_canceled_by_its_token(array $body, int $status, string $result): void
+    {
+        $this->useGateway('midtrans', fakeHttp: false);
+        Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '404'], 200),
+            'app.sandbox.midtrans.com/*' => Http::response($body, $status),
+        ]);
+        $page = 'https://app.sandbox.midtrans.com/snap/v3/redirection/tok-1';
+
+        $answer = app(PaymentGatewayManager::class)->expireCharge('midtrans', PaymentSetting::sole(), 'INV-1-r1', 'INV-1-r1', $page);
+
+        $this->assertSame($result, $answer);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://app.sandbox.midtrans.com/snap/v1/transactions/tok-1/cancel'
+            && $request->hasHeader('Authorization', 'Basic '.base64_encode('sk-test:')));
+    }
+
+    public function test_a_takeover_closes_the_guests_unused_payment_page(): void
+    {
+        $this->useGateway('midtrans', fakeHttp: false);
+        Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '404'], 200),
+            'app.sandbox.midtrans.com/snap/v1/transactions/tok-1/cancel' => Http::response(['canceled_at' => 'now'], 200),
+            'app.sandbox.midtrans.com/*' => Http::response(['redirect_url' => 'https://app.sandbox.midtrans.com/snap/v3/redirection/tok-1'], 201),
+        ]);
+        $order = $this->acceptedOrder();
+        $this->guestPays($order)->assertOk();
+
+        $this->cashierPays($order); // sync queue: the expiry runs at the commit
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/tok-1/cancel'));
+        $this->assertSame(1, AuditLog::where('event', self::EXPIRED)->count());
+    }
+
     // ---- when it is queued ------------------------------------------------------------------------------
 
     public function test_a_newer_guest_tap_queues_the_expiry_of_the_older_charge_without_calling_the_gateway(): void
