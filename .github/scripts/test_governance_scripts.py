@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import ai_used  # noqa: E402
 import backlog  # noqa: E402
+import check_glossary  # noqa: E402
 import check_issue_body  # noqa: E402
 import check_new_dependencies as deps  # noqa: E402
 import check_pr_body  # noqa: E402
@@ -253,6 +254,19 @@ class Dependencies(unittest.TestCase):
         self.assertEqual(deps.parse("composer.json", '{"require": {"php": ">=8", "laravel/framework": "^11"}}'),
                          {"laravel/framework"})
         self.assertEqual(deps.parse("Gemfile", "gem 'rails', '~> 7'\n"), {"rails"})
+
+
+class Glossary(unittest.TestCase):
+    TABLES = ("| Term | Meaning |\n|---|---|\n| Outlet | A branch |\n| Warehouse | A stock location |\n"
+              "\n## Retired terms\n\n| Term | Use |\n| :--- | ---: |\n| racik \\| diracik | preparation |\n")
+
+    def test_clean_tables_pass(self):
+        self.assertEqual(check_glossary.problems(self.TABLES), [])
+
+    def test_repeated_term_fails(self):
+        out = check_glossary.problems(self.TABLES + "| outlet | The same row, edited on another branch |\n")
+        self.assertEqual(len(out), 1)
+        self.assertIn("line 11 repeats the term 'outlet' from line 3", out[0])
 
 
 if __name__ == "__main__":

@@ -189,6 +189,7 @@
   "areas": [],
   "hotspots": [
     "routes/web.php",
+    "routes/web/",
     "routes/api.php",
     "resources/js/Utils/Menu.jsx",
     "database/seeders/PermissionSeeder.php",

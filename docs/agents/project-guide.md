@@ -44,6 +44,7 @@ Never run `--suppress-all` to hide a new error. Trade-off: `no-unused-vars` igno
 - `app/Services/`: domain operations, including checkout, stock, purchasing, and payment workflows.
 - `resources/js/`: Inertia React app; Vite entry is `resources/js/app.jsx`.
 - `routes/web.php`, `routes/api.php`, `routes/console.php`: web, REST, and scheduled command routes.
+  Dashboard routes are one file per module in `routes/web/`, required by `routes/web.php`.
 - `whatsapp-service/`: separate Node.js WhatsApp gateway.
 - Module and operational detail: `ARCHITECTURE.md`, `docs/architecture-overview.md`,
   `docs/feature-index.md`, `docs/features/`, `docs/configuration.md`, `docs/testing-manual.md`

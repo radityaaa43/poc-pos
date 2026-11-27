@@ -1,0 +1,33 @@
+name: Glossary terms
+
+# GLOSSARY.md merges with merge=union, which can keep two versions of one row. It runs on main too:
+# a PR's check does not run again when another PR merges first.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - GLOSSARY.md
+      - .github/scripts/check_glossary.py
+      - .github/workflows/governance-glossary.yml
+  push:
+    branches: [main]
+    paths:
+      - GLOSSARY.md
+      - .github/scripts/check_glossary.py
+      - .github/workflows/governance-glossary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  terms:
+    name: Glossary terms
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 .github/scripts/check_glossary.py GLOSSARY.md
