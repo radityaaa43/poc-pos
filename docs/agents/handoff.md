@@ -1,13 +1,15 @@
 # Handoff standard: task, delivery, review
 
-How work moves between the Tech Lead and the developers. These are the only three formats. A message
-or comment that lacks a required field is sent back, not acted on. Roles and board columns:
+How work moves between the five agent sessions of this team: `business` (Business / PM), `tech-lead`,
+and `dev1`, `dev2`, `dev3`. What this team runs short of is context, CI runs and hand-offs, so every
+rule here is sized to spend few of them. These are the only three formats. A message or comment that
+lacks a required field is sent back, not acted on. Roles and board columns:
 [`issue-tracker.md` → Board and roles](issue-tracker.md#board-and-roles).
 
 - [0. Flow rules: pull, limits, priorities](#0-flow-rules-pull-limits-priorities)
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
 - [2. Delivery: developer → Tech Lead](#2-delivery-developer--tech-lead)
-- [3. Review: Tech Lead → PR](#3-review-tech-lead--pr)
+- [3. Review: technical first, then business](#3-review-technical-first-then-business)
 - [4. Business track: Business / PM](#4-business-track-business--pm)
 
 ## 0. Flow rules: pull, limits, priorities
@@ -77,6 +79,19 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 - **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
   isn't cancelled and restarted.
 
+### 0e. Talk less, show more
+
+- **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
+  and 3, plus "idle", "blocked" and "question". There's no status chatter.
+- **One line, with a link.** A message names the issue, the event and the URL. The detail lives where
+  the link points (the plan, the PR's Evidence, the decision comment) and isn't repeated in the
+  message.
+- **One message per recipient per turn.** Several events for the same session go in one message, one
+  line each.
+- **A decision is written once, on the issue.** The message carries its link and a one-line verdict.
+- **Changes to these rules** go into one Standards PR per day, at most. Each one rests on the daily
+  flow report (Business / PM): time per column, rework rounds, CI cancelled or failed, stuck PRs.
+
 ### 0f. Multi-agent: build in parallel
 
 Set by the maintainer on 2026-11-26. Developers **use subagents to build faster**.
@@ -101,12 +116,23 @@ Set by the maintainer on 2026-11-26. Developers **use subagents to build faster*
 - **Model and effort:** `sonnet` with high effort for building, and `/code-review` low on `sonnet` for
   the self-review.
 
-### 0e. Talk less, show more
+### 0g. Size: one ticket, one outcome
 
-- **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
-  and 3, plus "idle", "blocked" and "question". There's no status chatter.
-- **Changes to these rules** go into one Standards PR per day, at most. Each one rests on the daily
-  flow report (Business / PM): time per column, rework rounds, CI cancelled or failed, stuck PRs.
+Set by the maintainer on 2026-11-28. Every ticket pays the same fixed cost: a plan, two reviews, a
+full CI run and a merge. So a ticket is sized to the outcome it delivers.
+
+- **One ticket delivers one user journey of the REQ, end to end:** schema, server, UI, wording and
+  its e2e. Business / PM cuts a REQ along its journeys, usually into two or three tickets. A layer
+  ("server half", "UI half") or a single AC of a journey belongs inside its journey's ticket.
+- **One PR closes the ticket.** Aim under 1500 counted lines (tests count). 2000 is the limit: above
+  it a PR needs a second approver, and a team on one login has none.
+- **Too big?** When the plan estimates more than 2000 lines, the Tech Lead tells Business / PM, and
+  the ticket is cut again along the journey. Each part still shows a user something and carries its
+  own AC and e2e.
+- **Enabling work ships alone only when other tickets wait on it.** A schema, contract or rename
+  that in-flight tickets build on is its own tech-only ticket (0a). Otherwise it stays inside the
+  ticket that needs it.
+- **Business review runs once per ticket,** on the PR that closes it.
 
 ## 1. Task: Tech Lead → developer
 
@@ -118,12 +144,22 @@ The card moves Planning → Todo only after both, and only after the plan has be
 A plan is structured, complete and comprehensive (maintainer, 2026-11-26), the technical twin of the REQ
 template (`backlog/TEMPLATE.md`, with journeys and a state diagram).
 
-- **Every heading below stays in every plan.** A section that doesn't apply says `n/a — <reason>`;
-  it is never deleted. A `low` ticket is mostly `n/a` lines; a `high` one fills them all.
+- **Depth follows risk** (maintainer, 2026-11-28), so a plan costs its readers (the builder and both
+  reviewers) only the context the ticket needs:
+
+  | Plan | When | Sections |
+  |---|---|---|
+  | Short | Effort `low` | 1, 13, 14, 15, 16 |
+  | Standard | Effort `medium` | the Short ones, plus each of 2–12 the change touches |
+  | Full | Effort `high`, or any change to money, stock, locking, a webhook or existing data | all 16; one that doesn't apply says `n/a — <reason>` |
+
+  Risk wins over Effort: a ten-line change on a payment path gets a Full plan.
 - **Diagrams** (Mermaid, so GitHub renders them) are required when a flow spans three or more
   components (page → controller → service → job or webhook) and when the change has a status.
 - **Cite the code** a decision rests on as `path:line` on `origin/main`, or mark it `[unverified]`.
-- **Quote the REQ.** UI text is the REQ's exact wording; retired terms (REQ decisions) are never used.
+- **Quote the REQ's UI text, point at the rest.** UI text is the REQ's exact wording, and the
+  replacement is used for every retired term (`GLOSSARY.md` → Retired terms). Everything else is
+  named by id (`US-2`, `J3.1`, `AC-05`, decision 5), which the reader can open.
 
 ````markdown
 ## Technical plan (Tech Lead)
@@ -206,14 +242,14 @@ for UI changes. The e2e joins the full suite for good (§0d).
 
 ### 15. Files, hotspots, collisions
 Files created and changed, hotspot files (append only), migrations, overlap with other in-flight
-tickets, stacking base (`Blocked by` / branch).
+tickets, stacking base (`Blocked by` / branch), and the worktree, branch and ports to use.
 
 ### 16. Decision, risks, Effort, Builder
     Decision (Tech Lead, delegated by the maintainer, YYYY-MM-DD): <what>
     Why: <reason, with the rule or code it rests on>
     Rejected: <alternatives and why>
     Review: rules ✓ code ✓ AC ✓ BR ✓ data ✓ security ✓ parallel ✓ tests ✓
-Risks (risk → impact → mitigation), counted lines (aim < 300), **Effort**, **Builder: devN**.
+Risks (risk → impact → mitigation), counted lines (aim < 1500, limit 2000; §0g), **Effort**, **Builder: devN**.
 
 _Plan re-review ✓ (YYYY-MM-DD): cited lines match `origin/main` <sha>; every AC, BR and REQ journey
 step (main and failure paths) maps to a section, a test or a TC; no file overlap with other in-flight
@@ -231,25 +267,23 @@ later keep their current form (Done when).
 haven't moved, that the requirement wording is quoted, that every AC, BR and **REQ journey step
 (main and failure path)** maps to a section, a test or a TC, and that parallel tickets don't share
 files. Then add the re-review line. Plans posted before 2026-11-26 keep their form; the 16-section
-form applies from the REQ-004 plans onward.
+form applies from the REQ-004 plans onward, and plan depth from plans posted on 2026-11-28 or later.
 
 ### 1b. Assignment message (SendMessage to the developer)
 
 ```text
-#<n> assigned to devN — start now.
-Plan: <plan comment URL>
-Board: Todo, ready-for-agent, Effort <level>, Builder devN.
-Worktree ../poc-pos-wt-<n>, branch <type>/<n>-<slug> from origin/main, ports <review>/<e2e>.
-Cleared hotspots and migrations: <list from the plan, or none>.
-Parallel with: #<m> (no shared files) | none.
-Report: "#<n> | started" now; "#<n> | ready for review" with the delivery (section 2).
+#<n> | plan posted | Builder devN | <plan comment URL>
 ```
+
+The plan carries the rest (its sections 15 and 16). The developer pulls the card under 0a and answers
+`#<n> | started`.
 
 - **Several tickets at once:** a developer may hold up to three `low` Effort tickets that touch
   different files. Each one gets its own worktree, branch, PR and subagent (model `sonnet`, effort
   `high`). The developer integrates: reviews each subagent's diff, verifies it, opens the PR.
-- **Questions:** a technical question goes to the Tech Lead. A business question goes to the Tech
-  Lead, who takes it to Business / PM. Never guess.
+- **Questions:** a technical question goes to the Tech Lead. A business question is posted on the
+  issue with a proposed default, and its link goes straight to Business / PM, who answers on the
+  issue. The developer keeps building on the default meanwhile.
 
 ## 2. Delivery: developer → Tech Lead
 
@@ -293,14 +327,15 @@ or exception needs its reason.
 ### 2b. Ready message (SendMessage to the Tech Lead)
 
 ```text
-#<n> | ready for review | PR <url> | CI green <run url> | <counted lines> lines
-Evidence: <k>/<k> rows ✓ (table in the PR)
-Hotspots: <files> | Migrations: <names> | Pre-PR review: /code-review low (sonnet) posted on the PR
+#<n> | ready for review | PR <url>
 ```
 
+The CI run, the counted lines, hotspots, migrations and the `/code-review` result are in the PR,
+where the reviewer reads them.
+
 Before sending: run `/code-review low` in a `sonnet` subagent against the worktree diff (not the
-shared checkout), fix or answer each finding, and post the result on the PR. Move the card to In
-review.
+shared checkout), fix or answer each finding, and post the result on the PR. Move the card to
+Technical review.
 
 ## 3. Review: technical first, then business
 
@@ -312,9 +347,10 @@ Reviews run in a fixed order, and each step starts only when the one before it p
    Tech Lead hands the PR over only after a technical **APPROVE**, with a message to Business / PM:
    `#<n> | PR <url> | technical APPROVE | ready for business review`. In the same step the Tech Lead moves the issue's card from Technical review to Business review, so the hand-over and the board can't drift. This applies to `feat` PRs and
    to any PR whose `Backlog:` line names criteria. Business / PM doesn't review a PR before the
-   handover.
+   handover, and reviews once per ticket, on the PR that closes it (0g). The answer is
+   `#<n> | AC OK` or `#<n> | AC changes | <failing lines>`, with the detail in the PR comment.
 3. **Merge (Tech Lead).** Both reviews passed and CI is green. The Tech Lead merges and tells
-   Business / PM.
+   Business / PM: `#<n> | merged`.
 4. **Done (Business / PM).** Business / PM moves the card to Done once every review has passed and
    the PR is merged. The board's *Item closed* workflow does this on its own when the merged PR's
    `Closes #n` closes the issue; Business / PM checks the card landed and moves it by hand only if
@@ -357,6 +393,10 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
 1. **Requirements are structured, detailed, complete and comprehensive.** Every REQ follows
    [`backlog/TEMPLATE.md`](../../backlog/TEMPLATE.md): every section filled or `n/a — <reason>`, every
    edge case in its checklist covered by a criterion or marked n/a.
+   - **One feasibility read per REQ.** Before a REQ is `ready`, the Tech Lead reads it once against
+     the code, and Business / PM writes the answers into the REQ. That one pass serves every ticket
+     of the REQ.
+   - **Tickets are cut along the REQ's journeys** (0g).
 2. **Review before deciding.** Check each business decision against:
    - earlier decisions: the REQ, the issue body **and every comment**, ADRs, GLOSSARY
    - the code as it is
@@ -383,8 +423,10 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
    PM checks it against the criteria and the business rules, including exact REQ wording for UI
    text, and comments on the issue. It doesn't block: the developer starts at once, and Business /
    PM messages the Tech Lead only about a missed criterion.
-6. **Questions found while planning.** The Tech Lead proposes a default for each business question
-   and keeps planning with it; Business / PM confirms or corrects it on the issue under rule 2.
+6. **Questions found while planning.** A plan should need none, because the REQ answers them
+   (rule 1). When one comes up, the Tech Lead proposes a default and keeps planning with it. Business /
+   PM confirms or corrects it on the issue under rule 2, and writes the answer into the REQ, so the
+   next ticket doesn't ask again.
 7. **Business review of a PR** (step 2 of section 3) is one PR comment:
 
    ```markdown

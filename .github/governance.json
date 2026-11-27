@@ -323,7 +323,7 @@
     ]
   },
   "pr_size": {
-    "target": 300,
+    "target": 1500,
     "warn": 2000,
     "fail": 3000
   },

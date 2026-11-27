@@ -48,3 +48,14 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Kitchen speed report | Read-only report "Laporan Kecepatan Dapur": per menu item and kitchen station (filterable by station) the orders, portions, medians and averages of the make time and the wait + make time, and the share within the target; plus the average time from payment to the last item served, which stays whole-order under a station filter | Kitchen display: the live queue of items to make | `KitchenSpeedReportService` |
 | Waktu buat | Make time: from *preparing* to *ready* of one kitchen item; the prep target is compared with it | Waktu tunggu + buat | `kitchen_items.preparing_at` to `ready_at` |
 | Waktu tunggu + buat | Wait plus make time: from *accepted* (paid) to *ready* of one kitchen item | Waktu buat | `kitchen_items.accepted_at` to `ready_at` |
+
+## Retired terms
+
+Words a decision replaced. UI text, docs, issues and plans use the replacement. Code identifiers
+that predate the change (`METHOD_OPEN_BILL`, `payment_method = open_bill`) keep their names.
+
+| Retired | Use instead | Since |
+|---|---|---|
+| "Tagihan Terbuka", "open bill" | "Belum Lunas", "unpaid bill" | 2026-11-25, REQ-003 decision 4 |
+| "diracik", "racik" | "Perlu dibuat di dapur" | 2026-11-25, REQ-003 |
+| "stasiun cetak", "print station" | "perangkat cetak", "print device" | 2026-11-26, REQ-004 decision 10 |

@@ -157,7 +157,8 @@ merges:
 Reviews find fewer defects past a few hundred lines at a time, and long files cost agents context
 on every turn.
 
-- **PR size**, counted changed lines: aim under 300. Above 2000 the PR gets
+- **PR size**, counted changed lines (tests count): aim under 1500, with one PR delivering one
+  issue end to end. Above 2000 the PR gets
   a comment and needs an approving review from someone other than its author; above
   3000 the check fails unless a module Owner adds `large-pr` after
   agreeing to review it whole. In Claude Code, the guard hook refuses `gh pr merge` on a PR over
