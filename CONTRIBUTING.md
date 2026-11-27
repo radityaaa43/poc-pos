@@ -46,7 +46,7 @@ the reviewer's check (`REVIEW.md`).
 
 ## Getting started
 
-Setup (Docker or plain PHP), the first-install `/setup` wizard and demo data:
+Host setup ([`README.md`](README.md) → Local setup), the first-install `/setup` wizard and demo data:
 [`docs/agents/project-guide.md`](docs/agents/project-guide.md) → Quick start. Before a PR, run the
 commands in [`AGENTS.md` → Verify](AGENTS.md#verify-run-the-checks-test-by-hand).
 
