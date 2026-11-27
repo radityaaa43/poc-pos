@@ -2,6 +2,7 @@
 
 namespace App\Support\Kitchen;
 
+use App\Models\Transaction;
 use Illuminate\Support\Collection;
 
 /** Groups kitchen items into orders; shared by the display and the kitchen tickets so both show the same number. */
@@ -12,6 +13,9 @@ class KitchenOrders
         'transaction:id,invoice,order_type,payment_status,created_at',
         'transaction.dineOrder:id,transaction_id,dine_table_id',
         'transaction.dineOrder.table:id,name',
+        'transaction.parent:id,invoice', // an add-on is named after its original (#314)
+        'transaction.parent.dineOrder:id,transaction_id,dine_table_id',
+        'transaction.parent.dineOrder.table:id,name',
         'product:id,title',
         'kitchenStation:id,name', // withTrashed: an item of a deleted station keeps its old name
     ];
@@ -44,5 +48,23 @@ class KitchenOrders
                 ])->values(),
             ];
         })->values();
+    }
+
+    /**
+     * How one sale is named: the table for a dine-in order, else the invoice. An add-on takes its original's
+     * number, so the kitchen finds that order; its type and payment mark stay its own.
+     */
+    public static function header(Transaction $transaction): array
+    {
+        $dineOrder = $transaction->dineOrder;
+        $original = $transaction->parent ?? $transaction; // the link always points at the root
+
+        return [
+            'id' => $transaction->id,
+            'root_id' => $transaction->orderRootId(),
+            'number' => $original->dineOrder ? $original->dineOrder->table?->name : $original->invoice,
+            'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
+            'unpaid' => $transaction->payment_status !== 'paid',
+        ];
     }
 }
