@@ -129,8 +129,10 @@ jobs:
           cp .env.example .env
           php artisan key:generate --force
 
+      # Through artisan, not paratest directly: Laravel then gives each process its own database
+      # (point_of_sales_ci_test_<n>). --parallel stays before the options artisan passes through.
       - name: Run backend tests with coverage
-        run: vendor/bin/phpunit --coverage-clover=coverage/backend/clover.xml --coverage-html=coverage/backend/html
+        run: php artisan test --parallel --processes=4 --coverage-clover=coverage/backend/clover.xml --coverage-html=coverage/backend/html
 
       - name: Coverage summary
         if: always()

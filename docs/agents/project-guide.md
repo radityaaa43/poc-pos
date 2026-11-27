@@ -28,6 +28,12 @@ queue, logs and Vite together).
 First run redirects to `/setup` to create the admin and store profile; there are no default
 accounts. The optional WhatsApp gateway runs separately: `cd whatsapp-service && npm install && npm start`.
 
+Run the whole PHP suite in parallel with `docker compose exec -T app php artisan test --parallel --processes=4`
+(ParaTest; after pulling a new dependency, run `docker compose exec -T app composer install` first). On
+Windows/Docker, drop to `--processes=2` if processes fail to fork. CI's Backend job runs it the same way, with one
+database per process, so a test must not rely on another test file having run or on a file or database shared
+between processes (`Storage::fake()` is already per process).
+
 Run focused tests with PHPUnit's `--filter`
 (`docker compose exec -T app php artisan test --filter=TestName`). Frontend tests run with Vitest: `npm test`
 (`npm run test:watch` while editing; tests sit next to the file as `*.test.js(x)`). Lint the frontend
