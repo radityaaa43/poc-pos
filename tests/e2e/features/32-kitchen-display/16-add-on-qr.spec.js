@@ -32,7 +32,7 @@ test.describe('32-kitchen-display', () => {
         await page.getByRole('link', { name: 'Tambah pesanan' }).click();
         await page.locator('div.rounded-xl', { has: page.getByRole('heading', { name: second.title }) }).getByRole('button', { name: '+ Tambah' }).click();
         await page.getByRole('button', { name: /1 item/ }).click();
-        await page.getByRole('dialog').getByRole('button', { name: 'Pesan — Bayar di Kasir' }).click();
+        await page.getByRole('dialog').getByRole('button', { name: 'Pesan', exact: true }).click();
         await page.waitForURL((url) => url.pathname.startsWith('/dine-order/') && !url.pathname.endsWith(original.access_token));
         const addOnToken = new URL(page.url()).pathname.split('/').pop();
         await accept();
