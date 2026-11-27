@@ -73,6 +73,12 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                 onError: (errors) => {
                     toast.error(errors.add_on_to ?? errors.order ?? "Gagal mengirim pesanan.");
                     setSubmitting(false);
+                    // A refused add-on must not trap the guest: the next submit is a new order (BR-11), without rescanning.
+                    if (errors.add_on_to) {
+                        const url = new URL(window.location.href);
+                        url.searchParams.delete("add_on_to");
+                        window.history.replaceState(window.history.state, "", url);
+                    }
                 },
             }
         );
