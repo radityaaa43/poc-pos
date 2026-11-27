@@ -446,6 +446,76 @@ class PosLatePaymentTest extends TestCase
         $this->assertSame(2, $receivable->payments()->count());
     }
 
+    // ---- a second payment of a paid sale (#391) ------------------------------------------------------------
+
+    #[DataProvider('gateways')]
+    public function test_a_second_reference_on_a_paid_single_qris_sale_is_flagged_once_and_never_booked(string $gateway): void
+    {
+        $sale = $this->checkoutWithQris();
+        $this->notify($gateway, $sale, reference: 'first-ref')->assertOk();
+        $paid = $sale->refresh()->only(['payment_status', 'payment_method', 'payment_reference', 'grand_total', 'cash', 'paid_after_close_at']);
+        $this->assertSame('paid', $paid['payment_status']);
+        $this->assertSame('first-ref', $paid['payment_reference']);
+        $this->assertNull($sale->late_superseded_payment_at);
+
+        $this->notify($gateway, $sale, reference: 'second-ref')->assertOk(); // the customer paid the same QR twice
+        $this->notify($gateway, $sale, reference: 'second-ref')->assertOk();
+
+        $sale->refresh();
+        $this->assertEquals($paid, $sale->only(array_keys($paid)));
+        $this->assertSame(0, $sale->tenders()->count());
+        $this->assertNotNull($sale->late_superseded_payment_at); // Bayar ganda: refund by hand
+        $this->assertSame('second-ref', AuditLog::where('event', 'payment.late_superseded')->sole()->meta['reference']);
+    }
+
+    #[DataProvider('gateways')]
+    public function test_the_same_reference_redelivered_on_a_paid_single_qris_sale_is_ignored(string $gateway): void
+    {
+        $sale = $this->checkoutWithQris();
+
+        $this->notify($gateway, $sale, reference: 'first-ref')->assertOk();
+        $this->notify($gateway, $sale, reference: 'first-ref')->assertOk();
+
+        $this->assertNull($sale->fresh()->late_superseded_payment_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.late_superseded')->count());
+    }
+
+    #[DataProvider('gateways')]
+    public function test_a_paid_sale_without_a_stored_reference_is_audited_once_per_reference_and_not_flagged(string $gateway): void
+    {
+        // A legacy sale: paid by its gateway, but no reference was ever stored, so a redelivery looks like a second payment.
+        $sale = $this->sale(overrides: ['payment_status' => 'paid']);
+        $sale->tenders()->delete();
+
+        $this->notify($gateway, $sale, reference: 'ref-a')->assertOk();
+        $this->notify($gateway, $sale, reference: 'ref-b')->assertOk();
+        $this->notify($gateway, $sale, reference: 'ref-a')->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertNull($sale->payment_reference);
+        $this->assertNull($sale->late_superseded_payment_at);
+        $logs = AuditLog::where('event', 'payment.late_superseded')->orderBy('id')->get();
+        $this->assertSame(['ref-a', 'ref-b'], $logs->pluck('meta.reference')->all());
+        $this->assertSame([false, false], $logs->pluck('meta.flagged')->all());
+    }
+
+    #[DataProvider('gateways')]
+    public function test_a_second_reference_on_a_portal_sale_the_gateway_paid_is_flagged(string $gateway): void
+    {
+        $sale = $this->portalSale('pending');
+        $this->notify($gateway, $sale, reference: 'portal-ref')->assertOk();
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+
+        $this->notify($gateway, $sale, reference: 'portal-again')->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('portal-ref', $sale->payment_reference);
+        $this->assertNotNull($sale->late_superseded_payment_at);
+        $this->assertSame('portal-again', AuditLog::where('event', 'payment.late_superseded')->sole()->meta['reference']);
+        $this->assertSame(1, $sale->receivable()->firstOrFail()->payments()->count()); // nothing booked
+    }
+
     // ---- paid some other way after the QR expired ---------------------------------------------------------
 
     #[DataProvider('gateways')]

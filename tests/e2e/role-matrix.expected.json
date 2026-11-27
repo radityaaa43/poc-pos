@@ -1,5 +1,5 @@
 {
-  "_comment": "Review line by line. Expected result of GET <url> as each e2e user (tests/e2e/support/roles.js, E2eSeeder::USERS). Derived from RoleSeeder, PermissionSeeder, the permission:* middleware in routes/web.php and resources/js/Utils/Menu.jsx. Not generated at test time: when a role, route or menu entry changes, edit this file in the same PR.",
+  "_comment": "Review line by line. Expected result of GET <url> as each e2e user (tests/e2e/support/roles.js, E2eSeeder::USERS). Derived from RoleSeeder, PermissionSeeder, the permission:* middleware in routes/web.php and routes/web/*.php, and resources/js/Utils/Menu.jsx. Not generated at test time: when a role, route or menu entry changes, edit this file in the same PR.",
   "refused": { "status": 403, "note": "A refused GET answers 403 and stays on the same URL (no redirect); APP_ENV=e2e keeps Laravel's own error page." },
   "roles": {
     "super-admin": {

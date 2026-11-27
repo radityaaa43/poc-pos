@@ -511,20 +511,30 @@ class PaymentWebhookLockTest extends TestCase
     }
 
     #[DataProvider('gateways')]
-    public function test_a_paid_bill_without_a_payment_history_ignores_a_second_paid_notification(string $gateway): void
+    public function test_a_paid_bill_without_a_payment_history_ignores_a_redelivery_and_flags_another_reference(string $gateway): void
     {
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
         $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'paid', reference: 'first')->assertOk();
+        // Only the tender holds the settlement's reference; the bill keeps the one its charge was created with.
+        $this->assertSame('first', $bill->tenders()->sole()->payment_reference);
+        $charge = $bill->fresh()->payment_reference;
+        $this->assertNotSame('first', $charge);
+
+        $this->notify($gateway, $bill->invoice, 'paid', reference: 'first')->assertOk(); // redelivered
+        $this->assertNull($bill->fresh()->late_superseded_payment_at);
+        $this->assertSame(0, $this->eventCount('payment.late_superseded'));
 
         $this->notify($gateway, $bill->invoice, 'paid', reference: 'second')->assertOk();
 
         $bill->refresh();
         $this->assertSame('paid', $bill->payment_status);
-        $this->assertNull($bill->late_superseded_payment_at);
-        $this->assertSame(0, $this->eventCount('payment.late_superseded'));
+        $this->assertSame($charge, $bill->payment_reference);
+        $this->assertSame('first', $bill->tenders()->sole()->payment_reference);
+        $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertSame('second', AuditLog::where('event', 'payment.late_superseded')->sole()->meta['reference']);
     }
 
     public function test_a_split_gateway_tender_with_an_attempt_settles_by_its_order_id(): void
