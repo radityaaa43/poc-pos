@@ -37,8 +37,9 @@ export default function CreditCells({ credit }) {
                     </span>
                 )}
                 {state && (
-                    <span className={`flex items-center justify-end gap-1 text-[11px] font-semibold ${state.className}`}>
-                        <state.Icon size={12} aria-hidden="true" className="shrink-0" />
+                    // Inline, so the icon stays with the first word when the label wraps.
+                    <span className={`block text-[11px] font-semibold ${state.className}`}>
+                        <state.Icon size={12} aria-hidden="true" className="mr-1 inline-block align-[-2px]" />
                         {t(`receivables.credit.${credit.state}`)}
                     </span>
                 )}
