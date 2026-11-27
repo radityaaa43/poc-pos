@@ -1147,7 +1147,8 @@
             "cashReceived": "Uang diterima",
             "change": "Kembalian",
             "bankAccount": "Rekening tujuan",
-            "pay": "Bayar"
+            "pay": "Bayar",
+            "due": "Sisa tagihan"
         },
         "payLater": {
             "label": "Bayar Belakangan",

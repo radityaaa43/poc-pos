@@ -96,6 +96,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
 - A retry moves the sale to the retrying cashier's shift (`cashier_shift_id`) but keeps `cashier_id`: that is who made the sale.
 - A split sale that already has a paid part is not retried (a retry replaces every tender).
+- A retry of a pay-later bill (no receivable) asks what it still owes after returns (`Transaction::remainingTotal()`), not
+  its total, and a fully returned one is refused. The print page shows that amount.
 - Web POS only; the mobile API does not retry.
 
 ## Integrasi Data

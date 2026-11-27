@@ -765,6 +765,7 @@ class TransactionController extends Controller
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
+        $transaction->setAttribute('retry_amount', $retryable ? $this->paymentRetryService->amountDue($transaction) : null);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [

@@ -124,24 +124,34 @@ class CashierShiftService
         // Split payments: non-cash portion = grand_total minus cash tenders.
         $nonCashSalesTotal -= $splitCashTenderTotal;
 
-        // A return completed before an open bill (pay-later or dine-in) was paid refunded nothing: that part was never
-        // received, so it comes off the bucket the sale is counted in. Any other sale was asked for its grand total.
-        // shortcut: a return completed while the bill's charge or transfer was already waiting comes off too, although the
-        // full amount may still arrive; telling them apart needs the time the money was asked, when one is stored.
-        $neverReceived = fn ($sales) => (int) SalesReturn::query()
-            ->where('status', 'completed')
-            ->where('refund_amount', 0)
-            ->where('credited_amount', 0)
-            ->whereIn('transaction_id', $sales
-                ->where(fn ($openBills) => $openBills->where('is_pay_later', true)->orWhereHas('dineOrder'))
-                ->doesntHave('receivable')
-                ->select('id'))
-            ->sum('total_return_amount');
+        // What an open bill (pay-later or dine-in) was never asked for is not money received, so it comes off the bucket
+        // the bill is counted in. Any other sale was asked for its grand total.
+        $neverAsked = function ($sales): int {
+            $openBills = $sales
+                ->where(fn ($bills) => $bills->where('is_pay_later', true)->orWhereHas('dineOrder'))
+                ->doesntHave('receivable');
 
-        $cashSalesTotal -= $neverReceived((clone $transactions)
+            // A counter payment wrote tenders totalling what it asked, so a return completed later changes nothing here.
+            $tenderedShort = (int) (clone $openBills)->whereHas('tenders')->sum('grand_total')
+                - (int) TransactionTender::query()->whereIn('transaction_id', (clone $openBills)->select('id'))->sum('amount');
+
+            // Without tenders (guest online, retry) the asked amount is the total less the returns that refunded nothing.
+            // shortcut: a return completed while such a charge or transfer was already waiting comes off too, although the
+            // full amount may still arrive; store the amount asked on the bill to tell them apart.
+            $returnedShort = (int) SalesReturn::query()
+                ->where('status', 'completed')
+                ->where('refund_amount', 0)
+                ->where('credited_amount', 0)
+                ->whereIn('transaction_id', (clone $openBills)->doesntHave('tenders')->select('id'))
+                ->sum('total_return_amount');
+
+            return $tenderedShort + $returnedShort;
+        };
+
+        $cashSalesTotal -= $neverAsked((clone $transactions)
             ->where('payment_method', 'cash')
             ->where('payment_status', 'paid'));
-        $nonCashSalesTotal -= $neverReceived((clone $transactions)
+        $nonCashSalesTotal -= $neverAsked((clone $transactions)
             ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
             ->where(fn ($sales) => $sales
                 ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
