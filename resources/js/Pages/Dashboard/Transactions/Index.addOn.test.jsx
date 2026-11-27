@@ -35,14 +35,14 @@ vi.mock("@/Utils/offlineDb", () => ({
 }));
 
 const carts = [{ id: 1, product_id: 1, qty: 1, price: 10000, product: { id: 1, title: "Kopi", sell_price: 10000 } }];
-const addOn = { invoice: "TRX-1", state: "linked", reason: null };
 const pageProps = {
     carts, heldCarts: [], openBills: [], customers: [], products: [], categories: [], paymentGateways: [], bankAccounts: [],
     warehouses: [], loyaltyTierOptions: [], initialPricingPreview: { items: [], summary: {} },
 };
 
-const checkOut = async (props) => {
-    render(<Index {...pageProps} {...props} />);
+const checkOut = async (query = "") => {
+    window.history.pushState({}, "", `/${query}`); // the pinned order is the page's own ?add_on_to
+    render(<Index {...pageProps} />);
     // The button shows a spinner until the price preview is back.
     await userEvent.click(await screen.findByRole("button", { name: /Selesaikan Transaksi/ }));
 };
@@ -56,7 +56,7 @@ beforeEach(() => {
 
 describe("POS checkout with an add-on", () => {
     it("sends the original order with the sale", async () => {
-        await checkOut({ addOn });
+        await checkOut("?add_on_to=TRX-1");
 
         expect(router.post).toHaveBeenCalledWith("/transactions.store", expect.objectContaining({ add_on_to: "TRX-1" }), expect.any(Object));
     });
@@ -64,7 +64,7 @@ describe("POS checkout with an add-on", () => {
     it("never queues an add-on offline (BR-7)", async () => {
         offline();
 
-        await checkOut({ addOn });
+        await checkOut("?add_on_to=TRX-1");
 
         expect(toast.error).toHaveBeenCalledWith("Pesanan tambahan tidak tersedia saat offline");
         expect(queueTransaction).not.toHaveBeenCalled();
@@ -74,7 +74,7 @@ describe("POS checkout with an add-on", () => {
     it("still queues a normal sale offline", async () => {
         offline();
 
-        await checkOut({});
+        await checkOut();
 
         expect(queueTransaction).toHaveBeenCalledTimes(1);
     });

@@ -25,6 +25,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
@@ -68,7 +69,6 @@ class AddOnOrderTest extends TestCase
         app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
     }
 
-    // AC-21, BR-2, BR-8
     public function test_pos_add_on_links_to_the_original_and_is_its_own_sale(): void
     {
         $original = $this->sell();
@@ -101,7 +101,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame($original->id, $second->parent_transaction_id);
     }
 
-    // BR-1
     public function test_add_on_requires_permission_and_open_shift(): void
     {
         $original = $this->sell();
@@ -129,7 +128,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
     }
 
-    // BR-4
     public function test_add_on_deducts_stock_in_both_tables(): void
     {
         $original = $this->sell();
@@ -140,7 +138,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(98, (int) $this->nasi->warehouses()->whereKey($this->warehouse->id)->first()->pivot->stock);
     }
 
-    // BR-4 (AC-27)
     public function test_add_on_counts_in_the_shift_it_is_made_in(): void
     {
         $original = $this->sell();
@@ -154,7 +151,6 @@ class AddOnOrderTest extends TestCase
         $this->assertNotSame($shift->id, $original->fresh()->cashier_shift_id);
     }
 
-    // BR-5
     public function test_promotion_applies_to_the_add_on_alone(): void
     {
         $original = $this->sell();
@@ -169,7 +165,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(10000, $original->fresh()->grand_total);
     }
 
-    // BR-5, TC-3
     public function test_original_sale_rows_are_unchanged_by_an_add_on(): void
     {
         $customer = Customer::create(['name' => 'Hadi', 'no_telp' => '0811111111', 'address' => 'x', 'is_loyalty_member' => true, 'loyalty_points' => 50]);
@@ -187,7 +182,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame($before, $rows());
     }
 
-    // BR-3
     public function test_pay_now_add_on_reaches_the_kitchen_only_when_paid(): void
     {
         $original = $this->sell();
@@ -205,7 +199,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(1, KitchenItem::where('transaction_id', $addOn->id)->count());
     }
 
-    // BR-3
     public function test_pay_later_add_on_reaches_the_kitchen_at_once(): void
     {
         Setting::setForOutlet('pay_later_enabled', '1', $this->outlet);
@@ -218,7 +211,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(1, KitchenItem::where('transaction_id', $addOn->id)->count());
     }
 
-    // BR-9
     public function test_add_on_to_unpaid_original_keeps_its_own_payment_rule(): void
     {
         $original = $this->sell($this->byTransfer());
@@ -231,7 +223,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame([$addOn->id], KitchenItem::pluck('transaction_id')->all());
     }
 
-    // BR-6
     public function test_add_on_to_a_completed_order_starts_a_new_order(): void
     {
         $served = $this->sell();
@@ -280,7 +271,6 @@ class AddOnOrderTest extends TestCase
         }
     }
 
-    // BR-7, BR-11, BR-12
     public function test_add_on_to_a_cancelled_order_is_refused(): void
     {
         $rejected = $this->existingSale($this->warehouse, 'unpaid');
@@ -302,7 +292,6 @@ class AddOnOrderTest extends TestCase
         $this->assertReceiptOffersAddOn($itsAddOn, false);
     }
 
-    // BR-11
     public function test_add_on_to_cancelled_original_is_refused_on_pos_and_qr(): void
     {
         $area = DineArea::create(['outlet_id' => $this->outlet->id, 'name' => 'Depan', 'is_active' => true]);
@@ -318,7 +307,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(1, DineOrder::count());
     }
 
-    // BR-7, TC-5
     public function test_sync_rejects_a_queued_add_on(): void
     {
         $original = $this->sell();
@@ -371,7 +359,17 @@ class AddOnOrderTest extends TestCase
         ])->assertRedirect($withAddOn);
     }
 
-    // TC-1
+    public function test_preview_takes_no_lock(): void
+    {
+        $sale = $this->sell();
+        DB::enableQueryLog();
+
+        $this->actingAs($this->cashier)->get(route('transactions.index', ['add_on_to' => $sale->invoice]))->assertOk();
+
+        // SQLite never writes the clause, so this bites on CI's MySQL job.
+        $this->assertEmpty(preg_grep('/for update/i', array_column(DB::getQueryLog(), 'query')));
+    }
+
     public function test_parent_transaction_migration_rolls_back(): void
     {
         $migration = require database_path('migrations/2026_12_11_100001_add_add_on_links_to_transactions_and_dine_orders.php');

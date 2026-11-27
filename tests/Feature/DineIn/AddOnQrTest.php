@@ -82,22 +82,12 @@ class AddOnQrTest extends TestCase
     // BR-10: the table alone never links two orders
     public function test_second_qr_order_at_same_table_is_not_linked(): void
     {
-        $this->accept($this->order());
-
-        $second = $this->accept($this->order());
-
-        $this->assertNull($second->add_on_to_dine_order_id);
-        $this->assertNull($second->transaction->parent_transaction_id);
-    }
-
-    // BR-10
-    public function test_two_qr_orders_at_one_table_stay_separate(): void
-    {
         $first = $this->accept($this->order());
         $second = $this->accept($this->order());
+        $this->assertNull($second->add_on_to_dine_order_id);
+        $this->assertNull($second->transaction->parent_transaction_id);
 
         $addOn = $this->accept($this->order(from: $second));
-
         $this->assertSame($second->transaction_id, $addOn->transaction->parent_transaction_id);
         $this->assertSame(0, Transaction::where('parent_transaction_id', $first->transaction_id)->count());
     }
@@ -155,7 +145,6 @@ class AddOnQrTest extends TestCase
         }
     }
 
-    // BR-6
     public function test_qr_order_after_the_previous_one_completed_has_no_parent(): void
     {
         $original = $this->accept($this->order());

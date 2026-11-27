@@ -1,10 +1,23 @@
 import React from "react";
-import { router } from "@inertiajs/react";
+import { router, usePage } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import { useOnlineStatus } from "@/Context/OnlineStatusContext";
+import i18n from "@/i18n";
 
-/** What the POS cart will do with a pinned add-on (#251); `addOn` is the server's preview, null for a normal sale. */
-export default function AddOnBanner({ addOn }) {
+// The order this visit adds to (#251), read from the page's own URL: per tab, and it works offline.
+const pinned = () => new URLSearchParams(window.location.search).get("add_on_to") || undefined;
+export const withAddOn = (data) => ({ ...data, add_on_to: pinned() });
+
+/** Why a checkout cannot be queued offline: add-ons, split and pay later need the server. */
+export function offlineRefusal(splitMode, payLater) {
+    if (pinned()) return i18n.t("addOn.offline");
+    if (splitMode) return "Split pembayaran tidak tersedia saat offline";
+    return payLater ? i18n.t("pos.payLater.offline") : null;
+}
+
+/** What the POS cart will do with a pinned add-on; `addOn` is the server's preview, null for a normal sale. */
+export default function AddOnBanner() {
+    const { addOn } = usePage().props;
     const { t } = useTranslation();
     const online = useOnlineStatus();
 

@@ -21,14 +21,14 @@ class AddOnOrderService
 
     /**
      * POS: the root sale id a new sale links to, or null when the order is finished and a new one starts (BR-6).
-     * Call it inside the checkout's DB::transaction, so the check and the sale are atomic.
+     * Call it inside the checkout's DB::transaction, so the check and the sale are atomic; $lock is false outside one.
      *
      * @throws ValidationException an unknown order, another outlet's order, or a cancelled one (BR-11)
      */
-    public function resolveForPos(string $invoice, CashierShift $shift): ?int
+    public function resolveForPos(string $invoice, CashierShift $shift, bool $lock = true): ?int
     {
         $original = Transaction::where('invoice', $invoice)->first() ?? $this->refuse('Pesanan asal tidak ditemukan');
-        $root = $this->lockRoot($original);
+        $root = $this->root($original, $lock);
 
         // Any warehouse of the same outlet, as on the kitchen display and the payment retry.
         $sameOutlet = (int) $root->warehouse_id === (int) $shift->warehouse_id
@@ -49,7 +49,7 @@ class AddOnOrderService
     public function preview(string $invoice, CashierShift $shift): array
     {
         try {
-            $state = $this->resolveForPos($invoice, $shift) ? 'linked' : 'completed';
+            $state = $this->resolveForPos($invoice, $shift, false) ? 'linked' : 'completed';
             $reason = null;
         } catch (ValidationException $e) {
             $reason = $e->getMessage();
@@ -69,7 +69,7 @@ class AddOnOrderService
     {
         $original = DineOrder::where('access_token', $accessToken)->where('dine_table_id', $table->id)->first()
             ?? $this->refuse('Pesanan asal tidak ditemukan di meja ini');
-        $this->resolveForDine($original);
+        $this->resolveForDine($original, false);
 
         if (! $original->transaction_id) {
             $this->refuse('Pesanan asal belum diterima — tunggu konfirmasi staf');
@@ -84,16 +84,16 @@ class AddOnOrderService
      *
      * @throws ValidationException a cancelled original (BR-11, BR-12)
      */
-    public function resolveForDine(?DineOrder $original): ?int
+    public function resolveForDine(?DineOrder $original, bool $lock = true): ?int
     {
         if (in_array($original?->status, [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)) {
             $this->refuse(self::CANCELLED_MESSAGE);
         }
 
-        $sale = $original?->transaction_id ? Transaction::lockForUpdate()->find($original->transaction_id) : null;
+        $sale = $original?->transaction_id ? Transaction::when($lock, fn ($query) => $query->lockForUpdate())->find($original->transaction_id) : null;
 
         // A completed original is not enough to start afresh: an add-on of it may still be open (BR-13).
-        return $sale ? $this->linkTo($this->lockRoot($sale), $sale) : null;
+        return $sale ? $this->linkTo($this->root($sale, $lock), $sale) : null;
     }
 
     /** The receipt's "Tambah pesanan": hidden once the sale, or the order it belongs to, is cancelled (BR-12). */
@@ -114,9 +114,9 @@ class AddOnOrderService
         );
     }
 
-    private function lockRoot(Transaction $sale): Transaction
+    private function root(Transaction $sale, bool $lock): Transaction
     {
-        return Transaction::with('warehouse')->lockForUpdate()->findOrFail($sale->orderRootId());
+        return Transaction::with('warehouse')->when($lock, fn ($query) => $query->lockForUpdate())->findOrFail($sale->orderRootId());
     }
 
     private function linkTo(Transaction $root, Transaction $original): ?int
