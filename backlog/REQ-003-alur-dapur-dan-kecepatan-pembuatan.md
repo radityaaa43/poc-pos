@@ -213,6 +213,17 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
 - **Pengaturan per outlet:** Bayar Belakangan (default nonaktif, diubah pemilik).
 - **Jejak:** setiap perpindahan status item mencatat waktu server dan pelakunya; tidak bisa diubah
   sesudahnya.
+- **Tutup shift (keputusan Business/PM, 2026-11-28, #242):** AC-20 hanya membatalkan pesanan
+  *Bayar sekarang* yang belum menerima uang sama sekali. Split yang baru lunas sebagian, atau
+  penjualan belum lunas yang sudah punya retur selesai, tidak dibatalkan dan tidak menahan tutup
+  shift (menahannya menyusul di #396). Pada shift yang ditutup paksa, Bayar Belakangan yang dicatat
+  sebagai kekurangan kas tidak ikut dihitung di penjualan non-tunai, supaya rekap menghitungnya sekali.
+- **Pesanan tambahan (keputusan Business/PM, 2026-11-26 dan 2026-11-28, #251):** pesanan tambahan
+  (AC-21) hanya bergabung ke pesanan asalnya. Di POS lewat **Tambah pesanan** pada struk, di QR meja
+  lewat **Tambah pesanan** pada halaman status pesanan. Pesanan baru dari meja yang sama tanpa tombol
+  itu tetap pesanan terpisah. Pesanan asal selesai: dibuat sebagai pesanan baru tanpa tautan. Pesanan
+  asal dibatalkan, ditolak, gagal, atau kedaluwarsa: ditolak di POS dan QR dengan pesan *"Pesanan
+  asal sudah dibatalkan — buat pesanan baru"*.
 
 ## Kebutuhan non-fungsional
 
