@@ -94,7 +94,6 @@ describe("getUnsyncedCount", () => {
         for (const [scope_key, status] of [["5:none", "pending"], ["5:3", "failed"], [null, "syncing"], ["5:3", "conflict"], ["5:3", "synced"], ["51:none", "pending"]]) {
             await putRaw({ data: {}, scope_key, status });
         }
-
         expect(await getUnsyncedCount(5)).toBe(3);
     });
 });

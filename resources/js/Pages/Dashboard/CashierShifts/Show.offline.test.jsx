@@ -16,8 +16,6 @@ vi.mock("@inertiajs/react", () => ({
 it("disables the close for a sale the POS queued on this device", async () => {
     await i18n.changeLanguage("id");
     await queueTransaction({ client_uuid: "u-1" }, "5:none");
-
     render(<Show cashierShift={{ id: 9, status: "open", user: { id: 5, name: "Kasir" }, warehouse: { id: 3 }, expected_cash: 0, actual_cash: null }} />);
-
     expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
 });

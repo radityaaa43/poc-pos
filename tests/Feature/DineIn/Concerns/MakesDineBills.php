@@ -141,10 +141,7 @@ trait MakesDineBills
         ]);
     }
 
-    /**
-     * The shift the bill belongs to is closed and its stored recap taken. An unpaid bill or unhanded food holds a plain
-     * close (REQ-003 AC-12), so this closes by force, with the note a forced close then needs (AC-13).
-     */
+    /** Closes the bill's shift and takes its recap: by force with a note, as an unpaid bill holds a plain close (REQ-003 AC-12, 13). */
     private function closeShiftOf(Transaction $bill): CashierShift
     {
         return app(CashierShiftService::class)->closeShift(CashierShift::findOrFail($bill->cashier_shift_id), $this->cashier, 100000, 'Tutup paksa', forceClose: true);

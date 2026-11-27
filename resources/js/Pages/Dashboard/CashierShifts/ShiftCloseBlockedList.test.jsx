@@ -15,7 +15,6 @@ describe("ShiftCloseBlockedList", () => {
         const food = { type: "item", order: "TRX-1", label: "Nasi Goreng × 2", amount: 30000 };
         const unpaid = { type: "bill", order: "TRX-2", label: null, amount: 45000 };
         render(<ShiftCloseBlockedList blockers={[food, unpaid]} />);
-
         expect(screen.getByRole("heading", { name: "Belum selesai" })).toBeInTheDocument();
         const [item, bill] = screen.getAllByRole("listitem");
         expect(item).toHaveTextContent("TRX-1");

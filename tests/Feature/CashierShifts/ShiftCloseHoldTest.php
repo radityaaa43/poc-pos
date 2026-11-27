@@ -36,9 +36,7 @@ class ShiftCloseHoldTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
         $this->setUpDineBill();
-
         foreach (['cashier-shifts-access', 'cashier-shifts-close', 'cashier-shifts-force-close'] as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
@@ -178,9 +176,7 @@ class ShiftCloseHoldTest extends TestCase
     {
         $sales = collect(['pending', 'failed', 'expired'])->map(fn (string $status) => $this->sale($this->shift, 'qris', $status));
         $this->assertSame(14, $this->stock()['warehouse']); // 3 sales of 2 left the shelf
-
         $this->close($this->shift)->assertSessionHasNoErrors();
-
         $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
         foreach ($sales as $sale) {
             $this->assertSame('failed', $sale->fresh()->payment_status);
@@ -214,9 +210,7 @@ class ShiftCloseHoldTest extends TestCase
             'completed_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
         $stock = $this->stock();
-
         $this->close($this->shift)->assertSessionHasNoErrors(); // BR-15: none of these holds the close either
-
         $this->assertSame('paid', $paid->fresh()->payment_status);
         $this->assertSame('pending', $split->fresh()->payment_status);
         $this->assertSame('pending', $returned->fresh()->payment_status);
@@ -316,9 +310,7 @@ class ShiftCloseHoldTest extends TestCase
     {
         $credit = $this->sale($this->shift, 'pay_later', 'failed', ['is_pay_later' => true]);
         Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 20000, 'status' => 'unpaid']);
-
         $this->close($this->shift)->assertSessionHasNoErrors();
-
         $this->assertSame(1, $this->shift->fresh()->transactions_count);
         $this->assertSame(20000, $this->shift->fresh()->non_cash_sales_total);
     }
@@ -326,12 +318,10 @@ class ShiftCloseHoldTest extends TestCase
     public function test_restock_locks_the_stock_rows(): void
     {
         $this->sale($this->shift, 'qris', 'pending');
-
         DB::enableQueryLog();
         $this->close($this->shift)->assertSessionHasNoErrors();
         $queries = array_column(DB::getQueryLog(), 'query');
         DB::disableQueryLog();
-
         $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
         $lock = $first('/^select \* from [`"]product_warehouse[`"] where [`"]warehouse_id[`"]/');
         $this->assertIsInt($lock);

@@ -675,11 +675,8 @@ class PosTransactionSyncTest extends TestCase
         $this->openShift();
         $this->product->update(['needs_preparation' => true]);
         $this->travelTo(now()->addHours(3)->startOfSecond()); // synced hours after the sale was made offline
-
-        $this->postJson('/api/v1/pos/transactions/sync', [
-            'transactions' => [$this->syncPayload()],
-        ])->assertJsonPath('data.results.0.status', 'synced');
-
+        $this->postJson('/api/v1/pos/transactions/sync', ['transactions' => [$this->syncPayload()]])
+            ->assertJsonPath('data.results.0.status', 'synced');
         $item = KitchenItem::sole();
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->status);
         $this->assertEquals(now(), $item->accepted_at);

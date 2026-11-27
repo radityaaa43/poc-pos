@@ -53,7 +53,6 @@ describe("Shift close", () => {
     ])("lets %s force a held shift, with a required note", async (_who, props, viewer) => {
         signIn(viewer);
         renderShow({ ...props, closeBlockers: held });
-
         expect(screen.getByRole("heading", { name: "Belum selesai" })).toBeInTheDocument();
         const warning = "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.";
         expect(screen.getByText(warning)).toBeInTheDocument();
@@ -66,7 +65,6 @@ describe("Shift close", () => {
 
         await userEvent.type(note, "Tamu sudah pulang");
         await click("Tutup paksa");
-
         const sent = { actual_cash: 100000, close_notes: "Tamu sudah pulang", force: true };
         await waitFor(() => expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", sent));
     });

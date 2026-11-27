@@ -29,7 +29,6 @@ test.describe('80-dine-online-payment', () => {
         await page.getByRole('button', { name: 'Finalisasi Closing' }).click();
         await expect(page.getByRole('alert').filter({ hasText: 'Shift tidak bisa ditutup: masih ada item belum diserahkan atau tagihan belum lunas.' })).toBeVisible();
         await expect(page.getByText('Shift Aktif', { exact: true })).toBeVisible();
-
         // A manager of that outlet force closes it in the app with a note (AC-13): the snapshot holds no online money.
         const { email } = arrange('shiftclose.manager', { shift_id: bill.shift_id });
         const context = await browser.newContext({ locale: 'id-ID', serviceWorkers: 'block' });
