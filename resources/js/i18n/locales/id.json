@@ -1204,7 +1204,8 @@
     "dineMenu": {
         "payLater": {
             "button": "Pesan — Bayar Belakangan",
-            "helper": "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi."
+            "helper": "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.",
+            "helperOnline": "Pesanan langsung dibuat. Bayar di kasir atau online dari halaman pesanan sebelum Anda pergi."
         }
     },
     "kitchenStations": {
@@ -1240,7 +1241,10 @@
             "gatewayError": "Pembayaran online sedang bermasalah — bayar di kasir",
             "tooMany": "Terlalu banyak percobaan. Coba lagi sebentar.",
             "offline": "Tidak ada koneksi. Pembayaran belum dibuat.",
-            "scanQris": "Scan QRIS dengan aplikasi bank atau e-wallet"
+            "scanQris": "Scan QRIS dengan aplikasi bank atau e-wallet",
+            "unpaid": "Belum lunas",
+            "payLaterAcceptedOnline": "Pesanan diterima. Belum lunas: bayar sekarang atau di kasir sebelum Anda pergi.",
+            "payLaterAcceptedCounter": "Pesanan diterima. Belum lunas: bayar di kasir sebelum Anda pergi."
         },
         "menu": {
             "submitOnline": "Pesan",
