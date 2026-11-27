@@ -119,6 +119,10 @@ export default function GuestPayPanel({ token, payment, onChange }) {
                 {refusal && refusal !== title && <p className="text-sm text-rose-700">{t(`dine.pay.${refusal}`)}</p>}
             </div>
 
+            {payment.pay_later && state !== "paid" && (
+                <p className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-700">{t("dine.pay.unpaid")}</p>
+            )}
+
             {state !== "paid" && state !== "counter" && <p className="text-2xl font-bold text-primary-700">{fmt(payment.amount)}</p>}
 
             {state === "pending" && payment.qr && (

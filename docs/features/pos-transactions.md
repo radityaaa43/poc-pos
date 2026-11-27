@@ -117,6 +117,6 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 
 ## File Sentral
 
-- `routes/web.php`
+- `routes/web/transactions.php`
 - `app/Http/Controllers/Apps/TransactionController.php`
 - `resources/js/Pages/Dashboard/Transactions`

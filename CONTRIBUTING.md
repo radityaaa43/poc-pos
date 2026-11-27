@@ -119,9 +119,9 @@ these checks must pass: **PR checklist**, **Standards approval**, **PR size**, *
 **Backend**, **Frontend** and **E2E**. No approving review is required, so the maintainer can merge their own PR once the
 checks are green.
 
-*Migration order* and *Script and hook tests* are not required checks because they only run when
-migrations or governance scripts change; a required check that never runs would block every other
-PR. Both still run and still count in review.
+*Migration order*, *Glossary terms* and *Script and hook tests* are not required checks because they
+only run when migrations, the glossary or governance scripts change; a required check that never runs
+would block every other PR. All three still run and still count in review.
 
 The guard hook is a second layer for agents only; for example it does not catch
 `git push origin HEAD:main`, which the ruleset rejects on the server.
@@ -142,8 +142,17 @@ merges:
   default branch in instead. A resolved conflict is a code change: let CI re-run.
 - **Don't mix in unrelated changes**: no drive-by refactors, renames or reformatting outside the
   issue. Do them as their own issue.
-- **Hotspot files** (`routes/web.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): prefer appending over reordering, and mention the edit in the
+- **Hotspot files** (`routes/web.php`, `routes/web/*.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): prefer appending over reordering, and mention the edit in the
   PR so reviewers merge in a sensible order.
+- **Dashboard routes** live in one file per module, `routes/web/<module>.php`, required by the
+  `/dashboard` group of `routes/web.php`. Append to your module's file; the order of the `require`
+  lines is the route registration order. Two PRs that append to the same file still conflict.
+- **Union merge** (`.gitattributes`): `GLOSSARY.md` and `tests/e2e/features/*/COVERAGE.md` keep both
+  sides instead of conflicting. Add rows; a row two branches edit comes back twice (CI's *Glossary
+  terms* check catches it in the glossary, review catches it elsewhere). Git reads the attribute from
+  the branch you are on, so a branch cut before it commits `main`'s `.gitattributes` before merging
+  `main`. GitHub ignores the attribute, so a PR may still show a conflict there; merging `main`
+  locally resolves it. Locale JSON is not union-merged: the result can be invalid JSON.
 - **Migrations** (`database/migrations/`): when the default branch has a newer migration than yours,
   rename yours to a fresh timestamp before merging, so files sort in apply order. CI's *Migration
   order* check turns red when you need to. Never rename or edit a migration after it has merged.
@@ -183,6 +192,7 @@ on every turn.
 | Dependency check | no (warns) | Lists new direct dependencies for the reviewer |
 | Migration order | yes | New migrations sort after the default branch's |
 | Script and hook tests | yes | The governance scripts and the guard hook still work |
+| Glossary terms | yes | No `GLOSSARY.md` term appears twice, which its union merge can cause (also runs on `main`) |
 
 **Feature PRs bring their e2e.** A PR whose title starts with `feat` (`feat(pos): ...`) must change at
 least one file under `tests/e2e/features/` (scaffold a folder with `npm run e2e:new -- <NN-feature>`:

@@ -88,6 +88,7 @@ class DineIn
             // order of --arg=qty (default 2). --arg=accepted=1 (default) accepts it through the real service, 0 leaves it submitted.
             // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen;
             // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only).
+            // --arg=pay_later=1 makes it a Bayar Belakangan order: accepting puts it in the kitchen while unpaid.
             // Returns access_token, table_token (the table's menu), invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
             'dine.bill' => function (array $options): array {
                 $suffix = Str::upper(Str::random(5));
@@ -145,7 +146,7 @@ class DineIn
                         'cashier_id' => $cashier->id, // accept() takes the open shift of this user
                         'status' => DineOrder::STATUS_SUBMITTED,
                         'submitted_at' => now(),
-                        'payment_option' => DineOrder::PAY_AT_COUNTER,
+                        'payment_option' => ($options['pay_later'] ?? '0') === '1' ? DineOrder::PAY_LATER : DineOrder::PAY_AT_COUNTER,
                         'subtotal' => 10000 * $qty,
                         'item_count' => $qty,
                     ]);
@@ -213,6 +214,7 @@ class DineIn
                     'item_count' => $order->item_count,
                     'payment_attempt' => $transaction?->payment_attempt,
                     'payment_failure_reason' => $transaction?->payment_failure_reason,
+                    'is_pay_later' => $transaction?->is_pay_later,
                     'payment_reference' => $transaction?->payment_reference,
                     'late_superseded_payment_at' => $transaction?->late_superseded_payment_at?->toIso8601String(),
                     'paid_after_close_at' => $transaction?->paid_after_close_at?->toIso8601String(),

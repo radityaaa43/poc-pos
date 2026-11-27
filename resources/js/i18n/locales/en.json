@@ -1195,7 +1195,8 @@
     "dineMenu": {
         "payLater": {
             "button": "Order — Pay later",
-            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave."
+            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave.",
+            "helperOnline": "Your order goes straight to the kitchen. Pay at the counter, or online from the order page, before you leave."
         }
     },
     "kitchenStations": {
@@ -1231,7 +1232,10 @@
             "gatewayError": "Online payment is having trouble — please pay at the counter",
             "tooMany": "Too many attempts. Try again in a moment.",
             "offline": "No connection. The payment was not created.",
-            "scanQris": "Scan the QRIS with your bank or e-wallet app"
+            "scanQris": "Scan the QRIS with your bank or e-wallet app",
+            "unpaid": "Not paid yet",
+            "payLaterAcceptedOnline": "Order received. Not paid yet: pay now or at the counter before you leave.",
+            "payLaterAcceptedCounter": "Order received. Not paid yet: please pay at the counter before you leave."
         },
         "menu": {
             "submitOnline": "Order",
