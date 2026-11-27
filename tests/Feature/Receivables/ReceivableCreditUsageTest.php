@@ -134,6 +134,22 @@ class ReceivableCreditUsageTest extends TestCase
         $this->assertSame(10, $this->rows()[$partial->invoice]['credit']['percent']);
     }
 
+    public function test_pos_summary_and_receivables_row_show_the_same_used_amount(): void
+    {
+        $customer = $this->customer(1000000);
+        $receivable = $this->receivable($customer, 500000, 200000);
+        $receivable->update(['total' => 350000]); // a sales return lowers the receivable's total
+
+        $listed = $this->rows()[$receivable->invoice]['credit']['used'];
+        $atPos = $this->actingAs($this->userWith('transactions-access'))
+            ->getJson(route('customers.credit-summary', $customer))
+            ->assertOk()
+            ->json('used');
+
+        $this->assertSame(150000, $listed);
+        $this->assertSame($listed, $atPos);
+    }
+
     public function test_receivable_without_customer_has_no_credit(): void
     {
         $receivable = $this->receivable(null);
