@@ -106,6 +106,7 @@ issue, stdlib and native features before new libraries.
   refactors, renames or reformatting outside the issue.
 - Sync with `main` daily and before the PR: `git fetch && git rebase origin/main`
   on your own unreviewed branch (`--force-with-lease` is fine); after review, merge it in instead.
+- Files in `file_length.ratchet` (`.github/governance.json`) may only shrink; CI fails a PR that grows them.
 - Hotspot files (`routes/web.php`, `routes/web/*.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): append rather than reorder, and name them in the PR.
 - Dashboard routes: append to your module's file in `routes/web/`, not to `routes/web.php` (a new
   module adds a file and its `require` there).

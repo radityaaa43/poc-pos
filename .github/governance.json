@@ -317,10 +317,13 @@
       "**/__tests__/**",
       "*.gen.*",
       "**/generated/**",
-      "**/migrations/**",
+      "**/migrations/**"
+    ],
+    "ratchet": [
       "resources/js/Pages/Dashboard/Transactions/Index.jsx",
       "resources/js/Pages/Dashboard/Reports/Insights.jsx",
-      "resources/js/Pages/Dashboard/Transactions/Print.jsx"
+      "resources/js/Pages/Dashboard/Transactions/Print.jsx",
+      "app/Http/Controllers/Apps/TransactionController.php"
     ]
   },
   "pr_size": {

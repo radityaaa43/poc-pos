@@ -8,7 +8,8 @@ on every turn. Usage:
                       refuses `gh pr merge` until then); above `fail` the job fails unless the
                       `large_label` label is on the PR.
   pr_size.py length   needs BASE_SHA. Fails when a hand-written code file grows past `max` lines.
-                      Files already over the limit may shrink or stay, never grow.
+                      Files already over the limit may shrink or stay, never grow, and a file
+                      in `ratchet` may not grow at any size.
 
 Not counted: lockfiles, generated and vendored files, and the `exclude` globs. The guard hook
 imports `counted_lines` and `WARN_LINES` from here.
@@ -97,6 +98,11 @@ def length_problems(base: str, cfg: dict = CFG) -> list[str]:
         if gc.match_any(path, fl["exempt"]) or not counted(path, cfg):
             continue
         new, old = _lines_at(None, path), _lines_at(base, path)
+        if path in fl.get("ratchet", []):
+            if new > old:
+                found.append(f"{path}: {old} → {new} lines. This file may only shrink; move code out "
+                             "(see AGENTS.md → Working in parallel).")
+            continue
         if new > int(fl["max"]) and new > old:
             found.append(f"{path}: {old} → {new} lines (limit {fl['max']}). Split it before it grows.")
     return found
