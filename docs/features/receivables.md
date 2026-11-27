@@ -10,6 +10,7 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
 
 - list piutang
 - filter status, customer, invoice, due date
+- batas piutang per pelanggan: kolom **Batas** dan **Terpakai %**, saringan **Mendekati batas (≥ 80%)** (termasuk yang melewati batas), **Melewati batas**, dan **Tanpa batas** (hanya pelanggan *Boleh piutang* tanpa batas)
 - detail piutang
 - pembayaran parsial
 - status `unpaid`, `partial`, `paid`, `overdue`
@@ -36,6 +37,15 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
 3. user mencatat pembayaran
 4. sistem memperbarui nilai `paid`, `remaining`, dan `status`
 
+## Batas Piutang
+
+- **Terpakai** adalah sisa semua piutang pelanggan yang belum lunas **di semua outlet**, walaupun baris daftar
+  tetap dibatasi outlet pengguna. Dihitung saat dibaca (`Receivable::scopeOutstanding`), tidak disimpan.
+- **Terpakai %** dibulatkan ke bawah. Batas Rp 0 menampilkan "—", dan utang berapa pun berarti **Melewati batas**.
+- Baris tanpa pelanggan, atau pelanggan yang tidak boleh piutang dan tidak punya batas, menampilkan "—".
+- **Batas piutang** diisi di halaman detail pelanggan (`customers-credit-approve`); lihat `member-management.md`.
+- Batas belum menolak checkout: penolakan dan pengecualian dikerjakan terpisah (REQ-007 AC-04 sampai AC-06).
+
 ## Integrasi Data
 
 - `receivables`
@@ -61,4 +71,5 @@ Belum ada approval flow terpisah untuk pencatatan pembayaran receivable.
 ## File Sentral
 
 - `app/Http/Controllers/Apps/ReceivableController.php`
+- `app/Services/ReceivableService.php`, `app/Services/CustomerCreditService.php`
 - `resources/js/Pages/Dashboard/Receivables`
