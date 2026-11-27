@@ -87,32 +87,6 @@ class ModifierGroupTest extends TestCase
         return $overrides + $product->only(['title', 'sku', 'barcode', 'description', 'category_id', 'buy_price', 'sell_price']) + ['tax_rate' => 0];
     }
 
-    public function test_a_group_saves_with_its_options_recipes_and_outlet_switches(): void
-    {
-        $milk = $this->product(['title' => 'Susu', 'is_raw_material' => true]);
-        $outlet = $this->outlet('MOD-B');
-
-        $group = $this->createGroup(['options' => [
-            $this->option('Regular', ['is_default' => true]),
-            $this->option('Large', [
-                'price_delta' => 5000,
-                'components' => [['product_id' => $milk->id, 'qty' => 50]],
-                'disabled_outlet_ids' => [$outlet->id],
-            ]),
-        ]]);
-
-        // An edit keeps the ids it sends, adds the new ones and soft-deletes the rest.
-        [$regular, $large] = $group->options()->get()->all();
-        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [
-            $this->option('Reguler', ['id' => $regular->id, 'is_default' => true]),
-            $this->option('Jumbo', ['price_delta' => 8000]),
-        ]]))->assertSessionHasNoErrors();
-
-        $this->assertSame(['Reguler', 'Jumbo'], $group->options()->pluck('name')->all());
-        $this->assertSame($regular->id, $group->options()->first()->id);
-        $this->assertSoftDeleted($large);
-    }
-
     public function test_group_rules_are_enforced(): void
     {
         $cases = [
@@ -245,7 +219,7 @@ class ModifierGroupTest extends TestCase
         $this->assertTrue(ModifierCatalog::forOutlet(null, collect([$menu->id]))->isEmpty());
     }
 
-    public function test_a_deleted_option_or_group_releases_its_ingredients(): void
+    public function test_an_edit_syncs_the_options_and_deleted_ones_release_their_ingredients(): void
     {
         [$milk, $syrup] = [$this->product(['is_raw_material' => true]), $this->product(['is_raw_material' => true])];
         $recipe = fn (Product $product) => ['components' => [['product_id' => $product->id, 'qty' => 1]]];
@@ -254,10 +228,18 @@ class ModifierGroupTest extends TestCase
             $this->option('Large', $recipe($syrup)),
         ]]);
 
-        // Large is left out of the save, then the whole group goes.
-        $kept = $this->option('Regular', ['id' => $group->options()->value('id'), 'is_default' => true] + $recipe($milk));
-        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [$kept]]))->assertSessionHasNoErrors();
+        [$regular, $large] = $group->options()->get()->all();
+
+        // The save keeps the id it sends, adds the new option and soft-deletes the one left out.
+        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [
+            $this->option('Reguler', ['id' => $regular->id, 'is_default' => true] + $recipe($milk)),
+            $this->option('Jumbo'),
+        ]]))->assertSessionHasNoErrors();
+        $this->assertSame(['Reguler', 'Jumbo'], $group->options()->pluck('name')->all());
+        $this->assertSame($regular->id, $group->options()->first()->id);
+        $this->assertSoftDeleted($large);
         $syrup->delete();
+
         $this->delete(route('settings.modifiers.destroy', $group));
         $milk->delete();
 
