@@ -9,13 +9,7 @@ const NOTICE = "Dapur belum menerima pesanan ini. Sampaikan langsung ke dapur.";
 const kitchenCart = [{ product: { needs_preparation: false } }, { product: { needs_preparation: true } }];
 const shelfCart = [{ product: { needs_preparation: false } }, {}];
 
-const mount = () =>
-    render(
-        <>
-            <Toaster />
-            <OfflineKitchenMarker scopeKey="5:3" />
-        </>
-    );
+const mount = () => render(<><Toaster /><OfflineKitchenMarker scopeKey="5:3" /></>);
 
 beforeAll(() => {
     i18n.changeLanguage("id");
@@ -35,9 +29,7 @@ describe("needsKitchen", () => {
 describe("queueOfflineSale", () => {
     it("queues a shelf-only sale without notice or marker", async () => {
         mount();
-
         await act(() => queueOfflineSale({ client_uuid: "a" }, "5:3", shelfCart));
-
         expect(await getPendingTransactions("5:3")).toHaveLength(1);
         expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
         expect(screen.queryByText(/belum diterima dapur/)).not.toBeInTheDocument();
@@ -45,9 +37,7 @@ describe("queueOfflineSale", () => {
 
     it("says the kitchen has not received the order and marks it as pending", async () => {
         mount();
-
         await act(() => queueOfflineSale({ client_uuid: "b" }, "5:3", kitchenCart));
-
         expect(await screen.findByRole("alert")).toHaveTextContent(NOTICE);
         expect(await screen.findByText("Pesanan offline yang belum diterima dapur: 1")).toBeInTheDocument();
         const [row] = await getPendingTransactions("5:3");
@@ -59,9 +49,7 @@ describe("queueOfflineSale", () => {
         await queueTransaction({ client_uuid: "c" }, "5:3", { needs_kitchen: true });
         await queueTransaction({ client_uuid: "d" }, "5:3", { needs_kitchen: true, status: "synced" });
         await queueTransaction({ client_uuid: "e" }, "8:3", { needs_kitchen: true });
-
         mount();
-
         expect(await screen.findByText("Pesanan offline yang belum diterima dapur: 1")).toBeInTheDocument();
     });
 });

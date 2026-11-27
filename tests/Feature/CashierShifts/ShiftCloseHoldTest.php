@@ -31,6 +31,8 @@ class ShiftCloseHoldTest extends TestCase
     use MakesDineBills;
     use RefreshDatabase;
 
+    private CashierShift $shift; // the cashier's own open shift
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -41,35 +43,27 @@ class ShiftCloseHoldTest extends TestCase
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
         $this->cashier->givePermissionTo(['cashier-shifts-access', 'cashier-shifts-close']);
+        $this->shift = $this->openShiftFor($this->cashier);
     }
 
     public function test_close_is_refused_with_the_list_of_open_items_and_unpaid_bills(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $dish = $this->kitchenSale($shift);
-        $bill = $this->guestPayLater($shift);
-
-        $this->close($shift)->assertSessionHasErrors('shift');
-
-        $this->actingAs($this->cashier)->get(route('cashier-shifts.show', $shift))
-            ->assertInertia(fn (Assert $page) => $page
-                ->has('closeBlockers', 2)
-                ->where('closeBlockers.0', ['type' => 'item', 'order' => $dish->transaction->invoice, 'label' => 'Rujak × 2', 'amount' => 20000])
-                ->where('closeBlockers.1.type', 'bill')
-                ->where('closeBlockers.1.order', $bill->invoice)
-                ->where('closeBlockers.1.amount', 10000));
+        $dish = $this->kitchenSale($this->shift);
+        $bill = $this->guestPayLater($this->shift);
+        $this->close($this->shift)->assertSessionHasErrors('shift');
+        $this->actingAs($this->cashier)->get(route('cashier-shifts.show', $this->shift))->assertInertia(fn (Assert $page) => $page
+            ->has('closeBlockers', 2)
+            ->where('closeBlockers.0', ['type' => 'item', 'order' => $dish->transaction->invoice, 'label' => 'Rujak × 2', 'amount' => 20000])
+            ->where('closeBlockers.1.type', 'bill')->where('closeBlockers.1.order', $bill->invoice)->where('closeBlockers.1.amount', 10000));
     }
 
     public function test_a_refused_close_changes_nothing(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $item = $this->kitchenSale($shift);
-        $pending = $this->sale($shift, 'qris', 'pending');
+        $item = $this->kitchenSale($this->shift);
+        $pending = $this->sale($this->shift, 'qris', 'pending');
         $stock = $this->stock();
-
-        $this->close($shift)->assertSessionHasErrors('shift');
-
-        $this->assertTrue($shift->fresh()->isOpen());
+        $this->close($this->shift)->assertSessionHasErrors('shift');
+        $this->assertTrue($this->shift->fresh()->isOpen());
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
         $this->assertSame('pending', $pending->fresh()->payment_status);
         $this->assertSame($stock, $this->stock());
@@ -77,31 +71,23 @@ class ShiftCloseHoldTest extends TestCase
 
     public function test_a_credit_customers_receivable_does_not_hold_the_close(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $credit = $this->guestPayLater($shift);
-        Receivable::create([
-            'transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 10000, 'paid' => 0,
-            'due_date' => now()->addWeek(), 'status' => 'unpaid',
-        ]);
-
-        $this->close($shift)->assertSessionHasNoErrors();
-
-        $this->assertSame(CashierShift::STATUS_CLOSED, $shift->fresh()->status);
+        $credit = $this->guestPayLater($this->shift);
+        Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 10000, 'paid' => 0,
+            'due_date' => now()->addWeek(), 'status' => 'unpaid']);
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertSame(CashierShift::STATUS_CLOSED, $this->shift->fresh()->status);
         $this->assertSame('unpaid', $credit->fresh()->payment_status);
-        $this->assertSame(0, $shift->fresh()->unpaid_bills_total);
+        $this->assertSame(0, $this->shift->fresh()->unpaid_bills_total);
     }
 
     public function test_an_unpaid_dine_bill_holds_the_close_and_is_never_cancelled(): void
     {
-        $order = $this->acceptedOrder();
-        $bill = $this->bill($order);
+        $bill = $this->bill($this->acceptedOrder());
         // A guest's online attempt leaves the bill pending: it is still a bill, not a Pay now sale (BR-10).
         $bill->update(['payment_status' => 'pending', 'payment_method' => 'qris', 'payment_attempt' => 1]);
         $shift = CashierShift::findOrFail($bill->cashier_shift_id);
-
         $this->close($shift)->assertSessionHasErrors('shift');
         $this->forceClose($shift, $this->cashier);
-
         $this->assertSame('pending', $bill->fresh()->payment_status);
         $this->assertSame(self::TOTAL, $shift->fresh()->unpaid_bills_total);
     }
@@ -109,13 +95,12 @@ class ShiftCloseHoldTest extends TestCase
     public function test_force_close_marks_items_not_collected_and_books_unpaid_bills_as_a_shortfall(): void
     {
         $manager = $this->manager();
-        $shift = $this->openShiftFor($this->cashier);
-        $item = $this->kitchenSale($shift);
-        $bill = $this->guestPayLater($shift);
+        $item = $this->kitchenSale($this->shift);
+        $bill = $this->guestPayLater($this->shift);
 
-        $this->close($shift, $manager, ['actual_cash' => 120000, 'close_notes' => 'Tamu pulang'])->assertSessionHasNoErrors();
+        $this->close($this->shift, $manager, ['actual_cash' => 120000, 'close_notes' => 'Tamu pulang'])->assertSessionHasNoErrors();
 
-        $closed = $shift->fresh();
+        $closed = $this->shift->fresh();
         $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, $closed->status);
         $this->assertSame(KitchenItem::STATUS_NOT_COLLECTED, $item->fresh()->status);
         $this->assertSame(10000, $closed->unpaid_bills_total);
@@ -134,58 +119,43 @@ class ShiftCloseHoldTest extends TestCase
 
     public function test_a_partly_paid_bill_books_only_what_is_still_owed(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $bill = $this->guestPayLater($shift);
+        $bill = $this->guestPayLater($this->shift);
         $bill->update(['payment_method' => 'split', 'payment_status' => 'pending']);
         $this->tender($bill, TransactionTender::METHOD_BANK_TRANSFER, TransactionTender::STATUS_PAID, 4000);
         $this->tender($bill, TransactionTender::METHOD_QRIS, TransactionTender::STATUS_PENDING, 6000);
-
-        $this->forceClose($shift, $this->cashier);
-
-        $this->assertSame(6000, $shift->fresh()->unpaid_bills_total);
-        $this->assertSame(4000, $shift->fresh()->non_cash_sales_total);
+        $this->forceClose($this->shift, $this->cashier);
+        $this->assertSame(6000, $this->shift->fresh()->unpaid_bills_total);
+        $this->assertSame(4000, $this->shift->fresh()->non_cash_sales_total);
     }
 
     public function test_force_close_of_a_held_shift_requires_a_note(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $item = $this->kitchenSale($shift);
-
-        $this->close($shift, $this->manager(), ['close_notes' => '  '])->assertSessionHasErrors('close_notes');
-
-        $this->assertTrue($shift->fresh()->isOpen());
+        $item = $this->kitchenSale($this->shift);
+        $this->close($this->shift, $this->manager(), ['close_notes' => '  '])->assertSessionHasErrors('close_notes');
+        $this->assertTrue($this->shift->fresh()->isOpen());
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
     }
 
     public function test_forcing_a_held_shift_without_the_permission_is_refused(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $this->guestPayLater($shift);
-
-        $this->close($shift, $this->cashier, ['force' => true, 'close_notes' => 'Paksa'])->assertForbidden();
-
-        $this->assertTrue($shift->fresh()->isOpen());
+        $this->guestPayLater($this->shift);
+        $this->close($this->shift, $this->cashier, ['force' => true, 'close_notes' => 'Paksa'])->assertForbidden();
+        $this->assertTrue($this->shift->fresh()->isOpen());
     }
 
     public function test_the_owner_with_the_permission_may_force_close_their_own_shift(): void
     {
         $this->cashier->givePermissionTo('cashier-shifts-force-close');
-        $shift = $this->openShiftFor($this->cashier);
-        $this->guestPayLater($shift);
-
-        $this->close($shift, $this->cashier, ['force' => true, 'close_notes' => 'Paksa'])->assertSessionHasNoErrors();
-
-        $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, $shift->fresh()->status);
+        $this->guestPayLater($this->shift);
+        $this->close($this->shift, $this->cashier, ['force' => true, 'close_notes' => 'Paksa'])->assertSessionHasNoErrors();
+        $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, $this->shift->fresh()->status);
     }
 
     public function test_force_close_never_touches_served_items(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $served = $this->kitchenSale($shift, KitchenItem::STATUS_SERVED);
-        $ready = $this->kitchenSale($shift, KitchenItem::STATUS_READY);
-
-        $this->forceClose($shift, $this->cashier);
-
+        $served = $this->kitchenSale($this->shift, KitchenItem::STATUS_SERVED);
+        $ready = $this->kitchenSale($this->shift, KitchenItem::STATUS_READY);
+        $this->forceClose($this->shift, $this->cashier);
         $this->assertSame(KitchenItem::STATUS_SERVED, $served->fresh()->status);
         $this->assertSame(KitchenItem::STATUS_NOT_COLLECTED, $ready->fresh()->status);
         $this->assertFalse(KitchenItem::open()->whereKey($ready->id)->exists());
@@ -198,9 +168,7 @@ class ShiftCloseHoldTest extends TestCase
         $old = CashierShift::findOrFail($bill->cashier_shift_id);
         $this->forceClose($old, $this->cashier);
         $new = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 50000, null, $this->warehouse->id);
-
         $this->cashierPays($order);
-
         $this->assertSame($new->id, $bill->fresh()->cashier_shift_id);
         $this->assertSame(50000 + self::TOTAL, app(CashierShiftService::class)->calculateSummary($new)['expected_cash']);
         $this->assertSame(self::TOTAL, $old->fresh()->unpaid_bills_total); // the closed recap stays as it was
@@ -208,11 +176,10 @@ class ShiftCloseHoldTest extends TestCase
 
     public function test_unpaid_pay_now_sales_are_cancelled_restocked_and_audited_at_close(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $sales = collect(['pending', 'failed', 'expired'])->map(fn (string $status) => $this->sale($shift, 'qris', $status));
+        $sales = collect(['pending', 'failed', 'expired'])->map(fn (string $status) => $this->sale($this->shift, 'qris', $status));
         $this->assertSame(14, $this->stock()['warehouse']); // 3 sales of 2 left the shelf
 
-        $this->close($shift)->assertSessionHasNoErrors();
+        $this->close($this->shift)->assertSessionHasNoErrors();
 
         $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
         foreach ($sales as $sale) {
@@ -221,30 +188,26 @@ class ShiftCloseHoldTest extends TestCase
         }
         $this->assertSame(3, StockMutation::where('reference_type', 'transaction_expire')->count());
         $this->assertSame(3, AuditLog::where('event', 'transaction.cancelled_on_shift_close')->count());
-        $closed = $shift->fresh();
+        $closed = $this->shift->fresh();
         $this->assertSame(0, $closed->non_cash_sales_total);
         $this->assertSame(0, $closed->transactions_count);
     }
 
     public function test_an_unconfirmed_transfer_is_cancelled_with_its_tender(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $sale = $this->sale($shift, 'bank_transfer', 'pending');
+        $sale = $this->sale($this->shift, 'bank_transfer', 'pending');
         $tender = $this->tender($sale, TransactionTender::METHOD_BANK_TRANSFER, TransactionTender::STATUS_PENDING, 20000);
-
-        $this->close($shift)->assertSessionHasNoErrors();
-
+        $this->close($this->shift)->assertSessionHasNoErrors();
         $this->assertSame('failed', $sale->fresh()->payment_status);
         $this->assertSame(TransactionTender::STATUS_FAILED, $tender->fresh()->payment_status);
     }
 
     public function test_paid_sales_bills_partly_paid_splits_and_returned_sales_are_left_alone(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $paid = $this->sale($shift, 'qris', 'paid');
-        $split = $this->sale($shift, 'split', 'pending');
+        $paid = $this->sale($this->shift, 'qris', 'paid');
+        $split = $this->sale($this->shift, 'split', 'pending');
         $this->tender($split, TransactionTender::METHOD_CASH, TransactionTender::STATUS_PAID, 5000);
-        $returned = $this->sale($shift, 'qris', 'pending');
+        $returned = $this->sale($this->shift, 'qris', 'pending');
         DB::table('sales_returns')->insert([
             'code' => 'SR-1', 'transaction_id' => $returned->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
             'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 0,
@@ -252,7 +215,7 @@ class ShiftCloseHoldTest extends TestCase
         ]);
         $stock = $this->stock();
 
-        $this->close($shift)->assertSessionHasNoErrors(); // BR-15: none of these holds the close either
+        $this->close($this->shift)->assertSessionHasNoErrors(); // BR-15: none of these holds the close either
 
         $this->assertSame('paid', $paid->fresh()->payment_status);
         $this->assertSame('pending', $split->fresh()->payment_status);
@@ -262,26 +225,20 @@ class ShiftCloseHoldTest extends TestCase
 
     public function test_a_sale_already_cancelled_is_not_restocked_again(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $sale = $this->sale($shift, 'qris', 'pending');
+        $sale = $this->sale($this->shift, 'qris', 'pending');
         $this->travel(2)->days();
         $this->artisan('transactions:expire')->assertSuccessful();
-
-        $this->close($shift)->assertSessionHasNoErrors();
-
+        $this->close($this->shift)->assertSessionHasNoErrors();
         $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
         $this->assertSame(1, StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $sale->id)->count());
     }
 
     public function test_a_transfer_cancelled_at_close_cannot_be_confirmed(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $sale = $this->sale($shift, 'bank_transfer', 'pending');
-        $this->forceClose($shift, $this->cashier);
-
+        $sale = $this->sale($this->shift, 'bank_transfer', 'pending');
+        $this->forceClose($this->shift, $this->cashier);
         // The page was read before the close: the model still says pending.
         $stale = Transaction::find($sale->id)->forceFill(['payment_status' => 'pending'])->syncOriginal();
-
         try {
             app(TransactionTenderService::class)->confirmTransfer($stale);
             $this->fail('a cancelled sale was confirmed');
@@ -292,13 +249,10 @@ class ShiftCloseHoldTest extends TestCase
 
     public function test_a_transfer_bill_booked_at_close_and_confirmed_later_is_marked_paid_after_close(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $bill = $this->guestPayLater($shift);
+        $bill = $this->guestPayLater($this->shift);
         $bill->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
-        $this->forceClose($shift, $this->cashier);
-
+        $this->forceClose($this->shift, $this->cashier);
         app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
-
         $this->assertSame('paid', $bill->fresh()->payment_status);
         $this->assertNotNull($bill->fresh()->paid_after_close_at);
         $this->assertSame(1, AuditLog::where('event', 'payment.paid_after_close')->count());
@@ -307,31 +261,24 @@ class ShiftCloseHoldTest extends TestCase
     public function test_a_not_collected_dish_that_was_cooked_is_not_restocked_by_default(): void
     {
         $this->cashier->givePermissionTo(Permission::firstOrCreate(['name' => 'sales-returns-create', 'guard_name' => 'web']));
-        $shift = $this->openShiftFor($this->cashier);
-        $cooked = $this->kitchenSale($shift, KitchenItem::STATUS_READY);
+        $cooked = $this->kitchenSale($this->shift, KitchenItem::STATUS_READY);
         $cooked->update(['preparing_at' => now()]);
-        $untouched = $this->kitchenSale($shift);
-        $this->forceClose($shift, $this->cashier);
-
+        $untouched = $this->kitchenSale($this->shift);
+        $this->forceClose($this->shift, $this->cashier);
         foreach ([[$cooked, false], [$untouched, true]] as [$item, $restock]) {
-            $this->actingAs($this->cashier)
-                ->get(route('sales-returns.create', $item->transaction_id))
+            $this->actingAs($this->cashier)->get(route('sales-returns.create', $item->transaction_id))
                 ->assertInertia(fn (Assert $page) => $page->where('transaction.details.0.restock_default', $restock));
         }
     }
 
     public function test_other_shifts_neither_hold_the_close_nor_get_cancelled(): void
     {
-        $other = User::factory()->create();
-        $otherShift = $this->openShiftFor($other);
+        $otherShift = $this->openShiftFor(User::factory()->create());
         $item = $this->kitchenSale($otherShift);
         $bill = $this->guestPayLater($otherShift);
         $pending = $this->sale($otherShift, 'qris', 'pending');
-        $shift = $this->openShiftFor($this->cashier);
-
-        $this->close($shift)->assertSessionHasNoErrors();
-
-        $this->assertSame(CashierShift::STATUS_CLOSED, $shift->fresh()->status);
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertSame(CashierShift::STATUS_CLOSED, $this->shift->fresh()->status);
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
         $this->assertSame('unpaid', $bill->fresh()->payment_status);
         $this->assertSame('pending', $pending->fresh()->payment_status);
@@ -341,35 +288,25 @@ class ShiftCloseHoldTest extends TestCase
     public function test_the_pos_api_close_returns_the_blockers(): void
     {
         Sanctum::actingAs($this->cashier, ['*']);
-        $shift = $this->openShiftFor($this->cashier);
-        $bill = $this->guestPayLater($shift);
-
-        $this->postJson('/api/v1/pos/shift/close', ['closing_cash' => 100000])
-            ->assertStatus(422)
+        $bill = $this->guestPayLater($this->shift);
+        $this->postJson('/api/v1/pos/shift/close', ['closing_cash' => 100000])->assertStatus(422)
             ->assertJsonPath('errors.blockers.0.order', $bill->invoice);
-
-        $this->assertTrue($shift->fresh()->isOpen());
+        $this->assertTrue($this->shift->fresh()->isOpen());
     }
 
     public function test_the_v1_api_close_returns_the_blockers(): void
     {
         Sanctum::actingAs($this->cashier, ['*']);
-        $shift = $this->openShiftFor($this->cashier);
-        $bill = $this->guestPayLater($shift);
+        $bill = $this->guestPayLater($this->shift);
         cache()->put('api_step_up:user:'.$this->cashier->id, time());
-
-        $this->postJson("/api/v1/cashier-shifts/{$shift->id}/close", ['actual_cash' => 100000])
-            ->assertStatus(422)
+        $this->postJson("/api/v1/cashier-shifts/{$this->shift->id}/close", ['actual_cash' => 100000])->assertStatus(422)
             ->assertJsonPath('errors.blockers.0.order', $bill->invoice);
     }
 
     public function test_not_collected_items_stay_out_of_the_speed_report(): void
     {
-        $shift = $this->openShiftFor($this->cashier);
-        $item = $this->kitchenSale($shift, KitchenItem::STATUS_READY);
-
-        $this->forceClose($shift, $this->cashier);
-
+        $item = $this->kitchenSale($this->shift, KitchenItem::STATUS_READY);
+        $this->forceClose($this->shift, $this->cashier);
         $this->assertNotNull($item->fresh()->ready_at);
         $report = app(KitchenSpeedReportService::class)->build([$this->warehouse->id], now()->subDay(), now()->addDay());
         $this->assertTrue($report['empty']);
@@ -378,10 +315,8 @@ class ShiftCloseHoldTest extends TestCase
     public function test_unpaid_bills_total_migration_rolls_back(): void
     {
         $migration = require database_path('migrations/2026_12_08_100001_add_unpaid_bills_total_to_cashier_shifts_table.php');
-
         $migration->down();
         $this->assertFalse(Schema::hasColumn('cashier_shifts', 'unpaid_bills_total'));
-
         $migration->up();
         $this->assertTrue(Schema::hasColumn('cashier_shifts', 'unpaid_bills_total'));
     }
@@ -393,17 +328,13 @@ class ShiftCloseHoldTest extends TestCase
 
     private function manager(): User
     {
-        $manager = User::factory()->create();
-        $manager->givePermissionTo(['cashier-shifts-access', 'cashier-shifts-close', 'cashier-shifts-force-close']);
-
-        return $manager;
+        return User::factory()->create()->givePermissionTo(['cashier-shifts-access', 'cashier-shifts-close', 'cashier-shifts-force-close']);
     }
 
     /** @param  array<string, mixed>  $data */
     private function close(CashierShift $shift, ?User $actor = null, array $data = [])
     {
-        return $this->withSession($this->recentlyConfirmedSession())
-            ->actingAs($actor ?? $this->cashier)
+        return $this->withSession($this->recentlyConfirmedSession())->actingAs($actor ?? $this->cashier)
             ->post(route('cashier-shifts.close', $shift), ['actual_cash' => 100000, ...$data]);
     }
 

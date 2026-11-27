@@ -18,34 +18,26 @@ vi.mock("@inertiajs/react", () => ({
 }));
 
 const shift = {
-    id: 9,
-    status: "open",
-    user: { id: 5, name: "Kasir" },
-    warehouse: { id: 3, name: "Toko" },
-    expected_cash: 100000,
-    actual_cash: null,
-    cash_difference: null,
-    unpaid_bills_total: 0,
+    id: 9, status: "open", user: { id: 5, name: "Kasir" }, warehouse: { id: 3, name: "Toko" },
+    expected_cash: 100000, actual_cash: null, cash_difference: null, unpaid_bills_total: 0,
 };
 const held = [{ type: "item", order: "TRX-1", label: "Kopi × 1", amount: 15000 }];
 
-const renderShow = ({ canForceClose = false, closeBlockers = [], cashierShift = {} } = {}) =>
-    render(
-        <Show
-            cashierShift={{ ...shift, ...cashierShift }}
-            canForceClose={canForceClose}
-            closeBlockers={closeBlockers}
-        />
-    );
+const renderShow = ({ cashierShift, ...props } = {}) =>
+    render(<Show canForceClose={false} closeBlockers={[]} {...props} cashierShift={{ ...shift, ...cashierShift }} />);
 
 const signIn = ({ id = 5, superAdmin = false, mayClose = true, errors = {} } = {}) => {
-    page = {
-        auth: { user: { id }, super: superAdmin, permissions: { "cashier-shifts-close": mayClose } },
-        errors,
-    };
+    page = { auth: { user: { id }, super: superAdmin, permissions: { "cashier-shifts-close": mayClose } }, errors };
 };
 
 const fillCash = () => userEvent.type(screen.getByLabelText("Kas Fisik Aktual"), "100000");
+const click = (name) => userEvent.click(screen.getByRole("button", { name }));
+const expectPlainClose = async () => {
+    await fillCash();
+    await click("Finalisasi Closing");
+    const sent = { actual_cash: 100000, close_notes: "" };
+    await waitFor(() => expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", sent));
+};
 
 beforeAll(() => i18n.changeLanguage("id"));
 beforeEach(() => {
@@ -63,59 +55,39 @@ describe("Shift close", () => {
         renderShow({ ...props, closeBlockers: held });
 
         expect(screen.getByRole("heading", { name: "Belum selesai" })).toBeInTheDocument();
-        expect(
-            screen.getByText("Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.")
-        ).toBeInTheDocument();
+        const warning = "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.";
+        expect(screen.getByText(warning)).toBeInTheDocument();
         const note = screen.getByLabelText("Catatan tutup paksa");
         expect(note).toBeRequired();
 
         await fillCash();
-        await userEvent.click(screen.getByRole("button", { name: "Tutup paksa" }));
+        await click("Tutup paksa");
         expect(router.post).not.toHaveBeenCalled();
 
         await userEvent.type(note, "Tamu sudah pulang");
-        await userEvent.click(screen.getByRole("button", { name: "Tutup paksa" }));
+        await click("Tutup paksa");
 
-        await waitFor(() =>
-            expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", {
-                actual_cash: 100000,
-                close_notes: "Tamu sudah pulang",
-                force: true,
-            })
-        );
+        const sent = { actual_cash: 100000, close_notes: "Tamu sudah pulang", force: true };
+        await waitFor(() => expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", sent));
     });
 
     it("offers no force button without the permission, and leaves the refusal to the server", async () => {
         renderShow({ closeBlockers: held });
-
         expect(screen.getByText("Kopi × 1")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Tutup paksa" })).not.toBeInTheDocument();
-
-        await fillCash();
-        await userEvent.click(screen.getByRole("button", { name: "Finalisasi Closing" }));
-
-        await waitFor(() =>
-            expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", { actual_cash: 100000, close_notes: "" })
-        );
+        await expectPlainClose();
     });
 
     it("closes someone else's unheld shift as before: no note, no force flag", async () => {
         signIn({ id: 1 });
         renderShow({ canForceClose: true });
-
         expect(screen.getByLabelText("Catatan Closing")).not.toBeRequired();
-        await fillCash();
-        await userEvent.click(screen.getByRole("button", { name: "Finalisasi Closing" }));
-
-        await waitFor(() =>
-            expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", { actual_cash: 100000, close_notes: "" })
-        );
+        await expectPlainClose();
     });
 
     it("lists what holds the shift even to a viewer who cannot close it", () => {
         signIn({ id: 1, mayClose: false });
         renderShow({ closeBlockers: held });
-
         expect(screen.getByText("TRX-1")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: /Finalisasi|Tutup paksa/ })).not.toBeInTheDocument();
     });
@@ -123,11 +95,8 @@ describe("Shift close", () => {
     it("shows the server's refusal and note errors as alerts", () => {
         signIn({ errors: { shift: "Shift belum bisa ditutup.", close_notes: "Catatan wajib diisi." } });
         renderShow({ canForceClose: true, closeBlockers: held });
-
-        expect(screen.getAllByRole("alert").map((alert) => alert.textContent)).toEqual([
-            "Shift belum bisa ditutup.",
-            "Catatan wajib diisi.",
-        ]);
+        const alerts = screen.getAllByRole("alert").map((alert) => alert.textContent);
+        expect(alerts).toEqual(["Shift belum bisa ditutup.", "Catatan wajib diisi."]);
         expect(screen.getByLabelText("Catatan tutup paksa")).toHaveAccessibleDescription(/Catatan wajib diisi\./);
     });
 
@@ -135,7 +104,6 @@ describe("Shift close", () => {
         getPendingCount.mockResolvedValue(2);
         signIn({ id: 1 });
         renderShow({ canForceClose: true });
-
         expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
         expect(getPendingCount).toHaveBeenCalledWith("5:3", ["conflict"]);
     });
@@ -144,10 +112,8 @@ describe("Shift close", () => {
         renderShow();
         await waitFor(() => expect(getPendingCount).toHaveBeenCalled());
         getPendingCount.mockResolvedValue(1);
-
         await fillCash();
-        await userEvent.click(screen.getByRole("button", { name: "Finalisasi Closing" }));
-
+        await click("Finalisasi Closing");
         expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
         expect(router.post).not.toHaveBeenCalled();
     });
@@ -155,9 +121,7 @@ describe("Shift close", () => {
     it("previews a forced close's difference with the unpaid bills taken off", async () => {
         const bill = { type: "bill", order: "TRX-2", label: "Meja 1", amount: 25000 };
         renderShow({ canForceClose: true, closeBlockers: [...held, bill] });
-
         await fillCash();
-
         expect(screen.getByText(/Selisih closing: -Rp\s*25\.000/)).toBeInTheDocument();
     });
 
@@ -165,7 +129,6 @@ describe("Shift close", () => {
         const { unmount } = renderShow({ cashierShift: { status: "force_closed" } });
         expect(screen.queryByText("Tagihan belum lunas dibukukan")).not.toBeInTheDocument();
         unmount();
-
         renderShow({ cashierShift: { status: "force_closed", unpaid_bills_total: 45000 } });
         expect(screen.getByText("Tagihan belum lunas dibukukan").parentElement).toHaveTextContent(/Rp\s45\.000/);
     });

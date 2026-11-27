@@ -15,14 +15,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * Closing a shift that still holds work (REQ-003 AC-12, 13, 17, 20, 27). All names are `shiftclose.*`.
- */
+/** Closing a shift that still holds work (REQ-003 AC-12, 13, 17, 20, 27). All names are `shiftclose.*`. */
 class ShiftClose
 {
-    /**
-     * @return array<string, \Closure(array<string, string>): array<string, mixed>>
-     */
+    /** @return array<string, \Closure(array<string, string>): array<string, mixed>> */
     public static function registry(): array
     {
         return [
@@ -34,13 +30,8 @@ class ShiftClose
 
                 return [
                     'shift_id' => $shift->id,
-                    'status' => $shift->status,
-                    'close_notes' => $shift->close_notes,
-                    'expected_cash' => $shift->expected_cash,
-                    'cash_difference' => $shift->cash_difference,
-                    'unpaid_bills_total' => $shift->unpaid_bills_total,
-                    'non_cash_sales_total' => $shift->non_cash_sales_total,
-                    'transactions_count' => $shift->transactions_count,
+                    ...$shift->only(['status', 'close_notes', 'expected_cash', 'cash_difference']),
+                    ...$shift->only(['unpaid_bills_total', 'non_cash_sales_total', 'transactions_count']),
                     'audit' => self::auditCounts($shift),
                     'override' => AuditLog::where('auditable_type', $shift->getMorphClass())->where('auditable_id', $shift->id)
                         ->where('event', 'cashier_shift.hold_overridden')->first()?->meta,

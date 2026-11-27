@@ -1,21 +1,13 @@
-import { test, expect as baseExpect } from '../../support/fixtures.js';
 import { confirmPassword, signIn } from '../../support/platform.js';
+import { describeShiftClose, expect, test } from '../../support/shift-close.js';
 
-// Pages are slow when several agents share one machine: wait longer than the 15 s default.
-const expect = baseExpect.configure({ timeout: 30_000 });
-
-test.describe('25-cashier-shifts', () => {
-    // Multi-page flows: the shared 4-CPU machine can take longer than the default 30 s.
-    test.describe.configure({ timeout: 120_000 });
-    test.use({ actionTimeout: 30_000 });
-
+describeShiftClose(() => {
     test('a manager force closes a held shift with a note: food is not collected and the unpaid bill goes into the cash difference', { tag: ['@REQ-003-AC-13'] }, async ({ page, arrange, uniq }) => {
         // The cashier's shift: food not handed over (paid 10.000 cash), a guest's unpaid 20.000 bill and a paid 10.000 QRIS sale.
         const food = arrange('kitchen-sale', { prefix: uniq('Paksa') });
         const bill = arrange('posops.sale', { guest: 1, qty: 2, left: 8, title: uniq('Utang') });
         arrange('posretry.failed-sale', { status: 'paid', qty: 1 });
         const { shift_id } = arrange('shiftclose.state', { invoice: food.invoice });
-
         // A fresh login, so the password confirmation never leaks into the manager's shared saved session (05 covers the step-up itself).
         await signIn(page, 'manager@e2e.test');
         await confirmPassword(page);
@@ -27,7 +19,6 @@ test.describe('25-cashier-shifts', () => {
         await expect(rows.filter({ hasText: bill.invoice })).toContainText(/Rp\s*20\.000/);
         await expect(page.getByText('Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.')).toBeVisible();
         await page.getByRole('spinbutton').fill('110000');
-
         // Without a note the form is not sent.
         const note = page.getByLabel('Catatan tutup paksa');
         await page.getByRole('button', { name: 'Tutup paksa' }).click();
@@ -44,12 +35,8 @@ test.describe('25-cashier-shifts', () => {
 
         const state = arrange('shiftclose.state', { shift_id });
         expect(state).toMatchObject({
-            status: 'force_closed',
-            close_notes: 'Tamu sudah pulang',
-            expected_cash: 110000,
-            unpaid_bills_total: 20000,
-            cash_difference: -20000,
-            non_cash_sales_total: 10000,
+            status: 'force_closed', close_notes: 'Tamu sudah pulang', non_cash_sales_total: 10000,
+            expected_cash: 110000, unpaid_bills_total: 20000, cash_difference: -20000,
             override: { note: 'Tamu sudah pulang', unpaid_bills: [bill.invoice], unpaid_bills_total: 20000, cancelled_pay_now: [] },
         });
         expect(state.override.not_collected_item_ids).toHaveLength(1);

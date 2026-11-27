@@ -8,19 +8,13 @@ beforeAll(() => i18n.changeLanguage("id"));
 describe("ShiftCloseBlockedList", () => {
     it("renders nothing when nothing holds the close", () => {
         const { container } = render(<ShiftCloseBlockedList blockers={[]} />);
-
         expect(container).toBeEmptyDOMElement();
     });
 
     it("lists order, label, amount and a chip per type", () => {
-        render(
-            <ShiftCloseBlockedList
-                blockers={[
-                    { type: "item", order: "TRX-1", label: "Nasi Goreng × 2", amount: 30000 },
-                    { type: "bill", order: "TRX-2", label: null, amount: 45000 },
-                ]}
-            />
-        );
+        const food = { type: "item", order: "TRX-1", label: "Nasi Goreng × 2", amount: 30000 };
+        const unpaid = { type: "bill", order: "TRX-2", label: null, amount: 45000 };
+        render(<ShiftCloseBlockedList blockers={[food, unpaid]} />);
 
         expect(screen.getByRole("heading", { name: "Belum selesai" })).toBeInTheDocument();
         const [item, bill] = screen.getAllByRole("listitem");
