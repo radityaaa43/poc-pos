@@ -231,6 +231,31 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->assertNoExpireCall(); // the sync queue would have run it at the commit
     }
 
+    public function test_a_rolled_back_claim_does_not_block_the_next_expiry(): void
+    {
+        // The driver production runs: it holds the job until the commit. Queue::fake() would skip that handling.
+        config(['queue.default' => 'database']);
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $this->guestPays($order)->assertOk();
+        $tapAgain = fn () => app(DineOrderOnlinePaymentService::class)->start($order->fresh(), DineOrderOnlinePaymentService::METHOD_QRIS);
+
+        $this->mock(AuditLogService::class)->shouldReceive('log')->andThrow(new RuntimeException('audit down'));
+        try {
+            $tapAgain();
+            $this->fail('The claim should have rolled back.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('audit down', $exception->getMessage());
+        }
+        $this->assertDatabaseCount('jobs', 0);
+        $this->forgetMock(AuditLogService::class);
+
+        // Same order id again: the rolled-back claim must have given its unique lock back.
+        $tapAgain();
+
+        $this->assertDatabaseCount('jobs', 1);
+    }
+
     public function test_a_dropped_guest_charge_is_expired_with_the_reference_the_gateway_returned(): void
     {
         $this->useGateway('xendit', fakeHttp: false);
@@ -392,6 +417,27 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->assertStringContainsString('audit_logs', $writes[0]);
     }
 
+    public function test_an_expired_answer_after_a_settlement_is_audited_as_not_expired(): void
+    {
+        $bill = null;
+        $webhookStatus = null;
+        $this->gatewayAnswering('midtrans', function () use (&$bill, &$webhookStatus) {
+            $webhookStatus = $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->status();
+
+            return Http::response(['status_code' => '407'], 200);
+        });
+        $bill = $this->supersededCharge();
+
+        $job = $this->work($this->jobFor($bill));
+
+        $this->assertFalse($job->job->isReleased());
+        $this->assertSame(200, $webhookStatus);
+        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $this->assertSame(0, AuditLog::where('event', self::EXPIRED)->count());
+        $meta = AuditLog::where('event', self::NOT_EXPIRED)->sole()->meta;
+        $this->assertSame(['settled_during_call', 'expired', true], [$meta['reason'], $meta['result'], $meta['settled_during_call']]);
+    }
+
     public function test_a_transient_failure_is_retried(): void
     {
         $this->gatewayAnswering('midtrans', Http::sequence()->push([], 503)->push(['status_code' => '407'], 200));
@@ -447,6 +493,21 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->work($this->jobFor($bill))->assertReleased(15);
 
         Exceptions::assertReported(RuntimeException::class);
+    }
+
+    public function test_an_unexpected_error_is_audited_on_the_last_try(): void
+    {
+        Exceptions::fake();
+        $this->gatewayAnswering('midtrans', fn () => throw new RuntimeException('boom'));
+        $bill = $this->supersededCharge();
+
+        $this->work($this->jobFor($bill), 4)->assertReleased(420);
+        $this->assertSame(0, $this->jobAudits()); // not the last try yet
+        $last = $this->work($this->jobFor($bill), 5);
+
+        $this->assertFalse($last->job->isReleased());
+        $meta = AuditLog::where('event', self::CANCEL_ERROR)->sole()->meta;
+        $this->assertSame([true, 'error', 5, 'midtrans'], [$meta['final'], $meta['result'], $meta['job_attempt'], $meta['gateway']]);
     }
 
     public function test_a_failing_expiry_never_breaks_the_payment(): void
