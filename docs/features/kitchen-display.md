@@ -62,7 +62,7 @@ A device that has the kitchen display open can print a ticket for every new orde
 - Only one tab per device prints: the tab that holds the browser's Web Lock `kitchen-print` runs the loop, and any other tab of the same browser shows "Tiket dicetak dari tab lain di perangkat ini" / "Tickets are printed from another tab on this device" in the panel and waits. When the printing tab closes, a waiting tab takes over on its own, so two open kitchen tabs never print a ticket twice.
 - A ticket has the table name or invoice number in large type, the order type and the time (`HH:MM`), then `qty x product` per line with its note. There are no prices. A pay-later order says **BELUM LUNAS** / "UNPAID". Ticket labels follow the device's current language.
 - Printing never changes the order: it is still "Diterima" / accepted on the screen until the kitchen moves it.
-- Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Failure warnings, reprint and the Windows driver steps are not part of this first version.
+- Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Printer failures and the Windows driver steps are under "Printer problems" below; reprint is not available yet.
 - Routes: `kitchen.print-devices.store`, `kitchen.print-devices.tickets`, `kitchen.print-devices.prints` (`/kitchen/print-devices`) (same permission as the display). Tables: `kitchen_print_devices`, `kitchen_ticket_prints` (one row per station and item).
 
 ### Cancellation tickets (DIBATALKAN)
@@ -75,6 +75,23 @@ When a sales return that cancels a kitchen item is **completed**, every print de
 - **Only where the original was printed:** a print device that never printed the item's original ticket prints no cancellation for it. The server also skips a cancellation made more than 30 seconds before that original was recorded (the original already had the lowered quantity), and one older than 12 hours (a device switched off over a weekend does not print Friday's cancellations). Inside the 30-second grace one extra DIBATALKAN ticket may print for a cancel the original already carried; that is accepted.
 - **Queued originals are reconciled:** each successful poll drops a ticket still waiting (or failed) in the print queue whose order is no longer offered, and replaces one whose items or quantities changed. An item cancelled while its original was still waiting therefore prints neither ticket.
 - **Data:** `kitchen_cancellations` (one immutable row per cancelled line, written in the return's own transaction: item, return, `qty_cancelled`) and `kitchen_cancellation_prints` (one row per print device and cancellation, unique together). `kitchen_ticket_prints` is only read. Nothing here changes stock or the item's status.
+
+### Printer problems
+
+When **Cetak otomatis** is on, the display shows at most one printer warning at the top of the page (one `role="alert"` region), the first that applies in this order. Nothing here hides or filters an order card, and nothing is stored on the server: a failed ticket is only queued in the browser.
+
+| Warning | When | What to do |
+|---|---|---|
+| **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB** | On Windows, connecting or re-attaching the printer failed with a USB "network error": the printer is on Windows' own driver. Also shown in the printer settings panel, with **Lihat langkah** (the five WinUSB steps, no link). Not retried by itself | Follow the steps; see "Windows: switch the printer to the WinUSB driver" in `docs/features/thermal-printer.md` |
+| **Printer dapur tidak terhubung** | No printer is connected, the saved printer is not found, or the browser reported it unplugged | Plug it in or press **Hubungkan printer**; the next poll prints what waits |
+| **Gagal mencetak — coba lagi** | The printer did not accept a ticket (USB transfer failed, or it could not be claimed off Windows). Has a **Coba lagi** button | Fix the printer; the next 5-second poll retries, or press **Coba lagi** |
+
+- **Belum tercetak** / "Not printed": a chip on the order's card, shown when its ticket failed or is still unprinted after 30 seconds. It goes away when the original ticket prints. An order that is printed shows no chip.
+- A card with the chip has **Coba lagi**, which prints the normal ticket and records it as printed. Other cards have no print button.
+- **Devices without WebUSB** (iPad, Firefox, Safari, or a page not on HTTPS): the printer settings say **Perangkat ini tidak mendukung printer USB** / "This device does not support USB printers", and **Hubungkan printer** and **Cetak otomatis** are disabled. The display itself works as usual and shows no printer warning.
+- **Paper out is not detected** (WebUSB cannot report it): the order is marked printed, and as there is no reprint yet, staff read it from its card. See `docs/features/thermal-printer.md`.
+- **For the owner:** orders that never got a ticket are the kitchen items with no `kitchen_ticket_prints` row older than a few minutes; there is no report for it.
+- Code: `resources/js/Utils/printerStatus.js` (error codes and the one status), `resources/js/Components/Kitchen/PrinterStatusBanner.jsx`.
 
 ## Language
 

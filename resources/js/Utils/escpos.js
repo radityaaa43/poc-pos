@@ -4,6 +4,12 @@
 const ESC = 0x1b;
 const GS = 0x1d;
 
+// Printer errors carry a machine `code` (unsupported, not_connected, claim_failed, transfer) and the browser's
+// own error as `cause`; printerStatus.js turns them into the status the kitchen sees.
+function printerError(code, message, cause) {
+    return Object.assign(new Error(message, { cause }), { code });
+}
+
 function textBytes(text) {
     return Array.from(new TextEncoder().encode(text));
 }
@@ -151,7 +157,7 @@ function drawerKickBytes(pin = 2) {
 
 export async function requestPrinter() {
     if (!navigator.usb) {
-        throw new Error("WebUSB tidak didukung browser ini. Gunakan Chrome/Edge.");
+        throw printerError("unsupported", "WebUSB tidak didukung browser ini. Gunakan Chrome/Edge.");
     }
     const device = await navigator.usb.requestDevice({
         filters: [],
@@ -167,9 +173,13 @@ export async function requestPrinter() {
 }
 
 async function configurePrinter(device) {
-    await device.open();
-    if (device.configuration === null) {
-        await device.selectConfiguration(1);
+    try {
+        await device.open();
+        if (device.configuration === null) {
+            await device.selectConfiguration(1);
+        }
+    } catch (cause) {
+        throw printerError("claim_failed", cause.message, cause);
     }
 
     let interfaceNumber = null;
@@ -187,9 +197,13 @@ async function configurePrinter(device) {
         endpointNumber = endpoint.endpointNumber;
     }
     if (interfaceNumber === null || endpointNumber === null) {
-        throw new Error("Tidak ditemukan interface output printer pada perangkat ini.");
+        throw printerError("claim_failed", "Tidak ditemukan interface output printer pada perangkat ini.");
     }
-    await device.claimInterface(interfaceNumber);
+    try {
+        await device.claimInterface(interfaceNumber);
+    } catch (cause) {
+        throw printerError("claim_failed", cause.message, cause);
+    }
     device._endpoint = endpointNumber;
 }
 
@@ -206,7 +220,7 @@ export async function getPrinter(key) {
         return getPrinter.cached;
     }
     // Re-attach to previously granted device
-    if (!navigator.usb) throw new Error("WebUSB tidak didukung browser ini.");
+    if (!navigator.usb) throw printerError("unsupported", "WebUSB tidak didukung browser ini.");
     const devices = await navigator.usb.getDevices();
     // A shop with one printer for both receipts and kitchen tickets: when excluding the kitchen printer leaves
     // nothing and exactly one device is granted, that one is used, as before the kitchen printer existed.
@@ -228,15 +242,15 @@ export async function getPrinter(key) {
 
 export async function printBytes(bytes, { deviceKey } = {}) {
     const device = await getPrinter(deviceKey);
-    if (!device) throw new Error("Printer belum terhubung.");
+    if (!device) throw printerError("not_connected", "Printer belum terhubung.");
     if (!device.opened || !device._endpoint) {
-        throw new Error("Printer tidak siap menerima data. Hubungkan ulang printer.");
+        throw printerError("not_connected", "Printer tidak siap menerima data. Hubungkan ulang printer.");
     }
     try {
         await device.transferOut(device._endpoint, bytes);
-    } catch {
+    } catch (cause) {
         getPrinter.cached = undefined;
-        throw new Error("Gagal mengirim data ke printer. Periksa koneksi printer.");
+        throw printerError("transfer", "Gagal mengirim data ke printer. Periksa koneksi printer.", cause);
     }
 }
 

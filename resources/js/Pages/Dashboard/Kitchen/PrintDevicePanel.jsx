@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { IconCheck } from "@tabler/icons-react";
 import { requestPrinter, disconnectPrinter, printerKey as deviceKey } from "@/Utils/escpos";
+import { DriverLockedHelp } from "@/Components/Kitchen/PrinterStatusBanner";
 
 const BUTTON =
     "min-h-[44px] rounded-xl border px-4 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50";
@@ -16,8 +17,10 @@ const LABEL = "mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-3
 // from the page, so the panel and the background printing share one state.
 export default function PrintDevicePanel({ printDevice }) {
     const { t } = useTranslation();
-    const { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint } =
+    const { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint, status, reportError } =
         printDevice;
+    // No WebUSB (iPad, Firefox, an http page): the printer controls are off, the rest of the display works.
+    const unsupported = status === "unsupported";
     const [name, setName] = useState(device?.name ?? "");
     const [nameError, setNameError] = useState(null);
     const [busy, setBusy] = useState(false);
@@ -49,8 +52,20 @@ export default function PrintDevicePanel({ printDevice }) {
         });
     };
 
-    const connect = () =>
+    // A printer action tells the hook how it went: a Windows driver lock shows the WinUSB steps until one succeeds.
+    const printerAction = (action) =>
         run(async () => {
+            try {
+                await action();
+                reportError?.(null);
+            } catch (error) {
+                reportError?.(error);
+                throw error;
+            }
+        });
+
+    const connect = () =>
+        printerAction(async () => {
             setPrinterKey(deviceKey(await requestPrinter()));
         });
 
@@ -60,7 +75,7 @@ export default function PrintDevicePanel({ printDevice }) {
             setPrinterKey("");
         });
 
-    const ready = Boolean(printerKey) && autoPrint;
+    const ready = Boolean(printerKey) && autoPrint && !unsupported;
 
     return (
         <section
@@ -101,13 +116,33 @@ export default function PrintDevicePanel({ printDevice }) {
                 )}
             </form>
 
+            {unsupported && (
+                <div id="kitchen-usb-unsupported" className="space-y-1 text-sm text-slate-700 dark:text-slate-300">
+                    <p className="font-medium">{t("kitchen.print.unsupported")}</p>
+                    {window.isSecureContext === false && <p>{t("kitchen.print.unsupportedInsecure")}</p>}
+                </div>
+            )}
+
+            {status === "driver_locked" && (
+                <div className="flex flex-wrap items-center gap-2 rounded-xl bg-danger-100 p-3 text-sm text-danger-700 dark:bg-danger-900/50 dark:text-danger-400">
+                    <p className="basis-full font-medium">{t("kitchen.print.driverLocked")}</p>
+                    <DriverLockedHelp />
+                </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
                 {printerKey ? (
                     <button type="button" onClick={disconnect} disabled={busy} className={`${BUTTON} border-danger-300 text-danger-600`}>
                         {t("kitchen.print.disconnect")}
                     </button>
                 ) : (
-                    <button type="button" onClick={connect} disabled={busy || !device} className={PRIMARY}>
+                    <button
+                        type="button"
+                        onClick={connect}
+                        disabled={busy || !device || unsupported}
+                        aria-describedby={unsupported ? "kitchen-usb-unsupported" : undefined}
+                        className={PRIMARY}
+                    >
                         {t("kitchen.print.connect")}
                     </button>
                 )}
@@ -124,8 +159,8 @@ export default function PrintDevicePanel({ printDevice }) {
                     </select>
                     <button
                         type="button"
-                        onClick={() => run(testPrint)}
-                        disabled={busy || !printerKey}
+                        onClick={() => printerAction(testPrint)}
+                        disabled={busy || !printerKey || unsupported}
                         className={`${PRIMARY} shrink-0`}
                     >
                         {t("kitchen.print.test")}
@@ -137,7 +172,7 @@ export default function PrintDevicePanel({ printDevice }) {
                 type="button"
                 role="switch"
                 aria-checked={autoPrint}
-                disabled={!device}
+                disabled={!device || unsupported}
                 onClick={() => setAutoPrint(!autoPrint)}
                 className="flex min-h-[44px] items-center gap-3 text-sm font-medium text-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:text-slate-300"
             >

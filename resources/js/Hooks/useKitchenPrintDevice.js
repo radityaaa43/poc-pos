@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
 import i18n from "@/i18n";
 import { createPrintQueue } from "@/Utils/printQueue";
-import { buildKitchenTicketBytes, printBytes } from "@/Utils/escpos";
+import { buildKitchenTicketBytes, printBytes, printerKey as keyOf } from "@/Utils/escpos";
+import { classifyPrinterError, derivePrinterStatus, unprintedFromJobs, webUsbSupport } from "@/Utils/printerStatus";
 
 const POLL_MS = 5000;
 // Per-device settings (BR-3). printerKey is a plain string because escpos.js reads it directly.
@@ -16,6 +17,7 @@ const UNCONFIRMED = "kitchen.unconfirmed";
 // Cancellation ids (DIBATALKAN tickets) printed but not yet confirmed: the same pattern, a separate list.
 const UNCONFIRMED_CANCELLATIONS = "kitchen.unconfirmedCancellations";
 const PRINT_LOCK = "kitchen-print";
+const NO_JOBS = { unprinted: [], lastError: null };
 
 const readJson = (key, fallback) => {
     try {
@@ -42,6 +44,18 @@ const signature = (ticket) => ticket.items.map((item) => `${item.id}:${item.qty}
 
 const deviceKey = () => ({ deviceKey: localStorage.getItem(PRINTER_KEY) || undefined });
 
+// The queue and the status read `error.code`: classify here, where the user agent is known.
+const classified = (error) =>
+    Object.assign(new Error(error?.message, { cause: error }), { code: classifyPrinterError(error, navigator.userAgent) });
+
+async function print(ticket, extraLabels) {
+    try {
+        await printBytes(buildBytes(ticket, extraLabels), deviceKey());
+    } catch (error) {
+        throw classified(error);
+    }
+}
+
 // Tells the server which items were printed, then forgets them locally. Throws when the POST fails,
 // leaving the ids in kitchen.unconfirmed for the next tick.
 async function confirm(ids) {
@@ -65,6 +79,15 @@ export function useKitchenPrintDevice(outlet) {
     const [paper, setPaperState] = useState(() => localStorage.getItem(PAPER) || "80mm");
     const [autoPrint, setAutoPrintState] = useState(() => localStorage.getItem(AUTO_PRINT) === "true");
 
+    // Printer health (REQ-004 K2). queueState mirrors the live queue; the rest is what the page needs to tell
+    // the kitchen why nothing prints.
+    const [queueState, setQueueState] = useState(NO_JOBS);
+    const [connectError, setConnectError] = useState(null);
+    const [disconnected, setDisconnected] = useState(false);
+    // Drains the queue that is polling; null while this tab does not print.
+    const runRef = useRef(null);
+    const connectErrorRef = useRef(null);
+
     const setDevice = useCallback((value) => {
         // Unconfirmed ids belong to the old device: posting them to the new one would 404 and halt printing.
         if (readJson(DEVICE, null)?.id !== value?.id) {
@@ -78,6 +101,7 @@ export function useKitchenPrintDevice(outlet) {
         if (value) localStorage.setItem(PRINTER_KEY, value);
         else localStorage.removeItem(PRINTER_KEY);
         setPrinterKeyState(value);
+        setDisconnected(false);
     }, []);
     const setPaper = useCallback((value) => {
         localStorage.setItem(PAPER, value);
@@ -138,22 +162,47 @@ export function useKitchenPrintDevice(outlet) {
         let halted = false;
         // Items of tickets that are queued (or printing) and not yet in kitchen.unconfirmed.
         const queued = new Set();
+        // Ids this tab has sent: a poll already in flight can still list one after Coba lagi printed and recorded it.
+        const printed = new Set();
+        const printedCancellations = new Set();
 
         const queue = createPrintQueue({
             send: async (job) => {
                 if (job.kind === "cancel") {
-                    await printBytes(buildBytes(job.ticket, { cancelled: i18n.t("kitchen.print.cancelled") }), deviceKey());
+                    await print(job.ticket, { cancelled: i18n.t("kitchen.print.cancelled") });
+                    setDisconnected(false);
+                    job.cancellationIds.forEach((id) => printedCancellations.add(id));
                     writeUnconfirmedCancellations([...new Set([...readUnconfirmedCancellations(), ...job.cancellationIds])]);
                     await confirmCancellations(job.cancellationIds).catch(() => {});
                     return;
                 }
-                await printBytes(buildBytes(job.ticket), deviceKey()); // the queue logs a failure and keeps the job
+                await print(job.ticket); // the queue logs a failure and keeps the job
+                setDisconnected(false);
                 // Record locally before the POST so a crash or a lost connection cannot double the ticket.
                 writeUnconfirmed([...new Set([...readUnconfirmed(), ...job.itemIds])]);
-                job.itemIds.forEach((id) => queued.delete(id));
+                job.itemIds.forEach((id) => {
+                    queued.delete(id);
+                    printed.add(id);
+                });
                 await confirm(job.itemIds).catch(() => {});
             },
         });
+
+        const publish = () =>
+            setQueueState({
+                unprinted: unprintedFromJobs(queue.jobs),
+                lastError: queue.status === "failed" ? (queue.jobs[0]?.lastError ?? null) : null,
+            });
+        const run = async () => {
+            await queue.drain();
+            publish();
+        };
+        // A driver lock and a device without WebUSB need the person, not another try (the button still can).
+        const blocked = () =>
+            webUsbSupport() !== "ok" ||
+            connectErrorRef.current === "driver_locked" ||
+            (queue.status === "failed" && queue.jobs[0]?.lastError?.code === "driver_locked");
+        runRef.current = run;
 
         const tick = async () => {
             if (halted || !navigator.onLine) return;
@@ -180,15 +229,15 @@ export function useKitchenPrintDevice(outlet) {
                     }
                 }
 
-                const known = new Set([...queued, ...readUnconfirmed()]);
+                const known = new Set([...queued, ...printed, ...readUnconfirmed()]);
                 for (const ticket of data.tickets) {
                     if (ticket.item_ids.some((id) => known.has(id))) continue;
                     ticket.item_ids.forEach((id) => queued.add(id));
                     queue.enqueue({ key: ticket.key, ticket, itemIds: ticket.item_ids });
                 }
-                const unconfirmedCancellations = new Set(readUnconfirmedCancellations());
+                const knownCancellations = new Set([...printedCancellations, ...readUnconfirmedCancellations()]);
                 for (const ticket of data.cancellations ?? []) {
-                    if (ticket.cancellation_ids.some((id) => unconfirmedCancellations.has(id))) continue;
+                    if (ticket.cancellation_ids.some((id) => knownCancellations.has(id))) continue;
                     queue.enqueue({
                         key: ticket.key,
                         kind: "cancel",
@@ -200,7 +249,9 @@ export function useKitchenPrintDevice(outlet) {
                 // A failed poll is silent and retried; an expired session or a foreign device ends it.
                 if ([401, 404, 419].includes(error?.response?.status)) halted = true;
             }
-            if (!halted) queue.drain();
+            if (halted) return;
+            publish();
+            if (!blocked()) run();
         };
 
         tick();
@@ -210,8 +261,74 @@ export function useKitchenPrintDevice(outlet) {
             halted = true;
             clearInterval(timer);
             window.removeEventListener("online", tick);
+            runRef.current = null;
+            setQueueState(NO_JOBS);
         };
     }, [printing, deviceId]);
 
-    return { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint };
+    // The printer's own plug and unplug events: not_connected at once, before a ticket has to fail.
+    useEffect(() => {
+        const usb = navigator.usb;
+        if (!usb) return undefined;
+        const mine = (event) => !printerKey || !event.device || keyOf(event.device) === printerKey;
+        const onDisconnect = (event) => {
+            if (mine(event)) setDisconnected(true);
+        };
+        const onConnect = (event) => {
+            if (!mine(event)) return;
+            setDisconnected(false);
+            // A printer that re-appears (also after a driver swap) deserves a fresh try.
+            connectErrorRef.current = null;
+            setConnectError(null);
+            runRef.current?.();
+        };
+        usb.addEventListener("disconnect", onDisconnect);
+        usb.addEventListener("connect", onConnect);
+        return () => {
+            usb.removeEventListener("disconnect", onDisconnect);
+            usb.removeEventListener("connect", onConnect);
+        };
+    }, [printerKey]);
+
+    // The button and the poll feed one queue, so a double tap cannot send twice.
+    const retry = useCallback(() => runRef.current?.() ?? Promise.resolve(), []);
+
+    // The connect button reports its error here: only a driver lock is kept (the panel shows the steps);
+    // a good connect clears it and gives a stuck ticket another try.
+    const reportError = useCallback((error) => {
+        const code = error ? classifyPrinterError(error, navigator.userAgent) : null;
+        const locked = code === "driver_locked" ? code : null;
+        connectErrorRef.current = locked;
+        setConnectError(locked);
+        if (!error) {
+            setDisconnected(false);
+            runRef.current?.();
+        }
+    }, []);
+
+    const { unprinted, lastError } = queueState;
+    const status = derivePrinterStatus({
+        supported: webUsbSupport() === "ok",
+        autoPrint: printing,
+        errorCode: connectError ?? lastError?.code ?? null,
+        disconnected: disconnected || (printing && !printerKey),
+    });
+
+    return {
+        device,
+        printerKey,
+        paper,
+        autoPrint,
+        otherTab,
+        setDevice,
+        setPrinterKey,
+        setPaper,
+        setAutoPrint,
+        testPrint,
+        unprinted,
+        lastError,
+        status,
+        retry,
+        reportError,
+    };
 }
