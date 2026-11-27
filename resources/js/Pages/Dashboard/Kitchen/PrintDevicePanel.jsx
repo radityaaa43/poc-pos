@@ -75,7 +75,7 @@ export default function PrintDevicePanel({ printDevice }) {
             setPrinterKey("");
         });
 
-    const ready = Boolean(printerKey) && autoPrint;
+    const ready = Boolean(printerKey) && autoPrint && !unsupported;
 
     return (
         <section
@@ -160,7 +160,7 @@ export default function PrintDevicePanel({ printDevice }) {
                     <button
                         type="button"
                         onClick={() => printerAction(testPrint)}
-                        disabled={busy || !printerKey}
+                        disabled={busy || !printerKey || unsupported}
                         className={`${PRIMARY} shrink-0`}
                     >
                         {t("kitchen.print.test")}

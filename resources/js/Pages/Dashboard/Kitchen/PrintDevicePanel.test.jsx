@@ -255,6 +255,17 @@ describe("PrintDevicePanel: no WebUSB and driver lock (REQ-004 K2)", () => {
         expect(screen.queryByRole("link")).not.toBeInTheDocument();
     });
 
+    it("never calls a saved printer ready on a device without USB, and offers no test print", () => {
+        delete navigator.usb;
+        withDevice();
+        localStorage.setItem("kitchen.printerKey", "1:2:abc");
+        localStorage.setItem("kitchen.autoPrint", "true");
+        render(<Harness />);
+
+        expect(screen.queryByText("Printer siap")).not.toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Cetak percobaan" })).toBeDisabled();
+    });
+
     it("adds the HTTPS hint on an insecure page", () => {
         vi.stubGlobal("isSecureContext", false);
         withDevice();
