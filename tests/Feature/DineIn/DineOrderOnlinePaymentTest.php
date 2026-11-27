@@ -156,7 +156,7 @@ class DineOrderOnlinePaymentTest extends TestCase
 
         $this->get(route('dine-order.status', $submitted->access_token))
             ->assertInertia(fn (Assert $page) => $page->has('payment', fn (Assert $payment) => $payment
-                ->where('state', 'can_pay')->where('amount', self::TOTAL)->where('attempt', 0)->where('payment_url', null)->where('qr', null)));
+                ->where('state', 'can_pay')->where('amount', self::TOTAL)->where('attempt', 0)->where('payment_url', null)->where('qr', null)->where('pay_later', false)));
     }
 
     public function test_menu_says_whether_the_guest_can_pay_online(): void
