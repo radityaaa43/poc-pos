@@ -1102,7 +1102,22 @@
             "notConnected": "Printer belum terhubung",
             "otherTab": "Tiket dicetak dari tab lain di perangkat ini",
             "unpaid": "BELUM LUNAS",
-            "cancelled": "DIBATALKAN"
+            "cancelled": "DIBATALKAN",
+            "failed": "Gagal mencetak — coba lagi",
+            "kitchenNotConnected": "Printer dapur tidak terhubung",
+            "driverLocked": "Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB",
+            "driverLockedSteps": "Lihat langkah",
+            "winusbSteps": {
+                "1": "Buka Zadig, lalu pilih Options > List All Devices.",
+                "2": "Pilih printer dapur dari daftar.",
+                "3": "Pilih WinUSB sebagai driver tujuan.",
+                "4": "Klik Replace Driver dan tunggu sampai selesai.",
+                "5": "Muat ulang halaman ini."
+            },
+            "notPrinted": "Belum tercetak",
+            "retry": "Coba lagi",
+            "unsupported": "Perangkat ini tidak mendukung printer USB",
+            "unsupportedInsecure": "Cetak USB perlu koneksi aman (HTTPS)"
         },
         "actions": {
             "start": "Mulai buat",

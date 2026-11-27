@@ -17,6 +17,8 @@ export function createPrintQueue({ send }) {
             } catch (error) {
                 status = "failed";
                 console.warn(`Print job ${jobs[0].key} failed`, error);
+                console.warn("kitchen print failed", jobs[0].key, error?.code);
+                jobs[0] = { ...jobs[0], lastError: { code: error?.code, message: error?.message } };
                 release();
                 return;
             }

@@ -443,11 +443,11 @@ class PaymentWebhookLockTest extends TestCase
     #[DataProvider('gateways')]
     public function test_a_failed_bill_without_a_payment_history_or_tenders_stays_failed(string $gateway): void
     {
-        // Branch E: attempt 0, failed, and no tender row (a portal sale looks like this), so nothing says who was collecting.
+        // Branch E: attempt 0, failed, no tender row, no receivable and no gateway method: nothing says a gateway ever charged it.
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $bill->update(['payment_method' => 'qris', 'payment_status' => 'failed']);
+        $bill->update(['payment_status' => 'failed']); // payment_method stays open_bill: no gateway charge was ever made
 
         $this->notify($gateway, $bill->invoice, 'paid')->assertOk();
 
@@ -481,6 +481,27 @@ class PaymentWebhookLockTest extends TestCase
         $log = AuditLog::where('event', 'payment.late_after_failed')->sole();
         $this->assertTrue($log->meta['booked']);
         $this->assertSame('late-ref', $log->meta['reference']);
+    }
+
+    #[DataProvider('gateways')]
+    public function test_a_dine_bill_settled_by_cash_after_its_qr_expired_flags_the_late_payment(string $gateway): void
+    {
+        $this->useGateway($gateway);
+        $order = $this->acceptedOrder();
+        $bill = $this->bill($order);
+        $this->cashierPays($order, 'qris');
+        $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
+        $this->cashierPays($order); // cash instead: attempt 0 stays, the failed QR tender is replaced by a paid cash tender
+        $this->assertSame(0, $bill->fresh()->payment_attempt);
+
+        $this->notify($gateway, $bill->invoice, 'paid', reference: 'gw-late')->assertOk(); // the customer paid the expired QR
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame('cash', $bill->payment_method);
+        $this->assertNull($bill->payment_reference);
+        $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertSame('gw-late', AuditLog::where('event', 'payment.late_superseded')->sole()->meta['reference']);
     }
 
     #[DataProvider('gateways')]

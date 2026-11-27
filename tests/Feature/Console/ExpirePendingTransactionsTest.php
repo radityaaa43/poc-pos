@@ -257,10 +257,12 @@ class ExpirePendingTransactionsTest extends TestCase
         $this->assertNull($transaction->payment_reference);
     }
 
-    public function test_webhook_ignores_failed_transaction(): void
+    /** #380 (BR-4): a failed gateway sale is no longer terminal for money that still arrives; see PosLatePaymentTest. */
+    public function test_webhook_does_not_book_a_late_settlement_of_an_expired_and_restocked_transaction(): void
     {
-        $transaction = $this->makePendingTransaction('INV-TERM-2', now());
-        $transaction->update(['payment_status' => 'failed']);
+        $transaction = $this->makePendingTransaction('INV-TERM-2', now()->subHours(30));
+        $this->artisan('transactions:expire')->assertSuccessful();
+        $this->assertEquals('failed', $transaction->fresh()->payment_status);
 
         PaymentSetting::create([
             'midtrans_enabled' => true,
@@ -284,7 +286,9 @@ class ExpirePendingTransactionsTest extends TestCase
 
         $response->assertOk();
 
+        // The goods went back to stock, so the sale stays failed; the money is flagged for a manual refund instead of dropped.
         $transaction->refresh();
         $this->assertEquals('failed', $transaction->payment_status);
+        $this->assertNotNull($transaction->late_superseded_payment_at);
     }
 }
