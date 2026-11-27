@@ -5,10 +5,18 @@ import { IconPlus } from "@tabler/icons-react";
 import { useAuthorization } from "@/Utils/authorization";
 import { useOnlineStatus } from "@/Context/OnlineStatusContext";
 
-/**
- * "Tambah pesanan" on a sale's receipt (#251): opens the POS with this order pinned, under the original order's
- * invoice. `allowed` is the server's word that the order is not cancelled (BR-12); offline there is no add-on.
- */
+/** The receipt's number; an add-on's receipt also names the order it was added to (BR-8). */
+export function InvoiceNumber({ transaction }) {
+    const { t } = useTranslation();
+    return (
+        <>
+            <p className="text-lg sm:text-2xl font-bold leading-tight">{transaction.invoice}</p>
+            {transaction.parent && <p className="text-xs sm:text-sm font-medium">{t("addOn.receipt", { invoice: transaction.parent.invoice })}</p>}
+        </>
+    );
+}
+
+/** Opens the POS with this order pinned (#251). `allowed`: the server says it is not cancelled (BR-12). */
 export default function AddOnButton({ transaction, allowed }) {
     const { t } = useTranslation();
     const { can } = useAuthorization();

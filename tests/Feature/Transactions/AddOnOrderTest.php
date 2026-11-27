@@ -85,12 +85,10 @@ class AddOnOrderTest extends TestCase
         $log = AuditLog::where('event', 'transaction.add_on_created')->sole();
         $this->assertSame($addOn->id, (int) $log->auditable_id);
         $this->assertSame($original->id, $log->meta['parent_transaction_id']);
-        // BR-8: the add-on's receipt names the original order.
         $this->actingAs($this->cashier)->get(route('transactions.print', $addOn->invoice))
             ->assertInertia(fn (Assert $page) => $page->where('transaction.parent.invoice', $original->invoice));
     }
 
-    // TC-1: the link always points at the root
     public function test_add_on_to_an_add_on_links_to_the_root(): void
     {
         $original = $this->sell();
@@ -234,7 +232,6 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(0, AuditLog::where('event', 'transaction.add_on_created')->count());
     }
 
-    // BR-13: finished only when the original and every live add-on are paid with nothing left in the kitchen
     public function test_an_order_stays_open_while_a_live_add_on_does(): void
     {
         $original = $this->sell();
@@ -256,7 +253,6 @@ class AddOnOrderTest extends TestCase
         $this->assertNull($this->addOnTo($original)->parent_transaction_id);
     }
 
-    // BR-12: a failed or expired payment that was not restocked leaves the bill payable, so it takes an add-on
     public function test_add_on_to_a_failed_or_expired_unrestocked_bill_is_linked(): void
     {
         $payNow = $this->existingSale($this->warehouse, 'failed');
@@ -409,7 +405,6 @@ class AddOnOrderTest extends TestCase
         Cart::create(['cashier_id' => $user->id, 'product_id' => $product->id, 'qty' => 1, 'price' => 10000]);
     }
 
-    /** A POS checkout of one unit, paid in cash unless $payload says otherwise. */
     private function sell(array $payload = [], ?Product $product = null, ?User $by = null): Transaction
     {
         $by ??= $this->cashier;
@@ -432,7 +427,6 @@ class AddOnOrderTest extends TestCase
         return ['payment_gateway' => 'bank_transfer', 'bank_account_id' => $bank->id];
     }
 
-    /** A sale already on record, without lines or kitchen items. */
     private function existingSale(Warehouse $warehouse, string $status): Transaction
     {
         $sale = Transaction::create([
@@ -479,7 +473,6 @@ class AddOnOrderTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('canAddOn', $offered));
     }
 
-    /** The checkout is refused with $message and sells nothing. */
     private function assertRefused(string $invoice, string $message): void
     {
         $count = Transaction::count();

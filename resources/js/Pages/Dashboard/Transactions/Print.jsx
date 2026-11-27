@@ -17,17 +17,15 @@ import ThermalReceipt, {
 } from "@/Components/Receipt/ThermalReceipt";
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
-import AddOnButton from "@/Components/POS/AddOnButton";
+import AddOnButton, { InvoiceNumber } from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
-import { useTranslation } from "react-i18next";
 
 export default function Print({ transaction, retryable, bankAccounts, paymentGateways, canAddOn }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
-    const { t } = useTranslation();
     const [printMode, setPrintMode] = useState("invoice"); // 'invoice' | 'thermal80' | 'thermal58'
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -606,14 +604,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                     INVOICE
                                                 </span>
                                             </div>
-                                            <p className="text-lg sm:text-2xl font-bold leading-tight">
-                                                {transaction.invoice}
-                                            </p>
-                                            {transaction.parent && (
-                                                <p className="text-xs sm:text-sm font-medium">
-                                                    {t("addOn.receipt", { invoice: transaction.parent.invoice })}
-                                                </p>
-                                            )}
+                                            <InvoiceNumber transaction={transaction} />
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at
