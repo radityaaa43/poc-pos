@@ -409,6 +409,25 @@ return [
         'name_taken' => 'A kitchen station with this name already exists.',
         'default_locked' => 'The default station (Dapur) cannot be deleted.',
     ],
+    'modifiers' => [
+        'field_required' => 'This field is required.',
+        'whole_number' => 'Enter a whole number.',
+        'too_large' => 'The value is too large.',
+        'gone' => 'This choice is no longer available. Reload the page.',
+        'option_needed' => 'Add at least one option.',
+        'min_negative' => 'The minimum cannot be negative.',
+        'min_above_max' => 'The minimum cannot be greater than the maximum.',
+        'max_below_one' => 'The maximum must be at least 1.',
+        'required_min' => 'A required group needs a minimum of at least 1.',
+        'price_negative' => 'The extra price cannot be negative.',
+        'option_name_taken' => 'Option names must be unique within a group.',
+        'one_default' => 'Only one option can be the default.',
+        'default_required' => 'A required group needs one default option.',
+        'component_invalid' => 'An ingredient must be a product that holds stock, not a recipe.',
+        'component_duplicate' => 'An option cannot use the same ingredient twice.',
+        'qty_below_one' => 'The ingredient quantity must be at least 1.',
+        'raw_material' => 'A raw material cannot take modifiers.',
+    ],
 
     /*
     |--------------------------------------------------------------------------
