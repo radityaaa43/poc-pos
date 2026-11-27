@@ -212,10 +212,15 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
             ->where('meta->order_id', $this->orderId);
     }
 
-    /** @return array<int, mixed> what a settlement would change, to compare across the call */
+    /**
+     * What a payment of this charge would change, to compare across the call. Not the bill's status: a cashier's own
+     * charge failing or being paid meanwhile says nothing about this one.
+     *
+     * @return array<int, mixed>
+     */
     private function settlement(Transaction $bill): array
     {
-        return [$bill->payment_status, (string) $bill->late_superseded_payment_at, $this->audits($bill, self::REPORTED_PAID)->count()];
+        return [(string) $bill->late_superseded_payment_at, $this->audits($bill, self::REPORTED_PAID)->count()];
     }
 
     private function skip(string $level, string $reason): null

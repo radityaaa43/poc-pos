@@ -438,6 +438,31 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->assertSame(['settled_during_call', 'expired', true], [$meta['reason'], $meta['result'], $meta['settled_during_call']]);
     }
 
+    /** @return array<string, array<int, string>> */
+    public static function otherPayments(): array
+    {
+        return ['the cashier is paid' => ['paid'], 'the current charge fails' => ['failed']];
+    }
+
+    #[DataProvider('otherPayments')]
+    public function test_another_payments_outcome_during_the_call_still_records_the_expiry(string $outcome): void
+    {
+        $bill = null;
+        $this->gatewayAnswering('midtrans', function () use (&$bill, $outcome) {
+            $outcome === 'paid'
+                ? $this->cashierPays($bill->dineOrder)
+                : $this->notify('midtrans', "{$bill->invoice}-r2", 'failed');
+
+            return Http::response(['status_code' => '407'], 200);
+        });
+        $bill = $this->supersededCharge();
+
+        $this->work($this->jobFor($bill));
+
+        $this->assertSame($outcome, $bill->fresh()->payment_status);
+        $this->assertFalse(AuditLog::where('event', self::EXPIRED)->sole()->meta['settled_during_call']);
+    }
+
     public function test_a_transient_failure_is_retried(): void
     {
         $this->gatewayAnswering('midtrans', Http::sequence()->push([], 503)->push(['status_code' => '407'], 200));
