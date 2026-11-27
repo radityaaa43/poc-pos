@@ -47,6 +47,7 @@ const postedIds = () => itemPosts().map((c) => c[1].item_ids);
 
 let onLine;
 let usb;
+let wakeLock;
 let tickets;
 let cancellations;
 
@@ -62,9 +63,11 @@ beforeEach(async () => {
     onLine = true;
     vi.spyOn(navigator, "onLine", "get").mockImplementation(() => onLine);
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    // WebUSB exists unless a test removes it; the hook skips printing without it.
+    // WebUSB and Wake Lock exist unless a test removes them; the hook skips printing without WebUSB.
     usb = new EventTarget();
     Object.defineProperty(navigator, "usb", { value: usb, configurable: true });
+    wakeLock = { request: vi.fn(async () => ({ released: false, release: vi.fn(), addEventListener: vi.fn() })) };
+    Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true });
     tickets = [ticket(1, [11, 12])];
     cancellations = [];
     axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
@@ -76,6 +79,7 @@ afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     delete navigator.usb;
+    delete navigator.wakeLock;
 });
 
 describe("useKitchenPrintDevice: when it does nothing", () => {

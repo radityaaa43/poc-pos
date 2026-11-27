@@ -4,12 +4,17 @@ import { IconAlertTriangle } from "@tabler/icons-react";
 
 const BUTTON =
     "min-h-[44px] rounded-xl border border-current px-4 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2";
-// Status -> translation key of its wording. `unsupported` has no entry on purpose: it is shown in the
-// settings panel only, so a display that never prints stays quiet.
+const DANGER = "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-400";
+const WARNING = "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400";
+
+// Status -> translation key of its wording and its colour. `unsupported` has no entry on purpose: it is
+// shown in the settings panel only, so a display that never prints stays quiet.
 const BANNERS = {
-    driver_locked: "kitchen.print.driverLocked",
-    not_connected: "kitchen.print.kitchenNotConnected",
-    failed: "kitchen.print.failed",
+    driver_locked: ["kitchen.print.driverLocked", DANGER],
+    not_connected: ["kitchen.print.kitchenNotConnected", DANGER],
+    failed: ["kitchen.print.failed", DANGER],
+    stale: ["kitchen.print.stale", WARNING],
+    wake_lock_off: ["kitchen.print.wakeLockOff", WARNING],
 };
 
 // "Lihat langkah": the WinUSB replacement steps inline, no external link (staff cannot open the repo).
@@ -47,9 +52,9 @@ export default function PrinterStatusBanner({ status, onRetry }) {
     if (!banner) return null;
 
     return (
-        <div role="alert" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl bg-danger-100 px-4 py-3 text-sm font-medium text-danger-700 dark:bg-danger-900/50 dark:text-danger-400">
+        <div role="alert" className={`mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl px-4 py-3 text-sm font-medium ${banner[1]}`}>
             <IconAlertTriangle size={18} aria-hidden="true" />
-            <span>{t(banner)}</span>
+            <span>{t(banner[0])}</span>
             {status === "failed" && (
                 <button type="button" onClick={onRetry} className={BUTTON}>
                     {t("kitchen.print.retry")}

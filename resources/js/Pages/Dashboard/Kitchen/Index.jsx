@@ -19,6 +19,8 @@ const CHIP =
     "min-h-[44px] rounded-full px-4 text-sm font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2";
 const CHIP_ON = "bg-primary-500 text-white";
 const CHIP_OFF = "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700";
+const PRINT_BUTTON =
+    "min-h-[44px] w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800";
 
 // Anything but an array of integers (corrupt value, blocked storage) means Semua stasiun.
 const readSaved = () => {
@@ -29,6 +31,37 @@ const readSaved = () => {
         return [];
     }
 };
+
+// The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
+// prints a CETAK ULANG copy of one that did. `order` is the whole order, whatever the station filter shows.
+function PrintAction({ order, notPrinted, reprintable, printDevice }) {
+    const { t } = useTranslation();
+    if (!notPrinted && !reprintable) return null;
+
+    return (
+        <div className="border-t border-slate-100 p-4 dark:border-slate-800">
+            {notPrinted ? (
+                <button type="button" onClick={printDevice.retry} className={PRINT_BUTTON}>
+                    {t("kitchen.print.retry")}
+                </button>
+            ) : (
+                <button
+                    type="button"
+                    disabled={printDevice.headFailed || printDevice.reprinting?.includes(order.id)}
+                    onClick={() => printDevice.reprint(order)}
+                    className={PRINT_BUTTON}
+                >
+                    {t("kitchen.print.reprintButton")}
+                </button>
+            )}
+            {printDevice.reprintFailed === order.id && (
+                <p role="status" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
+                    {t("kitchen.print.reprintFailed")}
+                </p>
+            )}
+        </div>
+    );
+}
 
 export default function Index({ orders, outlet, stations = [] }) {
     const { t } = useTranslation();
@@ -118,8 +151,20 @@ export default function Index({ orders, outlet, stations = [] }) {
     const connectionLost = offline || now - lastOk > STALE_MS;
     // The print UI only exists on a display with a print device, and the warnings only while it auto-prints.
     const hasPrinter = Boolean(outlet && printDevice.device);
-    const notPrinted = (order) =>
-        printDevice.autoPrint && isNotPrinted(printDevice.unprinted?.find((entry) => entry.key === `t${order.id}`), now);
+    const queuedEntry = (order) =>
+        printDevice.autoPrint ? printDevice.unprinted?.find((entry) => entry.key === `t${order.id}`) : undefined;
+    const notPrinted = (order) => isNotPrinted(queuedEntry(order), now);
+    // Cetak ulang is only for an order whose ticket this device printed (REQ-004 decision 12).
+    const printed = new Set(printDevice.printedIds);
+    const reprintable = (order) => {
+        const lines = order.items.filter((item) => item.status !== "cancelled");
+        const hasTarget = Boolean(printDevice.printerKey || printDevice.autoPrint);
+        return hasTarget && !queuedEntry(order) && lines.length > 0 && lines.every((item) => printed.has(item.id));
+    };
+    // `order` here is the whole order: a reprint is the same ticket, whatever the station filter shows.
+    const printAction = (order) => (
+        <PrintAction order={order} notPrinted={notPrinted(order)} reprintable={reprintable(order)} printDevice={printDevice} />
+    );
 
     return (
         <>
@@ -268,17 +313,7 @@ export default function Index({ orders, outlet, stations = [] }) {
                                 {canHandOver && order.items.some((item) => item.status === "ready") &&
                                     stepButton(`hand-over-all-${order.id}`, "kitchen.orders.hand-over-all", order.id, t("kitchen.actions.handOverAll"), "w-full bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500", showAll ? {} : { station_ids: chosen })}
                             </footer>
-                            {hasPrinter && notPrinted(order) && (
-                                <div className="border-t border-slate-100 p-4 dark:border-slate-800">
-                                    <button
-                                        type="button"
-                                        onClick={printDevice.retry}
-                                        className="min-h-[44px] w-full rounded-xl border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-                                    >
-                                        {t("kitchen.print.retry")}
-                                    </button>
-                                </div>
-                            )}
+                            {hasPrinter && printAction(orders.find((each) => each.id === order.id))}
                         </article>
                     ))}
                 </div>

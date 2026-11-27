@@ -3,7 +3,8 @@ import axios from "axios";
 import i18n from "@/i18n";
 import { createPrintQueue } from "@/Utils/printQueue";
 import { buildKitchenTicketBytes, printBytes, printerKey as keyOf } from "@/Utils/escpos";
-import { classifyPrinterError, derivePrinterStatus, unprintedFromJobs, webUsbSupport } from "@/Utils/printerStatus";
+import { classifyPrinterError, derivePrinterStatus, isStale, unprintedFromJobs, webUsbSupport } from "@/Utils/printerStatus";
+import { useWakeLock } from "@/Hooks/useWakeLock";
 
 const POLL_MS = 5000;
 // Per-device settings (BR-3). printerKey is a plain string because escpos.js reads it directly.
@@ -16,8 +17,12 @@ const AUTO_PRINT = "kitchen.autoPrint";
 const UNCONFIRMED = "kitchen.unconfirmed";
 // Cancellation ids (DIBATALKAN tickets) printed but not yet confirmed: the same pattern, a separate list.
 const UNCONFIRMED_CANCELLATIONS = "kitchen.unconfirmedCancellations";
+// Item ids whose original ticket this device printed: Cetak ulang is offered for those orders only.
+const PRINTED = "kitchen.printed";
+// shortcut: the newest 2000 items; raise it if a shop keeps older orders open on the display.
+const PRINTED_LIMIT = 2000;
 const PRINT_LOCK = "kitchen-print";
-const NO_JOBS = { unprinted: [], lastError: null };
+const NO_JOBS = { unprinted: [], headFailed: false, lastError: null };
 
 const readJson = (key, fallback) => {
     try {
@@ -26,6 +31,7 @@ const readJson = (key, fallback) => {
         return fallback;
     }
 };
+const readPrinted = () => readJson(PRINTED, []);
 const readUnconfirmed = () => readJson(UNCONFIRMED, []);
 const writeUnconfirmed = (ids) => localStorage.setItem(UNCONFIRMED, JSON.stringify(ids));
 const readUnconfirmedCancellations = () => readJson(UNCONFIRMED_CANCELLATIONS, []);
@@ -56,6 +62,17 @@ async function print(ticket, extraLabels) {
     }
 }
 
+// A reprint ticket is built from the card: same items, minus the cancelled ones, marked reprint.
+const reprintTicket = (order, key) => ({
+    key,
+    number: order.number,
+    type: order.type,
+    unpaid: order.unpaid,
+    since: order.since,
+    reprint: true,
+    items: order.items.filter((item) => item.status !== "cancelled").map(({ title, qty, note }) => ({ title, qty, note })),
+});
+
 // Tells the server which items were printed, then forgets them locally. Throws when the POST fails,
 // leaving the ids in kitchen.unconfirmed for the next tick.
 async function confirm(ids) {
@@ -84,8 +101,16 @@ export function useKitchenPrintDevice(outlet) {
     const [queueState, setQueueState] = useState(NO_JOBS);
     const [connectError, setConnectError] = useState(null);
     const [disconnected, setDisconnected] = useState(false);
-    // Drains the queue that is polling; null while this tab does not print.
-    const runRef = useRef(null);
+    const [printedIds, setPrintedIds] = useState(readPrinted);
+    const [reprinting, setReprinting] = useState([]);
+    const [reprintFailed, setReprintFailed] = useState(null);
+    const [now, setNow] = useState(() => Date.now());
+    // When a ticket was last overdue; the offline-or-asleep warning is held a little after that.
+    const [staleAt, setStaleAt] = useState(null);
+    // The queue that is polling (null while this tab does not print) and a reprint-only one for auto-print off.
+    const queueRef = useRef(null);
+    const reprintQueueRef = useRef(null);
+    const reprintCount = useRef(0);
     const connectErrorRef = useRef(null);
 
     const setDevice = useCallback((value) => {
@@ -93,6 +118,8 @@ export function useKitchenPrintDevice(outlet) {
         if (readJson(DEVICE, null)?.id !== value?.id) {
             localStorage.removeItem(UNCONFIRMED);
             localStorage.removeItem(UNCONFIRMED_CANCELLATIONS);
+            localStorage.removeItem(PRINTED);
+            setPrintedIds([]);
         }
         localStorage.setItem(DEVICE, JSON.stringify(value));
         setDeviceState(value);
@@ -157,9 +184,24 @@ export function useKitchenPrintDevice(outlet) {
     const printing = active && leader;
     const otherTab = active && !leader;
 
+    // A reprint is a one-shot job: no POST, no kitchen.unconfirmed entry, dropped by the queue when it fails.
+    const sendManual = useCallback(async (job) => {
+        try {
+            await print(job.ticket, { reprint: i18n.t("kitchen.print.reprint") });
+            setDisconnected(false);
+        } catch (error) {
+            setReprintFailed(job.orderId);
+            throw error;
+        } finally {
+            setReprinting((ids) => ids.filter((id) => id !== job.orderId));
+        }
+    }, []);
+
     useEffect(() => {
         if (!printing) return undefined;
         let halted = false;
+        // A tab that took over the printing reads what the earlier one printed.
+        setPrintedIds(readPrinted());
         // Items of tickets that are queued (or printing) and not yet in kitchen.unconfirmed.
         const queued = new Set();
         // Ids this tab has sent: a poll already in flight can still list one after Coba lagi printed and recorded it.
@@ -168,6 +210,7 @@ export function useKitchenPrintDevice(outlet) {
 
         const queue = createPrintQueue({
             send: async (job) => {
+                if (job.manual) return sendManual(job);
                 if (job.kind === "cancel") {
                     await print(job.ticket, { cancelled: i18n.t("kitchen.print.cancelled") });
                     setDisconnected(false);
@@ -184,17 +227,40 @@ export function useKitchenPrintDevice(outlet) {
                     queued.delete(id);
                     printed.add(id);
                 });
+                const ids = [...new Set([...readPrinted(), ...job.itemIds])].slice(-PRINTED_LIMIT);
+                localStorage.setItem(PRINTED, JSON.stringify(ids));
+                setPrintedIds(ids);
                 await confirm(job.itemIds).catch(() => {});
             },
         });
 
-        const publish = () =>
+        // Runs every second and reads the live queue, so a backlog that prints at once on waking still warns.
+        const clock = () => {
+            const at = Date.now();
+            setNow(at);
+            if (isStale(unprintedFromJobs(queue.jobs), at)) setStaleAt(at);
+        };
+        const publish = () => {
+            clock();
+            const failed = queue.status === "failed";
             setQueueState({
                 unprinted: unprintedFromJobs(queue.jobs),
-                lastError: queue.status === "failed" ? (queue.jobs[0]?.lastError ?? null) : null,
+                headFailed: failed,
+                lastError: failed ? (queue.jobs[0]?.lastError ?? null) : null,
             });
+        };
         const run = async () => {
             await queue.drain();
+            // A reprint is a one-shot tap: if the queue stopped on a failed ticket, the reprints queued behind it are
+            // dropped (the button re-enables with the failure shown), not printed minutes later when the head recovers.
+            if (queue.status === "failed") {
+                for (const job of queue.jobs.slice(1)) {
+                    if (job.manual && queue.remove(job.key)) {
+                        setReprinting((ids) => ids.filter((id) => id !== job.orderId));
+                        setReprintFailed(job.orderId);
+                    }
+                }
+            }
             publish();
         };
         // A driver lock and a device without WebUSB need the person, not another try (the button still can).
@@ -202,7 +268,7 @@ export function useKitchenPrintDevice(outlet) {
             webUsbSupport() !== "ok" ||
             connectErrorRef.current === "driver_locked" ||
             (queue.status === "failed" && queue.jobs[0]?.lastError?.code === "driver_locked");
-        runRef.current = run;
+        queueRef.current = { queue, run };
 
         const tick = async () => {
             if (halted || !navigator.onLine) return;
@@ -216,7 +282,7 @@ export function useKitchenPrintDevice(outlet) {
                 // because of the server's cap is offered again by a later poll.
                 const current = new Map(data.tickets.map((ticket) => [ticket.key, ticket]));
                 for (const job of queue.jobs) {
-                    if (job.kind === "cancel") continue;
+                    if (job.kind === "cancel" || job.manual) continue;
                     const fresh = current.get(job.key);
                     if (!fresh) {
                         if (queue.remove(job.key)) job.itemIds.forEach((id) => queued.delete(id));
@@ -256,15 +322,19 @@ export function useKitchenPrintDevice(outlet) {
 
         tick();
         const timer = setInterval(tick, POLL_MS);
+        const clockTimer = setInterval(clock, 1000);
         window.addEventListener("online", tick);
         return () => {
             halted = true;
             clearInterval(timer);
+            clearInterval(clockTimer);
             window.removeEventListener("online", tick);
-            runRef.current = null;
+            queueRef.current = null;
             setQueueState(NO_JOBS);
+            setReprinting([]);
+            setStaleAt(null);
         };
-    }, [printing, deviceId]);
+    }, [printing, deviceId, sendManual]);
 
     // The printer's own plug and unplug events: not_connected at once, before a ticket has to fail.
     useEffect(() => {
@@ -280,7 +350,7 @@ export function useKitchenPrintDevice(outlet) {
             // A printer that re-appears (also after a driver swap) deserves a fresh try.
             connectErrorRef.current = null;
             setConnectError(null);
-            runRef.current?.();
+            queueRef.current?.run();
         };
         usb.addEventListener("disconnect", onDisconnect);
         usb.addEventListener("connect", onConnect);
@@ -290,8 +360,10 @@ export function useKitchenPrintDevice(outlet) {
         };
     }, [printerKey]);
 
+    const wakeLock = useWakeLock(active);
+
     // The button and the poll feed one queue, so a double tap cannot send twice.
-    const retry = useCallback(() => runRef.current?.() ?? Promise.resolve(), []);
+    const retry = useCallback(() => queueRef.current?.run() ?? Promise.resolve(), []);
 
     // The connect button reports its error here: only a driver lock is kept (the panel shows the steps);
     // a good connect clears it and gives a stuck ticket another try.
@@ -302,16 +374,39 @@ export function useKitchenPrintDevice(outlet) {
         setConnectError(locked);
         if (!error) {
             setDisconnected(false);
-            runRef.current?.();
+            queueRef.current?.run();
         }
     }, []);
 
-    const { unprinted, lastError } = queueState;
+    const reprint = useCallback(
+        (order) => {
+            reprintCount.current += 1;
+            const key = `r${order.id}-${reprintCount.current}`;
+            const job = { key, manual: true, orderId: order.id, ticket: reprintTicket(order, key) };
+            setReprintFailed(null);
+            setReprinting((ids) => [...ids, order.id]);
+            if (queueRef.current) {
+                queueRef.current.queue.enqueue(job);
+                return queueRef.current.run();
+            }
+            // Auto-print off: nothing is polling, so a queue of its own keeps one send at a time.
+            if (!reprintQueueRef.current) reprintQueueRef.current = createPrintQueue({ send: sendManual });
+            reprintQueueRef.current.enqueue(job);
+            return reprintQueueRef.current.drain();
+        },
+        [sendManual]
+    );
+
+    const { unprinted, headFailed, lastError } = queueState;
     const status = derivePrinterStatus({
         supported: webUsbSupport() === "ok",
         autoPrint: printing,
         errorCode: connectError ?? lastError?.code ?? null,
         disconnected: disconnected || (printing && !printerKey),
+        unprinted,
+        wakeLock,
+        now,
+        staleAt,
     });
 
     return {
@@ -327,8 +422,13 @@ export function useKitchenPrintDevice(outlet) {
         testPrint,
         unprinted,
         lastError,
+        headFailed,
         status,
         retry,
+        printedIds,
+        reprint,
+        reprinting,
+        reprintFailed,
         reportError,
     };
 }

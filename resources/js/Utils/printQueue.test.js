@@ -352,7 +352,7 @@ describe("createPrintQueue: remove and replace (reconcile)", () => {
     });
 });
 
-describe("createPrintQueue: failure details (REQ-004 K2)", () => {
+describe("createPrintQueue: failure details and manual jobs (REQ-004 K2)", () => {
     const failure = (code) => Object.assign(new Error(code), { code });
 
     it("keeps the error code on the failed head job and clears it once the job prints", async () => {
@@ -395,5 +395,62 @@ describe("createPrintQueue: failure details (REQ-004 K2)", () => {
         await queue.drain();
 
         expect(warn).toHaveBeenCalledWith("kitchen print failed", "t7", "claim_failed");
+    });
+
+    it("drops a manual job that fails (its send saw the error) and keeps the queue going", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const sent = [];
+        const send = vi.fn(async (job) => {
+            sent.push(job.key);
+            if (job.manual) throw failure("transfer");
+        });
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "r1-1", manual: true });
+        queue.enqueue({ key: "a" });
+
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(sent).toEqual(["r1-1", "a"]);
+        expect(queue.jobs).toEqual([]);
+        expect(queue.status).toBe("idle");
+        expect(warn).toHaveBeenCalledWith("kitchen print failed", "r1-1", "transfer");
+    });
+
+    it("a failed manual job alone leaves the queue idle, not failed", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const queue = createPrintQueue({ send: vi.fn().mockRejectedValue(failure("transfer")) });
+        queue.enqueue({ key: "r1-1", manual: true });
+
+        await queue.drain();
+
+        expect(queue.status).toBe("idle");
+        expect(queue.jobs).toEqual([]);
+    });
+
+    it("keeps a failed head of any kind, and a manual job queued behind it waits", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const send = vi.fn().mockRejectedValue(failure("transfer"));
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a" });
+        queue.enqueue({ key: "r1-1", manual: true });
+
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queue.status).toBe("failed");
+        expect(queue.jobs.map((j) => j.key)).toEqual(["a", "r1-1"]);
+    });
+
+    it("a manual job prints once and is gone", async () => {
+        const send = vi.fn().mockResolvedValue(undefined);
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "r1-1", manual: true });
+
+        await queue.drain();
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queue.jobs).toEqual([]);
     });
 });

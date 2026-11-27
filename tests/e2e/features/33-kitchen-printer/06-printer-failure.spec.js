@@ -35,7 +35,9 @@ async function expectPrintedOnce(page, sale, card) {
     await expect.poll(() => sentWith(page, sale.invoice), { timeout: 15_000 }).toBeDefined();
     await expect(banner(page, 'Gagal mencetak — coba lagi')).toHaveCount(0);
     await expect(card.getByText('Belum tercetak')).toHaveCount(0);
-    expect(await printsOf(page, sale.invoice)).toHaveLength(1);
+    const tickets = await printsOf(page, sale.invoice);
+    expect(tickets).toHaveLength(1);
+    expect(tickets[0]).not.toContain('CETAK ULANG');
 }
 
 test.describe('33-kitchen-printer', () => {
@@ -61,10 +63,14 @@ test.describe('33-kitchen-printer', () => {
         await page.route(ticketsUrl, (route) => held.push(route));
         await expect.poll(() => held.length, { timeout: 15_000 }).toBeGreaterThan(0);
 
+        // A chipped card offers Coba lagi, not Cetak ulang.
+        await expect(card.getByRole('button', { name: 'Cetak ulang' })).toHaveCount(0);
         await setPrinterFault(page, 'none');
         await card.getByRole('button', { name: 'Coba lagi' }).click();
         await expectPrintedOnce(page, sale, card);
         await expect(card.getByRole('button', { name: 'Coba lagi' })).toHaveCount(0);
+        // Once it printed, the card offers Cetak ulang instead.
+        await expect(card.getByRole('button', { name: 'Cetak ulang' })).toBeVisible();
 
         // The held requests answer after the print: nothing is printed a second time.
         const polled = page.waitForResponse((response) => ticketsUrl.test(response.url()), { timeout: 15_000 });

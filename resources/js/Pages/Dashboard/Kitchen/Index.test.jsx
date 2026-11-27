@@ -757,7 +757,7 @@ describe("Kitchen/Index hand over", () => {
     });
 });
 
-describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => {
+describe("Kitchen/Index: printer status, Belum tercetak and reprint (REQ-004 K2)", () => {
     const secondsAgo = (s) => new Date(NOW.getTime() - s * 1000).toISOString();
     const device = { id: 5, name: "Dapur 1" };
     const printer = (over = {}) => ({
@@ -767,6 +767,12 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
         status: null,
         unprinted: [],
         retry: vi.fn(),
+        // Every item of both cards printed here, unless a test says otherwise.
+        printedIds: [1, 2, 3],
+        headFailed: false,
+        reprinting: [],
+        reprintFailed: null,
+        reprint: vi.fn(),
         ...over,
     });
     const use = (over) => {
@@ -784,7 +790,7 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
         render(<Index orders={orders} outlet={outlet} />);
 
         expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Cetak ulang|Coba lagi/ })).not.toBeInTheDocument();
         expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
     });
 
@@ -799,13 +805,15 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
         use({ autoPrint: false, printerKey: "", unprinted: [entry(7)] });
         render(<Index orders={orders} outlet={outlet} />);
 
-        expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Cetak ulang|Coba lagi/ })).not.toBeInTheDocument();
     });
 
     describe("banner", () => {
         it.each([
             ["failed", "Gagal mencetak — coba lagi"],
             ["not_connected", "Printer dapur tidak terhubung"],
+            ["stale", "Printer dapur offline atau tab tidur"],
+            ["wake_lock_off", "Layar bisa tidur — jaga perangkat tetap menyala"],
             ["driver_locked", "Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB"],
         ])("shows the %s banner with the REQ wording", (status, text) => {
             use({ status });
@@ -885,37 +893,113 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
 
             expect(within(cards()[0]).getByText("Not printed")).toBeInTheDocument();
             expect(within(cards()[0]).getByRole("button", { name: "Try again" })).toBeInTheDocument();
-            expect(within(cards()[1]).queryByRole("button", { name: "Try again" })).not.toBeInTheDocument();
+            expect(within(cards()[1]).getByRole("button", { name: "Reprint" })).toBeInTheDocument();
         });
     });
 
-    describe("card button", () => {
-        it("a chipped card, and only that one, offers Coba lagi, 44 px tall, which retries the print", async () => {
-            const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    describe("one button per card", () => {
+        const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+        const reprintIn = (card) => within(card).queryByRole("button", { name: "Cetak ulang" });
+
+        it("a chipped card offers Coba lagi, 44 px tall, not Cetak ulang, and it retries the original ticket", async () => {
             const hook = use({ unprinted: [entry(7)] });
             render(<Index orders={orders} outlet={outlet} />);
 
+            expect(reprintIn(cards()[0])).not.toBeInTheDocument();
             expect(within(cards()[1]).queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
             const retry = within(cards()[0]).getByRole("button", { name: "Coba lagi" });
             expect(retry).toHaveClass("min-h-[44px]");
-            await user.click(retry);
+            await user().click(retry);
 
             expect(hook.retry).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).not.toHaveBeenCalled();
+        });
+
+        it("a printed card offers Cetak ulang, 44 px tall, which reprints that order", async () => {
+            const hook = use();
+            render(<Index orders={orders} outlet={outlet} />);
+
+            const reprint = reprintIn(cards()[1]);
+            expect(reprint).toHaveClass("min-h-[44px]");
+            await user().click(reprint);
+
+            expect(hook.reprint).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).toHaveBeenCalledWith(orders[1]);
+        });
+
+        it.each([true, false])("offers Cetak ulang only for an order this device printed (auto-print %s)", (autoPrint) => {
+            use({ autoPrint, printedIds: [1, 3] }); // order 7 has an item this device never printed
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(reprintIn(cards()[0])).not.toBeInTheDocument();
+            expect(reprintIn(cards()[1])).toBeInTheDocument();
+        });
+
+        it("ignores a cancelled line, and offers nothing for an order that is all cancelled", () => {
+            const cancelled = (item) => ({ ...item, status: "cancelled" });
+            const changed = [
+                { ...orders[0], items: [orders[0].items[0], cancelled(orders[0].items[1])] },
+                { ...orders[1], items: orders[1].items.map(cancelled) },
+            ];
+            use({ printedIds: [1, 3] });
+            render(<Index orders={changed} outlet={outlet} />);
+
+            expect(reprintIn(cards()[0])).toBeInTheDocument();
+            expect(reprintIn(cards()[1])).not.toBeInTheDocument();
+        });
+
+        it("reprints the whole order when the station filter hides some of its lines", async () => {
+            localStorage.setItem("kitchenStations", "[1]");
+            const stations = [{ id: 1, name: "Dapur", is_default: true }, { id: 2, name: "Bar", is_default: false }];
+            const mixed = [{ ...orders[0], items: orders[0].items.map((item, i) => ({ ...item, station_id: i + 1 })) }];
+            const hook = use();
+            render(<Index orders={mixed} outlet={outlet} stations={stations} />);
+            expect(screen.queryByText(/Es Teh/)).not.toBeInTheDocument();
+
+            await user().click(reprintIn(cards()[0]));
+
+            expect(hook.reprint).toHaveBeenCalledWith(mixed[0]);
         });
 
         it("a ticket still queued and young has no button yet", () => {
             use({ unprinted: [entry(7, { since: secondsAgo(5) })] });
             render(<Index orders={orders} outlet={outlet} />);
 
-            expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+            expect(within(cards()[0]).queryByRole("button", { name: /Cetak ulang|Coba lagi/ })).not.toBeInTheDocument();
+            expect(reprintIn(cards()[1])).toBeInTheDocument();
         });
 
-        it("with auto-print off no card offers Coba lagi, and no chip or banner shows", () => {
+        it("with auto-print off a printed card keeps Cetak ulang, and no Coba lagi, chip or banner shows", () => {
             use({ autoPrint: false, status: "failed", unprinted: [entry(7)] });
             render(<Index orders={orders} outlet={outlet} />);
 
+            expect(screen.getAllByRole("button", { name: "Cetak ulang" })).toHaveLength(2);
             expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
+            expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+        });
+
+        it("Cetak ulang is disabled while the queue head is failed", () => {
+            use({ headFailed: true, unprinted: [entry(7, { state: "failed" })] });
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(reprintIn(cards()[1])).toBeDisabled();
+        });
+
+        it("Cetak ulang is disabled while its own reprint is queued, and only on that card", () => {
+            use({ reprinting: [9] });
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(reprintIn(cards()[1])).toBeDisabled();
+            expect(reprintIn(cards()[0])).toBeEnabled();
+        });
+
+        it("shows an inline error in the card whose reprint failed", () => {
+            use({ reprintFailed: 9 });
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(within(cards()[1]).getByText("Gagal mencetak ulang")).toBeInTheDocument();
+            expect(within(cards()[0]).queryByText("Gagal mencetak ulang")).not.toBeInTheDocument();
             expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         });
     });

@@ -5,8 +5,8 @@ import i18n from "@/i18n";
 import { buildKitchenTicketBytes, printBytes } from "@/Utils/escpos";
 import { useKitchenPrintDevice } from "./useKitchenPrintDevice";
 
-// REQ-004 K2: printer failures, retry and USB events. The queue is the real one; the main test file covers
-// the printing flow itself.
+// REQ-004 K2: printer failures, retry, reprint, USB events, Wake Lock and the stale warning. The queue is the
+// real one; the main test file covers the printing flow itself.
 vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
 vi.mock("@/Utils/escpos", () => ({
     buildKitchenTicketBytes: vi.fn(() => new Uint8Array([1, 2])),
@@ -40,9 +40,13 @@ const setStorage = (over = {}) => {
     localStorage.setItem("kitchen.autoPrint", "true");
     Object.entries(over).forEach(([k, v]) => (v === null ? localStorage.removeItem(k) : localStorage.setItem(k, v)));
 };
+const unconfirmed = () => JSON.parse(localStorage.getItem("kitchen.unconfirmed") ?? "[]");
+const unconfirmedCancellations = () => JSON.parse(localStorage.getItem("kitchen.unconfirmedCancellations") ?? "[]");
+const printedHere = () => JSON.parse(localStorage.getItem("kitchen.printed") ?? "[]");
 const postedIds = () => axios.post.mock.calls.filter((c) => !c[0].includes("cancellation-prints")).map((c) => c[1].item_ids);
 
 let usb;
+let wakeLock;
 let tickets;
 let cancellations;
 
@@ -59,6 +63,8 @@ beforeEach(async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     usb = new EventTarget();
     Object.defineProperty(navigator, "usb", { value: usb, configurable: true });
+    wakeLock = { request: vi.fn(async () => ({ released: false, release: vi.fn(), addEventListener: vi.fn() })) };
+    Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true });
     tickets = [ticket(1, [11, 12])];
     cancellations = [];
     axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
@@ -70,11 +76,24 @@ afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     delete navigator.usb;
+    delete navigator.wakeLock;
 });
 const WINDOWS = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130";
 const LINUX = "Mozilla/5.0 (X11; Linux x86_64) Chrome/130";
 const fail = (code, cause) => Object.assign(new Error(code), { code, cause });
 const usbEvent = (type, key) => Object.assign(new Event(type), { device: { key } });
+const order = {
+    id: 7,
+    number: "Meja 4",
+    type: "dine_in",
+    unpaid: true,
+    since: "2026-11-26T09:50:00Z",
+    items: [
+        { id: 1, title: "Nasi Goreng", qty: 2, note: "tanpa pedas", status: "accepted", station_id: 3 },
+        { id: 2, title: "Es Teh", qty: 1, note: null, status: "cancelled", station_id: 3 },
+    ],
+};
+
 describe("useKitchenPrintDevice: failures (REQ-004 K2)", () => {
     beforeEach(() => {
         vi.setSystemTime(new Date("2026-11-26T10:00:05Z"));
@@ -85,7 +104,7 @@ describe("useKitchenPrintDevice: failures (REQ-004 K2)", () => {
         const { result } = mount();
         await flush();
 
-        expect(result.current).toMatchObject({ unprinted: [], lastError: null, status: null });
+        expect(result.current).toMatchObject({ unprinted: [], lastError: null, status: null, headFailed: false });
     });
 
     it("a failed print keeps its ticket unprinted with the error code, then the next tick prints it and clears all", async () => {
@@ -96,11 +115,12 @@ describe("useKitchenPrintDevice: failures (REQ-004 K2)", () => {
         expect(result.current.unprinted).toEqual([{ key: "t1", since: "2026-11-26T10:00:00Z", state: "failed" }]);
         expect(result.current.lastError).toMatchObject({ code: "transfer" });
         expect(result.current.status).toBe("failed");
+        expect(result.current.headFailed).toBe(true);
 
         await advance(5000);
 
         expect(printBytes).toHaveBeenCalledTimes(2);
-        expect(result.current).toMatchObject({ unprinted: [], lastError: null, status: null });
+        expect(result.current).toMatchObject({ unprinted: [], lastError: null, status: null, headFailed: false });
         expect(postedIds()).toEqual([[11, 12]]);
     });
 
@@ -238,6 +258,226 @@ describe("useKitchenPrintDevice: failures (REQ-004 K2)", () => {
     });
 });
 
+describe("useKitchenPrintDevice: reprint (REQ-004 K2)", () => {
+    beforeEach(() => {
+        vi.setSystemTime(new Date("2026-11-26T10:00:05Z"));
+        setStorage({ "kitchen.autoPrint": "false" });
+        tickets = [];
+    });
+
+    it("prints a ticket marked CETAK ULANG on the stored printer, with no request and nothing recorded", async () => {
+        const { result } = mount();
+
+        await act(() => result.current.reprint(order));
+
+        expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
+            {
+                key: "r7-1",
+                number: "Meja 4",
+                type: "dine_in",
+                unpaid: true,
+                since: "2026-11-26T09:50:00Z",
+                reprint: true,
+                items: [{ title: "Nasi Goreng", qty: 2, note: "tanpa pedas" }],
+            },
+            "80mm",
+            { type: "Dine-in", unpaid: "BELUM LUNAS", reprint: "CETAK ULANG" }
+        );
+        expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
+        expect(axios.post).not.toHaveBeenCalled();
+        expect(axios.get).not.toHaveBeenCalled();
+        expect(unconfirmed()).toEqual([]);
+        expect(unconfirmedCancellations()).toEqual([]);
+    });
+
+    it("prints REPRINT on an English device", async () => {
+        await i18n.changeLanguage("en");
+        const { result } = mount();
+
+        await act(() => result.current.reprint(order));
+
+        expect(buildKitchenTicketBytes.mock.calls[0][2]).toEqual({ type: "Dine-in", unpaid: "UNPAID", reprint: "REPRINT" });
+    });
+
+    it("can be repeated: every tap prints, under its own key", async () => {
+        const { result } = mount();
+
+        await act(() => result.current.reprint(order));
+        await act(() => result.current.reprint(order));
+
+        expect(printBytes).toHaveBeenCalledTimes(2);
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["r7-1", "r7-2"]);
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    it("while auto-print is on, goes into the same queue after the tickets already queued, and records nothing", async () => {
+        setStorage();
+        tickets = [ticket(1, [11, 12])];
+        const releases = [];
+        printBytes.mockImplementation(() => new Promise((resolve) => releases.push(resolve)));
+        const { result } = mount();
+        await flush();
+        expect(printBytes).toHaveBeenCalledTimes(1);
+
+        let done;
+        await act(async () => {
+            done = result.current.reprint(order);
+        });
+        expect(printBytes).toHaveBeenCalledTimes(1); // one send at a time: the original goes first
+        expect(result.current.reprinting).toEqual([7]);
+
+        tickets = [];
+        await act(async () => {
+            releases[0]();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+        await act(async () => {
+            releases[1]();
+            await done;
+        });
+
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1", "r7-1"]);
+        expect(postedIds()).toEqual([[11, 12]]);
+        expect(unconfirmed()).toEqual([]);
+        expect(result.current.reprinting).toEqual([]);
+    });
+
+    it("drops a reprint queued behind an original that then fails: it never prints later, and its order is named", async () => {
+        setStorage();
+        tickets = [ticket(1, [11, 12])];
+        const releases = [];
+        printBytes.mockImplementation(() => new Promise((resolve, reject) => releases.push({ resolve, reject })));
+        const { result } = mount();
+        await flush();
+
+        let done;
+        await act(async () => {
+            done = result.current.reprint(order);
+        });
+        expect(result.current.reprinting).toEqual([7]);
+
+        await act(async () => {
+            releases[0].reject(fail("transfer"));
+            await vi.advanceTimersByTimeAsync(0);
+            await done;
+        });
+
+        expect(result.current.headFailed).toBe(true);
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.reprintFailed).toBe(7);
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1"]);
+
+        // The printer is back: only the original prints, the forgotten reprint does not come back.
+        printBytes.mockResolvedValue(undefined);
+        await advance(5000);
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1", "t1"]);
+    });
+
+    it("tracks the order being reprinted until it is done", async () => {
+        let release;
+        printBytes.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+
+        let done;
+        await act(async () => {
+            done = result.current.reprint(order);
+        });
+        expect(result.current.reprinting).toEqual([7]);
+
+        await act(async () => {
+            release();
+            await done;
+        });
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.reprintFailed).toBeNull();
+    });
+
+    it("drops a failed reprint, names its order, and does not block the queue or raise a status", async () => {
+        setStorage();
+        printBytes.mockRejectedValueOnce(fail("transfer"));
+        const { result } = mount();
+        await flush();
+
+        await act(() => result.current.reprint(order));
+
+        expect(result.current.reprintFailed).toBe(7);
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.headFailed).toBe(false);
+        expect(result.current.status).toBeNull();
+
+        await advance(5000);
+        expect(printBytes).toHaveBeenCalledTimes(1); // nothing retries it later
+    });
+
+    it("clears the failure mark when another reprint starts", async () => {
+        printBytes.mockRejectedValueOnce(fail("transfer"));
+        const { result } = mount();
+        await act(() => result.current.reprint(order));
+        expect(result.current.reprintFailed).toBe(7);
+
+        await act(() => result.current.reprint(order));
+
+        expect(result.current.reprintFailed).toBeNull();
+    });
+});
+
+describe("useKitchenPrintDevice: what this device printed (REQ-004 K2, decision 12)", () => {
+    beforeEach(() => {
+        vi.setSystemTime(new Date("2026-11-26T10:00:05Z"));
+        setStorage();
+    });
+
+    it("keeps the item ids of a ticket that went to the printer, also after a reload, even if the record fails", async () => {
+        axios.post.mockRejectedValue(new Error("offline"));
+        const first = mount();
+        await flush();
+
+        expect(first.result.current.printedIds).toEqual([11, 12]);
+        first.unmount();
+        expect(mount().result.current.printedIds).toEqual([11, 12]);
+    });
+
+    it("keeps nothing for a failed ticket, a cancel ticket, a test print or a reprint", async () => {
+        printBytes.mockRejectedValueOnce(fail("transfer"));
+        const { result } = mount();
+        await flush();
+        expect(result.current.printedIds).toEqual([]);
+
+        setStorage({ "kitchen.autoPrint": "false" });
+        act(() => result.current.setAutoPrint(false));
+        await act(() => result.current.testPrint());
+        await act(() => result.current.reprint(order));
+        tickets = [];
+        cancellations = [cancelTicket(3, [31])];
+        await act(async () => result.current.setAutoPrint(true));
+        await flush();
+
+        expect(printBytes).toHaveBeenCalledTimes(4);
+        expect(result.current.printedIds).toEqual([]);
+        expect(printedHere()).toEqual([]);
+    });
+
+    it("keeps only the newest 2000 ids", async () => {
+        localStorage.setItem("kitchen.printed", JSON.stringify(Array.from({ length: 2000 }, (_, i) => 1000 + i)));
+        const { result } = mount();
+        await flush();
+
+        expect(result.current.printedIds).toHaveLength(2000);
+        expect(result.current.printedIds.slice(-3)).toEqual([2999, 11, 12]);
+        expect(result.current.printedIds[0]).toBe(1002);
+    });
+
+    it("forgets them when the device becomes another print device", async () => {
+        const { result } = mount();
+        await flush();
+
+        act(() => result.current.setDevice({ id: 6, name: "Dapur 2" }));
+
+        expect(result.current.printedIds).toEqual([]);
+        expect(printedHere()).toEqual([]);
+    });
+});
+
 describe("useKitchenPrintDevice: a poll already in flight (REQ-004 K2, BR-2)", () => {
     beforeEach(() => {
         vi.setSystemTime(new Date("2026-11-26T10:00:05Z"));
@@ -365,6 +605,98 @@ describe("useKitchenPrintDevice: USB events and connect errors (REQ-004 K2)", ()
             result.current.reportError(null);
             await vi.advanceTimersByTimeAsync(0);
         });
+        expect(printBytes).toHaveBeenCalledTimes(2);
+        expect(result.current.status).toBeNull();
+    });
+});
+
+describe("useKitchenPrintDevice: Wake Lock and the stale warning (REQ-004 K2)", () => {
+    beforeEach(() => {
+        vi.setSystemTime(new Date("2026-11-26T10:00:05Z"));
+        setStorage();
+        tickets = [];
+    });
+
+    it("keeps the screen awake while auto-print is on and lets go when it is switched off", async () => {
+        const release = vi.fn();
+        wakeLock.request.mockResolvedValue({ released: false, release, addEventListener: vi.fn() });
+        const { result } = mount();
+        await flush();
+        expect(wakeLock.request).toHaveBeenCalledWith("screen");
+        expect(result.current.status).toBeNull();
+
+        act(() => result.current.setAutoPrint(false));
+
+        expect(release).toHaveBeenCalled();
+    });
+
+    it("does not ask for the screen lock while auto-print is off", async () => {
+        setStorage({ "kitchen.autoPrint": "false" });
+        mount();
+        await flush();
+
+        expect(wakeLock.request).not.toHaveBeenCalled();
+    });
+
+    it("warns when the screen lock is refused or the browser has none", async () => {
+        wakeLock.request.mockRejectedValue(new DOMException("no", "NotAllowedError"));
+        const refused = mount();
+        await flush();
+        expect(refused.result.current.status).toBe("wake_lock_off");
+        refused.unmount();
+
+        delete navigator.wakeLock;
+        const none = mount();
+        await flush();
+        expect(none.result.current.status).toBe("wake_lock_off");
+    });
+
+    it("shows stale when an unprinted ticket is older than 30 s, and holds it 15 s after the backlog printed", async () => {
+        vi.setSystemTime(new Date("2026-11-26T10:00:40Z")); // the ticket is 40 s old
+        tickets = [ticket(1, [11, 12])];
+        let release;
+        printBytes.mockImplementation(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+        await flush();
+        await advance(1000);
+        expect(result.current.status).toBe("stale");
+
+        tickets = [];
+        printBytes.mockResolvedValue(undefined);
+        await act(async () => release());
+        expect(result.current.unprinted).toEqual([]);
+        expect(result.current.status).toBe("stale");
+
+        await advance(10000);
+        expect(result.current.status).toBe("stale");
+
+        await advance(6000);
+        expect(result.current.status).toBeNull();
+    });
+
+    it("is not stale for a young ticket", async () => {
+        printBytes.mockImplementation(() => new Promise(() => {}));
+        tickets = [ticket(1, [11])];
+        const { result } = mount();
+        await flush();
+        await advance(2000);
+
+        expect(result.current.unprinted).toHaveLength(1);
+        expect(result.current.status).toBeNull();
+    });
+
+    it("prints the orders that waited during sleep oldest first, once each, and still warns when that is instant", async () => {
+        vi.setSystemTime(new Date("2026-11-26T10:00:40Z"));
+        tickets = [ticket(1, [11]), ticket(2, [21])];
+        const { result } = mount();
+        await flush();
+
+        expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1", "t2"]);
+        expect(result.current.unprinted).toEqual([]);
+        expect(result.current.status).toBe("stale");
+
+        // The server may still list them (a record in flight): nothing prints a second time, and the warning goes.
+        await advance(20000);
         expect(printBytes).toHaveBeenCalledTimes(2);
         expect(result.current.status).toBeNull();
     });

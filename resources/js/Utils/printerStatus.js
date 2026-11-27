@@ -3,6 +3,8 @@
 
 // A ticket still unprinted after this long is "Belum tercetak" (10 s SLA + one 5 s poll + a margin).
 export const STALE_PRINT_MS = 30000;
+// The stale banner stays this long after the condition cleared, or it would flash while the backlog prints.
+export const STALE_HOLD_MS = 15000;
 
 // escpos.js throws errors with a string `code` (unsupported, not_connected, claim_failed, transfer) and
 // the browser's DOMException as `cause`. A raw DOMException has a numeric `code`, which is ignored here.
@@ -24,25 +26,32 @@ export function webUsbSupport() {
     return window.isSecureContext === false ? "insecure" : "ok";
 }
 
-// A card's chip: its ticket failed, or it has waited longer than the print SLA.
-export const isNotPrinted = (entry, now) =>
-    Boolean(entry) && (entry.state === "failed" || now - Date.parse(entry.since) > STALE_PRINT_MS);
+// shortcut: `since` is the server's time, compared with the device's clock; send the age if shop clocks drift.
+const olderThan = (since, now) => now - Date.parse(since) > STALE_PRINT_MS;
 
-// Queued original tickets as {key, since, state}; cancel jobs are not "not printed".
+export const isStale = (unprinted, now) => unprinted.some((entry) => olderThan(entry.since, now));
+
+// A card's chip: its ticket failed, or it has waited longer than the print SLA.
+export const isNotPrinted = (entry, now) => Boolean(entry) && (entry.state === "failed" || olderThan(entry.since, now));
+
+// Queued original tickets as {key, since, state}; cancel and manual (reprint) jobs are not "not printed".
 // Only the failed head carries a lastError, so a job is 'failed' exactly when the queue stopped on it.
 export function unprintedFromJobs(jobs) {
     return jobs
-        .filter((job) => job.kind !== "cancel")
+        .filter((job) => job.kind !== "cancel" && !job.manual)
         .map((job) => ({ key: job.key, since: job.ticket.since, state: job.lastError ? "failed" : "queued" }));
 }
 
 // One status at a time, highest priority first. `unsupported` is for the settings panel only (the page
 // shows no banner for it). Everything but unsupported and a driver lock needs auto-print on, so a display
-// that never prints stays quiet.
-export function derivePrinterStatus({ supported, autoPrint, errorCode, disconnected }) {
+// that never prints stays quiet. `staleAt` is when the stale condition last held (the hook keeps it).
+export function derivePrinterStatus({ supported, autoPrint, errorCode, disconnected, unprinted, wakeLock, now, staleAt }) {
     if (!supported) return "unsupported";
     if (errorCode === "driver_locked") return "driver_locked";
     if (!autoPrint) return null;
     if (errorCode === "not_connected" || disconnected) return "not_connected";
-    return errorCode ? "failed" : null;
+    if (errorCode) return "failed";
+    if (isStale(unprinted, now) || (staleAt != null && now - staleAt < STALE_HOLD_MS)) return "stale";
+    if (["unsupported", "refused", "released"].includes(wakeLock)) return "wake_lock_off";
+    return null;
 }
