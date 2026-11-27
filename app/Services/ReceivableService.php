@@ -88,7 +88,8 @@ class ReceivableService
             // shortcut: groups every open receivable of the shop on each filtered load; past about 500k open
             // rows, keep the usage in a maintained column.
             $usage = Receivable::query()->outstanding()
-                ->selectRaw('customer_id, SUM(total - paid) as used')
+                // Rounded like usedByCustomer(), so a filter never disagrees with a row over half a rupiah.
+                ->selectRaw('customer_id, ROUND(SUM(total - paid)) as used')
                 ->groupBy('customer_id');
             $customers = Customer::query()->select('customers.id')
                 ->joinSub($usage, 'u', 'u.customer_id', '=', 'customers.id')

@@ -177,6 +177,14 @@ class ReceivableCreditUsageTest extends TestCase
         $this->assertSame($this->invoices($open, $settled), $this->listed(['credit' => 'none']));
     }
 
+    public function test_filters_compare_the_same_whole_rupiah_as_the_row(): void
+    {
+        $row = $this->receivable($this->customer(1000000), overrides: ['total' => 1000001.40, 'paid' => 1]);
+
+        $this->assertSame([], $this->listed(['credit' => 'over'])); // 1,000,000.40 owed reads as the limit
+        $this->assertSame($this->invoices($row), $this->listed(['credit' => 'near']));
+    }
+
     public function test_credit_filter_combines_with_status(): void
     {
         $customer = $this->customer(100000);
