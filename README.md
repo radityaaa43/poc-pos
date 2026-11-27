@@ -314,7 +314,7 @@ Base URL: `https://dikasir.web.id/api/v1` (dev: `http://localhost:8000/api/v1`)
 2. Buat PR ke `development`
 3. PR ke `main` hanya dari `development` via branching release
 
-Pastikan `php artisan test` lulus sebelum PR.
+PHPUnit and e2e run on CI: a PR needs a green CI run.
 
 Static analysis (Larastan level 5, baseline in `phpstan-baseline.gen.neon`): `composer analyse`. New code must not add errors; do not regenerate the baseline to hide them (regenerate with `--generate-baseline=phpstan-baseline.gen.neon`).
 
