@@ -230,21 +230,24 @@ class DineOrderService
      * Settle the open bill of an accepted order. Stock was taken at accept, so only the payment is
      * recorded: on the paying cashier's shift, which is the drawer the money goes into.
      * A gateway tender (QRIS, Midtrans, Xendit) charges against the same transaction and leaves the
-     * bill pending until the webhook marks it paid.
+     * bill pending until the webhook marks it paid. The charge is created after the payment commits.
      *
      * @param  array<int, array<string, mixed>>  $tenderInput
      */
     public function pay(DineOrder $order, User $cashier, array $tenderInput): Transaction
     {
-        return DB::transaction(function () use ($order, $cashier, $tenderInput) {
+        $claim = DB::transaction(function () use ($order, $cashier, $tenderInput) {
             $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
-            $shift->load('warehouse.outlet');
-            $outlet = $shift->warehouse?->outlet;
 
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $transaction = $order->transaction_id
                 ? Transaction::with('warehouse')->whereKey($order->transaction_id)->lockForUpdate()->first()
                 : null;
+
+            // No plain read before the bill lock: on MySQL it would fix the snapshot, and the tender checks below would
+            // miss a claim committed while this request waited (a second charge, mistaken for a takeover).
+            $shift->load('warehouse.outlet');
+            $outlet = $shift->warehouse?->outlet;
 
             if (! in_array($order->status, DineOrder::IN_PROGRESS, true) || ! $transaction
                 || ! in_array($transaction->payment_status, [...Transaction::OPEN_BILL_PAYABLE, 'pending'], true)) {
@@ -272,9 +275,10 @@ class DineOrderService
             $guestAttempt = (int) $transaction->payment_attempt;
             $guestReference = $transaction->payment_reference;
 
-            // collect() moves the attempt counter, so the guest's charge is superseded in the same transaction as the payment.
-            // If the input is invalid or the cashier's gateway call fails, everything rolls back and the guest's charge stays valid.
-            $transaction = $this->settlementService->collect($transaction, $cashier, $shift, $outlet, $tenderInput);
+            // claim() moves the attempt counter, so the guest's charge is superseded in the same transaction as the payment.
+            // Invalid input rolls everything back. The cashier's gateway call comes after the commit: if it fails, the
+            // guest's charge stays superseded and the bill is failed and payable.
+            $claim = $this->settlementService->claim($transaction, $cashier, $shift, $outlet, $tenderInput);
 
             if ($takeover) {
                 app(AuditLogService::class)->log(
@@ -287,8 +291,10 @@ class DineOrderService
                 );
             }
 
-            return $transaction;
+            return $claim;
         });
+
+        return $this->settlementService->charge($claim);
     }
 
     /** Kitchen starts making an accepted order, but only once its bill is paid. */
