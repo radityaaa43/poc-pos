@@ -196,7 +196,7 @@ Dikontrol via `Setting` table:
 - Accept: stok dipotong langsung, pesanan siap diproses
 - Reject: dengan alasan opsional
 - Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
-- Kitchen steps moved to the kitchen display (`docs/features/kitchen-display.md`): Mulai Buat / Siap are no longer on the Orders page, and the order's `preparing` / `ready` status and trail now follow its kitchen items. Serahkan moved there too (#238): the Orders page no longer has a Serahkan button, and the old `dine-orders.serve` route hands over the order's ready kitchen items
+- Kitchen steps live on the kitchen display (`docs/features/kitchen-display.md`): an order with kitchen items has no Mulai Buat, Siap or Serahkan on the Orders page; its `preparing` / `ready` / `served` status and trail follow its items, and the old `dine-orders.prepare` / `ready` / `serve` routes delegate to the item steps. An order without kitchen items (accepted before the display existed, or a sale the intake could not record) keeps those buttons on the Orders page, by permission and with the same pay-first gate, so it can still finish (#238, #382)
 - Bayar: lihat "Pembayaran tagihan belum lunas" di bawah
 
 ## Pembayaran

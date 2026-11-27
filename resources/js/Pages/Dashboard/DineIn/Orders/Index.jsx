@@ -48,6 +48,7 @@ export default function Index({ orders }) {
     const { auth } = usePage().props;
     const { can } = useAuthorization();
     const canProcess = can("dine-orders-process");
+    const canPrepare = can("dine-orders-prepare");
     const canHandover = can("dine-orders-handover");
     const [view, setView] = useState("all");
     const visibleOrders = orders.filter(VIEWS.find((item) => item.key === view).match);
@@ -64,14 +65,15 @@ export default function Index({ orders }) {
         );
     };
 
-    // Hand over: only for a ready order the kitchen display does not track (no kitchen items); the others are handed over there.
-    const handleServe = (order) => {
+    // Order-level steps (Mulai Buat, Siap, Serahkan) are only for an order the kitchen display does not track (no kitchen items:
+    // placed before the display, or nothing to make); a tracked order moves on the display, one item at a time.
+    const handleStep = (order, routeName, successMessage) => {
         router.post(
-            route("dine-orders.serve", order.id),
+            route(routeName, order.id),
             {},
             {
                 preserveScroll: true,
-                onSuccess: () => toast.success("Pesanan ditandai diserahkan."),
+                onSuccess: () => toast.success(successMessage),
                 onError: (errors) => toast.error(Object.values(errors)[0] ?? "Gagal menandai pesanan."),
             }
         );
@@ -161,13 +163,31 @@ export default function Index({ orders }) {
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
+                                            {canPrepare && order.status === "accepted" && isPaid(order) && !order.has_kitchen_items && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Mulai Buat"}
+                                                    icon={<IconClock size={16} strokeWidth={1.5} />}
+                                                    className={"bg-primary-500 hover:bg-primary-600 text-white"}
+                                                    onClick={() => handleStep(order, "dine-orders.prepare", "Pesanan mulai dibuat.")}
+                                                />
+                                            )}
+                                            {canPrepare && order.status === "preparing" && !order.has_kitchen_items && (
+                                                <Button
+                                                    type={"button"}
+                                                    label={"Siap"}
+                                                    icon={<IconCheck size={16} strokeWidth={1.5} />}
+                                                    className={"bg-success-500 hover:bg-success-600 text-white"}
+                                                    onClick={() => handleStep(order, "dine-orders.ready", "Pesanan ditandai siap.")}
+                                                />
+                                            )}
                                             {canHandover && order.status === "ready" && !order.has_kitchen_items && (
                                                 <Button
                                                     type={"button"}
                                                     label={"Serahkan"}
                                                     icon={<IconCheck size={16} strokeWidth={1.5} />}
                                                     className={"bg-primary-500 hover:bg-primary-600 text-white"}
-                                                    onClick={() => handleServe(order)}
+                                                    onClick={() => handleStep(order, "dine-orders.serve", "Pesanan ditandai diserahkan.")}
                                                 />
                                             )}
                                             {canProcess && order.status === "submitted" && (
