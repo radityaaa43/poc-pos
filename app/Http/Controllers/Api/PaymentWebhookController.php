@@ -519,6 +519,12 @@ class PaymentWebhookController extends Controller
         $afterClose = $values['payment_status'] === 'paid' && $shift && ! $shift->isOpen()
             && ! CashierShiftService::countedInClosedRecap($bill->payment_method);
 
+        // Paid while still open_bill (a failed charge had put it back): name the gateway, or the shift's non-cash total
+        // leaves the money out. Set after the check above, which needs the method as it was.
+        if ($values['payment_status'] === 'paid' && $bill->payment_method === Transaction::METHOD_OPEN_BILL) {
+            $values['payment_method'] = $gateway;
+        }
+
         $bill->update($afterClose ? [...$values, 'paid_after_close_at' => now()] : $values);
 
         // The gateway took more than the receivable owed: the balance is booked, the rest must be refunded by hand.

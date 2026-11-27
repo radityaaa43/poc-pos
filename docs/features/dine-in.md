@@ -247,7 +247,8 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
   logged with its reference. Every gateway claim moves `payment_attempt`, so each charge has the order id `{invoice}-r{n}`
   and a retry never reuses one. A failed charge restores the cashier, shift, method, cash and status of before (`failed` with
   `gateway_error` if a charge was pending), deletes only the tender it created, keeps the attempt and writes the audit event
-  `transaction.gateway_charge_failed`.
+  `transaction.gateway_charge_failed`. If that charge is paid after all and the bill is still `open_bill`, the webhook
+  records the gateway as its payment method, so the shift's non-cash total includes it.
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.

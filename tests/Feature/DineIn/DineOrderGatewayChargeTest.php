@@ -276,6 +276,22 @@ class DineOrderGatewayChargeTest extends TestCase
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());
     }
 
+    public function test_a_late_payment_of_a_failed_charge_takes_the_gateway_as_method_and_counts_in_the_shift(): void
+    {
+        $this->fakeCharge(fn () => throw new PaymentGatewayException('Gateway down'));
+        $order = $this->acceptedOrder();
+        $this->refusal(fn () => $this->cashierPays($order, 'qris'));
+        $invoice = $this->bill($order)->invoice;
+
+        // The gateway had created the charge after all, and it is paid.
+        $this->notify('midtrans', "{$invoice}-r1", 'paid')->assertOk();
+
+        $bill = $this->bill($order);
+        $this->assertSame(['paid', 'midtrans'], [$bill->payment_status, $bill->payment_method]);
+        $summary = app(CashierShiftService::class)->calculateSummary(CashierShift::findOrFail($bill->cashier_shift_id));
+        $this->assertSame(self::TOTAL, $summary['non_cash_sales_total']);
+    }
+
     public function test_restore_removes_only_the_claims_own_tenders(): void
     {
         $this->fakeCharge(fn () => throw new PaymentGatewayException('Gateway down'));

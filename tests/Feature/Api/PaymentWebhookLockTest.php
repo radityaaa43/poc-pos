@@ -495,7 +495,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
         $this->cashierPays($order); // cash instead: attempt 0 stays, the failed QR tender is replaced by a paid cash tender
         $this->assertSame(0, $bill->fresh()->payment_attempt);
