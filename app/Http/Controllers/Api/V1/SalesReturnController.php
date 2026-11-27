@@ -203,14 +203,16 @@ class SalesReturnController extends AppsSalesReturnController
             // The state that is actually completed, for the audit: the locked row, before anything changes.
             $before = $this->salesReturnAuditPayload($salesReturn);
 
+            // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
+            // stock row (#241, #242). A refusal below rolls the cancellation back.
+            app(KitchenItemService::class)->cancelForReturn($salesReturn);
+
             // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice.
             if (Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->first()?->wasRestocked(locking: true)) {
                 throw ValidationException::withMessages([
                     'sales_return' => 'Penjualan ini sudah dibatalkan dan stoknya sudah dikembalikan.',
                 ]);
             }
-
-            app(KitchenItemService::class)->cancelForReturn($salesReturn);
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([

@@ -28,21 +28,19 @@ class DineOrderService
     public function accept(DineOrder $order): void
     {
         $cashierId = $order->cashier_id ?? auth()->id();
-        $shift = CashierShift::with('warehouse.outlet')
-            ->where('user_id', $cashierId)
-            ->open()
-            ->first();
+        DB::transaction(function () use ($order, $cashierId) {
+            // The shift lock comes first, as in a close: a bill never lands on a shift that is closing (#242).
+            $shift = CashierShift::where('user_id', $cashierId)->open()->lockForUpdate()->first();
 
-        // ponytail: without an open shift there is no warehouse context to take stock from — refuse instead of accepting an order whose stock is never decremented
-        if (! $shift) {
-            throw ValidationException::withMessages([
-                'shift' => 'Tidak ada shift kasir aktif. Buka shift terlebih dahulu sebelum menerima pesanan.',
-            ]);
-        }
+            // ponytail: without an open shift there is no warehouse context to take stock from — refuse instead of accepting an order whose stock is never decremented
+            if (! $shift) {
+                throw ValidationException::withMessages([
+                    'shift' => 'Tidak ada shift kasir aktif. Buka shift terlebih dahulu sebelum menerima pesanan.',
+                ]);
+            }
 
-        $warehouseId = $shift->warehouse_id;
+            $warehouseId = $shift->warehouse_id;
 
-        DB::transaction(function () use ($order, $shift, $warehouseId, $cashierId) {
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::with(['items.product.components', 'table.area.outlet'])
                 ->whereKey($order->id)
