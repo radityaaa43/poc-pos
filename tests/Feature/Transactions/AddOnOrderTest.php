@@ -243,23 +243,63 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(0, AuditLog::where('event', 'transaction.add_on_created')->count());
     }
 
-    // BR-7, BR-11
+    // BR-13: finished only when the original and every live add-on are paid with nothing left in the kitchen
+    public function test_an_order_stays_open_while_a_live_add_on_does(): void
+    {
+        $original = $this->sell();
+        $addOn = $this->addOnTo($original);
+        $serve = fn () => KitchenItem::query()->update(['status' => KitchenItem::STATUS_SERVED]);
+
+        // The original is handed over, its add-on is still being made.
+        KitchenItem::where('transaction_id', $original->id)->update(['status' => KitchenItem::STATUS_SERVED]);
+        $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
+
+        // Everything is handed over, one add-on still owes money.
+        $serve();
+        $addOn->update(['payment_status' => 'failed']);
+        $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
+
+        // A cancelled add-on no longer holds the order open.
+        $serve();
+        $this->returnEverything($addOn);
+        $this->assertNull($this->addOnTo($original)->parent_transaction_id);
+    }
+
+    // BR-12: a failed or expired payment that was not restocked leaves the bill payable, so it takes an add-on
+    public function test_add_on_to_a_failed_or_expired_unrestocked_bill_is_linked(): void
+    {
+        $payNow = $this->existingSale($this->warehouse, 'failed');
+        $payLater = $this->existingSale($this->warehouse, 'expired');
+        $payLater->forceFill(['is_pay_later' => true])->save();
+        $dine = $this->existingSale($this->warehouse, 'failed');
+        $this->dineOrderFor($dine, DineOrder::STATUS_ACCEPTED);
+
+        foreach ([$payNow, $payLater, $dine] as $original) {
+            $this->assertReceiptOffersAddOn($original, true);
+            $this->assertSame($original->id, $this->addOnTo($original)->parent_transaction_id);
+        }
+    }
+
+    // BR-7, BR-11, BR-12
     public function test_add_on_to_a_cancelled_order_is_refused(): void
     {
-        $failed = $this->existingSale($this->warehouse, 'failed');
-        $expired = $this->existingSale($this->warehouse, 'expired');
+        $rejected = $this->existingSale($this->warehouse, 'unpaid');
+        $this->dineOrderFor($rejected, DineOrder::STATUS_REJECTED);
         $dine = $this->existingSale($this->warehouse, 'unpaid');
         $this->dineOrderFor($dine, DineOrder::STATUS_CANCELLED);
         $returned = $this->sell();
+        $itsAddOn = $this->addOnTo($returned);
         $this->returnEverything($returned);
         $autoCancelled = $this->existingSale($this->warehouse, 'pending');
         $autoCancelled->forceFill(['payment_method' => 'midtrans', 'created_at' => now()->subDays(2)])->save();
         $this->artisan('transactions:expire')->assertSuccessful();
         $this->assertSame('failed', $autoCancelled->fresh()->payment_status);
 
-        foreach ([$failed, $expired, $dine, $returned, $autoCancelled] as $original) {
+        foreach ([$rejected, $dine, $returned, $autoCancelled] as $original) {
             $this->assertRefused($original->invoice, self::CANCELLED);
+            $this->assertReceiptOffersAddOn($original, false);
         }
+        $this->assertReceiptOffersAddOn($itsAddOn, false);
     }
 
     // BR-11
@@ -267,8 +307,8 @@ class AddOnOrderTest extends TestCase
     {
         $area = DineArea::create(['outlet_id' => $this->outlet->id, 'name' => 'Depan', 'is_active' => true]);
         $table = DiningTable::create(['dine_area_id' => $area->id, 'name' => 'Meja 1', 'is_active' => true, 'capacity' => 4, 'sort_order' => 0]);
-        $sale = $this->existingSale($this->warehouse, 'failed');
-        $order = $this->dineOrderFor($sale, DineOrder::STATUS_ACCEPTED, $table);
+        $sale = $this->existingSale($this->warehouse, 'unpaid');
+        $order = $this->dineOrderFor($sale, DineOrder::STATUS_CANCELLED, $table);
 
         $this->assertRefused($sale->invoice, self::CANCELLED);
         $this->post(route('dine-order.store', $table->token), [
@@ -302,7 +342,7 @@ class AddOnOrderTest extends TestCase
     {
         $open = $this->sell();
         $done = $this->sell(product: $this->product('Air mineral', flagged: false));
-        $cancelled = $this->existingSale($this->warehouse, 'failed');
+        $this->returnEverything($cancelled = $this->sell());
 
         foreach ([[$open, 'linked'], [$done, 'completed'], [$cancelled, 'cancelled']] as [$sale, $state]) {
             $this->actingAs($this->cashier)->get(route('transactions.index', ['add_on_to' => $sale->invoice]))
@@ -433,6 +473,12 @@ class AddOnOrderTest extends TestCase
                 'qty_return' => $detail->qty, 'unit_price' => $detail->unit_price, 'subtotal' => $detail->price, 'return_reason' => 'Salah pesan',
             ]);
         }
+    }
+
+    private function assertReceiptOffersAddOn(Transaction $sale, bool $offered): void
+    {
+        $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('canAddOn', $offered));
     }
 
     /** The checkout is refused with $message and sells nothing. */

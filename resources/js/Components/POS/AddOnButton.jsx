@@ -7,14 +7,14 @@ import { useOnlineStatus } from "@/Context/OnlineStatusContext";
 
 /**
  * "Tambah pesanan" on a sale's receipt (#251): opens the POS with this order pinned, under the original order's
- * invoice. The server decides at checkout; a failed or expired sale takes no add-on, and offline there is none.
+ * invoice. `allowed` is the server's word that the order is not cancelled (BR-12); offline there is no add-on.
  */
-export default function AddOnButton({ transaction }) {
+export default function AddOnButton({ transaction, allowed }) {
     const { t } = useTranslation();
     const { can } = useAuthorization();
     const online = useOnlineStatus();
 
-    if (!can("transactions-access") || ["failed", "expired"].includes(transaction.payment_status)) return null;
+    if (!can("transactions-access") || !allowed) return null;
 
     return (
         <div className="flex flex-col gap-1">

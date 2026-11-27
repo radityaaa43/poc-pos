@@ -768,6 +768,7 @@ class TransactionController extends Controller
         return Inertia::render('Dashboard/Transactions/Print', [
             'transaction' => $transaction,
             'retryable' => $retryable,
+            'canAddOn' => app(AddOnOrderService::class)->offersAddOn($transaction),
             'bankAccounts' => $retryable ? BankAccount::active()->forOutlet($outlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']) : [],
             'paymentGateways' => $retryable ? PaymentSetting::forOutlet($outlet)?->enabledGateways($outlet) ?? [] : [],
         ]);

@@ -42,7 +42,9 @@ test.describe('32-kitchen-display', () => {
 
     test('an add-on to a cancelled order is refused on the POS', { tag: ['@REQ-003-AC-21'] }, async ({ asRole, arrange, uniq }) => {
         const original = arrange('kitchen-sale', { prefix: uniq('Batal'), flagged: 1 });
+        // Cancelled means expired and restocked: a failed payment alone still takes an add-on (BR-12).
         arrange('kitchen.set-status', { invoice: original.invoice, status: 'failed' });
+        arrange('posretry.restock', { transaction_id: original.transaction_id });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
 

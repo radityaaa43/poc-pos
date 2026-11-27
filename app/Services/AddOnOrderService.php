@@ -79,10 +79,10 @@ class AddOnOrderService
     }
 
     /**
-     * QR accept: the root sale id, or null for a new order: nothing referenced, or the original is finished (BR-6).
+     * QR accept: the root sale id, or null for a new order: nothing referenced, or the whole order is finished (BR-13).
      * A table is never enough to link two orders (BR-10). Call it inside the accept's DB::transaction.
      *
-     * @throws ValidationException a cancelled or rejected original, or a failed or expired payment (BR-11)
+     * @throws ValidationException a cancelled original (BR-11, BR-12)
      */
     public function resolveForDine(?DineOrder $original): ?int
     {
@@ -92,13 +92,14 @@ class AddOnOrderService
 
         $sale = $original?->transaction_id ? Transaction::lockForUpdate()->find($original->transaction_id) : null;
 
-        if (! $sale) {
-            return null;
-        }
+        // A completed original is not enough to start afresh: an add-on of it may still be open (BR-13).
+        return $sale ? $this->linkTo($this->lockRoot($sale), $sale) : null;
+    }
 
-        $rootId = $this->linkTo($this->lockRoot($sale), $sale);
-
-        return $original->status === DineOrder::STATUS_COMPLETED ? null : $rootId;
+    /** The receipt's "Tambah pesanan": hidden once the sale, or the order it belongs to, is cancelled (BR-12). */
+    public function offersAddOn(Transaction $sale): bool
+    {
+        return ! $this->isCancelled($sale) && ! ($sale->parent && $this->isCancelled($sale->parent));
     }
 
     /** The trail of who linked what; call it once the add-on sale exists. */
@@ -124,14 +125,21 @@ class AddOnOrderService
             $this->refuse(self::CANCELLED_MESSAGE);
         }
 
-        // Open while money is still owed (BR-9) or the kitchen still has work; otherwise the order is finished (BR-6).
-        return $root->payment_status !== 'paid' || $root->kitchenItems()->open()->exists() ? $root->id : null;
+        // BR-13: open while any live sale of the order owes money (BR-9) or has kitchen work; else finished (BR-6).
+        $open = Transaction::where('parent_transaction_id', $root->id)->get()->prepend($root)->contains(fn (Transaction $sale) => (
+            $sale->payment_status !== 'paid' || $sale->kitchenItems()->open()->exists()
+        ) && ! $this->isCancelled($sale));
+
+        return $open ? $root->id : null;
     }
 
-    /** A failed or expired payment, a cancelled or rejected dine order, or every line returned. */
+    /**
+     * BR-12: expired and restocked, a cancelled or rejected dine order, or every line returned. A failed or expired
+     * payment alone is not: that bill can still be paid.
+     */
     private function isCancelled(Transaction $sale): bool
     {
-        return in_array($sale->payment_status, ['failed', 'expired'], true)
+        return $sale->wasRestocked()
             || in_array($sale->dineOrder?->status, [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)
             || ! Transaction::whereKey($sale->id)->notFullyReturned()->exists();
     }

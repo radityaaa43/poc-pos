@@ -131,8 +131,6 @@ class AddOnQrTest extends TestCase
     public function test_qr_add_on_to_cancelled_original_is_refused_at_accept(): void
     {
         $cases = [
-            'failed' => fn (DineOrder $o) => $o->transaction->update(['payment_status' => 'failed']),
-            'expired' => fn (DineOrder $o) => $o->transaction->update(['payment_status' => 'expired']),
             'cancelled' => fn (DineOrder $o) => $o->update(['status' => DineOrder::STATUS_CANCELLED]),
             'rejected' => fn (DineOrder $o) => $o->update(['status' => DineOrder::STATUS_REJECTED]),
         ];
@@ -168,6 +166,30 @@ class AddOnQrTest extends TestCase
 
         $this->assertSame(DineOrder::STATUS_ACCEPTED, $addOn->status);
         $this->assertNull($addOn->transaction->parent_transaction_id);
+    }
+
+    // BR-12: the accepted bill can still be paid after a failed or expired payment
+    public function test_qr_add_on_to_a_failed_or_expired_bill_is_linked(): void
+    {
+        foreach (['failed', 'expired'] as $status) {
+            $original = $this->accept($this->order());
+            $original->transaction->update(['payment_status' => $status]);
+
+            $addOn = $this->accept($this->order(from: $original));
+
+            $this->assertSame($original->transaction_id, $addOn->transaction->parent_transaction_id, $status);
+        }
+    }
+
+    // BR-13: a completed original stays open while one of its add-ons is
+    public function test_qr_order_joins_a_completed_original_while_an_add_on_is_open(): void
+    {
+        $original = $this->accept($this->order());
+        $this->accept($this->order(from: $original));
+        $late = $this->order(from: $original);
+        $this->complete($original);
+
+        $this->assertSame($original->transaction_id, $this->accept($late)->transaction->parent_transaction_id);
     }
 
     private function tableNamed(string $name): DiningTable

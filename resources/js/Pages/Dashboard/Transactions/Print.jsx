@@ -24,7 +24,7 @@ import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
-export default function Print({ transaction, retryable, bankAccounts, paymentGateways }) {
+export default function Print({ transaction, retryable, bankAccounts, paymentGateways, canAddOn }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
     const { t } = useTranslation();
@@ -341,7 +341,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                         </Link>
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
-                            <AddOnButton transaction={transaction} />
+                            <AddOnButton transaction={transaction} allowed={canAddOn} />
 
                             {/* Print Mode Selector */}
                             <div className="flex bg-slate-200 dark:bg-slate-800 rounded-xl p-1 w-full sm:w-auto">
