@@ -33,8 +33,10 @@ const order = (id, table, status, paymentStatus) => ({
     subtotal: 10000,
     payment_option: "pay_at_counter",
     items: [],
+    has_kitchen_items: true, // the kitchen display tracks it; the cases for an untracked order say so
     transaction: { payment_status: paymentStatus },
 });
+const untracked = (id, table, status, paymentStatus) => ({ ...order(id, table, status, paymentStatus), has_kitchen_items: false });
 
 const orders = [
     order(1, "Meja Baru", "submitted", null),
@@ -67,12 +69,45 @@ describe("dine orders queue", () => {
         expect(shown()).toEqual(["Meja Siap"]);
     });
 
-    it("has no Mulai Buat or Siap button: the kitchen display owns those steps", () => {
+    it("has no Mulai Buat, Siap or Serahkan on orders the kitchen display tracks: it owns those steps", () => {
         render(<Index orders={orders} />);
 
         expect(screen.queryByRole("button", { name: "Mulai Buat" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Siap" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
         expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
+    });
+
+    it("gives an order without kitchen items its order-level steps, each posting to the legacy route", async () => {
+        const user = userEvent.setup();
+        const { unmount } = render(<Index orders={[untracked(4, "Meja Lunas", "accepted", "paid")]} />);
+        await user.click(screen.getByRole("button", { name: "Mulai Buat" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.prepare", {}, expect.any(Object));
+        unmount();
+
+        const second = render(<Index orders={[untracked(5, "Meja Masak", "preparing", "paid")]} />);
+        await user.click(screen.getByRole("button", { name: "Siap" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.ready", {}, expect.any(Object));
+        second.unmount();
+
+        render(<Index orders={[untracked(6, "Meja Siap", "ready", "paid")]} />);
+        await user.click(screen.getByRole("button", { name: "Serahkan" }));
+        expect(router.post).toHaveBeenLastCalledWith("/dine-orders.serve", {}, expect.any(Object));
+    });
+
+    it("keeps the pay-first gate: no Mulai Buat on an unpaid order without kitchen items", () => {
+        render(<Index orders={[untracked(2, "Meja Tunggu", "accepted", "unpaid")]} />);
+
+        expect(screen.queryByRole("button", { name: "Mulai Buat" })).toBeNull();
+        expect(screen.getAllByText("Menunggu Pembayaran").length).toBeGreaterThan(0);
+    });
+
+    it("shows Mulai Buat and Siap only to the prepare permission", () => {
+        permissions = ["dine-orders-process", "dine-orders-handover"];
+        render(<Index orders={[untracked(4, "Meja Lunas", "accepted", "paid"), untracked(5, "Meja Masak", "preparing", "paid")]} />);
+
+        expect(screen.queryByRole("button", { name: "Mulai Buat" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Siap" })).toBeNull();
     });
 
     it("has no Serahkan button on a ready order the kitchen display tracks: it is handed over there", () => {

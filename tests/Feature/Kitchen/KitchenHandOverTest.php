@@ -198,6 +198,32 @@ class KitchenHandOverTest extends TestCase
             );
     }
 
+    // #382: an order the kitchen display does not track (no kitchen items) still moves through the Orders page's legacy steps,
+    // with the pay-first gate; the buttons for it are shown by has_kitchen_items (see the Orders page Vitest).
+    public function test_an_order_without_kitchen_items_still_moves_through_the_legacy_steps(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole('super-admin');
+        $sale = $this->sale('INV-13', table: 'Meja 13');
+        $order = $sale->dineOrder;
+
+        // Unpaid: Mulai Buat is refused until the bill is paid.
+        $sale->update(['payment_status' => 'unpaid']);
+        $order->update(['status' => DineOrder::STATUS_ACCEPTED]);
+        $this->actingAs($admin)->post(route('dine-orders.prepare', $order))->assertSessionHasErrors('order');
+        $this->assertSame(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
+
+        // Paid: accepted -> preparing -> ready -> served and completed, with no kitchen item involved.
+        $sale->update(['payment_status' => 'paid']);
+        $this->actingAs($admin)->post(route('dine-orders.prepare', $order))->assertSessionHasNoErrors();
+        $this->assertSame(DineOrder::STATUS_PREPARING, $order->fresh()->status);
+        $this->actingAs($admin)->post(route('dine-orders.ready', $order))->assertSessionHasNoErrors();
+        $this->assertSame(DineOrder::STATUS_READY, $order->fresh()->status);
+        $this->actingAs($admin)->post(route('dine-orders.serve', $order))->assertSessionHasNoErrors();
+        $this->assertSame(DineOrder::STATUS_COMPLETED, $order->fresh()->status);
+        $this->assertSame(0, KitchenItem::where('transaction_id', $sale->id)->count());
+    }
+
     public function test_item_of_another_outlet_is_refused(): void
     {
         [, $warehouseB] = $this->outletWithWarehouse('B');
