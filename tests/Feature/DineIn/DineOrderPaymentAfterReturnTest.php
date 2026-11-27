@@ -2,12 +2,18 @@
 
 namespace Tests\Feature\DineIn;
 
+use App\Models\DineOrder;
+use App\Models\SalesReturn;
+use App\Models\Transaction;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\DineIn\Concerns\MakesDineBills;
 use Tests\TestCase;
 
@@ -23,7 +29,9 @@ class DineOrderPaymentAfterReturnTest extends TestCase
 
         $this->setUpDineBill();
         $this->seed(PermissionSeeder::class);
-        $this->cashier->givePermissionTo(['dine-orders-process', 'sales-returns-create', 'sales-returns-complete', 'transactions-access']);
+        $this->cashier->givePermissionTo([
+            'dine-orders-process', 'sales-returns-access', 'sales-returns-create', 'sales-returns-complete', 'transactions-access',
+        ]);
     }
 
     /** @param  array<string, mixed>  $tender */
@@ -79,6 +87,82 @@ class DineOrderPaymentAfterReturnTest extends TestCase
         $this->assertSame('unpaid', $bill->payment_status);
         $this->assertSame('open_bill', $bill->payment_method);
         $this->assertSame(0, $bill->tenders()->count());
+    }
+
+    /** @return array<string, array<int, string>> both completion paths: web and mobile API */
+    public static function completions(): array
+    {
+        return ['web' => ['web'], 'api' => ['api']];
+    }
+
+    /** A draft return of the plain line (5000), not completed yet. */
+    private function draftReturn(Transaction $bill): SalesReturn
+    {
+        $this->actingAs($this->cashier)->post(route('sales-returns.store', $bill), [
+            'return_type' => 'refund_cash',
+            'items' => [[
+                'transaction_detail_id' => $bill->details()->where('product_id', $this->plain->id)->sole()->id,
+                'qty_return' => 1, 'return_reason' => 'Batal', 'restock_to_inventory' => true,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        return SalesReturn::latest('id')->firstOrFail();
+    }
+
+    private function complete(string $via, SalesReturn $return): void
+    {
+        if ($via === 'api') {
+            Sanctum::actingAs($this->cashier, ['*']);
+            $this->postJson(route('api.sales-returns.complete', $return))->assertOk();
+
+            return;
+        }
+
+        $this->actingAs($this->cashier)->post(route('sales-returns.complete', $return))->assertSessionHasNoErrors();
+    }
+
+    /** TC-6: completing a return locks the sale as a payment does: after the dine order, before any stock row. */
+    #[DataProvider('completions')]
+    public function test_return_and_payment_on_one_bill_are_serialised(string $via): void
+    {
+        $return = $this->draftReturn($this->bill($this->acceptedOrder()));
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->complete($via, $return);
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+
+        // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
+        $first = fn (string $pattern, int $from = 0) => $queries->slice($from)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $order = $first('/from [`"]dine_orders[`"] where [`"]transaction_id[`"] = \?/');
+        $this->assertIsInt($order);
+        $sale = $first('/from [`"]transactions[`"] where [`"]transactions[`"]\.[`"]id[`"] = \?/', $order);
+        $this->assertIsInt($sale, 'The sale must be locked after the dine order, the order pay() and the webhook use.');
+        // the product lock of the restock, then the write of the settlement
+        $this->assertLessThan($first('/from [`"]products[`"] where [`"]products[`"]\.[`"]id[`"] = \?/', $order), $sale);
+        $this->assertLessThan($first('/^update [`"]sales_returns[`"]/'), $sale);
+
+        // SQLite renders no lock clause: only the MySQL job can show it.
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', strtolower($queries[$sale]));
+        }
+    }
+
+    /** The second writer reads what the first did: a payment committed while the return waited is refunded. */
+    #[DataProvider('completions')]
+    public function test_a_return_sees_a_payment_committed_while_it_waited(string $via): void
+    {
+        $bill = $this->bill($this->acceptedOrder());
+        $return = $this->draftReturn($bill);
+        // The counter payment holds the dine order, then the sale. It "commits" as the completion gets the dine order,
+        // after the completion has already read the bill as unpaid.
+        DineOrder::retrieved(fn () => DB::table('transactions')->where('id', $bill->id)
+            ->update(['payment_status' => 'paid', 'payment_method' => 'cash']));
+
+        $this->complete($via, $return);
+
+        $this->assertSame(5000, (int) $return->fresh()->refund_amount);
     }
 
     /** The "Bayar" modal on Transactions History takes its amount from the page, so the page must send what is owed. */
