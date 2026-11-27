@@ -1,16 +1,21 @@
 # Handoff standard: task, delivery, review
 
-How work moves between the five agent sessions of this team: `business` (Business / PM), `tech-lead`,
-and `dev1`, `dev2`, `dev3`. What this team runs short of is context, CI runs and hand-offs, so every
-rule here is sized to spend few of them. These are the only three formats. A message or comment that
-lacks a required field is sent back, not acted on. Roles and board columns:
+How work moves between the six agent sessions of this team: `business` (Business / PM), `tech-lead`,
+`verifier`, and `dev1`, `dev2`, `dev3`. What this team runs short of is context, CI runs and
+hand-offs, so every rule here is sized to spend few of them. A comment that lacks a required field
+is sent back, not acted on.
+
+A session started from the team's role definitions (`claude --agent <role>`) brings the general
+rules with it. This file is this project's fit of them: its columns, formats, limits and commands.
+Where the two differ, this file wins. Roles and board columns:
 [`issue-tracker.md` → Board and roles](issue-tracker.md#board-and-roles).
 
 - [0. Flow rules: pull, limits, priorities](#0-flow-rules-pull-limits-priorities)
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
-- [2. Delivery: developer → Tech Lead](#2-delivery-developer--tech-lead)
-- [3. Review: technical first, then business](#3-review-technical-first-then-business)
+- [2. Delivery: developer → Verifier](#2-delivery-developer--verifier)
+- [3. Review: verification, then business](#3-review-verification-then-business)
 - [4. Business track: Business / PM](#4-business-track-business--pm)
+- [5. Flow track: Verifier](#5-flow-track-verifier)
 
 ## 0. Flow rules: pull, limits, priorities
 
@@ -21,14 +26,14 @@ rules come before sections 1–4.
 
 - **A developer pulls their own work.** When they have no ticket In progress, they take the next card in
   Todo whose plan names them (`Builder: devN`) and whose `Blocked by` issues are all merged. They move
-  it to In progress, then tell the Tech Lead they started. They don't wait for an assignment message.
+  it to In progress. The card is the notice (0e).
 - **Stacking.** A ticket whose only open blocker is in the same developer's chain, and is already built
   on a branch, can be pulled too. The developer stacks it on that branch and opens its PR only after
   the blocker merges.
 - **Nothing of their own is ready:** they take any unblocked `low` card in Todo, or the top test-fix or
   flaky-test issue, and say so.
-- **Nothing at all is ready:** they tell the Tech Lead "idle" once, and the Tech Lead plans their next
-  ticket first.
+- **Nothing at all is ready:** they wake the Verifier with `idle` once, and the Verifier gets their
+  next ticket planned first.
 - A session that restarts reads the board and its memory and carries on. It doesn't ask what to do.
 
 - **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are flaky-test fixes,
@@ -46,7 +51,8 @@ Everyone takes work in this order:
 2. **Finish your In progress work.**
 3. **Pull new work.**
 
-The Tech Lead reviews before planning. Business / PM reviews before preparing new tickets.
+The Verifier merges and verifies before flow work. The Tech Lead answers questions and does risk
+reviews before planning. Business / PM reviews before preparing new tickets.
 
 ### 0c. Column limits
 
@@ -55,14 +61,16 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 | Planning | at least 2 per developer, ready to plan | Business / PM prepares more (section 4, rule 4) |
 | Todo | at least 1 per developer with blockers merged | Tech Lead plans more |
 | In progress | 1 main ticket per developer, plus 1 stacked next-in-chain ticket, plus up to 2 `low` | The developer finishes before pulling |
-| Technical review | at most 3 | The Tech Lead stops planning and reviews |
+| Technical review | at most 3 | The Verifier verifies before anything else |
 | Business review | at most 2 | Business / PM reviews before anything else |
+
+The Verifier watches the limits and wakes the owner of a column that is off (section 5).
 
 ### 0d. Quality that costs no waiting
 
 - **Before Technical review,** the developer runs `/code-review` (low, in a sonnet subagent) on their
   diff, fixes what it finds and pastes the result in the PR. The Evidence table (2a) is complete, with
-  one row per AC, BR and TC, plus the screenshots. The Tech Lead's review confirms; it doesn't discover.
+  one row per AC, BR and TC, plus the screenshots. The Verifier's review confirms; it doesn't discover.
 - **Flaky tests:** a test that fails and then passes on re-run gets a `test(...)` issue the same day.
   It goes to the next free developer ahead of feature work. A PR is re-run at most once for a known
   flake.
@@ -79,18 +87,35 @@ The Tech Lead reviews before planning. Business / PM reviews before preparing ne
 - **Push when ready.** Push once the Evidence is complete, and batch fix-ups into one push, so CI
   isn't cancelled and restarted.
 
-### 0e. Talk less, show more
+### 0e. The board is the channel
 
-- **The board and the issue are the record.** Messages only carry the hand-off formats in 1b, 2b
-  and 3, plus "idle", "blocked" and "question". There's no status chatter.
-- **One line, with a link.** A message names the issue, the event and the URL. The detail lives where
-  the link points (the plan, the PR's Evidence, the decision comment) and isn't repeated in the
-  message.
-- **One message per recipient per turn.** Several events for the same session go in one message, one
-  line each.
-- **A decision is written once, on the issue.** The message carries its link and a one-line verdict.
+Set by the maintainer on 2026-11-28. Sessions talk through the board and the issue, so nothing is
+said twice and a restarted session misses nothing.
+
+- **Moving the card is the hand-off.** A card's column says who holds the ticket. Whoever causes the
+  change moves the card in the same step.
+- **What the next owner needs is a comment** on the issue or the PR: the plan, the Evidence, the
+  verdict, the decision. It is written there once.
+- **A message is only a wake-up**, because an idle session doesn't see the board. It is one line,
+  `#<n> | <column or event>`, sent to the session that now holds the ticket. Several tickets for one
+  session go in one message.
+
+  | Card moves to | Wake-up to |
+  |---|---|
+  | Backlog (sent back to be cut, 0g) | `business` |
+  | Planning | `tech-lead` |
+  | Todo | the `Builder` |
+  | In progress (sent back) | the developer |
+  | Technical review | `verifier`, and `tech-lead` with `risk review` on a high-risk ticket |
+  | Business review | `business` |
+
+  Events without a card move: `question` to the session that decides, `AC OK` to `verifier`,
+  `blocked` and `idle` to `verifier`.
+- **Everything else is read from the board:** started, merged, done. A wake-up gets no reply; the
+  next card move is the answer.
+- **Read your columns** when a session starts, after each finished task, and when a wake-up arrives.
 - **Changes to these rules** go into one Standards PR per day, at most. Each one rests on the daily
-  flow report (Business / PM): time per column, rework rounds, CI cancelled or failed, stuck PRs.
+  flow report (Verifier): time per column, rework rounds, CI cancelled or failed, stuck PRs.
 
 ### 0f. Multi-agent: build in parallel
 
@@ -126,8 +151,8 @@ full CI run and a merge. So a ticket is sized to the outcome it delivers.
   ("server half", "UI half") or a single AC of a journey belongs inside its journey's ticket.
 - **One PR closes the ticket.** Aim under 1500 counted lines (tests count). 2000 is the limit: above
   it a PR needs a second approver, and a team on one login has none.
-- **Too big?** When the plan estimates more than 2000 lines, the Tech Lead tells Business / PM, and
-  the ticket is cut again along the journey. Each part still shows a user something and carries its
+- **Too big?** When the plan estimates more than 2000 lines, the Tech Lead says so on the issue and
+  moves the card back to Backlog, and Business / PM cuts the ticket again along the journey. Each part still shows a user something and carries its
   own AC and e2e.
 - **Enabling work ships alone only when other tickets wait on it.** A schema, contract or rename
   that in-flight tickets build on is its own tech-only ticket (0a). Otherwise it stays inside the
@@ -136,8 +161,8 @@ full CI run and a merge. So a ticket is sized to the outcome it delivers.
 
 ## 1. Task: Tech Lead → developer
 
-A task is a **technical plan comment** on the issue, then an **assignment message** to the developer.
-The card moves Planning → Todo only after both, and only after the plan has been re-reviewed.
+A task is a **technical plan comment** on the issue. The card moves Planning → Todo once the plan has
+been re-reviewed, and that move assigns it.
 
 ### 1a. Plan comment (on the issue)
 
@@ -269,26 +294,22 @@ haven't moved, that the requirement wording is quoted, that every AC, BR and **R
 files. Then add the re-review line. Plans posted before 2026-11-26 keep their form; the 16-section
 form applies from the REQ-004 plans onward, and plan depth from plans posted on 2026-11-28 or later.
 
-### 1b. Assignment message (SendMessage to the developer)
+### 1b. Assignment (the card moves to Todo)
 
-```text
-#<n> | plan posted | Builder devN | <plan comment URL>
-```
-
-The plan carries the rest (its sections 15 and 16). The developer pulls the card under 0a and answers
-`#<n> | started`.
+The Tech Lead moves the card to Todo and wakes the builder with `#<n> | Todo`. The plan carries the
+rest (its sections 15 and 16), and the developer pulls the card under 0a.
 
 - **Several tickets at once:** a developer may hold up to three `low` Effort tickets that touch
   different files. Each one gets its own worktree, branch, PR and subagent (model `sonnet`, effort
   `high`). The developer integrates: reviews each subagent's diff, verifies it, opens the PR.
-- **Questions:** a technical question goes to the Tech Lead. A business question is posted on the
-  issue with a proposed default, and its link goes straight to Business / PM, who answers on the
-  issue. The developer keeps building on the default meanwhile.
+- **Questions:** a technical question goes to the Tech Lead, a business one to Business / PM. It is
+  posted on the issue with a proposed default, the deciding session is woken with `#<n> | question`,
+  and the answer is written on the issue. The developer keeps building on the default meanwhile.
 
-## 2. Delivery: developer → Tech Lead
+## 2. Delivery: developer → Verifier
 
-A task is delivered when the PR carries an **Evidence** table and the developer sends a **ready
-message**. "Done" without evidence is not done.
+A task is delivered when the PR carries an **Evidence** table and its card is in Technical review.
+"Done" without evidence is not done.
 
 ### 2a. Evidence (in the PR body, the `## Evidence` section)
 
@@ -324,66 +345,67 @@ Valid evidence is one of these:
 "Works", "tested" or "done" alone is not evidence. UI text must use the REQ's exact wording. A skip
 or exception needs its reason.
 
-### 2b. Ready message (SendMessage to the Tech Lead)
+### 2b. Ready (the card moves to Technical review)
 
-```text
-#<n> | ready for review | PR <url>
-```
-
-The CI run, the counted lines, hotspots, migrations and the `/code-review` result are in the PR,
-where the reviewer reads them.
+The developer moves the card to Technical review and wakes the Verifier with
+`#<n> | Technical review`. The CI run, the counted lines, hotspots, migrations and the
+`/code-review` result are in the PR, where the Verifier reads them.
 
 Before sending: run `/code-review low` in a `sonnet` subagent against the worktree diff (not the
-shared checkout), fix or answer each finding, and post the result on the PR. Move the card to
-Technical review.
+shared checkout), fix or answer each finding, and post the result on the PR.
 
-## 3. Review: technical first, then business
+## 3. Review: verification, then business
 
 Reviews run in a fixed order, and each step starts only when the one before it passes:
 
-1. **Technical review (Tech Lead).** It covers code, tests, the plan, and the requirement and technical
-   AC checklist below.
-2. **Business review (Business / PM).** It covers the AC check against *What good looks like*. The
-   Tech Lead hands the PR over only after a technical **APPROVE**, with a message to Business / PM:
-   `#<n> | PR <url> | technical APPROVE | ready for business review`. In the same step the Tech Lead moves the issue's card from Technical review to Business review, so the hand-over and the board can't drift. This applies to `feat` PRs and
-   to any PR whose `Backlog:` line names criteria. Business / PM doesn't review a PR before the
-   handover, and reviews once per ticket, on the PR that closes it (0g). The answer is
-   `#<n> | AC OK` or `#<n> | AC changes | <failing lines>`, with the detail in the PR comment.
-3. **Merge (Tech Lead).** Both reviews passed and CI is green. The Tech Lead merges and tells
-   Business / PM: `#<n> | merged`.
-4. **Done (Business / PM).** Business / PM moves the card to Done once every review has passed and
-   the PR is merged. The board's *Item closed* workflow does this on its own when the merged PR's
-   `Closes #n` closes the issue; Business / PM checks the card landed and moves it by hand only if
-   it didn't.
+1. **Verification (Verifier).** The card is in Technical review. The Verifier checks the PR against
+   the issue's criteria, the plan and the standards, and uses the running app for each AC (below).
+   On a **high-risk** ticket (money, stock, locking, a webhook, existing data, or a change of
+   architecture) the Tech Lead reviews in parallel, and both must pass.
+2. **Business review (Business / PM).** After a **VERIFIED** verdict the Verifier moves the card to
+   Business review. This applies to `feat` PRs and to any PR whose `Backlog:` line names criteria.
+   Business / PM reviews once per ticket, on the PR that closes it (0g), and answers on the PR:
+   `AC check: OK`, or the failing lines.
+3. **Merge (Verifier).** Both reviews passed and CI is green on the latest commit. A `Backlog: none`
+   PR is merged straight from Technical review.
+4. **Done (Verifier).** The board's *Item closed* workflow moves the card when the merged PR's
+   `Closes #n` closes the issue. The Verifier checks the card landed and moves it by hand only if it
+   didn't.
 
-If business review doesn't pass, Business / PM sends its evaluation to the Tech Lead: the criteria
-not met and what it saw. The Tech Lead turns it into a fix for the developer, moves the card back to
-In progress, and the order starts again at step 1.
+**Sent back.** A failed verification or business review is a comment on the PR that names the
+failing criteria and what was seen. The reviewer moves the card back to In progress and wakes the
+developer. After the fix the Verifier re-verifies those lines, then Business / PM re-checks its own.
 
-The Tech Lead's technical approval is a **Requirement & AC checklist** comment on the PR
-([`REVIEW.md`](../../REVIEW.md) → Review against, item 7). The code review itself runs as
-`/code-review low` in a `sonnet` subagent; the checklist is done by the Tech Lead.
+**Who covers whom.** The Tech Lead reviews a PR the Verifier wrote, because an author never verifies
+their own change. When the Verifier is unreachable, the Tech Lead verifies and merges.
+
+The Verifier's verdict is a **Requirement & AC checklist** comment on the PR
+([`REVIEW.md`](../../REVIEW.md) → Review against, item 7). The code review itself may run as
+`/code-review low` in a `sonnet` subagent; the checklist and the verdict are the Verifier's.
 
 ```markdown
-**Tech Lead review: Requirement & AC checklist** (YYYY-MM-DD, REQ-<n> read on <date>)
+**Verifier: Requirement & AC checklist** (YYYY-MM-DD, REQ-<n> read on <date>)
 
-**Verdict: APPROVE | CHANGES**
+**Verdict: VERIFIED | CHANGES**
 
 | # | Requirement / AC / plan item | Status | Verified at |
 |---|---|---|---|
-| 1 | [AC-01] <criterion> | ✓ / ✗ | <code line, test, CI run, screenshot> |
+| 1 | [AC-01] <criterion> | ✓ / ✗ | <code line, test, CI run, screenshot, or what I did in the app and saw> |
 
 **Findings** (REVIEW.md severities): 🔴 … · 🟡 … · 🟣 …
 ```
 
-- **Issues with the acceptance lists:** the Tech Lead ticks only the `[TC-n]` lines in the issue,
-  against the Evidence, and posts `Technical: APPROVE (TC-1..n ✓)` or the failing `TC-n` lines with
-  what was seen. There is no free-form re-derivation. A new technical finding is first added as a
-  `[TC-n]` line, then checked. The table above is the form for tickets that predate the lists.
+- **Every `[AC-xx]`, `[BR-n]` and `[TC-n]` line of the issue has a row.** The Verifier ticks the
+  `[TC-n]` lines in the issue; Business / PM ticks the `[AC-xx]` and `[BR-n]` lines after its own
+  check. A new technical finding is first added as a `[TC-n]` line, then checked.
+- **Mechanical checks come first:** CI green on the latest commit, no file of another ticket
+  deleted, size inside the limit, no retired term (`GLOSSARY.md` → Retired terms), no test skipped
+  or loosened.
+- **Use the app for each AC a user can see,** as the role the criterion names, on its main path and
+  its failure path, in a review app. PHPUnit and e2e still run on CI only. When the app can't be
+  run, the verdict says so and names what stays unproven.
 - Every Evidence row is re-checked against the REQ text, the plan and the code. It is not copied.
 - Any ✗ or unproven row means **CHANGES**, and there is no merge.
-- On APPROVE, hand the PR to Business / PM (step 2). Merge only when the checklist is all ✓, CI is
-  green and Business / PM's AC check is OK. Then tell Business / PM, who moves the card to Done.
 
 ## 4. Business track: Business / PM
 
@@ -419,10 +441,10 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
 4. **Keep Planning fed.** Each time the Tech Lead takes cards, prepare the next Backlog items under
    rule 3. Target: at least two ready items per developer. A REQ ticket waiting on unmerged work can
    still go to Planning once its REQ is on `main`; the Tech Lead sequences it.
-5. **Shift-left AC check.** When the Tech Lead posts a plan (message `#<n> plan posted`), Business /
-   PM checks it against the criteria and the business rules, including exact REQ wording for UI
-   text, and comments on the issue. It doesn't block: the developer starts at once, and Business /
-   PM messages the Tech Lead only about a missed criterion.
+5. **Shift-left AC check.** When a card enters Todo, Business / PM checks its plan against the
+   criteria and the business rules, including exact REQ wording for UI text. It doesn't block: the
+   developer starts at once. Business / PM comments on the issue only about a missed criterion, and
+   wakes the Tech Lead with `#<n> | question`.
 6. **Questions found while planning.** A plan should need none, because the REQ answers them
    (rule 1). When one comes up, the Tech Lead proposes a default and keeps planning with it. Business /
    PM confirms or corrects it on the issue under rule 2, and writes the answer into the REQ, so the
@@ -445,7 +467,28 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
      business rule found at review is first added as a `[BR-n]` line, then checked; if it changes
      scope, it goes back through Planning.
    - UI wording must match the REQ terms exactly.
-   - Read the full diff. Never pass a PR on its description alone.
-   - On ❌, send the evaluation to the Tech Lead (section 3).
+   - Start from the Verifier's checklist, and read the diff where a criterion turns on wording, a
+     decision or a screenshot. Never pass a PR on its description alone.
+   - On ✅, wake the Verifier with `#<n> | AC OK`. On ❌, the PR goes back (section 3, *Sent back*).
 8. **After Done.** Update the REQ's *Delivered by* (issues and PRs per criterion). When every
    criterion has shipped, set the REQ to `done`.
+
+## 5. Flow track: Verifier
+
+The Verifier is the team's scrum master (maintainer, 2026-11-28). It verifies and merges
+(section 3), and it keeps work moving.
+
+1. **Single watcher.** Only the Verifier polls GitHub (CI runs, PR state, the board), at most once a
+   minute, because every session shares one API budget. The other sessions read their columns when
+   they start, after each task and on a wake-up (0e).
+2. **Order of work:** a red `main` first, then merges, then verification, then flow.
+3. **Limits (0c).** When a column is off, the Verifier wakes its owner: `business` for Planning,
+   `tech-lead` for Todo. An idle developer's next ticket is planned first.
+4. **Stuck work.** A card that hasn't moved, a PR with a conflict or a red check, a blocked ticket:
+   the Verifier comments on it and wakes the session that holds it.
+5. **Flaky tests** get a `test(...)` issue the same day (0d). The Verifier may fix one itself; the
+   Tech Lead then reviews that PR.
+6. **Daily flow report:** tickets finished, time per column, rework rounds, CI cancelled or failed,
+   stuck PRs, and the one bottleneck to remove next.
+7. **Process changes** start from the flow report and go to the maintainer, as one Standards PR per
+   day at most (0e).

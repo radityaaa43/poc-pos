@@ -18,14 +18,14 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
    are not re-litigated in review.
 
 6. **Business acceptance** (`feat` PRs, and any PR whose `Backlog:` line names criteria): after the
-   Tech Lead's technical review approves and the Tech Lead hands the PR over, and before the merge,
+   Verifier's verdict is VERIFIED and the card is in Business review, and before the merge,
    Business / PM comments on the
    PR that each criterion on its `Backlog:` line behaves as the issue's *What good looks like* says,
-   or names the criteria that don't. That comment is a check, not an approval; the Tech Lead's
-   review is the approval.
+   or names the criteria that don't. That comment is a check, not an approval; the Verifier's
+   verdict is the approval.
 7. **Evidence and the Requirement & AC checklist**: the PR's `## Evidence` table has a row with
-   proof for every Done-when line, every `Backlog:` criterion and every plan item. The Tech Lead's
-   approval ticks the owner's list (`[TC-n]`) against the Evidence, or, on tickets that predate the
+   proof for every Done-when line, every `Backlog:` criterion and every plan item. The Verifier's
+   verdict ticks the owner's list (`[TC-n]`) against the Evidence, or, on tickets that predate the
    lists, re-checks each row against the REQ text, the plan and the code (format:
    [`docs/agents/handoff.md`](docs/agents/handoff.md) → 3). A missing row, a row
    without proof, or UI text that differs from the REQ wording is 🔴.
