@@ -8,6 +8,7 @@ use App\Models\CustomerSegment;
 use App\Models\CustomerVoucher;
 use App\Models\Transaction;
 use App\Services\AuditLogService;
+use App\Services\CustomerCreditService;
 use App\Services\CustomerSegmentationService;
 use App\Services\LoyaltyService;
 use Carbon\Carbon;
@@ -16,6 +17,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Laravolt\Indonesia\Models\City;
 use Laravolt\Indonesia\Models\District;
@@ -27,7 +29,8 @@ class CustomerController extends Controller
     public function __construct(
         private readonly LoyaltyService $loyaltyService,
         private readonly CustomerSegmentationService $segmentationService,
-        private readonly AuditLogService $auditLogService
+        private readonly AuditLogService $auditLogService,
+        private readonly CustomerCreditService $creditService
     ) {}
 
     /**
@@ -303,6 +306,7 @@ class CustomerController extends Controller
             'frequentProducts' => $frequentProducts,
             'rewardHistory' => $rewardHistory,
             'vouchers' => $vouchers,
+            'creditStanding' => $customer->may_buy_on_credit ? $this->creditService->standing($customer)->toArray() : null,
         ]);
     }
 
@@ -342,6 +346,47 @@ class CustomerController extends Controller
         });
 
         return back()->with('success', $new ? 'Pelanggan boleh piutang.' : 'Pelanggan tidak lagi boleh piutang.');
+    }
+
+    public function updateCreditLimit(Request $request, Customer $customer)
+    {
+        // `present`: a request without the key is a mistake, not "clear the limit". An empty field arrives as null.
+        $validated = $request->validate(['credit_limit' => ['present', 'nullable', 'integer', 'min:0', 'max:999999999999']]);
+        $new = $validated['credit_limit'] === null ? null : (int) $validated['credit_limit'];
+
+        DB::transaction(function () use ($customer, $new) {
+            // The row lockedStanding() locks too, so a limit change and a credit checkout never interleave.
+            $locked = Customer::lockForUpdate()->findOrFail($customer->id);
+
+            if (! $locked->may_buy_on_credit) {
+                throw ValidationException::withMessages(['credit_limit' => 'Batas piutang hanya untuk pelanggan yang boleh piutang.']);
+            }
+
+            $old = $locked->credit_limit;
+
+            if ($new === $old) {
+                return;
+            }
+
+            $locked->forceFill(['credit_limit' => $new])->save();
+
+            $this->auditLogService->log(
+                event: 'customer.credit_limit_updated',
+                module: 'customers',
+                auditable: $locked,
+                description: 'Customer credit limit changed',
+                before: ['credit_limit' => $old],
+                after: ['credit_limit' => $new],
+            );
+        });
+
+        return back()->with('success', 'Batas piutang disimpan.');
+    }
+
+    /** The POS customer panel: the picked customer's limit and what they owe. */
+    public function creditSummary(Customer $customer): JsonResponse
+    {
+        return response()->json($this->creditService->standing($customer)->toArray());
     }
 
     /**

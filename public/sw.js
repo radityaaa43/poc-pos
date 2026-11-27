@@ -14,6 +14,9 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
+    // Live money figures: never answered from the cache (the path matches '/customers' below).
+    if (url.pathname.endsWith('/credit-summary')) return;
+
     // Cache-first for master data API
     if (MASTER_API_PATTERNS.some((p) => url.pathname.includes(p))) {
         event.respondWith(

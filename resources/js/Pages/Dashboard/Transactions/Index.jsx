@@ -12,6 +12,7 @@ import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
 import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
+import CustomerCreditPanel from "@/Components/POS/CustomerCreditPanel";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
     HoldButton,
@@ -1060,6 +1061,7 @@ export default function Index({
                             label="Pelanggan"
                             tierOptions={loyaltyTierOptions}
                         />
+                        <CustomerCreditPanel customer={selectedCustomer} />
                     </div>
 
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
