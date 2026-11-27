@@ -59,7 +59,7 @@ upstream Git Flow (`development`, `release/*`) is not used here (ADR 0001). Rele
 ## Ownership
 
 Every area of the product has an Owner and backups. The Owner decides scope questions in their
-module, through Business / PM. The Tech Lead reviews and merges PRs in every module. When the
+module, through Business / PM. The Verifier verifies and merges PRs in every module, and the Tech Lead also reviews the high-risk ones. When the
 Owner is away, ask the Backup.
 
 | Label | Module | Scope | Paths | Owner | Backup |
@@ -74,8 +74,8 @@ Owner is away, ask the Backup.
 
 - **Every issue gets exactly one `module:*` label** at triage: the module whose behavior its
   Done-when changes. Work that spans modules takes the main one and names the others in Background.
-- **Ask the Tech Lead for review**: by message while every session shares one GitHub login (its
-  `/code-review` result as a PR comment is the approval), otherwise `gh pr edit <n> --add-reviewer
+- **Ask the Verifier for review**: by moving the card to Technical review while every session shares
+  one GitHub login (its checklist as a PR comment is the approval), otherwise `gh pr edit <n> --add-reviewer
   <handle>`. A change that also
   touches another module's code mentions that module's Owner in the PR.
 - Anyone may work on any module; claiming an issue still applies. Ownership is about who decides

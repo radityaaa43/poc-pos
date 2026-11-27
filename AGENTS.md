@@ -31,9 +31,10 @@ Nothing goes directly to `main`. Workflow skills come from
 
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
 
-Four roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
-Technical review → Business review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b, review
-and merge), **Developer** (steps 3–7) and the **maintainer** (decides, owns the Standards, overrules).
+Five roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
+Technical review → Business review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b and
+the risk review of high-risk PRs), **Developer** (steps 3–7), **Verifier** (verifies every PR, merges, runs the board) and the
+**maintainer** (decides, owns the Standards, overrules). The board is the channel between them: a card move is the hand-off.
 Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 Flow rules (developers pull their own work, column limits, finish before starting): [`docs/agents/handoff.md` → 0](docs/agents/handoff.md#0-flow-rules-pull-limits-priorities).
 
@@ -77,9 +78,9 @@ issue, stdlib and native features before new libraries.
   joined by `;` (level `low`…`max`, or `unknown`), or `none`. CI checks the format.
 - **PRs** follow `.github/pull_request_template.md`: `Closes #<n>` per finished issue, one per line
   (`Refs` closes nothing), the manual test, and the docs updated. CI's *PR checklist* enforces it.
-  The Tech Lead reviews and merges; a `feat` PR also needs Business / PM's comment that its criteria
-  are met. While every session shares one GitHub login, ask for review by message, and the Tech
-  Lead's `/code-review` result posted as a PR comment is its approval. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
+  The Verifier verifies and merges; a `feat` PR also needs Business / PM's comment that its criteria
+  are met. While every session shares one GitHub login, ask for review by moving the card to
+  Technical review, and the Verifier's checklist posted as a PR comment is its approval. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
   once CI is green; every other PR needs another reviewer's approval.
   Never push to `main` or force-push a reviewed branch. After any
   post-review change, wait for green CI again.

@@ -62,7 +62,7 @@ enforce the lowercase first word, because acronyms such as `POS` or `QR` can sta
 
 All open issues live on the project board
 [poc-pos](https://github.com/users/radityaaa43/projects/1), linked to this repo. Each card has a
-**Status** and an **Effort**. Four roles move the cards, and a role can be a person or an agent
+**Status** and an **Effort**. Five roles move the cards, and a role can be a person or an agent
 session. Until a role is staffed, the maintainer names who covers it.
 
 ### Delegation
@@ -74,7 +74,9 @@ Since 2026-11-25 the maintainer delegates day-to-day decisions by track:
   each decision with its date and "Business/PM, delegated by the maintainer", and merges `docs` PRs
   that only touch `backlog/`.
 - **The Tech Lead decides the technical track**: architecture, database, implementation, skills and
-  tooling, and code review and merge.
+  tooling, and the risk review of high-risk PRs.
+- **The Verifier decides whether a ticket is done, and runs the flow**: verification of every PR,
+  merge, the board and its limits, and the flow report.
 - **Still the maintainer's call**: irreversible or outward-facing actions outside the repo
   (production data, deploys, paid services, credentials, legal), and weakening a CI gate or a Never
   rule. The maintainer can overrule any decision.
@@ -85,8 +87,9 @@ it on the issue.
 | Role | Does |
 |---|---|
 | **Maintainer** (`@radityaaa43`) | Makes business decisions (through Business/PM), is the Standards owner, can overrule any role or card |
-| **Business / PM** (also scrum master) | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, keeps the board current, checks feat PRs against their criteria, fills in *Delivered by* ([`handoff.md` → 4](handoff.md#4-business-track-business--pm)) |
-| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, reviews and merges PRs |
+| **Business / PM** | Analyses requests and interviews the maintainer, writes `backlog/REQ-*`, the PRD issue and its tickets as sub-issues, checks feat PRs against their criteria, fills in *Delivered by* ([`handoff.md` → 4](handoff.md#4-business-track-business--pm)) |
+| **Tech Lead** | Writes the technical plan (architecture, database and migrations, backend, frontend, risks), sets Effort, picks the developer, keeps parallel work from colliding, reviews high-risk PRs and the Verifier's own |
+| **Verifier** (also scrum master) | Verifies every PR against its criteria by review and in the running app, merges, keeps the board and its limits, is the only session that polls GitHub, writes the daily flow report ([`handoff.md` → 5](handoff.md#5-flow-track-verifier)) |
 | **Developer** | Builds a planned ticket test-first, verifies it, opens the PR and fixes review findings |
 
 | Status | Owner | A card moves on when | Moved by |
@@ -95,9 +98,9 @@ it on the issue.
 | **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
 | **In progress** | Developer | A PR with `Closes #<n>` is open and CI is green | Developer → Technical review |
-| **Technical review** | Tech Lead | The Tech Lead's technical review approved. A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here | Tech Lead → Business review, in the same step as the handover message ([`handoff.md`](handoff.md) → 3); or merges |
-| **Business review** | Business / PM | Business / PM's AC check is OK and CI is green. On a failed check the card goes back to In progress | Tech Lead merges |
-| **Done** | Business / PM | — | Business / PM, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
+| **Technical review** | Verifier | The Verifier's verdict is VERIFIED (and the Tech Lead's risk review passed, on a high-risk ticket). A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here | Verifier → Business review ([`handoff.md`](handoff.md) → 3); or merges |
+| **Business review** | Business / PM | Business / PM's AC check is OK and CI is green. On a failed check the card goes back to In progress | Verifier merges |
+| **Done** | Verifier | — | The *Item closed* workflow; the Verifier checks it, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
 
 New issues land in Backlog. Dependencies stay as `Blocked by #<n>` and sub-issues; there is no
 Blocked column.
@@ -109,14 +112,14 @@ left; exactly one `module:*` label; every Done-when item is tagged with its crit
 **Technical plan.** A comment on the issue before coding, sized to the ticket: what changes in the
 database, backend and frontend, the files and hotspot files touched, migration order, risks, and the
 tests per criterion, ending with `Builder: <developer>` (e.g. `Builder: dev1`). Large decisions also
-get an ADR in `docs/adr/`. The exact formats for the plan and the assignment message, the
-developer's delivery with evidence, and the Tech Lead's review checklist are in
+get an ADR in `docs/adr/`. The exact formats for the plan and the assignment, the
+developer's delivery with evidence, and the Verifier's review checklist are in
 [`handoff.md`](handoff.md).
 
 **One GitHub login.** While every session uses the same account, the assignee can't tell developers
 apart and GitHub refuses a self-requested review. So the `Builder:` line in the plan names who builds
-it (the assignee still marks the issue as claimed), review is requested by message, and the Tech
-Lead's `/code-review` result posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
+it (the assignee still marks the issue as claimed), review is requested by moving the card to
+Technical review, and the Verifier's checklist posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
 maintainer). Drop this once each role has its own account.
 
 **Worktrees.** A developer works in their own git worktree with its own `npm ci`. Run PHP for a
