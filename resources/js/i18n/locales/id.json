@@ -1180,5 +1180,29 @@
         "renamed": "Nama stasiun diubah",
         "deleted": "Stasiun dihapus",
         "failed": "Stasiun tidak bisa disimpan"
+    },
+    "dine": {
+        "pay": {
+            "button": "Bayar sekarang",
+            "paid": "Lunas",
+            "waiting": "Menunggu pembayaran",
+            "failed": "Pembayaran gagal",
+            "expired": "Kedaluwarsa",
+            "retry": "Coba lagi",
+            "counter": "Silakan bayar di kasir",
+            "notPayable": "Belum bisa dibayar",
+            "alreadyPaid": "Sudah lunas",
+            "openWallet": "Buka di aplikasi e-wallet",
+            "otherMethod": "Bayar dengan metode lain",
+            "payAtCounterInstead": "Atau bayar di kasir",
+            "gatewayError": "Pembayaran online sedang bermasalah — bayar di kasir",
+            "tooMany": "Terlalu banyak percobaan. Coba lagi sebentar.",
+            "offline": "Tidak ada koneksi. Pembayaran belum dibuat.",
+            "scanQris": "Scan QRIS dengan aplikasi bank atau e-wallet"
+        },
+        "menu": {
+            "submitOnline": "Pesan",
+            "submitOnlineHint": "Bisa bayar online setelah pesanan diterima"
+        }
     }
 }
