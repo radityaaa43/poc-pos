@@ -303,7 +303,11 @@ class CashierShiftService
             // Re-read under lock: a webhook or a confirmation may have paid it meanwhile.
             $sale = $candidates()->whereKey($id)->lockForUpdate()->first();
 
-            if (! $sale) {
+            // The query's subqueries read this transaction's snapshot (MySQL REPEATABLE READ): the expiry command, a
+            // webhook or a return may have committed since. Locking reads see it, so nothing is restocked twice.
+            if (! $sale || $sale->wasRestocked(locking: true)
+                || $sale->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->lockForUpdate()->first()
+                || $sale->salesReturns()->where('status', 'completed')->lockForUpdate()->first()) {
                 continue;
             }
 

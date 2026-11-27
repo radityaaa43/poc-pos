@@ -46,7 +46,8 @@ export function OfflineKitchenMarker({ scopeKey }) {
         const refresh = () =>
             getPendingTransactions(scopeKey)
                 .then((rows) =>
-                    setCount(rows.filter((row) => row.needs_kitchen && !["synced", "duplicate"].includes(row.status)).length)
+                    // A conflict row is never sent again and the server holds that sale (BR-17): nothing left to wait for.
+                    setCount(rows.filter((row) => row.needs_kitchen && !["synced", "duplicate", "conflict"].includes(row.status)).length)
                 )
                 .catch(() => {});
 

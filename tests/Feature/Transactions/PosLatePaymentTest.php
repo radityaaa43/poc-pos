@@ -561,8 +561,10 @@ class PosLatePaymentTest extends TestCase
     #[DataProvider('gateways')]
     public function test_an_expired_qr_booked_after_the_shift_closed_is_flagged_paid_after_close_and_the_recap_is_unchanged(string $gateway): void
     {
-        $sale = $this->sale();
-        $closed = app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0);
+        // A guest's pay-later bill outlives its shift (force-closed, booked as a shortfall). A pay-now sale does not: the
+        // close cancels it (#242 BR-11, next test).
+        $sale = $this->sale(overrides: ['is_pay_later' => true]);
+        $closed = app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0, 'Tutup paksa', forceClose: true);
         $this->assertSame(0, (int) $closed->non_cash_sales_total); // a failed gateway sale is not in the snapshot
 
         $this->notify($gateway, $sale)->assertOk();
@@ -574,5 +576,20 @@ class PosLatePaymentTest extends TestCase
         $this->assertSame(0, (int) CashierShift::findOrFail($this->shift->id)->non_cash_sales_total);
         $this->assertSame('payment.paid_after_close', AuditLog::where('event', 'payment.paid_after_close')->sole()->event);
         $this->assertTrue(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
+    }
+
+    #[DataProvider('gateways')]
+    public function test_a_pay_now_sale_cancelled_at_shift_close_is_flagged_when_its_expired_qr_is_paid_later(string $gateway): void
+    {
+        $sale = $this->sale();
+        app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0); // REQ-003 AC-20: cancels and restocks
+
+        $this->notify($gateway, $sale)->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('failed', $sale->payment_status);
+        $this->assertNotNull($sale->late_superseded_payment_at);
+        $this->assertNull($sale->paid_after_close_at);
+        $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
     }
 }

@@ -13,10 +13,12 @@ use App\Models\User;
 use App\Services\CashierShiftService;
 use App\Services\KitchenSpeedReportService;
 use App\Services\ShiftCloseBlockerService;
+use App\Services\TransactionTenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
@@ -269,6 +271,53 @@ class ShiftCloseHoldTest extends TestCase
 
         $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
         $this->assertSame(1, StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $sale->id)->count());
+    }
+
+    public function test_a_transfer_cancelled_at_close_cannot_be_confirmed(): void
+    {
+        $shift = $this->openShiftFor($this->cashier);
+        $sale = $this->sale($shift, 'bank_transfer', 'pending');
+        $this->forceClose($shift, $this->cashier);
+
+        // The page was read before the close: the model still says pending.
+        $stale = Transaction::find($sale->id)->forceFill(['payment_status' => 'pending'])->syncOriginal();
+
+        try {
+            app(TransactionTenderService::class)->confirmTransfer($stale);
+            $this->fail('a cancelled sale was confirmed');
+        } catch (ValidationException) {
+            $this->assertSame('failed', $sale->fresh()->payment_status);
+        }
+    }
+
+    public function test_a_transfer_bill_booked_at_close_and_confirmed_later_is_marked_paid_after_close(): void
+    {
+        $shift = $this->openShiftFor($this->cashier);
+        $bill = $this->guestPayLater($shift);
+        $bill->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
+        $this->forceClose($shift, $this->cashier);
+
+        app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
+
+        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $this->assertNotNull($bill->fresh()->paid_after_close_at);
+        $this->assertSame(1, AuditLog::where('event', 'payment.paid_after_close')->count());
+    }
+
+    public function test_a_not_collected_dish_that_was_cooked_is_not_restocked_by_default(): void
+    {
+        $this->cashier->givePermissionTo(Permission::firstOrCreate(['name' => 'sales-returns-create', 'guard_name' => 'web']));
+        $shift = $this->openShiftFor($this->cashier);
+        $cooked = $this->kitchenSale($shift, KitchenItem::STATUS_READY);
+        $cooked->update(['preparing_at' => now()]);
+        $untouched = $this->kitchenSale($shift);
+        $this->forceClose($shift, $this->cashier);
+
+        foreach ([[$cooked, false], [$untouched, true]] as [$item, $restock]) {
+            $this->actingAs($this->cashier)
+                ->get(route('sales-returns.create', $item->transaction_id))
+                ->assertInertia(fn (Assert $page) => $page->where('transaction.details.0.restock_default', $restock));
+        }
     }
 
     public function test_other_shifts_neither_hold_the_close_nor_get_cancelled(): void

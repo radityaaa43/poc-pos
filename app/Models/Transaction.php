@@ -269,10 +269,16 @@ class Transaction extends Model
         return $this->tenders()->whereIn('payment_status', [TransactionTender::STATUS_PENDING, TransactionTender::STATUS_PAID])->exists();
     }
 
-    /** ExpirePendingTransactionsCommand returned the stock of this sale: it is cancelled for good. */
-    public function wasRestocked(): bool
+    /**
+     * The expiry command or a shift close returned the stock of this sale: it is cancelled for good.
+     *
+     * @param  bool  $locking  inside a transaction that already read something: a locking read sees what was committed since
+     */
+    public function wasRestocked(bool $locking = false): bool
     {
-        return StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $this->id)->exists();
+        $marker = StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $this->id);
+
+        return $locking ? $marker->lockForUpdate()->first() !== null : $marker->exists();
     }
 
     /**
