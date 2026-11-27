@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\BankAccount;
+use App\Models\CashierShift;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
@@ -234,7 +235,7 @@ class TransactionTenderService
      */
     private function flagIfBookedAtClose(Transaction $transaction, string $newStatus): void
     {
-        $shift = $transaction->cashierShift;
+        $shift = CashierShift::find($transaction->cashier_shift_id);
 
         if ($newStatus !== 'paid' || ! $shift || $shift->isOpen() || $shift->unpaid_bills_total === 0
             || (! $transaction->is_pay_later && ! $transaction->dineOrder()->exists())

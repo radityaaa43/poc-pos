@@ -24,7 +24,7 @@ class ShiftCloseBlockerService
         $bills = Transaction::query()
             ->openBills()
             ->where('cashier_shift_id', $shift->id)
-            ->with(['customer:id,name', 'dineOrder.table:id,name'])
+            ->with(['dineOrder.table:id,name'])
             ->when($lock, fn ($query) => $query->lockForUpdate())
             ->orderBy('id')
             ->get()
@@ -51,15 +51,15 @@ class ShiftCloseBlockerService
         $items = $blockers['items']->toBase()->map(fn (KitchenItem $item) => [
             'type' => 'item',
             'order' => $item->transaction->invoice,
-            'label' => trim(($item->product?->title ?? '-')." × {$item->qty}"),
-            'amount' => (int) ($item->detail?->price ?? 0),
+            'label' => data_get($item, 'product.title', '-')." × {$item->qty}",
+            'amount' => (int) data_get($item, 'detail.price', 0),
         ]);
 
         $bills = $blockers['bills']->toBase()->map(fn (Transaction $bill) => [
             'type' => 'bill',
             'order' => $bill->invoice,
             // A guest's pay-later sale has no table and no customer: the sale's note says who owes.
-            'label' => $bill->dineOrder?->table?->name ?? $bill->customer?->name ?? $bill->note,
+            'label' => data_get($bill, 'dineOrder.table.name') ?? data_get($bill, 'customer.name') ?? $bill->note,
             'amount' => $bill->unpaidAmount(),
         ]);
 
