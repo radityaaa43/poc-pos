@@ -139,6 +139,13 @@ describe("DineOrderStatus online payment", () => {
             expect(screen.getByRole("listitem", { current: "step" })).toHaveTextContent("Menunggu Pembayaran");
         });
 
+        // A fully returned bill has no payment data: a pay-later order must not be told to pay before it is made.
+        it("never sends a pay-later order with nothing to pay to the cashier first", () => {
+            render(<DineOrderStatus order={{ ...base, status: "accepted", payment_option: "pay_later" }} table={table} storeName="Toko" payment={null} />);
+
+            expect(screen.queryByText(counterText)).toBeNull();
+        });
+
         it("says the payment was received only once paid", () => {
             render(<DineOrderStatus order={{ ...base, status: "accepted", is_paid: true }} table={table} storeName="Toko" payment={later("paid")} />);
 

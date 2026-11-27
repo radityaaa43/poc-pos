@@ -77,6 +77,8 @@ export default function DineOrderStatus({ order, table, storeName, payment: page
     const StatusIcon = status.icon;
     // The pay panel says what to do instead, unless the guest has to pay at the counter.
     let desc = statusKey === "waiting_payment" && payment && payment.state !== "counter" ? "" : status.desc;
+    // A pay-later order is already being made, so with nothing to pay (a fully returned bill) it gets no pay-first text.
+    if (unpaid && !payment && currentOrder.payment_option === "pay_later") desc = "";
     // The same answer the panel reads ("counter": no online payment), so the banner never offers what the panel cannot do.
     if (payLater) desc = t(payment.state === "counter" ? "dine.pay.payLaterAcceptedCounter" : "dine.pay.payLaterAcceptedOnline");
 
