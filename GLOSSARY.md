@@ -49,6 +49,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Kitchen speed report | Read-only report "Laporan Kecepatan Dapur": per menu item and kitchen station (filterable by station) the orders, portions, medians and averages of the make time and the wait + make time, and the share within the target; plus the average time from payment to the last item served, which stays whole-order under a station filter | Kitchen display: the live queue of items to make | `KitchenSpeedReportService` |
 | Waktu buat | Make time: from *preparing* to *ready* of one kitchen item; the prep target is compared with it | Waktu tunggu + buat | `kitchen_items.preparing_at` to `ready_at` |
 | Waktu tunggu + buat | Wait plus make time: from *accepted* (paid) to *ready* of one kitchen item | Waktu buat | `kitchen_items.accepted_at` to `ready_at` |
+| Scratch term B | Merge proof row B | - | - |
 
 ## Retired terms
 

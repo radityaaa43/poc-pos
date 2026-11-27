@@ -27,3 +27,4 @@ Route::post('/dine-orders/{dineOrder}/ready', [DineOrderController::class, 'read
 Route::post('/dine-orders/{dineOrder}/serve', [DineOrderController::class, 'serve'])->middleware('permission:dine-orders-handover')->name('dine-orders.serve');
 Route::post('/dine-orders/{dineOrder}/pay', [DineOrderController::class, 'pay'])->middleware(['permission:dine-orders-process', 'active_shift'])->name('dine-orders.pay');
 Route::post('/dine-orders/{dineOrder}/reject', [DineOrderController::class, 'reject'])->middleware('permission:dine-orders-process')->name('dine-orders.reject');
+Route::get('/scratch-b', fn () => 'ok')->name('scratch.b');
