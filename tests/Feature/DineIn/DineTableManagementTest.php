@@ -117,7 +117,7 @@ class DineTableManagementTest extends TestCase
                 ->where('tables.0.id', $table->id));
     }
 
-    // PNG needs ext-imagick, which neither the Docker image nor CI installs; SVG needs nothing (#118).
+    // PNG needs ext-imagick, which neither the host setup nor CI installs; SVG needs nothing (#118).
     public function test_qr_serves_an_svg_without_needing_imagick(): void
     {
         $table = DiningTable::create(['name' => 'M1', 'is_active' => true]);

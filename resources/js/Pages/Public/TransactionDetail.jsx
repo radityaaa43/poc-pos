@@ -1,5 +1,7 @@
 import React from "react";
 import { Head } from "@inertiajs/react";
+import { useTranslation } from "react-i18next";
+import { billSubtotal, taxLabel } from "@/Utils/billTotals";
 import GuestLayout from "@/Layouts/GuestLayout";
 import LineModifiers from "@/Components/Modifiers/LineModifiers";
 
@@ -13,6 +15,8 @@ const statusBadge = (status) => {
 };
 
 export default function TransactionDetail({ transaction, token, error }) {
+    const { t } = useTranslation();
+
     return (
         <>
             <Head title={`Invoice ${transaction.invoice}`} />
@@ -44,9 +48,10 @@ export default function TransactionDetail({ transaction, token, error }) {
                         </div>
 
                         <div className="border-t border-slate-100 pt-4 space-y-1.5 text-sm">
-                            <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatPrice(transaction.grand_total + transaction.discount - (transaction.shipping_cost || 0) - (transaction.tax_total || 0))}</span></div>
+                            <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatPrice(billSubtotal(transaction))}</span></div>
                             {transaction.discount > 0 && <div className="flex justify-between text-slate-500"><span>Diskon</span><span>-{formatPrice(transaction.discount)}</span></div>}
-                            {transaction.tax_total > 0 && <div className="flex justify-between text-slate-500"><span>PPN</span><span>{formatPrice(transaction.tax_total)}</span></div>}
+                            {transaction.service_charge > 0 && <div className="flex justify-between text-slate-500"><span>{t("pos.bill.serviceCharge")}</span><span>{formatPrice(transaction.service_charge)}</span></div>}
+                            {transaction.tax_total > 0 && <div className="flex justify-between text-slate-500"><span>{taxLabel(transaction, t)}</span><span>{formatPrice(transaction.tax_total)}</span></div>}
                             {transaction.shipping_cost > 0 && <div className="flex justify-between text-slate-500"><span>Ongkir</span><span>{formatPrice(transaction.shipping_cost)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-2 border-t border-slate-200">
                                 <span>Total</span>

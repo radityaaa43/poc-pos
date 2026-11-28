@@ -19,6 +19,8 @@
         "/dashboard/stock-opnames": "allowed",
         "/dashboard/stock-mutations": "allowed",
         "/dashboard/stock-transfers": "allowed",
+        "/dashboard/stock-waste": "allowed",
+        "/dashboard/stock-waste/create": "allowed",
         "/dashboard/purchase-orders": "allowed",
         "/dashboard/goods-receivings": "allowed",
         "/dashboard/supplier-returns": "allowed",
@@ -32,6 +34,7 @@
         "/dashboard/dine-areas": "allowed",
         "/dashboard/dine-tables": "allowed",
         "/dashboard/dine-orders": "allowed",
+        "/dashboard/dine-reservations": "allowed",
         "/dashboard/reports/sales": "allowed",
         "/dashboard/reports/profits": "allowed",
         "/dashboard/reports/insights": "allowed",
@@ -54,7 +57,7 @@
         "/dashboard/settings/whatsapp": "allowed",
         "/dashboard/access": "allowed"
       },
-      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Hak Akses", "Akses Group", "Pengguna", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Outlet", "Satuan", "Stasiun dapur", "Modifier", "WhatsApp"],
+      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Waste", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Reservasi", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Hak Akses", "Akses Group", "Pengguna", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Outlet", "Satuan", "Stasiun dapur", "Modifier", "WhatsApp"],
       "submenu": { "Pengguna": ["Data Pengguna", "Tambah Data Pengguna"] }
     },
     "manager": {
@@ -74,6 +77,8 @@
         "/dashboard/stock-opnames": "allowed",
         "/dashboard/stock-mutations": "allowed",
         "/dashboard/stock-transfers": "allowed",
+        "/dashboard/stock-waste": "allowed",
+        "/dashboard/stock-waste/create": "allowed",
         "/dashboard/purchase-orders": "allowed",
         "/dashboard/goods-receivings": "allowed",
         "/dashboard/supplier-returns": "allowed",
@@ -87,6 +92,7 @@
         "/dashboard/dine-areas": "allowed",
         "/dashboard/dine-tables": "allowed",
         "/dashboard/dine-orders": "allowed",
+        "/dashboard/dine-reservations": "allowed",
         "/dashboard/reports/sales": "allowed",
         "/dashboard/reports/profits": "allowed",
         "/dashboard/reports/insights": "allowed",
@@ -109,7 +115,7 @@
         "/dashboard/settings/whatsapp": "forbidden",
         "/dashboard/access": "allowed"
       },
-      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Satuan", "Stasiun dapur", "Modifier"]
+      "sidebar": ["Dashboard", "Kategori", "Produk", "Bahan Baku", "Pelanggan", "Supplier", "Transaksi", "Riwayat Transaksi", "Retur Penjualan", "Piutang", "Aging & Pengingat", "Approval Diskon", "Stock Opname", "Mutasi Stok", "Transfer Stok", "Waste", "Purchase Order", "Penerimaan Barang", "Retur Supplier", "Hutang Supplier", "Member", "Promo Harga", "Voucher Customer", "Segment Customer", "Campaign CRM", "Reminder CRM", "Area Dine-In", "Meja Dine-In", "Pesanan Dine-In", "Layar Dapur", "Reservasi", "Laporan Penjualan", "Laporan Keuntungan", "Advanced Insights", "Laporan Kecepatan Dapur", "Shift Kasir", "Audit Log", "Payment Gateway", "Profil Toko", "Rekening Bank", "Loyalty", "Target Penjualan", "Price List", "Gudang / Cabang", "Satuan", "Stasiun dapur", "Modifier"]
     },
     "cashier": {
       "pages": {
@@ -128,6 +134,8 @@
         "/dashboard/stock-opnames": "forbidden",
         "/dashboard/stock-mutations": "forbidden",
         "/dashboard/stock-transfers": "forbidden",
+        "/dashboard/stock-waste": "forbidden",
+        "/dashboard/stock-waste/create": "forbidden",
         "/dashboard/purchase-orders": "forbidden",
         "/dashboard/goods-receivings": "forbidden",
         "/dashboard/supplier-returns": "forbidden",
@@ -141,6 +149,7 @@
         "/dashboard/dine-areas": "forbidden",
         "/dashboard/dine-tables": "forbidden",
         "/dashboard/dine-orders": "allowed",
+        "/dashboard/dine-reservations": "forbidden",
         "/dashboard/reports/sales": "forbidden",
         "/dashboard/reports/profits": "forbidden",
         "/dashboard/reports/insights": "forbidden",
@@ -182,6 +191,8 @@
         "/dashboard/stock-opnames": "allowed",
         "/dashboard/stock-mutations": "forbidden",
         "/dashboard/stock-transfers": "forbidden",
+        "/dashboard/stock-waste": "forbidden",
+        "/dashboard/stock-waste/create": "forbidden",
         "/dashboard/purchase-orders": "forbidden",
         "/dashboard/goods-receivings": "forbidden",
         "/dashboard/supplier-returns": "forbidden",
@@ -195,6 +206,7 @@
         "/dashboard/dine-areas": "forbidden",
         "/dashboard/dine-tables": "forbidden",
         "/dashboard/dine-orders": "forbidden",
+        "/dashboard/dine-reservations": "forbidden",
         "/dashboard/reports/sales": "forbidden",
         "/dashboard/reports/profits": "forbidden",
         "/dashboard/reports/insights": "forbidden",
@@ -236,6 +248,8 @@
         "/dashboard/stock-opnames": "forbidden",
         "/dashboard/stock-mutations": "forbidden",
         "/dashboard/stock-transfers": "forbidden",
+        "/dashboard/stock-waste": "forbidden",
+        "/dashboard/stock-waste/create": "forbidden",
         "/dashboard/purchase-orders": "forbidden",
         "/dashboard/goods-receivings": "forbidden",
         "/dashboard/supplier-returns": "forbidden",
@@ -249,6 +263,7 @@
         "/dashboard/dine-areas": "forbidden",
         "/dashboard/dine-tables": "forbidden",
         "/dashboard/dine-orders": "allowed",
+        "/dashboard/dine-reservations": "forbidden",
         "/dashboard/reports/sales": "forbidden",
         "/dashboard/reports/profits": "forbidden",
         "/dashboard/reports/insights": "forbidden",

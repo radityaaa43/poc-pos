@@ -17,16 +17,21 @@ import ThermalReceipt, {
 } from "@/Components/Receipt/ThermalReceipt";
 import LineModifiers, { modifierLines } from "@/Components/Modifiers/LineModifiers";
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
+import ReceiptTotalsRows from "@/Components/Receipt/ReceiptTotalsRows";
+import { billSubtotal, receiptBillData } from "@/Utils/billTotals";
+import { useTranslation } from "react-i18next";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
+import AddOnButton, { InvoiceNumber } from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
 import InvoiceTotal from "./InvoiceTotal";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
 
-export default function Print({ transaction, retryable, bankAccounts, paymentGateways }) {
+export default function Print({ transaction, retryable, bankAccounts, paymentGateways, canAddOn }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
+    const { t } = useTranslation();
     const [printMode, setPrintMode] = useState("invoice"); // 'invoice' | 'thermal80' | 'thermal58'
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [isConfirming, setIsConfirming] = useState(false);
@@ -96,14 +101,11 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
     const voucherDiscountTotal = Number(
         transaction?.customer_voucher_discount || 0
     );
-    const baseSubtotal =
-        (transaction?.grand_total || 0) +
-        (transaction?.discount || 0) -
-        (transaction?.shipping_cost || 0) -
-        (transaction?.tax_total || 0) +
-        promoDiscountTotal +
-        loyaltyDiscountTotal +
-        voucherDiscountTotal;
+    const baseSubtotal = billSubtotal(transaction, {
+        promo: promoDiscountTotal,
+        loyalty: loyaltyDiscountTotal,
+        voucher: voucherDiscountTotal,
+    });
 
     const store = useMemo(
         () => ({
@@ -206,6 +208,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
             subtotal: baseSubtotal,
             discount_total: discountTotal,
             tax_total: Number(transaction.tax_total || 0),
+            ...receiptBillData(transaction, t),
             shipping_cost: Number(transaction.shipping_cost || 0),
             grand_total: Number(transaction.grand_total || 0),
             amount_due: transaction.amount_due,
@@ -217,6 +220,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
         };
     }, [
         store,
+        t,
         transaction,
         items,
         baseSubtotal,
@@ -340,6 +344,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                             <IconArrowLeft size={18} />
                             Kembali ke kasir
                         </Link>
+                        <AddOnButton transaction={transaction} allowed={canAddOn} />
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                             {/* Print Mode Selector */}
@@ -606,9 +611,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                     INVOICE
                                                 </span>
                                             </div>
-                                            <p className="text-lg sm:text-2xl font-bold leading-tight">
-                                                {transaction.invoice}
-                                            </p>
+                                            <InvoiceNumber transaction={transaction} />
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at
@@ -841,26 +844,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                             {formatPrice(transaction.discount)}
                                         </span>
                                     </div>
-                                    {transaction.shipping_cost > 0 && (
-                                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                                            <span>Ongkos Kirim</span>
-                                            <span>
-                                                +{" "}
-                                                {formatPrice(
-                                                    transaction.shipping_cost
-                                                )}
-                                            </span>
-                                        </div>
-                                    )}
-                                    {transaction.tax_total > 0 && (
-                                        <div className="flex justify-between text-slate-600 dark:text-slate-400">
-                                            <span>PPN {transaction.tax_rate ? Number(transaction.tax_rate).toFixed(0) : "11"}%</span>
-                                            <span>
-                                                +{" "}
-                                                {formatPrice(transaction.tax_total)}
-                                            </span>
-                                        </div>
-                                    )}
+                                    <ReceiptTotalsRows transaction={transaction} format={formatPrice} />
                                     <InvoiceTotal transaction={transaction} />
                                     {paymentMethodKey === "cash" && (
                                         <>

@@ -12,15 +12,17 @@ ends in `_e2e`. That guard checks names only: it stops a mis-set environment fro
 
 ## Run it locally
 
-Prerequisites: the normal Docker stack (`docker compose up -d`, for MySQL), Node 22+.
+Everything runs on the host. Prerequisites: the root `README.md` → Local setup (MySQL 8.4 on
+`127.0.0.1:3306`, `root` with an empty password, `php` and `mysql` on `PATH`), Node 22+, and
+`composer install` and `npm ci` in this checkout.
 
 ```bash
 npx playwright install chromium   # once
-npm run e2e:up                    # starts app-e2e (http://localhost:8010), builds assets, resets the DB
+npm run e2e:up                    # creates the DB, serves http://localhost:8010, builds assets, resets the DB
 npm run test:e2e                  # whole suite (resets the DB first)
 npm run test:e2e -- features/00-smoke          # one feature
 npm run test:e2e:ui               # Playwright UI mode
-docker compose --profile e2e stop app-e2e      # when done
+npm run e2e:down                  # stop the server when done
 ```
 
 - `npm run e2e:reset` rebuilds `point_of_sales_e2e` (migrate, seeders). `test:e2e` does it for you
@@ -31,24 +33,22 @@ docker compose --profile e2e stop app-e2e      # when done
 
 ### Several worktrees at once
 
-`app-e2e` serves one checkout and one database. A second worktree runs its own container on its own
-port and `*_e2e` database (ports 8000–8004 and 8010 are taken), with its own `npm ci && npm run build`:
+`e2e:up` serves one checkout on port 8010 with one database. A second worktree runs its own server on
+another port and `*_e2e` database (ports 8000–8004 and 8010 are taken), with its own `composer install`
+and `npm ci`. Write a wrapper outside the repo, here `../e2e-php-8011.sh`: it `export`s every value of
+`support/e2e-env.js`, with `APP_URL=http://localhost:8011` and `DB_DATABASE=pos_8011_e2e`, and ends with
+`exec php "$@"`. Then, from the worktree:
 
 ```bash
-docker compose exec -T mysql mysql -uroot -psecret -e "CREATE DATABASE IF NOT EXISTS pos_8011_e2e"
-MSYS_NO_PATHCONV=1 docker run -d --name pos-e2e-8011 --network poc-pos_default -p 127.0.0.1:8011:8011 \
-  -v "$PWD:/var/www/html" -v poc-pos_vendor:/var/www/html/vendor -w /var/www/html \
-  -e APP_ENV=e2e -e APP_URL=http://localhost:8011 -e DB_DATABASE=pos_8011_e2e <the app-e2e env> \
-  poc-pos-php:8.4 php artisan serve --host=0.0.0.0 --port=8011 --no-reload
-E2E_PHP="docker exec -i pos-e2e-8011 php" E2E_BASE_URL=http://localhost:8011 npm run test:e2e
+mysql -uroot -h127.0.0.1 -e "CREATE DATABASE IF NOT EXISTS pos_8011_e2e"
+npm run build
+bash ../e2e-php-8011.sh artisan serve --host=127.0.0.1 --port=8011 --no-reload   # own terminal, Ctrl+C stops it
+E2E_PHP="bash ../e2e-php-8011.sh" E2E_BASE_URL=http://localhost:8011 npm run test:e2e
 ```
 
-`<the app-e2e env>` is every other `environment:` entry of `app-e2e` in `docker-compose.yml`.
-Remove it with `docker rm -f pos-e2e-8011`.
-
-The app env is set in the `app-e2e` service of `docker-compose.yml` (real env vars beat `.env`):
-session/cache in the database, `QUEUE_CONNECTION=sync`, bot guard on but with no minimum submit time,
-low bcrypt cost, no SSR. The bot-guard honeypot and token stay on.
+The app env is set in `support/e2e-env.js` (real env vars beat `.env`): session/cache in the database,
+`QUEUE_CONNECTION=sync`, bot guard on but with no minimum submit time, low bcrypt cost, no SSR. The
+bot-guard honeypot and token stay on. On Windows, PHP's built-in server handles one request at a time.
 
 ## In CI
 
@@ -102,13 +102,12 @@ with a reason, several separated by `;`: `E2E: AC-07 none — data migration, te
 
 ## Troubleshooting
 
-- **Port 8010 busy**: another `app-e2e`, or something else on 8010. Ports 8000–8004 belong to the dev app and review apps.
+- **Port 8010 busy**: run `npm run e2e:down` in the checkout that started the server; otherwise something else
+  holds 8010. Ports 8000–8004 belong to the dev app and review apps.
+- **`e2e:up` says nothing answers**: read `storage/logs/e2e-serve.log`.
 - **Pages load but use the wrong data / dev database**: `artisan serve` must run with `--no-reload`,
-  otherwise it ignores the service env and reads `.env`. Keep the flag in `docker-compose.yml`.
+  otherwise it drops the e2e env and reads `.env`. Keep the flag in `support/host-up.js`.
 - **Blank page or Vite errors**: stop `npm run dev`. The e2e app ignores `public/hot` but needs a fresh
   `npm run build` (done by `e2e:up`).
-- **500 on `/login`**: the database was never reset, or assets are not built. Run `npm run e2e:up`.
-- **Running compose from a git worktree**: the compose project mounts the checkout you run it from, and a second
-  `mysql` would clash on port 3307. Reuse the running stack by exporting `COMPOSE_PROJECT_NAME` (a name of your choice)
-  and `COMPOSE_FILE=docker-compose.yml;override.yml` where the override file joins the existing network as
-  `external` (`poc-pos_default`) and sets `depends_on: !reset null` on `app-e2e`. From the main checkout none of this is needed.
+- **500 on `/login`**: the database was never reset, or assets are not built. Run `npm run e2e:down`, then
+  `npm run e2e:up`.

@@ -57,12 +57,17 @@ class RoleSeeder extends Seeder
         $this->createRoleWithPermissions('customers-import', '%customers-import%');
         $this->createRoleWithPermissions('customers-export', '%customers-export%');
         $this->createRoleWithPermissions('discounts-approve', 'discounts-approve');
+        $this->createRoleWithPermissions('stock-waste-create', 'stock-waste-create');
+        $this->createRoleWithPermissions('stock-waste-approve', 'stock-waste-approve');
         $this->createRoleWithPermissions('price-lists-access', '%price-lists%');
         $this->createRoleWithPermissions('warehouses-access', '%warehouses%');
         $this->createRoleWithPermissions('units-access', '%units%');
 
         $this->createRoleWithPermissions('dine-tables-access', '%dine-tables%');
         $this->createRoleWithPermissions('dine-orders-access', '%dine-orders%');
+        // Whoever manages tables also takes their bookings; the pattern above does not match this name.
+        // A query, not the name: seeding roles without that permission (some tests do) must not throw.
+        Role::findByName('dine-tables-access')->givePermissionTo(Permission::where('name', 'dine-reservations-manage')->get());
 
         $superAdminRole = Role::firstOrCreate(['name' => 'super-admin']);
         $superAdminRole->syncPermissions(Permission::all());

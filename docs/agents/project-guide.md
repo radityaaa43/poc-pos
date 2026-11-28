@@ -8,28 +8,28 @@ WhatsApp service.
 
 ## Quick start
 
-Local development runs in Docker (PHP 8.4 + MySQL 8.4); PHP and MySQL are not needed on the host.
-Vite runs on the host.
+Everything runs on the host (PHP 8.4, MySQL 8.4, Node 22+); the machine setup is in `README.md` →
+Local setup.
 
 ```bash
-cp .env.example .env              # then set DB_HOST=mysql and DB_PASSWORD to MYSQL_ROOT_PASSWORD from docker-compose.yml
-docker compose up -d              # app on http://localhost:8000, queue worker, MySQL on host port 3307
-docker compose exec app composer install
-docker compose exec app php artisan key:generate
-docker compose exec app php artisan migrate --seed
-docker compose exec app php artisan storage:link
+cp .env.example .env              # DB values already match the host MySQL
+composer install                  # once per clone and per worktree
+php artisan key:generate
+php artisan migrate --seed
+php artisan storage:link
 PUPPETEER_SKIP_DOWNLOAD=true npm install
-npm run dev
+php artisan serve                 # app on http://localhost:8000
+php artisan queue:listen          # queue worker, second terminal
+npm run dev                       # Vite, third terminal
 ```
 
-Without Docker: `composer install`, `php artisan migrate --seed`, then `composer run dev` (server,
-queue, logs and Vite together).
+`composer run dev` runs server, queue and Vite together (plus logs where PHP has `pcntl`).
 
 First run redirects to `/setup` to create the admin and store profile; there are no default
 accounts. The optional WhatsApp gateway runs separately: `cd whatsapp-service && npm install && npm start`.
 
 Run focused tests with PHPUnit's `--filter`
-(`docker compose exec -T app php artisan test --filter=TestName`). Frontend tests run with Vitest: `npm test`
+(`php artisan test --filter=TestName`). Frontend tests run with Vitest: `npm test`
 (`npm run test:watch` while editing; tests sit next to the file as `*.test.js(x)`). Lint the frontend
 with `npm run lint` (ESLint 9, `react-hooks` rules; there is no typecheck script). Existing findings are
 baselined in `eslint-suppressions.gen.json`, so only new errors fail; do not fix or edit them in an unrelated PR.
@@ -92,6 +92,7 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 9. **Version bump on release** — update `APP_VERSION` in `.env` + `.env.example` when tagging.
 10. **Concurrency patterns** — all stock mutations (checkout, transfer, receiving, payment) are wrapped in `DB::transaction` with `lockForUpdate()` on affected rows. Never skip the transaction or lock.
 11. **Dine-in online payment is disabled** — `payment_option=pay_online` returns 422. Only `pay_at_counter` and (setting-gated) `pay_later` are accepted.
+12. **Background requests eat flash data** — Laravel ages the flash on every request, so a poll or background fetch can delete the errors a form post is about to show. Give such a route the `keep_flash` middleware. `onSuccess` alone does not prove success (a refusal can redirect with `flash.error`), so checkout toasts only the server's `flash.success`.
 
 ## Release process
 

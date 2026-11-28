@@ -42,6 +42,20 @@ async function orderOne(overrides = {}) {
 const pesan = () => screen.getByText("Pesan — Bayar di Kasir");
 
 describe("DineMenu order feedback", () => {
+    it("sends the order it was opened from (Tambah pesanan) and shows its refusal", async () => {
+        const refusal = "Pesanan asal sudah dibatalkan — buat pesanan baru";
+        window.history.pushState({}, "", "?add_on_to=tok-1");
+        router.post.mockImplementation((url, data, options) => options.onError({ add_on_to: refusal }));
+        const user = await orderOne();
+        await user.click(pesan());
+
+        expect(router.post.mock.calls[0][1].add_on_to).toBe("tok-1");
+        expect(await screen.findByText(refusal)).toBeTruthy();
+        await user.click(pesan());
+        expect(router.post.mock.calls[1][1].add_on_to).toBeUndefined(); // "Buat pesanan baru": a normal order, no rescan
+        window.history.pushState({}, "", "/");
+    });
+
     it("tells the guest when self ordering is off", async () => {
         const user = await orderOne({ selfOrderEnabled: false });
         await user.click(pesan());
@@ -173,5 +187,23 @@ describe("DineMenu online payment (REQ-005)", () => {
             expect.objectContaining({ payment_option: "pay_at_counter" }),
             expect.any(Object)
         );
+    });
+});
+
+describe("DineMenu sold out (REQ-001 AC-04)", () => {
+    it("shows a recipe menu short of ingredients as Habis and cannot add it", async () => {
+        const user = userEvent.setup();
+        render(
+            <DineMenu
+                {...props}
+                products={[{ id: 8, title: "Americano", sell_price: 22000, category_id: null, sold_out: true }]}
+            />
+        );
+
+        expect(screen.getAllByText("Habis").length).toBeGreaterThan(0);
+        const button = screen.getByRole("button", { name: "Habis" });
+        expect(button).toBeDisabled();
+        await user.click(button);
+        expect(router.post).not.toHaveBeenCalled();
     });
 });

@@ -1,5 +1,6 @@
 {
     "common": {
+        "soldOut": "Habis",
         "buttons": {
             "add": "Tambah",
             "edit": "Edit",
@@ -310,7 +311,9 @@
             "units": "Satuan",
             "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp",
-            "modifiers": "Modifier"
+            "modifiers": "Modifier",
+            "dineReservations": "Reservasi",
+            "stockWaste": "Waste"
         },
         "menu": {
             "overview": "Overview",
@@ -524,7 +527,11 @@
         "lateRefund": {
             "badge": "Bayar ganda — refund manual",
             "filter": "Perlu refund",
-            "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual"
+            "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual",
+            "overpaid": "Kelebihan bayar Rp {{amount}} setelah retur — refund manual.",
+            "checkHistory": "Perlu refund manual — cek riwayat pembayaran",
+            "cashOpen": "Kembalikan Rp {{cash}} tunai dari laci — jangan catat kas keluar.",
+            "cashClosed": "Shift sudah ditutup — kembalikan Rp {{cash}} dan catat sebagai kas keluar di shift berjalan."
         },
         "paidAfterClose": {
             "badge": "Dibayar setelah shift ditutup",
@@ -591,13 +598,15 @@
             "title": "Belum selesai",
             "item": "Belum diserahkan",
             "bill": "Belum lunas",
-            "syncFirst": "Sinkronkan transaksi offline dulu"
+            "syncFirst": "Sinkronkan transaksi offline dulu",
+            "split": "Split pembayaran belum lunas — sisa {{amount}}"
         },
         "forced": {
             "submit": "Tutup paksa",
             "note": "Catatan tutup paksa",
             "warning": "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.",
-            "unpaidBooked": "Tagihan belum lunas dibukukan"
+            "unpaidBooked": "Tagihan belum lunas dibukukan",
+            "splitNote": "Split pembayaran yang belum lunas tetap bisa dibayar."
         }
     },
     "stock": {
@@ -1192,6 +1201,12 @@
             "pay": "Bayar",
             "due": "Sisa tagihan"
         },
+        "bill": {
+            "serviceCharge": "Service charge",
+            "taxPpn": "PPN",
+            "taxPb1": "PB1 {{rate}}%",
+            "offlineOrderTypeLocked": "Tipe pesanan tidak bisa diubah saat offline di outlet ini"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
@@ -1243,6 +1258,29 @@
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
+        },
+        "bill": {
+            "title": "Tagihan",
+            "appliesToNew": "Berlaku untuk tagihan berikutnya; tagihan yang sudah dibuat tidak berubah.",
+            "serviceCharge": {
+                "label": "Service charge (%)",
+                "hint": "0 = nonaktif"
+            },
+            "taxKind": {
+                "label": "Jenis pajak",
+                "ppn": "PPN",
+                "ppnHint": "PPN per produk",
+                "pb1": "PB1",
+                "pb1Hint": "Satu tarif untuk seluruh tagihan"
+            },
+            "pb1Rate": {
+                "label": "Tarif PB1 (%)",
+                "hint": "Dipakai saat jenis pajak PB1."
+            },
+            "rounding": {
+                "label": "Pembulatan tunai",
+                "none": "Tanpa"
+            }
         }
     },
     "dineMenu": {
@@ -1267,6 +1305,15 @@
         "renamed": "Nama stasiun diubah",
         "deleted": "Stasiun dihapus",
         "failed": "Stasiun tidak bisa disimpan"
+    },
+    "addOn": {
+        "add": "Tambah pesanan",
+        "banner": "Pesanan tambahan untuk {{invoice}}",
+        "receipt": "Tambahan untuk {{invoice}}",
+        "completed": "Pesanan sebelumnya sudah selesai. Dibuat sebagai pesanan baru.",
+        "cancelled": "Pesanan asal sudah dibatalkan — buat pesanan baru",
+        "offline": "Pesanan tambahan tidak tersedia saat offline",
+        "cancel": "Batal"
     },
     "dine": {
         "pay": {
@@ -1339,5 +1386,84 @@
         "moveUp": "Naikkan {{name}}",
         "moveDown": "Turunkan {{name}}",
         "detach": "Lepas {{name}}"
+    },
+    "dineReservations": {
+        "title": "Reservasi",
+        "add": "Tambah reservasi",
+        "edit": "Ubah",
+        "editTitle": "Ubah reservasi",
+        "date": "Tanggal",
+        "time": "Jam",
+        "guestName": "Nama tamu",
+        "phone": "Nomor HP",
+        "partySize": "Jumlah tamu",
+        "table": "Meja",
+        "chooseTable": "Pilih meja",
+        "removedTable": "Meja sudah dihapus",
+        "note": "Catatan",
+        "status": "Status",
+        "empty": "Belum ada reservasi pada tanggal ini",
+        "statuses": {
+            "booked": "Dicatat",
+            "arrived": "Datang",
+            "cancelled": "Batal",
+            "no_show": "Tidak datang"
+        },
+        "actions": {
+            "arrived": "Datang",
+            "cancelled": "Batal",
+            "no_show": "Tidak datang"
+        },
+        "markTitle": "Tandai reservasi {{name}}: {{status}}?",
+        "markConfirm": "Tanda ini tidak bisa diubah lagi.",
+        "saved": "Reservasi disimpan",
+        "marked": "Status reservasi diubah",
+        "failed": "Reservasi tidak bisa disimpan"
+    },
+    "waste": {
+        "title": "Waste",
+        "subtitle": "Bahan baku dan menu yang dibuang.",
+        "create": "Catat waste",
+        "back": "Kembali ke daftar waste",
+        "status": "Status",
+        "allStatuses": "Semua status",
+        "warehouse": "Gudang",
+        "allWarehouses": "Semua gudang",
+        "reason": "Alasan",
+        "chooseReason": "Pilih alasan",
+        "item": "Item",
+        "itemNumber": "Item {{number}}",
+        "chooseItem": "Pilih bahan baku atau menu",
+        "addItem": "Tambah item",
+        "removeItem": "Hapus item {{number}}",
+        "qty": "Jumlah",
+        "stockLeft": "Stok: {{stock}}",
+        "menuStock": "Stok: — (bahan resep diperiksa saat disimpan)",
+        "noteOptional": "Catatan (opsional)",
+        "note": "Catatan",
+        "total": "Perkiraan nilai waste: {{value}}",
+        "estimateNote": "Dari HPP rata-rata saat ini; nilai akhir dihitung saat disimpan.",
+        "save": "Simpan waste",
+        "empty": "Belum ada catatan waste",
+        "recordedBy": "Dicatat oleh {{name}}",
+        "lines": "Item yang dicatat",
+        "moves": "Stok yang keluar",
+        "unitCost": "HPP satuan",
+        "value": "Nilai",
+        "notTaken": "Stok belum dipotong.",
+        "takenAt": "Stok dipotong {{date}}",
+        "statuses": {
+            "pending": "Menunggu persetujuan",
+            "recorded": "Tercatat",
+            "rejected": "Ditolak",
+            "cancelled": "Dibatalkan"
+        },
+        "reasons": {
+            "expired": "Kedaluwarsa",
+            "damaged": "Rusak",
+            "wrong_made": "Salah buat",
+            "not_collected": "Tidak diambil",
+            "other": "Lainnya"
+        }
     }
 }

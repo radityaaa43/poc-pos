@@ -221,6 +221,8 @@ stateDiagram-v2
 - **Pengaturan:** memakai pengaturan gateway outlet yang sudah ada. Tidak ada pengaturan baru.
 - **Dapur:** mulai setelah lunas, lewat hook yang sudah ada.
 - **Keputusan saat build (Business/PM, 2026-11-28):** bila charge kasir gagal atau kedaluwarsa, pembayaran tamu yang tertandai selama charge itu menunggu diperiksa ulang dan dicatat bila tagihan belum lunas dan jumlahnya cocok (#358 BR-4). Pesanan Bayar Belakangan tidak menampilkan langkah Menunggu Pembayaran di halaman status (#427 BR-5). Coba bayar ulang setelah retur hanya menagih sisa tagihan (#405 BR-5).
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** split, termasuk dine-in, hanya menghitung uang yang benar-benar diterima di penjualan non-tunai (#396 BR-8). Tagihan yang kelebihan bayar menampilkan "Perlu refund manual — cek riwayat pembayaran" dan baris kelebihan; kalimat kembalian tunai dipilih menurut kapan kelebihan ditandai, bukan saat struk dibuka (#444 BR-4..BR-6).
+- **Keputusan saat build (Business/PM, 2026-11-28, malam):** transfer yang dicoba ulang lalu diretur bisa salah ditandai refund; diterima sebagai batasan di #464 dan diperbaiki di #507 lewat kolom **Jumlah diterima** pada konfirmasi transfer, sehingga hanya uang di atas tagihan yang menjadi kelebihan (#507 BR-4).
 
 ## Non-functional requirements
 

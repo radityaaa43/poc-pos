@@ -148,6 +148,9 @@ n/a — tidak ada status baru; aturan ini hanya mengubah cara total dihitung.
 - **Stock:** tidak berubah.
 - **Permissions:** izin pengaturan yang ada; tidak ada izin baru.
 - **Settings:** per outlet: service charge %, jenis pajak dan tarif PB1, pembulatan tunai. Default sama dengan sebelum rilis.
+- **Keputusan saat build (Business/PM, 2026-11-28):** saat offline tipe pesanan tetap bisa dipilih; total dihitung dari pengaturan outlet di cache dan dihitung ulang server saat sync (#450 BR-3). Retur mengembalikan PPN secara proporsional juga untuk penjualan sebelum rilis (#453 BR-2). Dasar PPN di laporan pajak adalah jumlah yang benar-benar dikenai PPN, disimpan per penjualan mulai rilis (#454 BR-2).
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** diskon manual yang ditolak menghitung ulang service charge, pajak, tax_base, dan piutang (#484, dirilis bersama #450). Sampai #418, tipe pesanan tidak bisa diubah saat offline di outlet dengan service charge (#450 BR-5); #418 mencabutnya. Poin loyalty dihitung dari tagihan penuh termasuk service charge dan PB1 (#450 BR-7).
+- **Keputusan saat build (Business/PM, 2026-11-28, malam):** setelah diskon ditolak, uang tunai yang sudah diterima tetap dihitung di recap dan sisanya ditagih lewat **Bayar selisih** (#509); poin loyalty dan total belanja mengikuti total baru (#508). Kembalian di mode split ditampilkan dari bagian tunai (#501).
 
 ## Non-functional requirements
 
