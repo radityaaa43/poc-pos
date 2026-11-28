@@ -245,6 +245,12 @@ class TransactionController extends Controller
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
 
+        $carts = Cart::with('product.category')
+            ->where('cashier_id', $request->user()->id)
+            ->active()
+            ->latest()
+            ->get();
+
         return response()->json([
             'success' => true,
             'data' => $this->checkoutPreviewService->checkout($request->user(), $customer, [
@@ -253,7 +259,7 @@ class TransactionController extends Controller
                 'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
                 'voucher' => $voucher,
                 'order_type' => $validated['order_type'] ?? null,
-            ]),
+            ], $carts),
         ]);
     }
 

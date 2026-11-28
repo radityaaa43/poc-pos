@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Apps\TransactionController as AppsTransactionController;
 use App\Http\Traits\ApiResponder;
+use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\CustomerVoucher;
 use App\Models\Outlet;
@@ -161,13 +162,19 @@ class TransactionController extends AppsTransactionController
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
 
+        $carts = Cart::with('product.category')
+            ->where('cashier_id', $request->user()->id)
+            ->active()
+            ->latest()
+            ->get();
+
         return $this->ok($this->checkoutPreviewService->checkout($request->user(), $customer, [
             'manual_discount' => (int) ($validated['discount'] ?? 0),
             'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
             'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
             'voucher' => $voucher,
             'order_type' => $validated['order_type'] ?? null,
-        ]));
+        ], $carts));
     }
 
     /**

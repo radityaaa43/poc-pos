@@ -21,14 +21,13 @@ class CheckoutPreviewService
 
     /**
      * @param  array<string, mixed>  $options  see LoyaltyService::previewCheckout
-     * @param  Collection<int, Cart>|null  $carts  the cashier's active cart when not given
+     * @param  Collection<int, Cart>  $carts  the cashier's active cart
      */
-    public function checkout(User $user, ?Customer $customer, array $options = [], ?Collection $carts = null): array
+    public function checkout(User $user, ?Customer $customer, array $options, Collection $carts): array
     {
         $shift = $this->cashierShiftService->getActiveShiftForUser($user->id);
         $shift?->loadMissing('warehouse.outlet');
         $outlet = $shift?->warehouse?->outlet;
-        $carts ??= Cart::with('product.category')->where('cashier_id', $user->id)->active()->latest()->get();
 
         return $this->loyaltyService->previewCheckout(
             $this->pricingService->previewCart($carts, $customer, null, $outlet),

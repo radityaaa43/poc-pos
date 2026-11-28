@@ -309,7 +309,7 @@ class BillTotalCheckoutTest extends TestCase
         $this->fillCart();
 
         $summary = app(CheckoutPreviewService::class)
-            ->checkout($this->cashier, null, ['order_type' => 'in_store'])['summary'];
+            ->checkout($this->cashier, null, ['order_type' => 'in_store'], Cart::where('cashier_id', $this->cashier->id)->get())['summary'];
 
         $this->assertSame(0, $summary['service_charge']);
         $this->assertSame(22200, $summary['grand_total']);
