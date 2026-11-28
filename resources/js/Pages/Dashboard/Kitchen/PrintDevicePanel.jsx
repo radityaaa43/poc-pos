@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -25,27 +25,38 @@ export default function PrintDevicePanel({ printDevice, stations = [] }) {
     const [nameError, setNameError] = useState(null);
     const [busy, setBusy] = useState(false);
     // The stations this device serves (#345); none means every station, so a single-station shop is unchanged.
-    const [stationIds, setStationIds] = useState([]);
-    useEffect(() => {
+    // null until the server answers: an unknown list stays disabled so a tick never overwrites the server's.
+    const [stationIds, setStationIds] = useState(null);
+    const [stationsError, setStationsError] = useState(false);
+    const loadStations = useCallback(() => {
         if (!device?.id) return;
+        setStationIds(null);
+        setStationsError(false);
         axios
             .get(route("kitchen.print-devices.show", device.id))
             .then(({ data }) => setStationIds(data.station_ids ?? []))
-            .catch(() => setStationIds([]));
+            .catch((e) => {
+                setStationsError(true);
+                toast.error(e.message);
+            });
     }, [device?.id]);
-    const saveStations = async (ids) => {
+    useEffect(loadStations, [loadStations]);
+    const saveStations = async (ids, previous) => {
         setStationIds(ids);
         try {
             await axios.put(route("kitchen.print-devices.stations", device.id), { station_ids: ids });
         } catch (e) {
+            // Put the earlier ticks back: an unsaved list must not look saved.
+            setStationIds(previous);
             toast.error(e.message);
         }
     };
     const toggleStation = (id) => {
+        if (stationIds === null) return;
         const next = new Set(stationIds);
         if (next.has(id)) next.delete(id);
         else next.add(id);
-        saveStations([...next]);
+        saveStations([...next], stationIds);
     };
 
     const run = async (action) => {
@@ -140,21 +151,31 @@ export default function PrintDevicePanel({ printDevice, stations = [] }) {
             </form>
 
             {device && stations.length > 1 && (
-                <fieldset className="space-y-2">
-                    <legend className={LABEL}>{t("kitchen.print.stations")}</legend>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{t("kitchen.print.stationsHelper")}</p>
-                    {stations.map((station) => (
-                        <label key={station.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                            <input
-                                type="checkbox"
-                                className="h-4 w-4 rounded border-slate-300"
-                                checked={stationIds.includes(Number(station.id))}
-                                onChange={() => toggleStation(Number(station.id))}
-                            />
-                            {station.name}
-                        </label>
-                    ))}
-                </fieldset>
+                <>
+                    <fieldset className="space-y-2" disabled={stationIds === null}>
+                        <legend className={LABEL}>{t("kitchen.print.stations")}</legend>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{t("kitchen.print.stationsHelper")}</p>
+                        {stations.map((station) => (
+                            <label key={station.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                                <input
+                                    type="checkbox"
+                                    className="h-4 w-4 rounded border-slate-300"
+                                    checked={(stationIds ?? []).includes(Number(station.id))}
+                                    onChange={() => toggleStation(Number(station.id))}
+                                />
+                                {station.name}
+                            </label>
+                        ))}
+                    </fieldset>
+                    {stationsError && (
+                        <p role="status" className="flex items-center gap-2 text-sm text-danger-700 dark:text-danger-400">
+                            {t("common.messages.loadFailed")}
+                            <button type="button" onClick={loadStations} className="underline">
+                                {t("common.buttons.retry")}
+                            </button>
+                        </p>
+                    )}
+                </>
             )}
 
             {unsupported && (

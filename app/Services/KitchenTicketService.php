@@ -29,14 +29,17 @@ class KitchenTicketService
     public const CANCEL_GRACE_SECONDS = 30;
 
     /**
-     * Tickets this device has not printed yet, oldest first, one per order. An order is never split across
-     * two polls: the oldest ORDERS_PER_POLL orders come with all their pending items. Prices are never selected.
+     * Tickets this device has not printed yet, oldest first, one per order (one per station in a split shop). An
+     * order is never split across two polls: the oldest ORDERS_PER_POLL orders come with all their pending items.
+     * Prices are never selected.
      */
     public function pending(KitchenPrintDevice $device): Collection
     {
-        // The stations this device serves (#345). None: every station, one ticket per order, as before.
-        $served = $device->stations()->pluck('kitchen_stations.id')->all();
-        $defaultId = $served === [] ? null : KitchenStation::defaultId();
+        // The stations this device serves (#345). None: every station. Chosen stations all deleted: Dapur only.
+        $served = $this->servedStationIds($device);
+        // A split shop prints one titled ticket per station; a one-station shop keeps one untitled ticket per order.
+        $multi = KitchenStation::count() > 1;
+        $defaultId = ($multi || $served !== []) ? KitchenStation::defaultId() : null;
         $includesDefault = $served !== [] && in_array($defaultId, $served, true);
 
         $unprinted = fn (): Builder => KitchenItem::open()
@@ -76,13 +79,14 @@ class KitchenTicketService
 
         $orders = KitchenOrders::fromItems($items);
 
-        if ($served === []) {
+        if (! $multi) {
             return $orders->map(fn (array $order) => $this->ticket($order, 't'.$order['id']));
         }
 
         // One ticket per (order, station), titled with the station name. A null or deleted station is Dapur.
-        $liveStations = KitchenStation::pluck('id')->all();
-        $effective = fn ($stationId) => $stationId !== null && in_array($stationId, $liveStations, true) ? $stationId : $defaultId;
+        // An all-stations device gets the same split, one titled ticket per station.
+        $liveStations = KitchenStation::pluck('id')->map(fn ($id) => (int) $id)->all();
+        $effective = fn ($stationId) => $stationId !== null && in_array((int) $stationId, $liveStations, true) ? $stationId : $defaultId;
 
         return $orders->flatMap(function (array $order) use ($effective, $defaultId) {
             $groups = $order['items']->groupBy(fn (array $item) => $effective($item['station_id']));
@@ -96,6 +100,25 @@ class KitchenTicketService
                 return $this->ticket($order, $key, $stationItems, $title);
             })->values();
         })->values();
+    }
+
+    /**
+     * The live stations this device serves (#345). No station chosen: every station. Every chosen station deleted:
+     * Dapur only, so a device never falls back to printing every station's items.
+     *
+     * @return array<int, int>
+     */
+    public function servedStationIds(KitchenPrintDevice $device): array
+    {
+        $chosen = $device->stations()->withTrashed()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all();
+
+        if ($chosen === []) {
+            return [];
+        }
+
+        $live = KitchenStation::whereIn('id', $chosen)->pluck('id')->map(fn ($id) => (int) $id)->all();
+
+        return $live === [] ? [KitchenStation::defaultId()] : $live;
     }
 
     /**
@@ -155,10 +178,11 @@ class KitchenTicketService
     }
 
     /**
-     * DIBATALKAN tickets this device has not printed yet, oldest first, one per (return, order). Only an item whose original
-     * this device printed (BR-4), within CANCEL_WINDOW_HOURS, and not cancelled before that print by more than the grace
-     * (the original then already carried the lowered qty). The grace is compared in PHP: SQLite and MySQL differ in date
-     * arithmetic and the tests run on SQLite. The quantity is what the return cancelled. Prices are never selected.
+     * DIBATALKAN tickets this device has not printed yet, oldest first, one per (return, order, station) — a split
+     * shop titles each ticket like a normal one. Only an item whose original this device printed (BR-4), within
+     * CANCEL_WINDOW_HOURS, and not cancelled before that print by more than the grace (the original then already
+     * carried the lowered qty). The grace is compared in PHP: SQLite and MySQL differ in date arithmetic and the
+     * tests run on SQLite. The quantity is what the return cancelled. Prices are never selected.
      */
     public function pendingCancellations(KitchenPrintDevice $device): Collection
     {
@@ -178,30 +202,49 @@ class KitchenTicketService
             return collect();
         }
 
+        // A split shop groups a return's cancellations per station and titles each ticket, like a normal ticket.
+        $multi = KitchenStation::count() > 1;
+        $defaultId = $multi ? KitchenStation::defaultId() : null;
+        $liveStations = $multi ? KitchenStation::pluck('id')->map(fn ($id) => (int) $id)->all() : [];
+        $effective = fn ($stationId) => $stationId !== null && in_array((int) $stationId, $liveStations, true) ? $stationId : $defaultId;
+
         $printedAt = $printedHere->whereIn('kitchen_item_id', $events->pluck('kitchen_item_id'))->pluck('printed_at', 'kitchen_item_id');
 
         $tickets = $events
             ->filter(fn (KitchenCancellation $event) => ($print = $printedAt->get($event->kitchen_item_id))
                 && $event->created_at->gte($print->copy()->subSeconds(self::CANCEL_GRACE_SECONDS)))
-            ->groupBy(fn (KitchenCancellation $event) => 'c'.$event->sales_return_id.'t'.$event->item->transaction_id)
+            ->groupBy(fn (KitchenCancellation $event) => 'c'.$event->sales_return_id.'t'.$event->item->transaction_id
+                .($multi ? 's'.$effective($event->item->kitchen_station_id) : ''))
             ->take(self::ORDERS_PER_POLL);
 
         // The same presenter as the display card and the print ticket, so all three show the same number.
         $orders = KitchenOrders::fromItems($tickets->flatMap(fn ($group) => $group->pluck('item'))->unique('id'))->keyBy('id');
         $lines = $orders->flatMap(fn (array $order) => $order['items'])->keyBy('id');
 
-        return $tickets->map(fn ($group, $key) => [
-            'key' => $key,
-            ...Arr::only($orders[$group->first()->item->transaction_id], ['number', 'type', 'unpaid']),
-            'since' => $group->first()->created_at->toIso8601String(),
-            'cancellation_ids' => $group->pluck('id')->all(),
-            'items' => $group->map(fn (KitchenCancellation $event) => [
-                'id' => $event->id,
-                'title' => $lines[$event->kitchen_item_id]['title'],
-                'qty' => $event->qty_cancelled,
-                'note' => $lines[$event->kitchen_item_id]['note'],
-            ])->values()->all(),
-        ])->values();
+        return $tickets->map(function ($group, $key) use ($orders, $lines, $multi, $effective, $defaultId) {
+            $first = $group->first();
+            $ticket = [
+                'key' => $key,
+                ...Arr::only($orders[$first->item->transaction_id], ['number', 'type', 'unpaid']),
+                'since' => $first->created_at->toIso8601String(),
+                'cancellation_ids' => $group->pluck('id')->all(),
+                'items' => $group->map(fn (KitchenCancellation $event) => [
+                    'id' => $event->id,
+                    'title' => $lines[$event->kitchen_item_id]['title'],
+                    'qty' => $event->qty_cancelled,
+                    'note' => $lines[$event->kitchen_item_id]['note'],
+                ])->values()->all(),
+            ];
+
+            if ($multi) {
+                $stationId = $effective($first->item->kitchen_station_id);
+                $ticket['station'] = (int) $stationId === (int) $defaultId
+                    ? KitchenStation::DEFAULT_NAME
+                    : $first->item->kitchenStation?->name;
+            }
+
+            return $ticket;
+        })->values();
     }
 
     /**

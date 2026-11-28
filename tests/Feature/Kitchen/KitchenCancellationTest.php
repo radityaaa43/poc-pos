@@ -230,6 +230,35 @@ class KitchenCancellationTest extends TestCase
         $this->assertSame([], $this->cancellations($dapurDevice));
     }
 
+    // AC-07 / BR-4 (#345): a return spanning two stations prints one DIBATALKAN ticket per station, each titled.
+    public function test_a_two_station_return_prints_one_titled_ticket_per_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+
+        [$sale, $barDetail, $barItem] = $this->sale();
+        $barItem->update(['kitchen_station_id' => $bar->id]);
+        $dapurDetail = $this->line($sale);
+        $dapurItem = $this->kitchenItem($sale, $dapurDetail);
+        $dapurItem->update(['kitchen_station_id' => $dapur]);
+
+        // One device serves both stations and printed both originals.
+        $device = $this->device('Semua');
+        $device->stations()->sync([$bar->id, $dapur]);
+        $this->printed($barItem, $device);
+        $this->printed($dapurItem, $device);
+
+        $return = $this->draft($sale, [[$barDetail, 1], [$dapurDetail, 1]]);
+        $this->completeReturn($return);
+
+        $tickets = collect($this->cancellations($device))->keyBy('station');
+
+        $this->assertCount(2, $tickets);
+        $this->assertSame([$barDetail->product->title], array_column($tickets['Bar']['items'], 'title'));
+        $this->assertSame([$dapurDetail->product->title], array_column($tickets['Dapur']['items'], 'title'));
+        $this->assertSame('c'.$return->id.'t'.$sale->id.'s'.$bar->id, $tickets['Bar']['key']);
+    }
+
     // BR-1 / J3.2: several lines of one return, only the printed ones
     public function test_several_lines_of_one_return_form_one_ticket_and_only_printed_lines_appear(): void
     {

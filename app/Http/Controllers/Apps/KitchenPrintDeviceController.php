@@ -44,7 +44,7 @@ class KitchenPrintDeviceController extends Controller
         return response()->json([
             'id' => $device->id,
             'name' => $device->name,
-            'station_ids' => $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all(),
+            'station_ids' => $this->ticketService->servedStationIds($device),
         ]);
     }
 

@@ -300,6 +300,19 @@ describe("useKitchenPrintDevice: reprint (REQ-004 K2)", () => {
         expect(unconfirmedCancellations()).toEqual([]);
     });
 
+    it("titles a station reprint with the station name (#345)", async () => {
+        await i18n.changeLanguage("id");
+        const { result } = mount();
+
+        await act(() => result.current.reprint({ ...order, station: "Bar" }));
+
+        expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
+            expect.objectContaining({ station: "Bar", reprint: true }),
+            "80mm",
+            expect.any(Object)
+        );
+    });
+
     it("can be repeated: every tap prints, under its own key", async () => {
         const { result } = mount();
 

@@ -89,6 +89,7 @@ const reprintTicket = (order, key) => ({
     ...(order.kind ? { kind: order.kind } : {}),
     unpaid: order.unpaid,
     since: order.since,
+    ...(order.station ? { station: order.station } : {}),
     reprint: true,
     items: order.items.filter((item) => item.status !== "cancelled").map(({ title, qty, note }) => ({ title, qty, note })),
 });
