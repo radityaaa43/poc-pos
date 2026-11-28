@@ -28,10 +28,13 @@ class CheckoutService
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
         private readonly KitchenIntakeService $kitchenIntake,
+        private readonly CustomerCreditService $customerCredit,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
+        // attempts: two sales to one customer can deadlock on the customer row (the sale's foreign key shares it, then
+        // loyalty and the credit check lock it). The closure only writes to the database, so MySQL's victim runs again.
         return DB::transaction(function () use ($ctx) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,
@@ -142,6 +145,10 @@ class CheckoutService
 
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
+                // Locks the customer until commit, so two cashiers cannot both fit under one limit (REQ-007 BR-3).
+                // A refusal rolls the whole sale back. After the stock locks, as the loyalty update above is.
+                $this->customerCredit->guard($ctx->customer->id, $grandTotal);
+
                 Receivable::create([
                     'customer_id' => $ctx->customer->id,
                     'transaction_id' => $transaction->id,
@@ -166,7 +173,7 @@ class CheckoutService
                 paymentStatus: $paymentStatus,
                 tenderBankAccountId: $tenderBankAccountId,
             );
-        });
+        }, attempts: 3);
     }
 
     private function processCartItems(

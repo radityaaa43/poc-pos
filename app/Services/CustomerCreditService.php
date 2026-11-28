@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Exceptions\CreditRefusedException;
 use App\Models\Customer;
 use App\Models\Receivable;
 use App\Support\Credit\CreditStanding;
+use Illuminate\Support\Facades\Log;
 
 /**
  * A customer's credit limit against what they still owe across all outlets. Computed on read, never stored.
@@ -24,6 +26,31 @@ class CustomerCreditService
     public function lockedStanding(int $customerId): CreditStanding
     {
         return $this->read(Customer::whereKey($customerId)->lockForUpdate()->firstOrFail(), locked: true);
+    }
+
+    /**
+     * Refuses a credit sale of `$total` over the limit, then one made while a receivable is overdue. A customer
+     * without a limit is never refused. Call inside the DB::transaction that creates the receivable.
+     *
+     * @throws CreditRefusedException
+     */
+    public function guard(int $customerId, int $total): void
+    {
+        $standing = $this->lockedStanding($customerId);
+
+        $refusal = match (true) {
+            $standing->limit === null => null,
+            $standing->used + $total > $standing->limit => CreditRefusedException::limitExceeded($standing->remaining()),
+            $standing->hasOverdue => CreditRefusedException::overdue($standing->remaining()),
+            default => null,
+        };
+
+        if ($refusal) {
+            // Ids and amounts only: no customer name in the log.
+            Log::info('credit.refused', ['customer_id' => $customerId, 'code' => $refusal->reason, 'total' => $total, 'remaining' => $refusal->remaining]);
+
+            throw $refusal;
+        }
     }
 
     private function read(Customer $customer, bool $locked = false): CreditStanding
