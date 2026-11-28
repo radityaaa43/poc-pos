@@ -83,12 +83,13 @@ class ReturnBillShareService
     }
 
     /**
-     * The sale's tax without the PPN charged on shipping: shipping is not a line, so a return never refunds its tax.
-     * PB1 never taxes shipping, so it is 0 there.
+     * The PPN the sale added on top of its lines, without the part charged on shipping: shipping is not a line, so a
+     * return never refunds its tax. A tax-inclusive price already holds its PPN, which the item refund carries inside
+     * the price; refunding `tax_included` again would give it back twice (#576). PB1 never taxes shipping.
      */
     private function refundableTax(Transaction $sale): int
     {
-        return max(0, max(0, (int) $sale->tax_total) - $this->shippingTax($sale));
+        return max(0, max(0, (int) $sale->tax_total - (int) $sale->tax_included) - $this->shippingTax($sale));
     }
 
     /** PPN on shipping, or 0 when no tax was charged or PB1 never taxes shipping. */

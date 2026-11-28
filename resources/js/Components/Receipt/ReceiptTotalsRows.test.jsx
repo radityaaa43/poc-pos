@@ -56,4 +56,13 @@ describe("receipts of a sale with a service charge", () => {
         expect(value("PPN 11%")).toHaveTextContent("+ Rp2200");
         expect(container).not.toHaveTextContent(/Service charge|Ongkos Kirim/);
     });
+
+    it("an inclusive sale shows its PPN on its own line, never added again (#576)", () => {
+        const inclusive = { ...sale, service_charge: 0, tax_total: 16500, tax_included: 16500, tax_rate: "11.00", grand_total: 166500 };
+        const { container } = render(<ReceiptTotalsRows transaction={inclusive} format={(amount) => `Rp${amount}`} />);
+
+        expect(value("Termasuk PPN 11%")).toHaveTextContent("Rp16500");
+        expect(container).not.toHaveTextContent(/\+ Rp16500/);
+        expect(screen.queryByText("PPN 11%")).not.toBeInTheDocument();
+    });
 });

@@ -1,7 +1,7 @@
 import React from "react";
 import { Head } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
-import { billSubtotal, taxLabel } from "@/Utils/billTotals";
+import { addedTax, billSubtotal, includedTax, includedTaxLabel, taxLabel } from "@/Utils/billTotals";
 import GuestLayout from "@/Layouts/GuestLayout";
 
 const formatPrice = (v = 0) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
@@ -47,7 +47,8 @@ export default function TransactionDetail({ transaction, token, error }) {
                             <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{formatPrice(billSubtotal(transaction))}</span></div>
                             {transaction.discount > 0 && <div className="flex justify-between text-slate-500"><span>Diskon</span><span>-{formatPrice(transaction.discount)}</span></div>}
                             {transaction.service_charge > 0 && <div className="flex justify-between text-slate-500"><span>{t("pos.bill.serviceCharge")}</span><span>{formatPrice(transaction.service_charge)}</span></div>}
-                            {transaction.tax_total > 0 && <div className="flex justify-between text-slate-500"><span>{taxLabel(transaction, t)}</span><span>{formatPrice(transaction.tax_total)}</span></div>}
+                            {addedTax(transaction) > 0 && <div className="flex justify-between text-slate-500"><span>{taxLabel(transaction, t)}</span><span>{formatPrice(addedTax(transaction))}</span></div>}
+                            {includedTax(transaction) > 0 && <div className="flex justify-between text-slate-500"><span>{includedTaxLabel(transaction, t)}</span><span>{formatPrice(includedTax(transaction))}</span></div>}
                             {transaction.shipping_cost > 0 && <div className="flex justify-between text-slate-500"><span>Ongkir</span><span>{formatPrice(transaction.shipping_cost)}</span></div>}
                             <div className="flex justify-between font-bold text-lg pt-2 border-t border-slate-200">
                                 <span>Total</span>

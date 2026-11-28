@@ -30,7 +30,7 @@ const lines = (data, paper) =>
 
 describe("buildReceiptBytes", () => {
     it("prints the service charge and the tax label the caller translated", () => {
-        const text = render(baseData({ service_charge: 1000, service_charge_label: "Service charge", tax_total: 2100, tax_label: "PB1 10%" }));
+        const text = render(baseData({ service_charge: 1000, service_charge_label: "Service charge", tax_added: 2100, tax_label: "PB1 10%" }));
 
         expect(text).toMatch(/Service charge +1000/);
         expect(text).toMatch(/PB1 10% +2100/);
@@ -38,10 +38,24 @@ describe("buildReceiptBytes", () => {
     });
 
     it("keeps a sale without a service charge or a tax label as it was", () => {
-        const text = render(baseData({ service_charge: 0, tax_total: 2200 }));
+        const text = render(baseData({ service_charge: 0, tax_added: 2200 }));
 
         expect(text).toMatch(/PPN +2200/);
         expect(text).not.toContain("Service charge");
+    });
+
+    it("prints the PPN already inside the prices on its own line, never added again (#576)", () => {
+        const text = render(baseData({ tax_included: 16500, tax_included_label: "Termasuk PPN 11%" }));
+
+        expect(text).toMatch(/Termasuk PPN 11% +16500/);
+        expect(text).not.toMatch(/PPN +16500\n/);
+    });
+
+    it("prints both parts when a bill mixes inclusive and exclusive lines (#576)", () => {
+        const text = render(baseData({ tax_added: 2200, tax_label: "PPN", tax_included: 11000, tax_included_label: "Termasuk PPN 11%" }));
+
+        expect(text).toMatch(/PPN +2200/);
+        expect(text).toMatch(/Termasuk PPN 11% +11000/);
     });
 
     it("prints what a returned sale still owes, and nothing extra otherwise", () => {
@@ -104,14 +118,14 @@ describe("buildReceiptBytes", () => {
 
     it("shows Diskon, PPN, Ongkir and Kembali only when greater than zero", () => {
         const none = render(
-            baseData({ discount_total: 0, tax_total: 0, shipping_cost: 0, change: 0 })
+            baseData({ discount_total: 0, tax_added: 0, tax_included: 0, shipping_cost: 0, change: 0 })
         );
         for (const label of ["Diskon", "PPN", "Ongkir", "Kembali"]) {
             expect(none).not.toContain(label);
         }
 
         const all = render(
-            baseData({ discount_total: 10, tax_total: 20, shipping_cost: 30, change: 40 })
+            baseData({ discount_total: 10, tax_added: 20, shipping_cost: 30, change: 40 })
         );
         for (const label of ["Diskon", "PPN", "Ongkir", "Kembali"]) {
             expect(all).toContain(label);

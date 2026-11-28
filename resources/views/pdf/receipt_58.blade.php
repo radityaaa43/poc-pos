@@ -81,11 +81,12 @@
         $promoDiscount = $transaction->details->sum('discount_total');
         $voucherDiscount = $transaction->customer_voucher_discount ?? 0;
         $loyaltyDiscount = $transaction->loyalty_discount_total ?? 0;
-        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0) + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
+        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - (($transaction->tax_total ?? 0) - ($transaction->tax_included ?? 0)) - ($transaction->service_charge ?? 0) + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
         $discount = $transaction->discount ?? 0;
         $total = $transaction->grand_total ?? 0;
         $shipping = $transaction->shipping_cost ?? 0;
-        $taxTotal = $transaction->tax_total ?? 0;
+        $taxTotal = ($transaction->tax_total ?? 0) - ($transaction->tax_included ?? 0);
+        $taxIncluded = $transaction->tax_included ?? 0;
         $taxRate = $transaction->tax_rate ?? 0;
         $cash = $transaction->cash ?? 0;
         $change = $transaction->change ?? 0;
@@ -137,6 +138,12 @@
             <div style="display:flex; justify-content:space-between;">
                 <span>{{ $transaction->pb1Label() ?? 'PPN '.number_format($taxRate, 0).'%' }}</span>
                 <span>{{ $formatPrice($taxTotal) }}</span>
+            </div>
+        @endif
+        @if($taxIncluded > 0)
+            <div style="display:flex; justify-content:space-between;">
+                <span>{{ __('pdf/labels.receipt.tax_included', ['rate' => rtrim(rtrim(number_format($taxRate, 2, ',', ''), '0'), ',')]) }}</span>
+                <span>{{ $formatPrice($taxIncluded) }}</span>
             </div>
         @endif
         <div style="display:flex; justify-content:space-between; font-weight:700; font-size:12px;">

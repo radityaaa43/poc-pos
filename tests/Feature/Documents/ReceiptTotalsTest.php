@@ -71,6 +71,26 @@ class ReceiptTotalsTest extends TestCase
         $this->assertSame([20000, 0, 0, 1000, 'PB1', 2100, 23100], array_slice($row, 6));
     }
 
+    // #576: an inclusive price holds its PPN; documents show it apart and never add it to the subtotal.
+    public function test_inclusive_sale_shows_its_ppn_apart(): void
+    {
+        // A 20.000 inclusive line at 11 %: 1.982 of PPN inside the price, nothing added.
+        $sale = $this->sale([
+            'tax_kind' => 'ppn', 'tax_rate' => 11, 'tax_total' => 1982, 'tax_included' => 1982,
+            'tax_base' => 18018, 'grand_total' => 20000,
+        ]);
+
+        foreach ($this->documents($sale) as $name => $text) {
+            $this->assertMatchesRegularExpression('/Subtotal (Rp )?20\.000/', $text, $name);
+            $this->assertMatchesRegularExpression('/Termasuk PPN 11%( Rp )?1\.982/', $text, $name);
+            // The PPN is never added a second time.
+            $this->assertDoesNotMatchRegularExpression('/\+ ?(Rp )?1\.982/', $text, $name);
+        }
+
+        $row = (new TransactionsExport(new Request))->map($sale);
+        $this->assertSame([20000, 0, 0, 0, 'PPN', 1982, 20000], array_slice($row, 6));
+    }
+
     public function test_old_sale_renders_as_before(): void
     {
         // A sale made before release: no tax kind and no service charge.

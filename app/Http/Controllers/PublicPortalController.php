@@ -29,6 +29,7 @@ class PublicPortalController extends Controller
                 'discount' => (int) $transaction->discount,
                 'shipping_cost' => (int) $transaction->shipping_cost,
                 'tax_total' => (int) $transaction->tax_total,
+                'tax_included' => (int) $transaction->tax_included,
                 'tax_rate' => (float) $transaction->tax_rate,
                 'tax_kind' => $transaction->tax_kind,
                 'service_charge' => (int) $transaction->service_charge,

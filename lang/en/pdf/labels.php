@@ -87,6 +87,8 @@ return [
         'before_tax' => 'Before Tax',
         'tax_rate' => 'TAX :rate%',
         'service_charge' => 'Service charge',
+        'tax_included' => 'Includes :rate% PPN',
+        'tax_included_no_rate' => 'Includes PPN',
         'pb1_rate' => 'PB1 :rate%',
         'grand_total' => 'TOTAL',
         'amount_due' => 'AMOUNT DUE',

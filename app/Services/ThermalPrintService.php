@@ -49,7 +49,9 @@ class ThermalPrintService
         }
 
         $lines[] = $this->line($maxWidth);
-        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0);
+        // Only the PPN added on top stands in the total; the included part is already in the line prices (#576).
+        $addedTax = (int) ($transaction->tax_total ?? 0) - (int) ($transaction->tax_included ?? 0);
+        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - $addedTax - ($transaction->service_charge ?? 0);
         $lines[] = $this->leftRight('Subtotal', number_format($subtotal, 0, ',', '.'), $maxWidth);
         if (($transaction->discount ?? 0) > 0) {
             $lines[] = $this->leftRight('Diskon', '-'.number_format((int) $transaction->discount, 0, ',', '.'), $maxWidth);
@@ -57,8 +59,11 @@ class ThermalPrintService
         if ($transaction->service_charge > 0) {
             $lines[] = $this->leftRight(__('pdf/labels.receipt.service_charge'), number_format($transaction->service_charge, 0, ',', '.'), $maxWidth);
         }
-        if (($transaction->tax_total ?? 0) > 0) {
-            $lines[] = $this->leftRight($transaction->pb1Label() ?? 'PPN', number_format((int) $transaction->tax_total, 0, ',', '.'), $maxWidth);
+        if ($addedTax > 0) {
+            $lines[] = $this->leftRight($transaction->pb1Label() ?? 'PPN', number_format($addedTax, 0, ',', '.'), $maxWidth);
+        }
+        if (($includedTax = (int) ($transaction->tax_included ?? 0)) > 0) {
+            $lines[] = $this->leftRight($this->includedTaxLabel($transaction), number_format($includedTax, 0, ',', '.'), $maxWidth);
         }
         if (($transaction->shipping_cost ?? 0) > 0) {
             $lines[] = $this->leftRight('Ongkir', number_format((int) $transaction->shipping_cost, 0, ',', '.'), $maxWidth);
@@ -236,5 +241,15 @@ class ThermalPrintService
     private function line(int $width): string
     {
         return str_repeat('-', $width);
+    }
+
+    /** "Termasuk PPN 11%" for the PPN already inside the prices; without a rate when the sale stored none (#576). */
+    private function includedTaxLabel(Transaction $transaction): string
+    {
+        $rate = (float) ($transaction->tax_rate ?? 0);
+
+        return $rate > 0
+            ? 'Termasuk PPN '.rtrim(rtrim(number_format($rate, 2, ',', ''), '0'), ',').'%'
+            : 'Termasuk PPN';
     }
 }
