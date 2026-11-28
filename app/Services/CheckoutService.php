@@ -83,8 +83,6 @@ class CheckoutService
             $appliedManualDiscount = (int) data_get($checkoutPreview, 'summary.manual_discount_total', 0);
             $loyaltyDiscount = (int) data_get($checkoutPreview, 'summary.loyalty_discount_total', 0);
             $voucherDiscount = (int) data_get($checkoutPreview, 'summary.voucher_discount_total', 0);
-            // Every bill-level discount, so the profit ledger nets all of them (#570 BR-2); promotions are in the line price.
-            $billDiscount = $appliedManualDiscount + $loyaltyDiscount + $voucherDiscount;
 
             if ($ctx->isCashPayment && $ctx->cashAmount < $grandTotal) {
                 throw ValidationException::withMessages([
@@ -151,7 +149,7 @@ class CheckoutService
                 $this->addOnOrderService->record($transaction);
             }
 
-            $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $billDiscount, $activeShift->warehouse_id, $ctx->userId);
+            $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $activeShift->warehouse_id, $ctx->userId);
 
             // The sale is created already paid, before its lines exist, so the Transaction `updated` hook never sees it.
             // Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
@@ -205,7 +203,6 @@ class CheckoutService
         $carts,
         array $pricingPreview,
         $outlet,
-        int $billDiscount,
         ?int $warehouseId,
         int $userId,
     ): void {
@@ -252,7 +249,7 @@ class CheckoutService
             $profitLines[] = [
                 'price' => $lineTotal,
                 'cost_total' => $costTotal,
-                'included_ppn' => $this->profitLedger->includedPpn($product, $lineTotal, $outlet),
+                'included_ppn' => $this->profitLedger->includedPpn($product, $lineTotal, $outlet, $transaction->tax_kind),
             ];
 
             if ($product->is_composite) {

@@ -21,6 +21,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
 
@@ -101,29 +102,40 @@ class ProfitNetOfDiscountsTest extends TestCase
         $this->assertSame(19000, $this->profit($sale));
     }
 
-    // BR-2: all three bill-level discounts come off once, in order and clamped by the loyalty preview.
-    public function test_voucher_points_and_manual_come_off_together(): void
+    // BR-2: all three bill-level discounts come off once, in order and clamped by the loyalty preview; the payment
+    // method (cash, pay later) does not change the rows.
+    #[DataProvider('paymentMethods')]
+    public function test_voucher_points_and_manual_come_off_together(string $method): void
     {
+        Setting::setForOutlet('pay_later_enabled', '1', $this->outlet);
         $product = $this->product(60000, 40000);
         $customer = $this->member(20);
         $voucher = $this->voucher($customer, CustomerVoucher::TYPE_FIXED_AMOUNT, 10000);
 
         $this->cart($product, 1);
 
+        $payment = $method === 'pay_later' ? ['pay_later' => true, 'cash' => 0] : ['cash' => 60000];
+
         $this->checkout([
             'customer_id' => $customer->id,
             'customer_voucher_id' => $voucher->id,
             'redeem_points' => 10,
             'discount' => 5000,
-            'cash' => 60000,
-        ])->assertSessionHasNoErrors();
+        ] + $payment)->assertSessionHasNoErrors();
 
         $sale = Transaction::sole();
         $this->assertSame([5000, 1000, 10000], [
             (int) $sale->discount, (int) $sale->loyalty_discount_total, (int) $sale->customer_voucher_discount,
         ]);
+        $this->assertSame($method === 'pay_later' ? 'unpaid' : 'paid', $sale->payment_status);
         // 60.000 − 16.000 discounts − 40.000 HPP
         $this->assertSame(4000, $this->profit($sale));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function paymentMethods(): array
+    {
+        return ['cash' => ['cash'], 'pay later' => ['pay_later']];
     }
 
     // BR-2: a promotion is already in the line price; it is never subtracted a second time.
@@ -296,26 +308,56 @@ class ProfitNetOfDiscountsTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page->where('summary.profit_total', 40000));
     }
 
-    // BR-5 / TC-12: a PPN-inclusive line records profit on its price without the PPN; exclusive is unchanged.
-    public function test_inclusive_ppn_line_records_profit_without_its_ppn(): void
+    // BR-5 / TC-12: PPN-inclusive lines record profit on their price without the PPN, and the shares add up to the
+    // sale's tax; an exclusive line keeps its whole price as revenue; a PB1 outlet ignores the product's PPN.
+    public function test_inclusive_ppn_lines_record_profit_without_their_ppn(): void
     {
-        $inclusive = $this->product(111000, 40000);
-        $inclusive->update(['tax_type' => 'inclusive', 'tax_rate' => 11]);
+        $first = $this->product(111000, 40000);
+        $first->update(['tax_type' => 'inclusive', 'tax_rate' => 11]);
+        $second = $this->product(55500, 20000);
+        $second->update(['tax_type' => 'inclusive', 'tax_rate' => 11]);
 
-        $this->cart($inclusive, 1);
-        $this->checkout(['cash' => 200000])->assertSessionHasNoErrors();
+        $this->cart($first, 1);
+        $this->cart($second, 1);
+        $this->checkout(['cash' => 300000])->assertSessionHasNoErrors();
 
         $sale = Transaction::sole();
-        // 111.000 − 11.000 PPN inside the price − 40.000 HPP
-        $this->assertSame(60000, $this->profit($sale));
+        // 100.000 + 50.000 − 60.000 HPP
+        $this->assertSame(90000, $this->profit($sale));
+        // What the sale taxes is exactly the PPN the two prices carry: 11.000 + 5.500.
+        $this->assertSame(16500, (int) $sale->tax_total);
+        $this->assertSame(
+            16500,
+            (int) $sale->details()->sum('price') - $this->profit($sale) - (int) $sale->details()->sum('cost_total'),
+        );
+    }
 
+    public function test_an_exclusive_line_keeps_its_whole_price_as_revenue(): void
+    {
         $exclusive = $this->product(111000, 40000);
         $exclusive->update(['tax_type' => 'exclusive', 'tax_rate' => 11]);
+
         $this->cart($exclusive, 1);
         $this->checkout(['cash' => 200000])->assertSessionHasNoErrors();
 
         // The exclusive PPN is added on top, so the whole price is revenue: unchanged from today.
-        $this->assertSame(71000, $this->profit(Transaction::latest('id')->firstOrFail()));
+        $this->assertSame(71000, $this->profit(Transaction::sole()));
+    }
+
+    public function test_a_pb1_outlet_takes_no_ppn_off_a_line(): void
+    {
+        Setting::setForOutlet('tax_kind', 'pb1', $this->outlet);
+        Setting::setForOutlet('pb1_rate', '10', $this->outlet);
+        $product = $this->product(111000, 40000);
+        $product->update(['tax_type' => 'inclusive', 'tax_rate' => 11]);
+
+        $this->cart($product, 1);
+        $this->checkout(['cash' => 300000])->assertSessionHasNoErrors();
+
+        $sale = Transaction::sole();
+        // A PB1 outlet ignores the product's PPN and adds PB1 on top; the whole price stays revenue.
+        $this->assertSame('pb1', $sale->tax_kind);
+        $this->assertSame(71000, $this->profit($sale));
     }
 
     // BR-6 / TC-13: denying a manual discount rebuilds the rows from the restored bill; approving keeps them.

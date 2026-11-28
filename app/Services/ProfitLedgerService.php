@@ -24,10 +24,13 @@ class ProfitLedgerService
             + (int) $transaction->customer_voucher_discount;
     }
 
-    /** The PPN a line's price already includes; 0 for an exclusive or untaxed line (#570 BR-5). */
-    public function includedPpn(?Product $product, int $price, ?Outlet $outlet): int
+    /**
+     * The PPN a line's price already includes; 0 for an exclusive or untaxed line, and 0 at a PB1 outlet,
+     * whose bill ignores the product's PPN and takes PB1 on top instead (#570 BR-5).
+     */
+    public function includedPpn(?Product $product, int $price, ?Outlet $outlet, ?string $taxKind = null): int
     {
-        if (! $product || $product->tax_type !== 'inclusive' || $price <= 0) {
+        if (! $product || $product->tax_type !== 'inclusive' || $price <= 0 || $taxKind === 'pb1') {
             return 0;
         }
 
@@ -80,7 +83,7 @@ class ProfitLedgerService
             ->map(fn ($detail) => [
                 'price' => (int) $detail->price,
                 'cost_total' => (int) $detail->cost_total,
-                'included_ppn' => $this->includedPpn($detail->product, (int) $detail->price, $outlet),
+                'included_ppn' => $this->includedPpn($detail->product, (int) $detail->price, $outlet, $transaction->tax_kind),
             ])->all();
 
         $this->writeRows($transaction, $lines);
