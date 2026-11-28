@@ -634,6 +634,32 @@ class PaymentWebhookLockTest extends TestCase
     }
 
     #[DataProvider('gateways')]
+    public function test_paid_after_close_stores_the_late_amount(string $gateway): void
+    {
+        [, $bill] = $this->guestBill($gateway);
+        $this->closeShiftOf($bill);
+        $this->notify($gateway, "{$bill->invoice}-r1", 'paid')->assertOk();
+        $bill->refresh();
+        // Midtrans sends the gross as a string ("25000.00"): the money column takes the number, not the text.
+        $this->assertSame(self::TOTAL, $bill->paid_after_close_amount);
+    }
+
+    public function test_a_webhook_without_an_amount_leaves_the_amount_null(): void
+    {
+        [, $bill] = $this->guestBill('xendit');
+        $this->closeShiftOf($bill);
+        // A Xendit callback with no paid_amount: paid and flagged, but what arrived is unknown, so the report counts it as
+        // an estimate from its sale total (BR-2, TC-6).
+        $this->withHeader('X-CALLBACK-TOKEN', 'callback-token')->postJson(route('webhooks.xendit'), [
+            'external_id' => "{$bill->invoice}-r1", 'status' => 'PAID', 'id' => 'xnd-no-amount',
+        ])->assertOk();
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $this->assertNull($bill->paid_after_close_amount);
+    }
+
+    #[DataProvider('gateways')]
     public function test_paid_before_the_owning_shift_closes_lands_in_the_snapshot_without_a_flag(string $gateway): void
     {
         [, $bill] = $this->guestBill($gateway);
@@ -893,6 +919,18 @@ class PaymentWebhookLockTest extends TestCase
 
         $migration->up();
         $this->assertTrue(Schema::hasColumn('transactions', 'paid_after_close_at'));
+    }
+
+    public function test_paid_after_close_amount_migration_rolls_back(): void
+    {
+        $migration = require database_path('migrations/2026_12_25_100008_add_paid_after_close_amount_to_transactions_table.php');
+        $this->assertTrue(Schema::hasColumn('transactions', 'paid_after_close_amount'));
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('transactions', 'paid_after_close_amount'));
+
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('transactions', 'paid_after_close_amount'));
     }
 
     public function test_the_closed_recap_rule(): void

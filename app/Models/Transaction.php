@@ -65,6 +65,7 @@ class Transaction extends Model
         'payment_failure_reason',
         'late_superseded_payment_at',
         'paid_after_close_at',
+        'paid_after_close_amount',
         'overpaid_amount',
         'is_pay_later',
         'payment_reference',
@@ -114,6 +115,7 @@ class Transaction extends Model
         'payment_attempt' => 'integer',
         'late_superseded_payment_at' => 'datetime',
         'paid_after_close_at' => 'datetime',
+        'paid_after_close_amount' => 'integer',
         'overpaid_amount' => 'integer',
     ];
 

@@ -130,6 +130,7 @@ class PaymentRetryTest extends TestCase
         $this->assertSame('paid', $sale->payment_status);
         $this->assertSame($next->id, $sale->cashier_shift_id);
         $this->assertNotNull($sale->paid_after_close_at);
+        $this->assertSame(20000, $sale->paid_after_close_amount);
         $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
         $this->assertSame([$closed->id, 'retry', 20000], [$log->meta['shift_id'], $log->meta['source'], $log->meta['amount']]);
         // BR-3: the closed recap is a stored snapshot and does not move; the money is in the shift that takes it.

@@ -149,6 +149,47 @@ describe("Sales report paid-after-close line", () => {
         expect(screen.queryByTestId("paid-after-close-line")).not.toBeInTheDocument();
     });
 
+    it("reads the line in English too", async () => {
+        await i18n.changeLanguage("en");
+        try {
+            renderSales({ paid_after_close_count: 2, paid_after_close_total: 45000 });
+
+            const line = screen.getByTestId("paid-after-close-line");
+            expect(line).toHaveTextContent("Paid after shift closed: 2 transactions");
+            expect(line).toHaveTextContent(/45\.000/);
+        } finally {
+            await i18n.changeLanguage("id");
+        }
+    });
+
+    it("marks old rows counted at their sale total with a footnote", () => {
+        renderSales({
+            paid_after_close_count: 2,
+            paid_after_close_total: 45000,
+            paid_after_close_estimated_count: 1,
+        });
+
+        expect(screen.getByTestId("paid-after-close-estimated-note")).toHaveTextContent(
+            "Termasuk 1 transaksi lama yang dihitung sebesar total penjualannya (perkiraan)."
+        );
+    });
+
+    it("shows no footnote when every row has a stored late amount", () => {
+        renderSales({
+            paid_after_close_count: 2,
+            paid_after_close_total: 45000,
+            paid_after_close_estimated_count: 0,
+        });
+
+        expect(screen.queryByTestId("paid-after-close-estimated-note")).not.toBeInTheDocument();
+    });
+
+    it("shows no footnote when the server sends no estimate count", () => {
+        renderSales({ paid_after_close_count: 2, paid_after_close_total: 45000 });
+
+        expect(screen.queryByTestId("paid-after-close-estimated-note")).not.toBeInTheDocument();
+    });
+
     it("copes with a server that sends no such keys", () => {
         renderSales();
 

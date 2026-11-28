@@ -231,9 +231,11 @@ class TransactionTenderService
             $owed = max(0, $transaction->amountDue()
                 - (int) $transaction->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
 
+            // Only the ones still waiting: a transfer already paid keeps the stamp it got when the money arrived.
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
-                ->update(['payment_status' => TransactionTender::STATUS_PAID]);
+                ->where('payment_status', TransactionTender::STATUS_PENDING)
+                ->update(['payment_status' => TransactionTender::STATUS_PAID, 'paid_at' => now()]);
 
             $tenders = $transaction->tenders()->get();
             $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
@@ -342,6 +344,7 @@ class TransactionTenderService
         }
 
         $transaction->paid_after_close_at = now();
+        $transaction->paid_after_close_amount = $this->lateAmount($transaction, $shift, $owed);
 
         app(AuditLogService::class)->log(
             event: 'payment.paid_after_close',
@@ -352,6 +355,28 @@ class TransactionTenderService
         );
 
         return $shift;
+    }
+
+    /**
+     * The money that arrived after the shift closed (#531), stored next to the flag: the paid tenders whose `paid_at` is
+     * at or after the close (a split's late parts, one at a time), else what the payment asked. Null when unknown.
+     */
+    private function lateAmount(Transaction $transaction, CashierShift $shift, int $owed): ?int
+    {
+        $closedAt = $shift->closed_at;
+
+        // Only a stamp decides it: every tender paid at the till now carries the time the money arrived, so a part of a
+        // split that was in the closed recap can never be counted again, whatever second it shares with the close.
+        $late = (int) $transaction->tenders()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->when($closedAt, fn ($query) => $query->where('paid_at', '>=', $closedAt))
+            ->sum('amount');
+
+        if ($late > 0) {
+            return $late;
+        }
+
+        return $owed > 0 ? $owed : null;
     }
 
     public function resolveQrisGateway(?Outlet $outlet = null): ?string

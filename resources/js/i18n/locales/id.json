@@ -537,7 +537,9 @@
         },
         "paidAfterClose": {
             "badge": "Dibayar setelah shift ditutup",
-            "filter": "Dibayar setelah shift ditutup"
+            "filter": "Dibayar setelah shift ditutup",
+            "line": "Dibayar setelah shift ditutup: {{count}} transaksi · {{amount}}",
+            "estimatedNote": "Termasuk {{count}} transaksi lama yang dihitung sebesar total penjualannya (perkiraan)."
         }
     },
     "receivables": {

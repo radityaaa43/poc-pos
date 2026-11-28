@@ -124,6 +124,13 @@ class TransactionSettlementService
         // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
         $transaction->tenders()->delete();
         $tenderModels = $transaction->tenders()->createMany($tenders);
+        // The till takes the money now, so a part it collects carries the time it arrived (#531): a later flag can tell it
+        // from a part the closed shift already counted, without relying on the second the close happened in.
+        $transaction->tenders()
+            ->whereIn('id', $tenderModels->modelKeys())
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->whereNull('paid_at')
+            ->update(['paid_at' => now()]);
 
         $transaction->update([
             'cashier_id' => $cashier->id,

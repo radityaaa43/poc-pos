@@ -49,8 +49,8 @@ class SalesReportPaidAfterCloseTest extends TestCase
         return $user;
     }
 
-    /** A sale of $total; $afterClose marks it paid after its shift closed. */
-    private function sale(int $total, bool $afterClose, string $status = 'paid', ?Warehouse $warehouse = null, $createdAt = null): Transaction
+    /** A sale of $total; $afterClose marks it paid after its shift closed, optionally with the late money stored. */
+    private function sale(int $total, bool $afterClose, string $status = 'paid', ?Warehouse $warehouse = null, $createdAt = null, ?int $lateAmount = null): Transaction
     {
         $sale = Transaction::create([
             'cashier_id' => User::factory()->create()->id,
@@ -64,6 +64,7 @@ class SalesReportPaidAfterCloseTest extends TestCase
             'payment_method' => 'midtrans',
             'payment_status' => $status,
             'paid_after_close_at' => $afterClose ? now() : null,
+            'paid_after_close_amount' => $afterClose ? $lateAmount : null,
         ]);
 
         if ($createdAt) {
@@ -71,6 +72,31 @@ class SalesReportPaidAfterCloseTest extends TestCase
         }
 
         return $sale;
+    }
+
+    public function test_the_line_sums_the_late_part_not_the_sale_total(): void
+    {
+        // A 20000 split whose 15000 transfer arrived after the close: the line is the money received, not the sale.
+        $this->sale(20000, true, lateAmount: 15000);
+
+        $this->actingAs($this->superAdmin())->get(route('reports.sales.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.paid_after_close_count', 1)
+                ->where('summary.paid_after_close_total', 15000)
+                ->where('summary.paid_after_close_estimated_count', 0));
+    }
+
+    public function test_old_rows_keep_their_total_and_are_counted_as_estimated(): void
+    {
+        // One row from before the column (no stored amount): its sale total, and the footnote counts it as an estimate.
+        $this->sale(20000, true);
+        $this->sale(30000, true, lateAmount: 10000);
+
+        $this->actingAs($this->superAdmin())->get(route('reports.sales.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('summary.paid_after_close_count', 2)
+                ->where('summary.paid_after_close_total', 30000)
+                ->where('summary.paid_after_close_estimated_count', 1));
     }
 
     public function test_the_summary_counts_the_sales_paid_after_their_shift_closed(): void
@@ -86,7 +112,8 @@ class SalesReportPaidAfterCloseTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Dashboard/Reports/Sales')
                 ->where('summary.paid_after_close_count', 2)
-                ->where('summary.paid_after_close_total', 50000));
+                ->where('summary.paid_after_close_total', 50000)
+                ->where('summary.paid_after_close_estimated_count', 2));
     }
 
     public function test_the_line_is_zero_when_nothing_was_paid_after_a_close(): void
@@ -130,8 +157,10 @@ class SalesReportPaidAfterCloseTest extends TestCase
         Permission::firstOrCreate(['name' => 'reports-access', 'guard_name' => 'web']);
         $mine = Outlet::first();
         $other = Outlet::create(['code' => 'OUT-2', 'name' => 'Outlet 2', 'is_active' => true]);
-        $this->sale(20000, true);
-        $this->sale(70000, true, 'paid', $this->warehouseOf($other, 'WH-2'));
+        $otherWarehouse = $this->warehouseOf($other, 'WH-2');
+        $this->sale(20000, true, lateAmount: 15000);
+        $this->sale(70000, true, 'paid', $otherWarehouse, lateAmount: 60000);
+        $this->sale(70000, true, 'paid', $otherWarehouse);
 
         $user = User::factory()->create();
         $user->markEmailAsVerified();
@@ -141,18 +170,20 @@ class SalesReportPaidAfterCloseTest extends TestCase
         $this->actingAs($user)->get(route('reports.sales.index'))
             ->assertInertia(fn (Assert $page) => $page
                 ->where('summary.paid_after_close_count', 1)
-                ->where('summary.paid_after_close_total', 20000));
+                ->where('summary.paid_after_close_total', 15000)
+                ->where('summary.paid_after_close_estimated_count', 0));
     }
 
     public function test_the_api_report_carries_the_same_keys(): void
     {
-        $this->sale(20000, true);
+        $this->sale(20000, true, lateAmount: 15000);
         $this->sale(30000, true);
         Sanctum::actingAs($this->superAdmin(), ['*']);
 
         $this->getJson('/api/v1/reports/sales')
             ->assertOk()
             ->assertJsonPath('data.summary.paid_after_close_count', 2)
-            ->assertJsonPath('data.summary.paid_after_close_total', 50000);
+            ->assertJsonPath('data.summary.paid_after_close_total', 45000)
+            ->assertJsonPath('data.summary.paid_after_close_estimated_count', 1);
     }
 }

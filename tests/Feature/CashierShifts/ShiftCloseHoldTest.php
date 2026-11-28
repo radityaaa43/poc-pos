@@ -548,6 +548,9 @@ class ShiftCloseHoldTest extends TestCase
         $split->refresh();
         $this->assertSame('paid', $split->payment_status);
         $this->assertNotNull($split->paid_after_close_at);
+        // The late money is the transfer, not the 20000 sale (#531 BR-1), and confirming it stamps the tender paid.
+        $this->assertSame(15000, $split->paid_after_close_amount);
+        $this->assertNotNull($split->tenders()->where('method', 'bank_transfer')->sole()->paid_at);
         $this->assertSame($this->shift->id, $split->cashier_shift_id);
         $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
         $this->assertSame([$this->shift->id, 15000], [$meta['shift_id'], $meta['amount']]);
@@ -566,6 +569,47 @@ class ShiftCloseHoldTest extends TestCase
         app(TransactionTenderService::class)->confirmTransfer($split);
 
         $this->assertSame(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
+        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
+    }
+
+    public function test_till_cash_taken_after_the_close_counts_in_the_late_amount(): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+        $bill = $this->guestPayLater($this->shift);
+        $bill->update(['grand_total' => 20000, 'payment_status' => 'pending']);
+        $this->forceClose($this->shift, $this->cashier);
+
+        // The till takes the booked bill in two parts after the close: Rp 5.000 cash now, Rp 15.000 by transfer.
+        $this->openShiftFor($this->cashier);
+        app(TransactionSettlementService::class)->settle($bill->fresh(), $this->cashier, [
+            ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+            ['method' => 'bank_transfer', 'amount' => 15000, 'bank_account_id' => $account->id],
+        ]);
+        app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
+
+        // The till stamps the cash part with the time it took it, so it counts with the transfer whatever second it
+        // shares with the close.
+        $this->assertSame(20000, $bill->fresh()->paid_after_close_amount);
+    }
+
+    public function test_a_payment_before_the_close_keeps_its_stamp_when_redelivered_late(): void
+    {
+        $this->useGateway('midtrans', false);
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+        $sale = $this->splitSale($this->shift, 'pending', [
+            ['cash', 'paid', 5000], ['qris', 'paid', 15000], ['bank_transfer', 'pending', 10000],
+        ], ['grand_total' => 30000, 'bank_account_id' => $account->id]);
+        // The QRIS part was paid before the close, so it is in the recap that closed.
+        DB::table('transaction_tenders')->where('transaction_id', $sale->id)->where('method', 'qris')
+            ->update(['paid_at' => now()->subDay()]);
+        $this->forceClose($this->shift, $this->cashier);
+
+        // The gateway redelivers the old settlement after the close: it must not move that stamp.
+        $this->notify('midtrans', "{$sale->invoice}-qris", 'paid', amount: 15000)->assertOk();
+        app(TransactionTenderService::class)->confirmTransfer($sale->fresh());
+
+        // Only the transfer arrived late; the QRIS part was already counted by the closed recap.
+        $this->assertSame(10000, $sale->fresh()->paid_after_close_amount);
     }
 
     public function test_split_gateway_part_paid_after_force_close_is_flagged(): void
@@ -578,6 +622,7 @@ class ShiftCloseHoldTest extends TestCase
 
         $this->assertSame('paid', $split->fresh()->payment_status);
         $this->assertNotNull($split->fresh()->paid_after_close_at);
+        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
         $this->assertEquals(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
         $this->assertSame(0, $this->shift->fresh()->non_cash_sales_total);
     }

@@ -389,9 +389,10 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   The section refreshes itself every 10 seconds (paused while the tab is hidden, the last list kept when the request fails) from
   `GET /dashboard/transactions/open-bills` (`transactions.open-bills`, permission `transactions-access`, the rows and outlet scope of the
   POS page). Transactions History marks a sale paid after its shift closed with the badge **Dibayar setelah shift ditutup** and has a
-  chip with the same name (`paid_after_close=1`); the sales report shows count and total of those sales for the period as a line under
-  the summary cards (`summary.paid_after_close_count`, `summary.paid_after_close_total`; the web page and `/api/v1/reports/sales`), inside
-  the period's totals, by the sale's own date.
+  chip with the same name (`paid_after_close=1`); the sales report shows the money received after those shifts closed for the
+  period as a line under the summary cards (`summary.paid_after_close_count`, `summary.paid_after_close_total`, and
+  `summary.paid_after_close_estimated_count` for older rows counted at their sale total; the web page and
+  `/api/v1/reports/sales`), inside the period's totals, by the sale's own date.
 - A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
 - It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
   transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
