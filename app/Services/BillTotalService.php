@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\Transaction;
 
 /**
  * The only place that adds service charge and PB1 to a bill (REQ-010); tests/fixtures/bill-totals.json pins
@@ -35,6 +36,38 @@ class BillTotalService
                 'tax_type' => $product->tax_type ?? 'exclusive',
             ];
         }, $items);
+    }
+
+    /**
+     * The columns of a sale whose manual discount is denied (REQ-010 BR-4), from the kind and rates it was sold
+     * with, never today's settings: PPN on the lines and the shipping stands; the service charge and its tax move.
+     */
+    public function restore(Transaction $sale, int $discount): array
+    {
+        // A sale from before the bill rules is never recomputed: it only gets the discount back.
+        if ($sale->tax_kind === null) {
+            return ['grand_total' => (int) $sale->grand_total + $discount];
+        }
+
+        $shipping = (int) $sale->shipping_cost;
+        $afterDiscount = (int) $sale->grand_total - $shipping - $sale->service_charge - $sale->tax_total + $discount;
+        $service = (int) round($afterDiscount * (float) $sale->service_charge_rate / 100);
+        $rate = (float) $sale->tax_rate;
+
+        if ($sale->tax_kind === 'pb1') {
+            $taxBase = $afterDiscount + $service;
+            $taxTotal = (int) round($taxBase * $rate / 100);
+        } else {
+            $taxBase = $sale->tax_base + ($rate > 0 ? $service - $sale->service_charge : 0);
+            $taxTotal = $sale->tax_total - (int) round($sale->service_charge * $rate / 100) + (int) round($service * $rate / 100);
+        }
+
+        return [
+            'service_charge' => $service,
+            'tax_total' => $taxTotal,
+            'tax_base' => $taxBase,
+            'grand_total' => $afterDiscount + $shipping + $service + $taxTotal,
+        ];
     }
 
     /**
