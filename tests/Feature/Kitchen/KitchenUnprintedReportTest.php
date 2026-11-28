@@ -202,9 +202,10 @@ class KitchenUnprintedReportTest extends TestCase
     {
         $this->device();
         $this->kitchenItem($this->sale('INV-NOSTATION'), acceptedAt: $this->at('10:00'));
+        // Leave the table without a default station: defaultId() would create one, and a report GET must not write.
+        KitchenStation::where('is_default', true)->firstOrFail()->delete();
 
         $this->assertSame('Dapur', $this->page()['tickets'][0]['station']);
-        // defaultId() would have created the station; a report GET must not write.
         $this->assertSame(0, KitchenStation::where('is_default', true)->count());
     }
 
@@ -408,7 +409,8 @@ class KitchenUnprintedReportTest extends TestCase
             'transaction_id' => $sale->id,
             'transaction_detail_id' => $detail->id,
             'product_id' => $detail->product_id,
-            'warehouse_id' => ($warehouse ?? $this->warehouse)->id,
+            // The item belongs to its sale's warehouse unless the test places it elsewhere.
+            'warehouse_id' => $warehouse?->id ?? $sale->warehouse_id,
             'kitchen_station_id' => $station,
             'qty' => 1,
             'status' => $status,
