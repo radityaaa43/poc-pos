@@ -1235,6 +1235,29 @@
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Let the POS of this outlet sell now and collect payment later."
+        },
+        "bill": {
+            "title": "Bill",
+            "appliesToNew": "Applies to new bills only; bills already made do not change.",
+            "serviceCharge": {
+                "label": "Service charge (%)",
+                "hint": "0 = off"
+            },
+            "taxKind": {
+                "label": "Tax type",
+                "ppn": "PPN",
+                "ppnHint": "PPN per product",
+                "pb1": "PB1",
+                "pb1Hint": "One rate for the whole bill"
+            },
+            "pb1Rate": {
+                "label": "PB1 rate (%)",
+                "hint": "Used when the tax type is PB1."
+            },
+            "rounding": {
+                "label": "Cash rounding",
+                "none": "None"
+            }
         }
     },
     "dineMenu": {

@@ -32,6 +32,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - pelanggan berbatas piutang yang ditolak: dialog bayar sekarang atau minta pengecualian persetujuan (lihat `receivables.md`)
 - add customer langsung dari POS
 - penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk memakai poin, voucher, atau harga member; pay later (Bayar Belakangan) tidak lagi butuh pelanggan: tamu cukup mengisi catatan minimal 2 karakter
+- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet and do not change any total yet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet).
 
 ## Halaman dan Route
 

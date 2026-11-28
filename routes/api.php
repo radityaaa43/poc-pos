@@ -194,12 +194,17 @@ Route::prefix('v1')->group(function () {
             Route::get('/cashier-shifts/{cashierShift}/report/{type}', [V1CashierShiftController::class, 'printReport'])->name('api.cashier-shifts.report');
         });
 
+        // Abilities as the web routes' permissions: reading, writing a draft and completing it are separate grants.
         Route::middleware('abilities:sales-returns-access')->group(function () {
             Route::get('/sales-returns', [V1SalesReturnController::class, 'listReturns'])->name('api.sales-returns.index');
-            Route::get('/sales-returns/create/{transaction}', [V1SalesReturnController::class, 'createFor'])->name('api.sales-returns.create');
             Route::get('/sales-returns/{salesReturn}', [V1SalesReturnController::class, 'showReturn'])->name('api.sales-returns.show');
+        });
+        Route::middleware('abilities:sales-returns-create')->group(function () {
+            Route::get('/sales-returns/create/{transaction}', [V1SalesReturnController::class, 'createFor'])->name('api.sales-returns.create');
             Route::post('/sales-returns', [V1SalesReturnController::class, 'createReturn'])->name('api.sales-returns.store');
             Route::put('/sales-returns/{salesReturn}', [V1SalesReturnController::class, 'updateReturn'])->name('api.sales-returns.update');
+        });
+        Route::middleware('abilities:sales-returns-complete')->group(function () {
             Route::post('/sales-returns/{salesReturn}/complete', [V1SalesReturnController::class, 'completeReturn'])->name('api.sales-returns.complete');
         });
 
