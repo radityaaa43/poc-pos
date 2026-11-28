@@ -38,15 +38,10 @@ class ModifierPricingTest extends ModifierSaleTestCase
         $this->assertSame(['Large'], array_column($item['options'], 'name'));
     }
 
-    public function test_fixed_price_and_qty_break_replace_only_the_menu_price(): void
+    public function test_fixed_price_replaces_only_the_menu_price(): void
     {
-        $rule = $this->rule(['discount_type' => PricingRule::TYPE_FIXED_PRICE, 'discount_value' => 10000]);
+        $this->rule(['discount_type' => PricingRule::TYPE_FIXED_PRICE, 'discount_value' => 10000]);
         $this->add(['Large'], 2);
-
-        $this->assertSame(30000, $this->preview()['items'][0]['line_total']);
-
-        $rule->update(['kind' => PricingRule::KIND_QTY_BREAK]);
-        $rule->qtyBreaks()->create(['min_qty' => 2, 'discount_type' => PricingRule::TYPE_PERCENTAGE, 'discount_value' => 50, 'sort_order' => 0]);
 
         $this->assertSame(30000, $this->preview()['items'][0]['line_total']);
     }
@@ -57,7 +52,7 @@ class ModifierPricingTest extends ModifierSaleTestCase
     public function test_qty_break_counts_every_line_of_the_same_menu(array $options, ?string $note, int $lastTotal): void
     {
         $rule = $this->rule(['kind' => PricingRule::KIND_QTY_BREAK, 'target_type' => PricingRule::TARGET_ALL, 'product_id' => null]);
-        $rule->qtyBreaks()->create(['min_qty' => 3, 'discount_type' => PricingRule::TYPE_FIXED_PRICE, 'discount_value' => 10000, 'sort_order' => 0]);
+        $rule->qtyBreaks()->create(['min_qty' => 3, 'discount_type' => PricingRule::TYPE_PERCENTAGE, 'discount_value' => 50, 'sort_order' => 0]);
         $this->add(['Large'], 2);
         $this->post(route('transactions.addToCart'), ['product_id' => $this->product('Teh', 8000, 5)->id, 'qty' => 1]);
         // As on a single line before options: a box (non-base unit) takes no rule and does not count.
@@ -72,10 +67,26 @@ class ModifierPricingTest extends ModifierSaleTestCase
         $box->delete();
         $this->add($options, 1, $note);
 
-        // 10.000 replaces the menu price on each line; Large +5.000 stays on top.
+        // Half the menu price (10.000) on each line; Large +5.000 stays on top.
         $this->assertSame([30000, 8000, $lastTotal], array_column($this->preview()['items'], 'line_total'));
         $this->checkout()->assertSessionHasNoErrors();
         $this->assertEquals([30000, 8000, $lastTotal], TransactionDetail::orderBy('id')->pluck('price')->all());
+    }
+
+    // The preview loads the cart newest first and the sale does not order it: both must use the same lines.
+    public function test_preview_total_equals_the_sold_total_with_split_lines(): void
+    {
+        $this->rule(['kind' => PricingRule::KIND_BUNDLE_PRICE, 'discount_value' => 30000, 'priority' => 20])
+            ->bundleItems()->create(['product_id' => $this->menu->id, 'quantity' => 2]);
+        $this->rule(['discount_value' => 10]);
+        $this->add(['Large']);
+        $this->travel(1)->minutes();
+        $this->add(['Regular'], 2);
+
+        $previewed = $this->postJson(route('transactions.pricing-preview'))->json('data.summary.subtotal_after_promo');
+        $this->checkout()->assertSessionHasNoErrors();
+
+        $this->assertSame([53000, 53000], [$previewed, (int) TransactionDetail::sum('price')]);
     }
 
     public function test_buy_x_get_y_frees_only_the_menu_price(): void

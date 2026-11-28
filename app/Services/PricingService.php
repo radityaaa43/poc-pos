@@ -177,6 +177,8 @@ class PricingService
 
     private function buildPreview(Collection $carts, ?Customer $customer, Collection $rules, ?Outlet $outlet = null): array
     {
+        // Same order for every caller: it decides which lines a bundle uses. abs: rule-preview ids are -1, -2, ...
+        $carts = $carts->sortBy(fn (Cart $cart) => abs((int) $cart->id))->values();
         $options = ModifierSelection::preview($carts);
         $items = $carts->map(function (Cart $cart) use ($customer, $outlet, $options) {
             // ponytail: composite and non-base-unit (BOX) lines are priced at stored cart price / qty (cart price
