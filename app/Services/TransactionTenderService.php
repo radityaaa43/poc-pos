@@ -220,15 +220,27 @@ class TransactionTenderService
             Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->value('id'); // no row is fine
             $bill = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
 
+            // A denied discount leaves the sale unpaid with its transfer tender pending; that can still be confirmed
+            // with Jumlah diterima (business BR-5, #507 TC-4). Otherwise a pending/pending_approval sale as before.
+            $confirmsUnpaid = $bill->payment_status === 'unpaid' && $bill->tenders()
+                ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
+                ->where('payment_status', TransactionTender::STATUS_PENDING)
+                ->exists();
+
             // A sale that moved to another shift meanwhile is refused too: that shift is not the one locked.
-            if (! in_array($bill->payment_status, ['pending', 'pending_approval'], true)
+            if ((! in_array($bill->payment_status, ['pending', 'pending_approval'], true) && ! $confirmsUnpaid)
                 || $bill->cashier_shift_id !== $transaction->cashier_shift_id) {
                 throw ValidationException::withMessages(['payment' => 'Status transaksi tidak dapat dikonfirmasi saat ini.']);
             }
 
+            // Mark the transfer tender paid; when the cashier recorded what the bank showed, that is its amount.
+            $tenderUpdate = ['payment_status' => TransactionTender::STATUS_PAID];
+            if ($receivedAmount !== null) {
+                $tenderUpdate['amount'] = $receivedAmount;
+            }
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
-                ->update(['payment_status' => TransactionTender::STATUS_PAID]);
+                ->update($tenderUpdate);
 
             $tenders = $transaction->tenders()->get();
             $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
