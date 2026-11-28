@@ -446,6 +446,11 @@ export default function Index({
         }
     };
 
+    // An emptied cart (sold, held, queued offline or items removed) ends that order and its name.
+    useEffect(() => {
+        if (carts.length === 0) setOrderName("");
+    }, [carts.length]);
+
     // Handle hold transaction
     const [isHolding, setIsHolding] = useState(false);
 
@@ -464,7 +469,6 @@ export default function Index({
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success("Transaksi ditahan");
-                    setOrderName("");
                     setIsHolding(false);
                 },
                 onError: (errors) => {
@@ -788,7 +792,6 @@ export default function Index({
                 setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
                 toast.success("Transaksi disimpan offline. Akan dikirim saat online.");
-                setOrderName("");
             });
             setIsSubmitting(false);
             return;
@@ -850,7 +853,6 @@ export default function Index({
                     setPayLater(false);
                     setDueDate("");
                     setOrderType("in_store");
-                    setOrderName("");
                     setOrderNote("");
                     setIsSubmitting(false);
                     toast.success("Transaksi berhasil!");
