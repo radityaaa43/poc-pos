@@ -75,7 +75,7 @@ export default function PrintDevicePanel({ printDevice }) {
             setPrinterKey("");
         });
 
-    const ready = Boolean(printerKey) && autoPrint && !unsupported;
+    const ready = Boolean(printerKey) && autoPrint && !unsupported && status !== "not_connected";
 
     return (
         <section

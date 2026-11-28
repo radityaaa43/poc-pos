@@ -193,6 +193,11 @@ punya status, karena hanya bisa ada atau dihapus.
   memakai izin Layar Dapur. Tidak ada izin baru.
 - **Pengaturan:** daftar stasiun berlaku untuk seluruh toko. Pilihan stasiun berlaku per perangkat.
 - **Stasiun Dapur** wajib ada dan menjadi stasiun cadangan.
+- **Pesanan siap di layar stasiun (keputusan pemilik, 2026-11-28, #361):** di layar yang disaring per
+  stasiun, pesanan yang semua item stasiun itu sudah **Siap** pindah ke bagian **Siap diambil** di
+  bawah area kerja. Yang tampil 10 pesanan yang paling lama menunggu sejak siap; **Lihat semua (n)**
+  membuka semuanya. Item yang belum dibuat tidak pernah disembunyikan. **Semua stasiun** tidak
+  berubah (keputusan 6).
 
 ## Non-functional requirements
 

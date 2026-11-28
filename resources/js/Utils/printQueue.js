@@ -6,11 +6,12 @@ export function createPrintQueue({ send }) {
     const jobs = [];
     let status = "idle";
     let running = null;
+    let stopped = false;
 
     // `release` clears the in-flight marker right before run() returns, so a drain() called at once after
     // the last job (even in the same tick) starts a new run instead of joining one that is already over.
     async function run(release) {
-        while (jobs.length > 0) {
+        while (!stopped && jobs.length > 0) {
             status = "printing";
             try {
                 await send(jobs[0]);
@@ -56,6 +57,10 @@ export function createPrintQueue({ send }) {
             if (at < 0) return false;
             jobs[at] = job;
             return true;
+        },
+        // The job being sent finishes; nothing after it is sent.
+        stop() {
+            stopped = true;
         },
         // A drain already in flight is returned as is: no second sender can start.
         drain() {

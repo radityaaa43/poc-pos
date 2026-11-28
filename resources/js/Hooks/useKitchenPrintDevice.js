@@ -32,6 +32,20 @@ const readJson = (key, fallback) => {
     }
 };
 const readPrinted = () => readJson(PRINTED, []);
+// Answers that end the printing: the session is gone, or the device is not this user's.
+const ENDED = [401, 404, 419];
+
+// A record call that gives no answer must fail, or every later poll would wait behind it.
+const RECORD = { timeout: 10000 };
+
+// The sends that stopped queues are still finishing (auto-print switched off, or the page left). A new queue waits
+// for them, so each ticket is recorded before it is listed again and only one queue ever sends. Module level: it
+// has to outlive the page component.
+let leaving = Promise.resolve();
+
+// The server takes at most 200 ids per record call (the two Store*PrintsRequest rules).
+const batches = (ids) => Array.from({ length: Math.ceil(ids.length / 200) }, (_, i) => ids.slice(i * 200, (i + 1) * 200));
+
 const readUnconfirmed = () => readJson(UNCONFIRMED, []);
 const writeUnconfirmed = (ids) => localStorage.setItem(UNCONFIRMED, JSON.stringify(ids));
 const readUnconfirmedCancellations = () => readJson(UNCONFIRMED_CANCELLATIONS, []);
@@ -48,7 +62,12 @@ const buildBytes = (ticket, extraLabels) =>
 // Same items and quantities: a queued original is only rebuilt when the kitchen would see something else.
 const signature = (ticket) => ticket.items.map((item) => `${item.id}:${item.qty}`).join(",");
 
-const deviceKey = () => ({ deviceKey: localStorage.getItem(PRINTER_KEY) || undefined });
+// Without a chosen kitchen printer nothing is sent: the first granted device may be the receipt printer.
+const deviceKey = () => {
+    const key = localStorage.getItem(PRINTER_KEY);
+    if (!key) throw Object.assign(new Error("Printer belum terhubung."), { code: "not_connected" });
+    return { deviceKey: key };
+};
 
 // The queue and the status read `error.code`: classify here, where the user agent is known.
 const classified = (error) =>
@@ -77,17 +96,21 @@ const reprintTicket = (order, key) => ({
 // leaving the ids in kitchen.unconfirmed for the next tick.
 async function confirm(ids) {
     const device = readJson(DEVICE, null);
-    if (!device || ids.length === 0) return;
-    await axios.post(route("kitchen.print-devices.prints", device.id), { item_ids: ids });
-    writeUnconfirmed(readUnconfirmed().filter((id) => !ids.includes(id)));
+    if (!device) return;
+    for (const batch of batches(ids)) {
+        await axios.post(route("kitchen.print-devices.prints", device.id), { item_ids: batch }, RECORD);
+        writeUnconfirmed(readUnconfirmed().filter((id) => !batch.includes(id)));
+    }
 }
 
 // Same as confirm() for cancellation ids; the list is kitchen.unconfirmedCancellations.
 async function confirmCancellations(ids) {
     const device = readJson(DEVICE, null);
-    if (!device || ids.length === 0) return;
-    await axios.post(route("kitchen.print-devices.cancellation-prints", device.id), { cancellation_ids: ids });
-    writeUnconfirmedCancellations(readUnconfirmedCancellations().filter((id) => !ids.includes(id)));
+    if (!device) return;
+    for (const batch of batches(ids)) {
+        await axios.post(route("kitchen.print-devices.cancellation-prints", device.id), { cancellation_ids: batch }, RECORD);
+        writeUnconfirmedCancellations(readUnconfirmedCancellations().filter((id) => !batch.includes(id)));
+    }
 }
 
 export function useKitchenPrintDevice(outlet) {
@@ -112,6 +135,8 @@ export function useKitchenPrintDevice(outlet) {
     const reprintQueueRef = useRef(null);
     const reprintCount = useRef(0);
     const connectErrorRef = useRef(null);
+    const [recordFailed, setRecordFailed] = useState(false);
+    const [ended, setEnded] = useState(false);
 
     const setDevice = useCallback((value) => {
         // Unconfirmed ids belong to the old device: posting them to the new one would 404 and halt printing.
@@ -140,7 +165,7 @@ export function useKitchenPrintDevice(outlet) {
     }, []);
 
     const testPrint = useCallback(
-        () =>
+        async () =>
             printBytes(
                 buildBytes({
                     number: "TEST",
@@ -162,6 +187,8 @@ export function useKitchenPrintDevice(outlet) {
     // (never with WebUSB in practice) every tab prints, as before.
     const hasLocks = typeof navigator !== "undefined" && Boolean(navigator.locks);
     const [leader, setLeader] = useState(!hasLocks);
+    // This tab still holds the lock only to let its own send finish: that is not "another tab is printing".
+    const [releasing, setReleasing] = useState(false);
     useEffect(() => {
         if (!active || !hasLocks) return undefined;
         const abort = new AbortController();
@@ -176,13 +203,21 @@ export function useKitchenPrintDevice(outlet) {
             .catch(() => {}); // aborted while waiting
         return () => {
             abort.abort();
-            release?.();
+            // Not before a send in flight is over: the tab that takes over would print that ticket too. The print
+            // effect's cleanup runs after this one, hence the microtask.
+            setReleasing(true);
+            queueMicrotask(() =>
+                leaving.finally(() => {
+                    release?.();
+                    setReleasing(false);
+                })
+            );
             setLeader(false);
         };
     }, [active, hasLocks]);
 
     const printing = active && leader;
-    const otherTab = active && !leader;
+    const otherTab = active && !leader && !releasing;
 
     // A reprint is a one-shot job: no POST, no kitchen.unconfirmed entry, dropped by the queue when it fails.
     const sendManual = useCallback(async (job) => {
@@ -251,6 +286,7 @@ export function useKitchenPrintDevice(outlet) {
         };
         const run = async () => {
             await queue.drain();
+            if (halted) return;
             // A reprint is a one-shot tap: if the queue stopped on a failed ticket, the reprints queued behind it are
             // dropped (the button re-enables with the failure shown), not printed minutes later when the head recovers.
             if (queue.status === "failed") {
@@ -271,10 +307,20 @@ export function useKitchenPrintDevice(outlet) {
         queueRef.current = { queue, run };
 
         const tick = async () => {
+            await leaving;
             if (halted || !navigator.onLine) return;
             try {
-                await confirm(readUnconfirmed());
-                await confirmCancellations(readUnconfirmedCancellations());
+                // A record call that fails keeps its ids for the next tick and warns; the poll still runs, and
+                // the unconfirmed ids keep their tickets from printing again. A dead session ends it, as below.
+                // The two record calls fail separately: one never skips the other.
+                const records = await Promise.allSettled([
+                    confirm(readUnconfirmed()),
+                    confirmCancellations(readUnconfirmedCancellations()),
+                ]);
+                const failures = records.filter((record) => record.status === "rejected").map((record) => record.reason);
+                const ended = failures.find((error) => ENDED.includes(error?.response?.status));
+                if (ended) throw ended;
+                setRecordFailed(failures.length > 0);
                 const { data } = await axios.get(route("kitchen.print-devices.tickets", deviceId));
 
                 // A job that is queued or failed (not sending) was built from an older poll: drop it when its
@@ -313,7 +359,11 @@ export function useKitchenPrintDevice(outlet) {
                 }
             } catch (error) {
                 // A failed poll is silent and retried; an expired session or a foreign device ends it.
-                if ([401, 404, 419].includes(error?.response?.status)) halted = true;
+                if (ENDED.includes(error?.response?.status)) {
+                    halted = true;
+                    queue.stop();
+                    setEnded(true);
+                }
             }
             if (halted) return;
             publish();
@@ -326,6 +376,8 @@ export function useKitchenPrintDevice(outlet) {
         window.addEventListener("online", tick);
         return () => {
             halted = true;
+            queue.stop();
+            leaving = Promise.all([leaving, queue.drain()]); // settles once a send in flight is over
             clearInterval(timer);
             clearInterval(clockTimer);
             window.removeEventListener("online", tick);
@@ -333,8 +385,27 @@ export function useKitchenPrintDevice(outlet) {
             setQueueState(NO_JOBS);
             setReprinting([]);
             setStaleAt(null);
+            setRecordFailed(false);
+            setEnded(false);
         };
     }, [printing, deviceId, sendManual]);
+
+    // A saved printer that is off at page load fires no event: look for it among the connected ones.
+    useEffect(() => {
+        const saved = localStorage.getItem(PRINTER_KEY);
+        let live = true;
+        if (saved) {
+            navigator.usb
+                ?.getDevices?.()
+                .then((devices) => {
+                    if (live && !devices.some((device) => keyOf(device) === saved)) setDisconnected(true);
+                })
+                .catch(() => {});
+        }
+        return () => {
+            live = false;
+        };
+    }, []);
 
     // The printer's own plug and unplug events: not_connected at once, before a ticket has to fail.
     useEffect(() => {
@@ -401,7 +472,7 @@ export function useKitchenPrintDevice(outlet) {
     const status = derivePrinterStatus({
         supported: webUsbSupport() === "ok",
         autoPrint: printing,
-        errorCode: connectError ?? lastError?.code ?? null,
+        errorCode: connectError ?? lastError?.code ?? (recordFailed || ended ? "record" : null),
         disconnected: disconnected || (printing && !printerKey),
         unprinted,
         wakeLock,

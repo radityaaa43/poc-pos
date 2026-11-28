@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Services\TransactionTenderService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -22,6 +24,9 @@ class TransactionTender extends Model
     public const STATUS_PENDING = 'pending';
 
     public const STATUS_FAILED = 'failed';
+
+    /** A gateway tender this old with no reference was claimed by a request that died before storing its charge. */
+    public const CLAIM_STALE_SECONDS = 120; // well above the HTTP client's 30 s timeout
 
     protected $fillable = [
         'transaction_id',
@@ -51,6 +56,18 @@ class TransactionTender extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    /**
+     * Abandoned claims: nothing else would ever free such a pending bill, so the cashier may pay it again.
+     *
+     * @param  Builder<TransactionTender>  $query
+     */
+    public function scopeAbandonedClaim(Builder $query): void
+    {
+        $query->whereIn('method', TransactionTenderService::GATEWAY_METHODS)
+            ->whereNull('payment_reference')
+            ->where('created_at', '<', now()->subSeconds(self::CLAIM_STALE_SECONDS));
     }
 
     /**

@@ -342,7 +342,7 @@ class KitchenIntakeTest extends TestCase
             ->post(route('dine-orders.pay', $order), ['tenders' => [['method' => 'qris', 'amount' => 20000]]])
             ->assertSessionHasNoErrors();
 
-        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction, 'expire'))->assertOk();
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction, 'expire', "{$transaction->invoice}-r1"))->assertOk();
         $this->assertSame('failed', $transaction->fresh()->payment_status);
         $this->assertSame(0, KitchenItem::count());
 
@@ -584,17 +584,18 @@ class KitchenIntakeTest extends TestCase
         ]);
     }
 
-    private function midtransPayload(Transaction $transaction, string $status): array
+    private function midtransPayload(Transaction $transaction, string $status, ?string $orderId = null): array
     {
         $gross = (string) (int) $transaction->grand_total;
+        $orderId ??= $transaction->invoice;
 
         return [
-            'order_id' => $transaction->invoice,
+            'order_id' => $orderId,
             'status_code' => '200',
             'gross_amount' => $gross,
             'transaction_status' => $status,
             'transaction_id' => 'mt-'.$transaction->id,
-            'signature_key' => hash('sha512', $transaction->invoice.'200'.$gross.'sk-test'),
+            'signature_key' => hash('sha512', $orderId.'200'.$gross.'sk-test'),
         ];
     }
 

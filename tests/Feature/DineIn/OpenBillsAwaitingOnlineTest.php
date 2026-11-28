@@ -115,6 +115,25 @@ class OpenBillsAwaitingOnlineTest extends TestCase
         }
     }
 
+    public function test_a_charge_that_never_got_an_answer_offers_bayar_again_after_two_minutes(): void
+    {
+        $this->freezeTime();
+        // Her request died between saving the payment and the gateway's answer: a gateway tender with no reference.
+        $abandoned = $this->dineBill(['payment_method' => 'qris', 'payment_status' => 'pending', 'payment_attempt' => 1]);
+        $abandoned->tenders()->create(['method' => TransactionTender::METHOD_QRIS, 'amount' => 20000, 'payment_status' => 'pending']);
+        $charged = $this->dineBill(['payment_method' => 'qris', 'payment_status' => 'pending', 'payment_attempt' => 1]);
+        $charged->tenders()->create(['method' => TransactionTender::METHOD_QRIS, 'amount' => 20000, 'payment_status' => 'pending', 'payment_reference' => 'ref-1']);
+
+        $this->travel(119)->seconds();
+        $this->assertTrue($this->row($abandoned)['pending']);
+
+        $this->travel(2)->seconds();
+        $row = $this->row($abandoned);
+        $this->assertFalse($row['pending']);
+        $this->assertFalse($row['awaiting_online']);
+        $this->assertTrue($this->row($charged)['pending']); // there is a QR to show: still "Lihat QR"
+    }
+
     public function test_a_failed_or_unpaid_bill_is_not_awaiting_online(): void
     {
         $failed = $this->dineBill(['payment_method' => 'qris', 'payment_status' => 'failed', 'payment_attempt' => 1]);

@@ -454,3 +454,22 @@ describe("createPrintQueue: failure details and manual jobs (REQ-004 K2)", () =>
         expect(queue.jobs).toEqual([]);
     });
 });
+
+describe("createPrintQueue: stop (#410 D2)", () => {
+    it("finishes the job in flight and sends nothing after it", async () => {
+        let release;
+        const send = vi.fn(() => new Promise((resolve) => (release = resolve)));
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "t1" });
+        queue.enqueue({ key: "t2" });
+        const draining = queue.drain();
+
+        queue.stop();
+        release();
+        await draining;
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queue.jobs.map((job) => job.key)).toEqual(["t2"]);
+    });
+});

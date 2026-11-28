@@ -3,6 +3,8 @@
 
 const ESC = 0x1b;
 const GS = 0x1d;
+// A transfer that never settles would leave the queue, and Coba lagi, waiting until a reload.
+const SEND_TIMEOUT_MS = 15000;
 
 // Printer errors carry a machine `code` (unsupported, not_connected, claim_failed, transfer) and the browser's
 // own error as `cause`; printerStatus.js turns them into the status the kitchen sees.
@@ -215,7 +217,7 @@ export function printerKey(device) {
 
 // With a key: the granted device with that key (the kitchen printer). Without one: the first granted
 // device that is not the kitchen printer, so a PC with both printers granted keeps its receipt printer.
-export async function getPrinter(key) {
+export async function getPrinter(key, onDevice) {
     const kitchenKey = localStorage.getItem("kitchen.printerKey");
     const wanted = (device) => (key ? printerKey(device) === key : printerKey(device) !== kitchenKey);
     if (getPrinter.cached && getPrinter.cached.opened && wanted(getPrinter.cached)) {
@@ -228,6 +230,7 @@ export async function getPrinter(key) {
     // nothing and exactly one device is granted, that one is used, as before the kitchen printer existed.
     const device = devices.find(wanted) ?? (!key && devices.length === 1 ? devices[0] : undefined);
     if (!device) return null;
+    onDevice?.(device); // before open and claim, so a send that times out can close it
     if (device.opened && device._endpoint) {
         getPrinter.cached = device;
         return device;
@@ -243,16 +246,43 @@ export async function getPrinter(key) {
 }
 
 export async function printBytes(bytes, { deviceKey } = {}) {
-    const device = await getPrinter(deviceKey);
-    if (!device) throw printerError("not_connected", "Printer belum terhubung.");
-    if (!device.opened || !device._endpoint) {
-        throw printerError("not_connected", "Printer tidak siap menerima data. Hubungkan ulang printer.");
-    }
+    let device;
+    let timer;
+    let timedOut = false;
+    let transferring = false;
+    const send = async () => {
+        device = await getPrinter(deviceKey, (found) => (device = found));
+        if (timedOut) return; // opening answered late: the send has failed, so nothing may print now
+        if (!device) throw printerError("not_connected", "Printer belum terhubung.");
+        if (!device.opened || !device._endpoint) {
+            throw printerError("not_connected", "Printer tidak siap menerima data. Hubungkan ulang printer.");
+        }
+        transferring = true;
+        const result = await device.transferOut(device._endpoint, bytes);
+        // A stall resolves instead of rejecting: nothing printed, and the endpoint stays halted until cleared.
+        if (result?.status && result.status !== "ok") {
+            await Promise.resolve(device.clearHalt?.("out", device._endpoint)).catch(() => {});
+            throw new Error(`USB transfer ${result.status}`);
+        }
+    };
+    // The timeout covers the whole send: a locked driver can hang open or claim as well as the transfer.
+    const hung = new Promise((_, reject) => {
+        timer = setTimeout(() => {
+            timedOut = true;
+            reject(new Error("USB transfer timeout"));
+        }, SEND_TIMEOUT_MS);
+    });
     try {
-        await device.transferOut(device._endpoint, bytes);
+        await Promise.race([send(), hung]);
     } catch (cause) {
+        if (!timedOut && !transferring) throw cause; // failures before the transfer keep their own code
+        // Closing aborts a transfer that never settled, so it cannot print later on top of the retry.
+        // Not awaited: on a locked device close can hang too.
+        if (timedOut) Promise.resolve(device?.close?.()).catch(() => {});
         getPrinter.cached = undefined;
         throw printerError("transfer", "Gagal mengirim data ke printer. Periksa koneksi printer.", cause);
+    } finally {
+        clearTimeout(timer);
     }
 }
 

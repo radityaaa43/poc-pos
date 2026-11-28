@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ExpireSupersededGatewayCharge;
 use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
@@ -35,7 +36,7 @@ class DineOrderOnlinePaymentService
 
     private const ALREADY_PAID = 'already_paid';
 
-    // Not for the guest to pay online (a pay-later bill, or a charge the cashier started): the counter settles it.
+    // Not for the guest to pay online (a charge the cashier started): the counter settles it.
     private const COUNTER = 'counter';
 
     private const NO_GATEWAY = 'no_gateway';
@@ -55,7 +56,7 @@ class DineOrderOnlinePaymentService
      * What the guest page shows about paying, or null while there is nothing to show (not accepted, rejected,
      * nothing left to pay). Holds no internal field: no invoice, bill id, customer, outlet or gateway reference.
      *
-     * @return array{state: string, amount: int, attempt: int, payment_url: ?string, qr: ?string}|null
+     * @return array{state: string, amount: int, attempt: int, payment_url: ?string, qr: ?string, pay_later: bool}|null
      */
     public function state(DineOrder $order, bool $withQr = true): ?array
     {
@@ -81,6 +82,7 @@ class DineOrderOnlinePaymentService
             'attempt' => (int) $bill->payment_attempt,
             'payment_url' => $pending ? $bill->payment_url : null,
             'qr' => $pending && $withQr && filled($bill->qr_string) ? $this->qrImage($bill->qr_string) : null,
+            'pay_later' => (bool) $bill->is_pay_later,
         ];
     }
 
@@ -111,6 +113,10 @@ class DineOrderOnlinePaymentService
 
             // A guest charge never has tender rows; the ones left are a failed cashier attempt's, which held no money.
             $bill->tenders()->delete();
+            // A charge still pending is superseded by this tap: have the gateway expire it once this claim commits.
+            if ($bill->payment_status === 'pending') {
+                ExpireSupersededGatewayCharge::dispatchFor($bill, $bill->only(['payment_attempt', 'payment_method', 'payment_reference', 'payment_url']));
+            }
             $bill->update([
                 'payment_attempt' => $attempt,
                 'payment_method' => $method === self::METHOD_QRIS ? TransactionTender::METHOD_QRIS : $gateway,
@@ -126,7 +132,7 @@ class DineOrderOnlinePaymentService
                 module: 'transactions',
                 auditable: $bill,
                 description: "Tamu memulai pembayaran online invoice {$bill->invoice} (percobaan {$attempt}).",
-                meta: ['attempt' => $attempt, 'method' => $method, 'amount' => $amount],
+                meta: ['attempt' => $attempt, 'method' => $method, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later],
             );
 
             return [$bill, $attempt, $amount, $setting, $gateway];
@@ -146,18 +152,23 @@ class DineOrderOnlinePaymentService
             }
         } catch (Throwable $exception) {
             // Failed, so the bill is payable at the counter again; any failure counts (also a timeout).
-            $this->storeResult($bill, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
+            Transaction::storeChargeResult($bill->id, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
             Log::warning('Dine guest payment could not be started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'message' => $exception->getMessage()]);
 
             throw ValidationException::withMessages(['payment' => ['gateway_error']]);
         }
 
-        $this->storeResult($bill, $attempt, [
+        $stored = Transaction::storeChargeResult($bill->id, $attempt, [
             'payment_reference' => $charge['reference'] ?? null,
             'payment_url' => $charge['payment_url'] ?? null,
             'qr_string' => $charge['qr_string'] ?? null,
         ]);
-        Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount]);
+        if (! $stored) {
+            // Superseded while the gateway answered: only now is this charge's reference known. A charge that is still
+            // current (a webhook settled it first) is left alone by the job.
+            ExpireSupersededGatewayCharge::dispatchFor($bill, ['payment_attempt' => $attempt, 'payment_method' => $bill->payment_method, 'payment_reference' => $charge['reference'] ?? null, 'payment_url' => $charge['payment_url'] ?? null]);
+        }
+        Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later]);
 
         return $this->state($order) ?? throw ValidationException::withMessages(['payment' => [self::NOT_PAYABLE]]);
     }
@@ -183,11 +194,6 @@ class DineOrderOnlinePaymentService
             return self::NOT_PAYABLE;
         }
 
-        // #328 (pay later from the guest page) deletes this clause.
-        if ($bill->is_pay_later) {
-            return self::COUNTER;
-        }
-
         // A pending bill with tender rows is the cashier's own gateway charge or transfer (a guest charge never has tenders).
         // Money already taken in a split payment holds the bill too: either way the guest cannot start a second charge.
         $tenders = $bill->tenders();
@@ -205,7 +211,7 @@ class DineOrderOnlinePaymentService
     private function refuseUnlessPayable(string $answer): void
     {
         if ($answer !== self::OK) {
-            // The counter answer (pay-later bill, cashier's charge) reads as "not payable" to a request.
+            // The counter answer (cashier's charge) reads as "not payable" to a request.
             throw ValidationException::withMessages(['payment' => [$answer === self::COUNTER ? self::NOT_PAYABLE : $answer]]);
         }
     }
@@ -234,19 +240,6 @@ class DineOrderOnlinePaymentService
             $bill->payment_failure_reason === 'gateway_error' => 'gateway_error',
             default => 'failed',
         };
-    }
-
-    /**
-     * Store a charge's outcome only while its attempt is still the bill's current one and still pending: a newer
-     * tap (the old charge is dead, its webhook is ignored) or a webhook that already settled the bill wins.
-     * One guarded UPDATE, so no lock is needed.
-     */
-    private function storeResult(Transaction $bill, int $attempt, array $values): void
-    {
-        Transaction::whereKey($bill->id)
-            ->where('payment_attempt', $attempt)
-            ->where('payment_status', 'pending')
-            ->update($values);
     }
 
     private function qrImage(string $qrString): string
