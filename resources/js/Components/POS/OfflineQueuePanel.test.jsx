@@ -383,8 +383,8 @@ describe("OfflineQueuePanel: remove", () => {
         const { user } = await open();
 
         await user.click(await screen.findByRole("button", { name: "Hapus" }));
-        expect(screen.getByText(NOT_YET)).toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: "Hapus" }));
+        expect(await screen.findByText(NOT_YET)).toBeInTheDocument();
+        await user.click(await screen.findByRole("button", { name: "Hapus" }));
 
         await waitFor(async () => expect(await getPendingTransactions(SCOPE)).toEqual([]));
         expect(axios.post.mock.calls[0][1].queue_status).toBe("discarding");
