@@ -229,11 +229,7 @@ class HandleInertiaRequestsTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->has('receivableNotifications', 1)
-            ->where('receivableNotifications.0.title', 'Piutang: RCV-A')
-            ->where('receivableAgingSummary', fn ($summary) => collect($summary)
-                ->contains(fn ($bucket) => $bucket['bucket'] === 'current'
-                    && $bucket['count'] === 1
-                    && $bucket['total'] === 10000)));
+            ->where('receivableNotifications.0.title', 'Piutang: RCV-A'));
     }
 
     public function test_payable_notifications_are_scoped_to_accessible_outlets(): void
@@ -278,11 +274,7 @@ class HandleInertiaRequestsTest extends TestCase
 
         $response->assertInertia(fn ($page) => $page
             ->has('payableNotifications', 1)
-            ->where('payableNotifications.0.title', 'Hutang: PO-PAY-A')
-            ->where('payableAgingSummary', fn ($summary) => collect($summary)
-                ->contains(fn ($bucket) => $bucket['bucket'] === 'current'
-                    && $bucket['count'] === 1
-                    && $bucket['total'] === 50000)));
+            ->where('payableNotifications.0.title', 'Hutang: PO-PAY-A'));
     }
 
     public function test_session_success_and_error_flashes_are_shared_as_flash_prop(): void

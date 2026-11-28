@@ -40,8 +40,6 @@ class HandleInertiaRequests extends Middleware
         $activeCashierShift = null;
         $securityWarnings = [];
         $stepUpFreshUntil = null;
-        $payableAgingSummary = null;
-        $receivableAgingSummary = null;
         $pendingApprovalCount = 0;
         $pendingDineOrdersCount = 0;
         $activeShift = null;
@@ -142,9 +140,6 @@ class HandleInertiaRequests extends Middleware
 
             $payableAgingService = new PayableAgingService;
             $receivableService = new ReceivableService;
-
-            $payableAgingSummary = $payableAgingService->getAgingSummary($warehouseIds);
-            $receivableAgingSummary = $receivableService->getAgingSummary($warehouseIds);
 
             $receivableNotifications = $receivableService->scopeQuery(Receivable::query(), $warehouseIds)
                 ->whereNot('status', 'paid')
@@ -282,8 +277,6 @@ class HandleInertiaRequests extends Middleware
             'expiringBatchNotifications' => $expiringBatchNotifications,
             'receivableNotifications' => $receivableNotifications,
             'payableNotifications' => $payableNotifications,
-            'payableAgingSummary' => $payableAgingSummary,
-            'receivableAgingSummary' => $receivableAgingSummary,
             'activeCashierShift' => $activeCashierShift,
             'storeProfile' => $storeProfile,
             'printerSettings' => $printerSettings,
