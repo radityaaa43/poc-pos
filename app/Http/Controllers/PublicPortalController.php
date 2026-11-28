@@ -15,7 +15,7 @@ class PublicPortalController extends Controller
     {
         $transaction = Transaction::where('invoice', $invoice)
             ->where('access_token', $request->token)
-            ->with(['details.product', 'customer', 'receivable', 'cashier:id,name'])
+            ->with(['details.product', 'details.modifiers', 'customer', 'receivable', 'cashier:id,name'])
             ->firstOrFail();
 
         return Inertia::render('Public/TransactionDetail', [
@@ -37,6 +37,8 @@ class PublicPortalController extends Controller
                     'product_title' => $d->product?->title ?? '-',
                     'qty' => $d->qty,
                     'price' => (int) $d->price,
+                    'note' => $d->note,
+                    'modifiers' => $d->modifiers->map->only(['option_name', 'price_delta']),
                 ]),
                 'receivable' => $transaction->receivable ? [
                     'id' => $transaction->receivable->id,
