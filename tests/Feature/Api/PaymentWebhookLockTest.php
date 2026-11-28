@@ -242,9 +242,10 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertSame(0, (int) $stale->fresh()->non_cash_sales_total); // the closed snapshot is untouched
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());
 
-        // Two rounds: the shift of the first read, then the shift the bill turned out to be in.
+        // Two rounds: the shift of the first read, then the shift the bill turned out to be in. A later read is the
+        // helper's booking lookup (forcedCloseThatBooked), after the bill lock (#469).
         $shiftReads = collect($log)->filter(fn (array $q) => (bool) preg_match('/from [`"]cashier_shifts[`"]/', $q['query']));
-        $this->assertSame([$stale->id, $current->id], $shiftReads->pluck('bindings.0')->all());
+        $this->assertSame([$stale->id, $current->id], $shiftReads->pluck('bindings.0')->take(2)->all());
     }
 
     public function test_a_bill_moved_to_a_closed_shift_before_the_lock_is_flagged(): void
