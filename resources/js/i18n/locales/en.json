@@ -599,14 +599,19 @@
             "item": "Not handed over",
             "bill": "Unpaid",
             "syncFirst": "Sync offline transactions first",
-            "split": "Split payment not fully paid — {{amount}} still owed"
+            "split": "Split payment not fully paid — {{amount}} still owed",
+            "discount": "Discount awaiting approval — {{amount}}",
+            "approve": "Approve",
+            "deny": "Deny",
+            "decideFailed": "Could not save the decision."
         },
         "forced": {
             "submit": "Force close",
             "note": "Force-close note",
             "warning": "Items not handed over are marked not collected, and unpaid bills go into the cash difference.",
             "unpaidBooked": "Unpaid bills booked",
-            "splitNote": "Split payments not fully paid stay payable."
+            "splitNote": "Split payments not fully paid stay payable.",
+            "discountNote": "Discounts still waiting for approval stay pending."
         }
     },
     "stock": {

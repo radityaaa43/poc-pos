@@ -129,7 +129,8 @@ class PosOperations
             },
 
             // A cash sale of --arg=total (default 20000) waiting for discount approval: --arg=discount
-            // (default 5000) is already taken off the total, as checkout does.
+            // (default 5000) is already taken off the total, as checkout does. --arg=shift_id puts it in that shift (#542),
+            // --arg=note is the hold row's label.
             'posops.pending-discount' => function (array $options): array {
                 $cashier = self::user($options['cashier'] ?? 'cashier@e2e.test');
                 $discount = (int) ($options['discount'] ?? 5000);
@@ -137,6 +138,7 @@ class PosOperations
 
                 $transaction = Transaction::create([
                     'cashier_id' => $cashier->id,
+                    'cashier_shift_id' => isset($options['shift_id']) ? (int) $options['shift_id'] : null,
                     'warehouse_id' => self::warehouse()->id,
                     'invoice' => 'TRX-E2E'.Str::upper(Str::random(8)),
                     'cash' => $grandTotal,
@@ -147,6 +149,7 @@ class PosOperations
                     'payment_method' => 'cash',
                     'payment_status' => 'pending_approval',
                     'discount_approval_status' => 'pending',
+                    'note' => $options['note'] ?? null,
                 ]);
                 DiscountApprovalLog::create([
                     'transaction_id' => $transaction->id,

@@ -76,6 +76,14 @@ describe("Shift close", () => {
         await expectPlainClose();
     });
 
+    it("warns that a pending discount stays pending on a force close, and offers it no decision to a cashier (#542)", () => {
+        renderShow({ canForceClose: true, closeBlockers: [{ type: "discount", id: 42, order: "TRX-9", label: "Budi", amount: 5000 }] });
+
+        expect(screen.getByText("Diskon menunggu persetujuan — Rp 5.000")).toBeInTheDocument();
+        expect(screen.getByText("Diskon yang masih menunggu persetujuan tetap berstatus menunggu.")).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: /Setujui|Tolak/ })).not.toBeInTheDocument();
+    });
+
     it("closes someone else's unheld shift as before: no note, no force flag", async () => {
         signIn({ id: 1 });
         renderShow({ canForceClose: true });

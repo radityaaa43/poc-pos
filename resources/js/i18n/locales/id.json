@@ -599,14 +599,19 @@
             "item": "Belum diserahkan",
             "bill": "Belum lunas",
             "syncFirst": "Sinkronkan transaksi offline dulu",
-            "split": "Split pembayaran belum lunas — sisa {{amount}}"
+            "split": "Split pembayaran belum lunas — sisa {{amount}}",
+            "discount": "Diskon menunggu persetujuan — {{amount}}",
+            "approve": "Setujui",
+            "deny": "Tolak",
+            "decideFailed": "Keputusan gagal disimpan."
         },
         "forced": {
             "submit": "Tutup paksa",
             "note": "Catatan tutup paksa",
             "warning": "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.",
             "unpaidBooked": "Tagihan belum lunas dibukukan",
-            "splitNote": "Split pembayaran yang belum lunas tetap bisa dibayar."
+            "splitNote": "Split pembayaran yang belum lunas tetap bisa dibayar.",
+            "discountNote": "Diskon yang masih menunggu persetujuan tetap berstatus menunggu."
         }
     },
     "stock": {

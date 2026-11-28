@@ -28,24 +28,26 @@ class ShiftClose
                 return [
                     'shift_id' => $shift->id,
                     ...$shift->only(['status', 'close_notes', 'expected_cash', 'cash_difference']),
-                    ...$shift->only(['unpaid_bills_total', 'non_cash_sales_total', 'transactions_count']),
+                    ...$shift->only(['cash_sales_total', 'unpaid_bills_total', 'non_cash_sales_total', 'transactions_count']),
                     'audit' => self::auditCounts($shift),
                     'override' => AuditLog::where('auditable_type', $shift->getMorphClass())->where('auditable_id', $shift->id)
                         ->where('event', 'cashier_shift.hold_overridden')->first()?->meta,
                 ];
             },
 
-            // The sale --arg=invoice=<invoice>: payment status, both stock columns of its first line's product, how many
-            // times its stock was put back by a cancellation, and its audit entries per event.
+            // The sale --arg=invoice=<invoice>: payment and discount approval status, both stock columns of its first
+            // line's product (null when it has none, as a pending-discount sale), how many times its stock was put back
+            // by a cancellation, and its audit entries per event.
             'shiftclose.sale-state' => function (array $options): array {
                 $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
-                $productId = $transaction->details()->firstOrFail()->product_id;
+                $productId = $transaction->details()->value('product_id');
 
                 return [
                     'payment_status' => $transaction->payment_status,
-                    'product_stock' => (int) Product::findOrFail($productId)->stock,
-                    'warehouse_stock' => (int) ProductWarehouse::where('product_id', $productId)
-                        ->where('warehouse_id', $transaction->warehouse_id)->value('stock'),
+                    'discount_approval_status' => $transaction->discount_approval_status,
+                    'product_stock' => $productId ? (int) Product::findOrFail($productId)->stock : null,
+                    'warehouse_stock' => $productId ? (int) ProductWarehouse::where('product_id', $productId)
+                        ->where('warehouse_id', $transaction->warehouse_id)->value('stock') : null,
                     'restocks' => StockMutation::where('reference_type', 'transaction_expire')->where('reference_id', $transaction->id)->count(),
                     'audit' => self::auditCounts($transaction),
                 ];

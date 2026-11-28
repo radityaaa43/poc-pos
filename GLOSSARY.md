@@ -71,6 +71,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
 | Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
 | Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
+| Pending discount approval / Menunggu approval diskon | A sale whose manual discount is above the cashier's limit and waits for a holder of `discounts-approve`; `payment_status` is `pending_approval` and it holds its shift's close (#542) | Pending payment: a waiting gateway attempt, not a discount | `transactions.discount_approval_status = pending`, `DiscountApprovalLog` |
 
 ## Retired terms
 
