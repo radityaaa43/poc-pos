@@ -14,6 +14,7 @@ API v1 menyediakan akses token-based untuk aplikasi mobile, perangkat kasir, dan
 - Master data: products, customers, categories, warehouses, suppliers.
 - POS: shift, product scan, cart, hold/resume, checkout, transactions.
 - Offline sync: `POST /api/v1/pos/transactions/sync`.
+- Bill totals: `GET /api/v1/transactions/pricing-preview` and `GET /api/v1/pos/cart` take an optional `order_type` (`in_store`, `takeaway`, `delivery`) and return `service_charge` and `tax_kind` (`ppn` or `pb1`) in `summary`; only `in_store` carries a service charge, so send it as checkout will. A sale returns the same two fields. Checkout and sync compute every total from the outlet's settings and ignore totals sent by the client.
 - Payment webhooks: `/api/webhooks/midtrans` dan `/api/webhooks/xendit`.
 
 ## Penolakan Piutang

@@ -10,6 +10,7 @@ use App\Models\Product;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AuditLogService;
+use App\Services\BillSettingsService;
 use App\Services\OutletAccessService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
@@ -23,6 +24,7 @@ class OutletController extends Controller
     public function __construct(
         protected readonly OutletAccessService $outletAccessService,
         protected readonly AuditLogService $auditLogService,
+        protected readonly BillSettingsService $billSettings,
     ) {}
 
     public function index(): Response
@@ -32,6 +34,7 @@ class OutletController extends Controller
             ->each(function (Model $model) {
                 /** @var Outlet $model accessibleOutlets() returns an untyped Eloquent collection of outlets */
                 $model->setAttribute('pay_later_enabled', Setting::getBoolForOutlet('pay_later_enabled', $model));
+                $model->setAttribute('bill_settings', $this->billSettings->get($model));
             });
 
         return Inertia::render('Dashboard/Settings/Outlets/Index', ['outlets' => $outlets]);
@@ -98,6 +101,7 @@ class OutletController extends Controller
             'is_sales_enabled' => $isSalesEnabled,
         ]);
         $this->updatePayLater($outlet, $data);
+        $this->billSettings->update($outlet, $data);
 
         return back()->with('success', 'Outlet berhasil diperbarui.');
     }
@@ -153,6 +157,11 @@ class OutletController extends Controller
 
     protected function hasOperationalHistory(Outlet $outlet): bool
     {
+        // Reservations cascade with their outlet, and an outlet without a warehouse can hold them (#431 BR-3).
+        if (DB::table('dine_reservations')->where('outlet_id', $outlet->id)->exists()) {
+            return true;
+        }
+
         $warehouseIds = $outlet->warehouses()->pluck('id');
         if ($warehouseIds->isEmpty()) {
             return false;
@@ -160,7 +169,7 @@ class OutletController extends Controller
 
         foreach ([
             'transactions', 'carts', 'stock_mutations', 'cashier_shifts', 'purchase_orders',
-            'goods_receivings', 'supplier_returns', 'stock_opnames', 'product_batches',
+            'goods_receivings', 'supplier_returns', 'stock_opnames', 'product_batches', 'stock_wastes',
         ] as $table) {
             if (Schema::hasTable($table) && Schema::hasColumn($table, 'warehouse_id')
                 && DB::table($table)->whereIn('warehouse_id', $warehouseIds)->exists()) {

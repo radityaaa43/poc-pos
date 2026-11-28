@@ -166,6 +166,7 @@ class FeatureDemoSeeder extends Seeder
             'dine_tables',
             'dine_orders',
             'dine_order_items',
+            'dine_reservations',
             'discount_approval_logs',
             'loyalty_point_histories',
         ])->every(fn (string $table) => Schema::hasTable($table));
@@ -178,6 +179,7 @@ class FeatureDemoSeeder extends Seeder
         foreach ([
             'dine_order_items',
             'dine_orders',
+            'dine_reservations',
             'dine_tables',
             'dine_areas',
             'stock_transfer_items',

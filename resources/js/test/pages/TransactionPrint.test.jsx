@@ -14,6 +14,7 @@ vi.mock("@inertiajs/react", () => ({
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() }, Toaster: () => null }));
 
+import "@/i18n";
 import Print from "@/Pages/Dashboard/Transactions/Print";
 
 const transaction = {
@@ -50,6 +51,17 @@ afterEach(() => {
 });
 
 describe("Print", () => {
+    it("derives the subtotal without the service charge and shows it with the PB1 label (#450)", () => {
+        const sale = { ...transaction, service_charge: 1000, tax_kind: "pb1", tax_rate: "10.00", tax_total: 2100, grand_total: 23100 };
+
+        render(<Print transaction={sale} />);
+
+        // The items table has a "Subtotal" column too; the summary one is a span.
+        expect(screen.getByText("Subtotal", { selector: "span" }).nextElementSibling).toHaveTextContent(/20\.000/);
+        expect(screen.getByText("Service charge").nextElementSibling).toHaveTextContent(/1\.000/);
+        expect(screen.getByText("PB1 10%").nextElementSibling).toHaveTextContent(/2\.100/);
+    });
+
     it("Share copies the customer portal link as it is, with the origin once (#111)", () => {
         render(<Print transaction={transaction} />);
 

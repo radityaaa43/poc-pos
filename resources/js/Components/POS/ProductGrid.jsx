@@ -1,5 +1,6 @@
 import React from "react";
 import { IconShoppingBag, IconMinus, IconPlus } from "@tabler/icons-react";
+import { useTranslation } from "react-i18next";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 
 const formatPrice = (value = 0) =>
@@ -11,7 +12,8 @@ const formatPrice = (value = 0) =>
 
 // Single Product Card
 function ProductCard({ product, onAddToCart, isAdding }) {
-    const hasStock = product.stock > 0;
+    const { t } = useTranslation();
+    const hasStock = product.stock > 0 && !product.sold_out;
     const lowStock = product.stock > 0 && product.stock <= 5;
     const promoBadge = product.pricing_badge;
     const promoPrice = Number(promoBadge?.promo_price || 0);
@@ -82,7 +84,7 @@ function ProductCard({ product, onAddToCart, isAdding }) {
                 {!hasStock && (
                     <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center">
                         <span className="px-3 py-1 bg-danger-500 text-white text-xs font-semibold rounded-full">
-                            Habis
+                            {t("common.soldOut")}
                         </span>
                     </div>
                 )}

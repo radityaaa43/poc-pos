@@ -37,6 +37,7 @@ IconRulerMeasure,
     IconTruckReturn,
     IconSpeakerphone,
     IconArrowsLeftRight,
+    IconTrash,
     IconAlertCircle,
     IconListDetails,
     IconBrandWhatsapp,
@@ -45,6 +46,7 @@ IconRulerMeasure,
     IconStopwatch,
     IconChefHat,
     IconAdjustments,
+    IconCalendarEvent,
 } from "@tabler/icons-react";
 import hasAnyPermission from "./Permission";
 import React from "react";
@@ -183,6 +185,13 @@ export default function Menu() {
                     icon: <IconArrowsLeftRight size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["stock-transfers-access"]),
                 },
+                {
+                    title: t("sidebar.items.stockWaste"),
+                    href: route("stock-waste.index"),
+                    active: url.startsWith("/dashboard/stock-waste"),
+                    icon: <IconTrash size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["stock-waste-create", "stock-waste-approve"]),
+                },
             ],
         },
         {
@@ -295,6 +304,13 @@ export default function Menu() {
                     active: url.startsWith("/dashboard/kitchen"),
                     icon: <IconChefHat size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["dine-orders-prepare", "dine-orders-handover"]),
+                },
+                {
+                    title: t("sidebar.items.dineReservations"),
+                    href: route("dine-reservations.index"),
+                    active: url.startsWith("/dashboard/dine-reservations"),
+                    icon: <IconCalendarEvent size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["dine-reservations-manage"]),
                 },
             ],
         },

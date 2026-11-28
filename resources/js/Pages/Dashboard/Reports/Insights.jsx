@@ -2,169 +2,29 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import InputSelect from "@/Components/Dashboard/InputSelect";
 import Table from "@/Components/Dashboard/Table";
 import { Head, router } from "@inertiajs/react";
-import { useEffect, useMemo, useRef, useState } from "react";
-import Chart from "chart.js/auto";
+import { useEffect, useState } from "react";
 import {
     IconChartBar,
-    IconClock,
-    IconCoin,
-    IconDatabaseOff,
     IconFilter,
-    IconPackage,
-    IconReceipt2,
     IconSearch,
     IconTrendingDown,
-    IconTrendingUp,
-    IconUsers,
     IconX,
 } from "@tabler/icons-react";
-
-const defaultFilters = {
-    start_date: "",
-    end_date: "",
-    cashier_id: "",
-    customer_id: "",
-    category_id: "",
-};
-
-const formatCurrency = (value = 0) =>
-    new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        minimumFractionDigits: 0,
-    }).format(value);
-
-const formatPercentage = (value = 0) =>
-    new Intl.NumberFormat("id-ID", {
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 2,
-    }).format(value);
-
-const formatDateTime = (value) =>
-    value
-        ? new Intl.DateTimeFormat("id-ID", {
-              dateStyle: "medium",
-              timeStyle: "short",
-          }).format(new Date(value))
-        : "-";
-
-const coverageStatusConfig = {
-    critical: {
-        label: "Kritis",
-        className:
-            "bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300",
-    },
-    low: {
-        label: "Rendah",
-        className:
-            "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-    },
-    healthy: {
-        label: "Sehat",
-        className:
-            "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-    },
-    no_movement: {
-        label: "Tidak Bergerak",
-        className:
-            "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    },
-};
-
-const promoStatusConfig = {
-    active: {
-        label: "Aktif",
-        className:
-            "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300",
-    },
-    scheduled: {
-        label: "Terjadwal",
-        className:
-            "bg-sky-100 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300",
-    },
-    expired: {
-        label: "Berakhir",
-        className:
-            "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300",
-    },
-    inactive: {
-        label: "Nonaktif",
-        className:
-            "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-    },
-};
-
-const promoKindLabel = {
-    standard_discount: "Discount",
-    qty_break: "Grosir",
-    bundle_price: "Bundle",
-    buy_x_get_y: "BXGY",
-};
-
-const crmCampaignTypeLabel = {
-    promo_broadcast: "Promo Broadcast",
-    invoice_share: "Invoice Share",
-    due_date_reminder: "Due Reminder",
-    repeat_order_reminder: "Repeat Order",
-};
-
-function SummaryCard({ title, value, description, icon: Icon, gradient }) {
-    return (
-        <div
-            className={`relative overflow-hidden rounded-2xl p-5 bg-gradient-to-br ${gradient} text-white shadow-lg`}
-        >
-            <div className="relative z-10">
-                <div className="mb-2 flex items-center gap-2">
-                    <div className="rounded-xl bg-white/20 p-2">
-                        <Icon size={18} />
-                    </div>
-                    <span className="text-sm font-medium opacity-90">
-                        {title}
-                    </span>
-                </div>
-                <p className="text-2xl font-bold">{value}</p>
-                <p className="mt-1 text-sm opacity-80">{description}</p>
-            </div>
-        </div>
-    );
-}
-
-function EmptyState({ message }) {
-    return (
-        <div className="flex h-40 items-center justify-center">
-            <div className="text-center">
-                <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-                    <IconDatabaseOff size={24} className="text-slate-400" />
-                </div>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {message}
-                </p>
-            </div>
-        </div>
-    );
-}
-
-function ChartCard({ title, subtitle, chartRef, hasData }) {
-    return (
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
-                    {title}
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                    {subtitle}
-                </p>
-            </div>
-            {hasData ? (
-                <div className="h-72">
-                    <canvas ref={chartRef} />
-                </div>
-            ) : (
-                <EmptyState message="Belum ada data untuk periode ini." />
-            )}
-        </div>
-    );
-}
+import ChartCard from "./Insights/ChartCard";
+import RepeatSummaryGrid from "./Insights/RepeatSummaryGrid";
+import SummaryGrid from "./Insights/SummaryGrid";
+import TopSellingProductsTable from "./Insights/TopSellingProductsTable";
+import useInsightsCharts from "./Insights/useInsightsCharts";
+import {
+    coverageStatusConfig,
+    crmCampaignTypeLabel,
+    defaultFilters,
+    formatCurrency,
+    formatDateTime,
+    formatPercentage,
+    promoKindLabel,
+    promoStatusConfig,
+} from "./Insights/format";
 
 export default function Insights({
     filters,
@@ -196,10 +56,12 @@ export default function Insights({
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [selectedCategory, setSelectedCategory] = useState(null);
 
-    const salesHourChartRef = useRef(null);
-    const salesHourChart = useRef(null);
-    const salesDayChartRef = useRef(null);
-    const salesDayChart = useRef(null);
+    const {
+        salesHourChartRef,
+        salesDayChartRef,
+        hourChartData,
+        dayChartData,
+    } = useInsightsCharts({ salesByHour, salesByDay });
 
     useEffect(() => {
         setFilterData({
@@ -223,86 +85,6 @@ export default function Insights({
         filterData.cashier_id ||
         filterData.customer_id ||
         filterData.category_id;
-
-    const hourChartData = useMemo(
-        () => salesByHour.filter((item) => item.orders_count > 0 || item.revenue_total > 0),
-        [salesByHour]
-    );
-    const dayChartData = useMemo(() => salesByDay, [salesByDay]);
-
-    useEffect(() => {
-        if (salesHourChart.current) {
-            salesHourChart.current.destroy();
-            salesHourChart.current = null;
-        }
-        if (!salesHourChartRef.current || !hourChartData.length) {
-            return;
-        }
-
-        salesHourChart.current = new Chart(salesHourChartRef.current, {
-            type: "bar",
-            data: {
-                labels: hourChartData.map((item) => item.label),
-                datasets: [
-                    {
-                        label: "Omzet",
-                        data: hourChartData.map((item) => item.revenue_total),
-                        backgroundColor: "#3b82f6",
-                        borderRadius: 8,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                },
-            },
-        });
-
-        return () => salesHourChart.current?.destroy();
-    }, [hourChartData]);
-
-    useEffect(() => {
-        if (salesDayChart.current) {
-            salesDayChart.current.destroy();
-            salesDayChart.current = null;
-        }
-        if (!salesDayChartRef.current || !dayChartData.length) {
-            return;
-        }
-
-        salesDayChart.current = new Chart(salesDayChartRef.current, {
-            type: "line",
-            data: {
-                labels: dayChartData.map((item) => item.label),
-                datasets: [
-                    {
-                        label: "Omzet",
-                        data: dayChartData.map((item) => item.revenue_total),
-                        borderColor: "#10b981",
-                        backgroundColor: "rgba(16, 185, 129, 0.15)",
-                        fill: true,
-                        tension: 0.35,
-                    },
-                ],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                },
-            },
-        });
-
-        return () => salesDayChart.current?.destroy();
-    }, [dayChartData]);
 
     const handleChange = (field, value) =>
         setFilterData((prev) => ({ ...prev, [field]: value }));
@@ -378,36 +160,10 @@ export default function Insights({
                     </button>
                 </div>
 
-                <div data-tour="reports-summary" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <SummaryCard
-                        title="Pendapatan"
-                        value={formatCurrency(summary?.revenue_total ?? 0)}
-                        description={`${summary?.orders_count ?? 0} transaksi`}
-                        icon={IconReceipt2}
-                        gradient="from-primary-500 to-primary-700"
-                    />
-                    <SummaryCard
-                        title="Profit"
-                        value={formatCurrency(summary?.profit_total ?? 0)}
-                        description={`Rata-rata ${formatCurrency(summary?.average_order ?? 0)}`}
-                        icon={IconCoin}
-                        gradient="from-emerald-500 to-emerald-700"
-                    />
-                    <SummaryCard
-                        title="Item Terjual"
-                        value={(summary?.items_sold ?? 0).toLocaleString("id-ID")}
-                        description={`Diskon manual ${formatCurrency(summary?.manual_discount_total ?? 0)}`}
-                        icon={IconPackage}
-                        gradient="from-amber-500 to-amber-700"
-                    />
-                    <SummaryCard
-                        title="Kasir Aktif di Filter"
-                        value={cashierPerformance.length.toLocaleString("id-ID")}
-                        description="Leaderboard performa kasir"
-                        icon={IconUsers}
-                        gradient="from-fuchsia-500 to-fuchsia-700"
-                    />
-                </div>
+                <SummaryGrid
+                    summary={summary}
+                    cashierPerformance={cashierPerformance}
+                />
 
                 {showFilters && (
                     <div
@@ -513,79 +269,12 @@ export default function Insights({
                     />
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                    <SummaryCard
-                        title="Customer Aktif"
-                        value={(repeatSummary.active_customers ?? 0).toLocaleString("id-ID")}
-                        description={`${repeatSummary.new_customers ?? 0} pelanggan baru`}
-                        icon={IconUsers}
-                        gradient="from-sky-500 to-sky-700"
-                    />
-                    <SummaryCard
-                        title="Repeat Rate"
-                        value={`${formatPercentage(repeatSummary.repeat_rate ?? 0)}%`}
-                        description={`${repeatSummary.repeat_customers ?? 0} pelanggan repeat`}
-                        icon={IconTrendingUp}
-                        gradient="from-violet-500 to-violet-700"
-                    />
-                    <SummaryCard
-                        title="Member Revenue Share"
-                        value={`${formatPercentage(repeatSummary.member_revenue_share ?? 0)}%`}
-                        description={formatCurrency(
-                            repeatSummary.member_revenue_total ?? 0
-                        )}
-                        icon={IconCoin}
-                        gradient="from-teal-500 to-teal-700"
-                    />
-                    <SummaryCard
-                        title="Stok Perlu Perhatian"
-                        value={(
-                            (stockCoverageSummary.critical ?? 0) +
-                            (stockCoverageSummary.low ?? 0)
-                        ).toLocaleString("id-ID")}
-                        description={`${stockCoverageSummary.window_days ?? 0} hari jendela analisa`}
-                        icon={IconClock}
-                        gradient="from-rose-500 to-rose-700"
-                    />
-                </div>
+                <RepeatSummaryGrid
+                    repeatSummary={repeatSummary}
+                    stockCoverageSummary={stockCoverageSummary}
+                />
 
-                <Table.Card title="Top Selling Products">
-                    <Table>
-                        <Table.Thead>
-                            <tr>
-                                <Table.Th>Produk</Table.Th>
-                                <Table.Th>Kategori</Table.Th>
-                                <Table.Th className="text-right">Qty</Table.Th>
-                                <Table.Th className="text-right">Omzet</Table.Th>
-                                <Table.Th className="text-right">Profit</Table.Th>
-                            </tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {topSellingProducts.length > 0 ? (
-                                topSellingProducts.map((item) => (
-                                    <tr key={item.product_id}>
-                                        <Table.Td>
-                                            <div>
-                                                <p className="font-semibold text-slate-900 dark:text-slate-100">
-                                                    {item.product_title}
-                                                </p>
-                                                <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                    {item.product_sku || "-"}
-                                                </p>
-                                            </div>
-                                        </Table.Td>
-                                        <Table.Td>{item.category_name || "-"}</Table.Td>
-                                        <Table.Td className="text-right">{item.qty_sold}</Table.Td>
-                                        <Table.Td className="text-right">{formatCurrency(item.revenue_total)}</Table.Td>
-                                        <Table.Td className="text-right">{formatCurrency(item.profit_total)}</Table.Td>
-                                    </tr>
-                                ))
-                            ) : (
-                                <Table.Empty colSpan={5} message="Belum ada data top selling pada periode ini." />
-                            )}
-                        </Table.Tbody>
-                    </Table>
-                </Table.Card>
+                <TopSellingProductsTable topSellingProducts={topSellingProducts} />
 
                 <Table.Card title="Low Performing Products">
                     <Table>

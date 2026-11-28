@@ -44,11 +44,6 @@
       "count": 1
     }
   },
-  "resources/js/Components/Receipt/ThermalReceipt.jsx": {
-    "no-undef": {
-      "count": 1
-    }
-  },
   "resources/js/Components/TextInput.jsx": {
     "react-hooks/rules-of-hooks": {
       "count": 1
@@ -125,11 +120,6 @@
     }
   },
   "resources/js/Pages/Dashboard/Receivables/Show.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
-  "resources/js/Pages/Dashboard/Reports/Insights.jsx": {
     "no-unused-vars": {
       "count": 1
     }
