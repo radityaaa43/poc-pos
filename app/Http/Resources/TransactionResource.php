@@ -33,6 +33,7 @@ class TransactionResource extends JsonResource
             'loyalty_discount_total' => (float) $this->loyalty_discount_total,
             'customer_voucher_discount' => (float) $this->customer_voucher_discount,
             'grand_total' => (float) $this->grand_total,
+            'overpaid_amount' => (int) $this->overpaid_amount,
             'cash' => (float) $this->cash,
             'change' => (float) $this->change,
             'payment_method' => $this->payment_method,

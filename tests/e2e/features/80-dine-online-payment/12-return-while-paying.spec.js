@@ -12,7 +12,7 @@ test.describe('80-dine-online-payment', () => {
     test.describe.configure({ timeout: 180_000 });
     test.use({ actionTimeout: 30_000 });
 
-    test('an old total paid after a return is flagged for a refund and the shift counts only what was owed', { tag: ['@BR-1', '@BR-2'] }, async ({ arrange, page, request }) => {
+    test('an old total paid after a return is flagged for a refund and the shift counts only what was owed', { tag: ['@BR-1', '@BR-2', '@BR-4'] }, async ({ arrange, page, request }) => {
         // 2 x 10000, and the guest is paying 20000.
         const bill = await guestStartsPaying(page, arrange, { staff: '1', returns: '1' });
         await signIn(page, bill.cashier_email);
