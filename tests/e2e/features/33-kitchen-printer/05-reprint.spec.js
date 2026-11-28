@@ -29,6 +29,8 @@ test.describe('33-kitchen-printer', () => {
         arrange('open-shift', { cash: 100000 });
         // An order from before the print device was named: this device never prints it.
         const earlier = arrange('kitchen-sale', { prefix: uniq('Lama') });
+        // "Before" must hold to the second: the server offers a device what was accepted in or after the second it was named.
+        arrange('kitchen.set-item', { invoice: earlier.invoice, status: 'accepted', accepted_ago: 60 });
         const page = await asRole(cashier);
         await fakePrinter(page);
         await setUpPrintDevice(page, uniq('Dapur'));
