@@ -302,6 +302,9 @@ class ModifierGroupTest extends TestCase
         $this->get(route('settings.modifiers.index'))->assertForbidden();
         $this->post(route('settings.modifiers.store'), $this->payload())->assertForbidden();
         $this->put(route('settings.modifiers.update', $group), $this->payload())->assertForbidden();
+        $off = $this->option('Regular', ['is_default' => true, 'disabled_outlet_ids' => [$this->outlet('MOD-A')->id]]);
+        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [$off]]))->assertForbidden();
+        $this->assertDatabaseCount('modifier_option_outlet', 0);
         $this->delete(route('settings.modifiers.destroy', $group))->assertForbidden();
 
         // products-edit alone: no groups are listed, and a save that sends the field, even empty, changes nothing.
