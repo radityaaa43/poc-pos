@@ -311,16 +311,19 @@ class CreditApprovalTest extends TestCase
         $request = $this->requested();
         $request->load('warehouse');
         $outside = DB::transactionLevel();
-        $tables = [];
-        DB::listen(function ($query) use (&$tables, $outside) {
-            if (DB::transactionLevel() > $outside && preg_match('/^select .*? from "(\w+)"/', $query->sql, $match)) {
-                $tables[] = $match[1];
+        $reads = [];
+        DB::listen(function ($query) use (&$reads, $outside) {
+            if (DB::transactionLevel() > $outside && preg_match('/^select .*? from [`"](\w+)[`"]/', $query->sql, $match)) {
+                $reads[] = [$match[1], str_ends_with($query->sql, 'for update')];
             }
         });
 
         app(CreditApprovalService::class)->approve($request, 'Pelanggan lama', $this->approver);
 
-        $this->assertSame(['cashier_shifts', 'customers', 'credit_approval_requests', 'carts'], array_slice($tables, 0, 4));
+        $this->assertSame(['cashier_shifts', 'customers', 'credit_approval_requests', 'carts'], array_column(array_slice($reads, 0, 4), 0));
+        if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
+            $this->assertSame([true, true, true, false], array_column(array_slice($reads, 0, 4), 1));
+        }
     }
 
     public function test_decided_request_cannot_be_flipped(): void
