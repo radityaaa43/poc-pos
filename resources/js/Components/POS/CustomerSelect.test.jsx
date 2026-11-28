@@ -8,7 +8,7 @@ import CustomerSelect from "./CustomerSelect";
 
 vi.mock("axios", () => ({ default: { post: vi.fn() } }));
 vi.mock("@inertiajs/react", () => ({
-    router: { reload: vi.fn() },
+    router: { reload: vi.fn(), on: vi.fn(() => () => {}) },
     usePage: vi.fn(),
 }));
 vi.mock("react-hot-toast", () => ({

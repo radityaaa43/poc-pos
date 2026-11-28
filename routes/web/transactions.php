@@ -5,6 +5,7 @@ use App\Http\Controllers\Apps\CrmCampaignController;
 use App\Http\Controllers\Apps\TransactionController;
 use App\Http\Controllers\Apps\Transactions\OfflineSaleDiscardController;
 use App\Http\Controllers\Apps\TransactionSettleController;
+use App\Http\Middleware\EnsureHoldNotAwaitingCredit;
 use Illuminate\Support\Facades\Route;
 
 // Required by routes/web.php inside its /dashboard group, so the prefix and `auth` apply.
@@ -27,8 +28,8 @@ Route::post('/transactions/pricing-preview', [TransactionController::class, 'pre
 
 // route hold transaction
 Route::post('/transactions/hold', [TransactionController::class, 'holdCart'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.hold');
-Route::post('/transactions/{holdId}/resume', [TransactionController::class, 'resumeCart'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.resume');
-Route::delete('/transactions/{holdId}/clearHold', [TransactionController::class, 'clearHold'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.clearHold');
+Route::post('/transactions/{holdId}/resume', [TransactionController::class, 'resumeCart'])->middleware(['permission:transactions-access', 'active_shift', EnsureHoldNotAwaitingCredit::class])->name('transactions.resume');
+Route::delete('/transactions/{holdId}/clearHold', [TransactionController::class, 'clearHold'])->middleware(['permission:transactions-access', 'active_shift', EnsureHoldNotAwaitingCredit::class])->name('transactions.clearHold');
 Route::get('/transactions/held', [TransactionController::class, 'getHeldCarts'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.held');
 
 // the POS "Belum Lunas" list, polled by the browser

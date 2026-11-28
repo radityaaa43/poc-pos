@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { router } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import { IconAlertTriangle } from "@tabler/icons-react";
 import { useOnlineStatus } from "@/Context/OnlineStatusContext";
@@ -29,6 +30,15 @@ export default function CustomerCreditPanel({ customer }) {
     const id = online && customer?.may_buy_on_credit ? customer.id : null;
     const [result, setResult] = useState(null);
     const [attempt, setAttempt] = useState(0);
+
+    // A refused credit sale means these figures may be out of date (another cashier sold on credit): read them again.
+    useEffect(
+        () =>
+            router.on("error", (event) => {
+                if (event.detail.errors?.credit) setAttempt((n) => n + 1);
+            }),
+        [],
+    );
 
     useEffect(() => {
         if (!id) return;

@@ -51,7 +51,22 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
   pembayaran sekarang. Batas yang diturunkan di bawah Terpakai langsung menolak utang baru.
 - Pemeriksaan ada di `CustomerCreditService::guard`, dalam transaksi checkout yang membuat piutang, dengan baris
   pelanggan dikunci, sehingga dua kasir tidak bisa bersama-sama melewati satu batas.
-- Pengecualian dengan persetujuan manajer belum ada: dikerjakan terpisah (REQ-007 AC-06).
+
+### Pengecualian dengan persetujuan
+
+- Penolakan di POS web membuka dialog: **Bayar sekarang**, **Minta pengecualian**, **Batal**. API tidak bisa mengajukan.
+- **Minta pengecualian** menahan keranjang (**Menunggu persetujuan kredit**) dan membuat satu `credit_approval_requests`.
+  Belum ada penjualan, stok keluar, piutang, atau pesanan dapur. Keranjang itu tidak bisa dilanjutkan, dihapus, atau
+  diubah (web dan API) selama menunggu.
+- Pemegang `customers-credit-approve` di outlet itu memutuskan di halaman Approval Diskon, dengan alasan wajib
+  (3 sampai 500 karakter). Boleh memutuskan pengajuannya sendiri; kedua nama tercatat di audit.
+- **Setujui** menjalankan checkout sekali atas nama kasir di shift yang sama: piutang dibuat, dapur menerima pesanan,
+  batas tidak berubah. Ditolak sistem (pengajuan tetap menunggu) bila shift sudah ditutup, total berubah, stok kurang,
+  izin piutang pelanggan sudah dicabut, atau pay later dimatikan untuk outletnya. Persetujuan kedua tidak mengubah apa pun. Diskon yang melewati ambang
+  tetap menunggu approval diskon.
+- **Tolak**: kasir melihat alasannya di daftar transaksi ditahan, lalu melanjutkan (bayar sekarang) atau menghapusnya.
+- Audit: `credit_approval.requested`, `.approved`, `.denied` pada pelanggan.
+- Urutan lock: shift kasir, pelanggan, pengajuan, keranjang, stok.
 
 ## Integrasi Data
 
@@ -78,5 +93,5 @@ Belum ada approval flow terpisah untuk pencatatan pembayaran receivable.
 ## File Sentral
 
 - `app/Http/Controllers/Apps/ReceivableController.php`
-- `app/Services/ReceivableService.php`, `app/Services/CustomerCreditService.php`
+- `app/Services/ReceivableService.php`, `app/Services/CustomerCreditService.php`, `app/Services/CreditApprovalService.php`
 - `resources/js/Pages/Dashboard/Receivables`

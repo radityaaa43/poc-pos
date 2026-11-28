@@ -31,6 +31,9 @@ jatuh tempo; `message`: "Lunasi piutang yang lewat jatuh tempo dulu"). `remainin
 rupiah bulat. Pelanggan tanpa batas tidak pernah ditolak. Tidak ada penjualan yang tersimpan: terima pembayaran
 sekarang. Persetujuan pengecualian hanya lewat web.
 
+Keranjang yang ditahan dari web untuk menunggu persetujuan kredit tidak bisa diubah lewat API: `resume` dan hapus hold,
+serta ubah dan hapus barisnya, menjawab `422` dengan `errors.hold` sampai pengajuan diputuskan.
+
 ## Dokumentasi API
 
 Pada instalasi aktif, dokumentasi Scramble tersedia di `/docs/api` dan OpenAPI JSON di `/docs/api.json`.

@@ -18,6 +18,7 @@ import HeldTransactions, {
 import OpenBills from "@/Components/POS/OpenBills";
 import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
+import useCreditException from "@/Components/POS/CreditExceptionDialog";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import OfflineQueuePanel from "@/Components/POS/OfflineQueuePanel";
 import i18n from "@/i18n";
@@ -107,6 +108,7 @@ export default function Index({
         defaultPaymentGateway ?? "cash"
     );
     const [payLater, setPayLater] = useState(false);
+    const creditException = useCreditException(() => setPayLater(false));
     const [dueDate, setDueDate] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [mobileView, setMobileView] = useState("products"); // 'products' | 'cart'
@@ -733,9 +735,7 @@ export default function Index({
             return;
         }
 
-        router.post(
-            route("transactions.store"),
-            withAddOn({
+        creditException.submit(withAddOn({
                 customer_id: selectedCustomer?.id ?? null,
                 discount,
                 redeem_points: Number(redeemPointsInput || 0),
@@ -791,8 +791,8 @@ export default function Index({
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The credit rules, the add-on, the pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The pay-later gate and the guest note rule answer with their own message; a credit refusal opens its dialog.
+                    if (!errors?.credit) toast.error(errors?.add_on_to || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1908,7 +1908,7 @@ export default function Index({
                     </div>
                 </div>
             </div>
-
+            {creditException.dialog}
             {/* Numpad Modal */}
             <NumpadModal
                 isOpen={numpadOpen}

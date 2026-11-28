@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from "vitest";
 import { render, screen, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import toast from "react-hot-toast";
 import { router } from "@inertiajs/react";
+import i18n from "@/i18n";
 import HeldTransactions, { HoldButton } from "./HeldTransactions";
 
 vi.mock("@inertiajs/react", () => ({
@@ -17,6 +18,7 @@ const heldCarts = [
     { hold_id: "h2", label: "Take away", items_count: 1, total: 15000 },
 ];
 
+beforeAll(() => i18n.changeLanguage("id"));
 beforeEach(() => {
     vi.clearAllMocks();
 });
@@ -275,5 +277,37 @@ describe("HoldButton", () => {
         await user.click(screen.getByRole("button", { name: "Tahan" }));
 
         expect(screen.getByRole("button", { name: "..." })).toBeDisabled();
+    });
+});
+
+describe("HeldTransactions: credit exception holds", () => {
+    const held = [
+        { hold_id: "h3", label: "Menunggu persetujuan kredit", items_count: 21, total: 210000, credit_status: "pending", credit_note: null },
+        { hold_id: "h4", label: "Pengecualian kredit ditolak", items_count: 3, total: 30000, credit_status: "denied", credit_note: "Tagih dulu" },
+    ];
+    const expandCredit = async () => {
+        const user = userEvent.setup();
+        render(<HeldTransactions heldCarts={held} />);
+        await user.click(screen.getByRole("button"));
+
+        return user;
+    };
+
+    it("a waiting basket says so and cannot be resumed or deleted", async () => {
+        await expandCredit();
+
+        expect(screen.getByText("Menunggu persetujuan kredit")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Menunggu persetujuan kredit" })).toBeDisabled();
+        expect(screen.getAllByRole("button", { name: "Hapus transaksi ditahan" })[0]).toBeDisabled();
+    });
+
+    it("a denied basket shows why and can be resumed to take payment now, or deleted", async () => {
+        const user = await expandCredit();
+
+        expect(screen.getByText("Pengecualian kredit ditolak")).toBeInTheDocument();
+        expect(screen.getByText("Tagih dulu")).toBeInTheDocument();
+        expect(screen.getAllByRole("button", { name: "Hapus transaksi ditahan" })[1]).toBeEnabled();
+        await user.click(screen.getByRole("button", { name: "Lanjutkan" }));
+        expect(router.post).toHaveBeenCalledWith("/transactions.resume", {}, expect.anything());
     });
 });

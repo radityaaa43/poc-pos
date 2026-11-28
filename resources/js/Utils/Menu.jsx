@@ -157,7 +157,7 @@ export default function Menu() {
                     href: route("discount-approvals.pending"),
                     active: url.startsWith("/dashboard/discount-approvals"),
                     icon: <IconAlertCircle size={20} strokeWidth={1.5} />,
-                    permissions: hasAnyPermission(["discounts-approve"]),
+                    permissions: hasAnyPermission(["discounts-approve", "customers-credit-approve"]),
                 },
             ],
         },

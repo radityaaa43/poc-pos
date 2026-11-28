@@ -47,8 +47,8 @@ class CustomerCreditService
 
         $refusal = match (true) {
             $standing->limit === null => null,
-            $standing->used + $total > $standing->limit => CreditRefusedException::limitExceeded($standing->remaining()),
-            $standing->hasOverdue => CreditRefusedException::overdue($standing->remaining()),
+            $standing->used + $total > $standing->limit => CreditRefusedException::limitExceeded($standing->remaining(), $total),
+            $standing->hasOverdue => CreditRefusedException::overdue($standing->remaining(), $total),
             default => null,
         };
 

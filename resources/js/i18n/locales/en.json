@@ -1243,7 +1243,12 @@
             "noLimit": "No limit",
             "overdue": "Overdue receivable exists",
             "loadError": "Could not load the credit limit",
-            "retry": "Try again"
+            "retry": "Try again",
+            "payNow": "Pay now",
+            "requestException": "Request an exception",
+            "cancel": "Cancel",
+            "awaiting": "Awaiting credit approval",
+            "denied": "Credit exception denied"
         },
         "offlineQueue": {
             "button": "Pending offline sales ({{count}})",
@@ -1401,6 +1406,16 @@
         "moveUp": "Move {{name}} up",
         "moveDown": "Move {{name}} down",
         "detach": "Detach {{name}}"
+    },
+    "creditApprovals": {
+        "title": "Awaiting credit approval",
+        "customer": "Customer",
+        "cashier": "Cashier",
+        "amount": "Amount",
+        "reasonLabel": "Reason",
+        "approve": "Approve",
+        "deny": "Deny",
+        "empty": "No credit requests."
     },
     "dineReservations": {
         "title": "Reservations",
