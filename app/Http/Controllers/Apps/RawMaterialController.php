@@ -215,6 +215,9 @@ class RawMaterialController extends Controller
 
         try {
             $blocked = DB::transaction(function () use ($product) {
+                // First, so the refusal names the waste and not the generic stock history below.
+                $product->refuseWasteHistory();
+
                 if ($product->compositeOf()->exists()) {
                     return 'Bahan baku tidak bisa dihapus karena dipakai sebagai komponen resep.';
                 }

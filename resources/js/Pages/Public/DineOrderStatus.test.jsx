@@ -14,7 +14,22 @@ const label = (order) => {
     return screen.getByTestId("dine-status").textContent;
 };
 
+beforeAll(() => i18n.changeLanguage("id"));
+
 describe("DineOrderStatus", () => {
+    // A completed order only while the server would still link an add-on to it (BR-13).
+    it.each([
+        ["accepted", true], ["preparing", true], ["ready", true], ["served", true], ["completed", true, true],
+        ["submitted", false], ["completed", false], ["rejected", false], ["cancelled", false],
+    ])("offers Tambah pesanan for a %s order: %s", (status, offered, add_on_open) => {
+        const route = vi.spyOn(globalThis, "route");
+        render(<DineOrderStatus order={{ ...base, status, add_on_open }} table={table} storeName="Toko" />);
+
+        expect(screen.queryAllByRole("link", { name: "Tambah pesanan" })).toHaveLength(offered ? 1 : 0);
+        if (offered) expect(route).toHaveBeenCalledWith("dine.menu", { token: "t", add_on_to: "tok" });
+        route.mockRestore();
+    });
+
     it.each([
         ["submitted", "Menunggu Konfirmasi"],
         ["accepted", "Menunggu Pembayaran"],

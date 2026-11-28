@@ -24,6 +24,7 @@ class DineOrderService
         private CashierShiftService $cashierShiftService,
         private TransactionSettlementService $settlementService,
         private KitchenItemService $kitchenItemService,
+        private AddOnOrderService $addOnOrderService,
     ) {}
 
     public function accept(DineOrder $order): void
@@ -43,10 +44,12 @@ class DineOrderService
             $warehouseId = $shift->warehouse_id;
 
             // ponytail: lock the order row so accept cannot race with a second accept/reject
-            $order = DineOrder::with(['items.product.components', 'table.area.outlet'])
-                ->whereKey($order->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            // #251: locked before the first plain read fixes MySQL's snapshot. A refusal rolls the whole accept back.
+            $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
+
+            $order->load(['items.product.components', 'table.area.outlet']);
 
             $tableOutletId = $order->table?->area?->outlet_id;
             $shiftOutletId = $shift->warehouse?->outlet_id;
@@ -63,6 +66,7 @@ class DineOrderService
             $transaction = Transaction::create([
                 'cashier_id' => $userId,
                 'cashier_shift_id' => $shift->id,
+                'parent_transaction_id' => $parentId,
                 'warehouse_id' => $warehouseId,
                 'customer_id' => $order->customer_id,
                 'invoice' => 'TRX-'.strtoupper(Str::random(10)),
@@ -76,6 +80,10 @@ class DineOrderService
                 'order_type' => 'in_store',
                 'note' => $order->notes,
             ]);
+
+            if ($parentId) {
+                $this->addOnOrderService->record($transaction);
+            }
 
             foreach ($order->items as $item) {
                 $product = $item->product;
@@ -312,6 +320,7 @@ class DineOrderService
             // One transaction, items locked and re-read as accepted: a double tap or a cook who took one item first
             // leaves the rest to start, not a half-started order plus an error.
             DB::transaction(function () use ($order) {
+                $this->kitchenItemService->lockKitchenRows([$order->transaction_id]);
                 $items = KitchenItem::where('transaction_id', $order->transaction_id)
                     ->where('status', KitchenItem::STATUS_ACCEPTED)
                     ->lockForUpdate()

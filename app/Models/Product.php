@@ -70,6 +70,15 @@ class Product extends Model
             }
         });
         static::deleting(fn (Product $product) => $product->refuseModifierIngredient('delete'));
+        static::deleting(fn (Product $product) => $product->refuseWasteHistory());
+    }
+
+    /** A wasted product, typed or taken as an ingredient, stays: the trail points at it (REQ-011). */
+    public function refuseWasteHistory(): void
+    {
+        if (StockWasteLine::where('product_id', $this->id)->exists() || StockWasteMove::where('product_id', $this->id)->exists()) {
+            throw ValidationException::withMessages(['delete' => __('messages.waste.product_in_use')]);
+        }
     }
 
     /** A live option's ingredient can be neither deleted nor made a recipe: nothing could deduct it (REQ-008). */
@@ -85,17 +94,22 @@ class Product extends Model
         }
     }
 
+    /** Adds unit_symbol, the base unit's: one subquery, no N+1; null when the product has no units. */
+    public function scopeWithUnitSymbol(Builder $query): void
+    {
+        $query->addSelect(['unit_symbol' => DB::table('product_units')
+            ->join('units', 'units.id', '=', 'product_units.unit_id')
+            ->select('units.symbol')
+            ->whereColumn('product_units.product_id', 'products.id')
+            ->where('product_units.is_base', true)
+            ->limit(1)]);
+    }
+
     /** What a recipe can deduct: stock-tracked products, raw materials first, each with its base-unit symbol. */
     public function scopeRecipeComponents(Builder $query): void
     {
+        $this->scopeWithUnitSymbol($query);
         $query->where('is_composite', false)
-            // One subquery, no N+1; null when the product has no units.
-            ->addSelect(['unit_symbol' => DB::table('product_units')
-                ->join('units', 'units.id', '=', 'product_units.unit_id')
-                ->select('units.symbol')
-                ->whereColumn('product_units.product_id', 'products.id')
-                ->where('product_units.is_base', true)
-                ->limit(1)])
             ->orderByDesc('is_raw_material')
             ->orderBy('title');
     }

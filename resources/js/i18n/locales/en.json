@@ -311,7 +311,8 @@
             "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp",
             "modifiers": "Modifier",
-            "dineReservations": "Reservations"
+            "dineReservations": "Reservations",
+            "stockWaste": "Waste"
         },
         "menu": {
             "overview": "Overview",
@@ -525,7 +526,11 @@
         "lateRefund": {
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
-            "notice": "A gateway payment was received but not booked — manual refund needed"
+            "notice": "A gateway payment was received but not booked — manual refund needed",
+            "overpaid": "Overpaid by Rp {{amount}} after a return — refund manually.",
+            "checkHistory": "Manual refund needed — check the payment history",
+            "cashOpen": "Return Rp {{cash}} in cash from the drawer — don't record a cash out.",
+            "cashClosed": "The shift is closed — return Rp {{cash}} and record it as a cash out in the current shift."
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
@@ -592,13 +597,15 @@
             "title": "Close blocked",
             "item": "Not handed over",
             "bill": "Unpaid",
-            "syncFirst": "Sync offline transactions first"
+            "syncFirst": "Sync offline transactions first",
+            "split": "Split payment not fully paid — {{amount}} still owed"
         },
         "forced": {
             "submit": "Force close",
             "note": "Force-close note",
             "warning": "Items not handed over are marked not collected, and unpaid bills go into the cash difference.",
-            "unpaidBooked": "Unpaid bills booked"
+            "unpaidBooked": "Unpaid bills booked",
+            "splitNote": "Split payments not fully paid stay payable."
         }
     },
     "stock": {
@@ -1284,6 +1291,15 @@
         "deleted": "Station deleted",
         "failed": "Could not save the station"
     },
+    "addOn": {
+        "add": "Add to order",
+        "banner": "Add-on order for {{invoice}}",
+        "receipt": "Add-on to {{invoice}}",
+        "completed": "The previous order is finished. This starts a new order.",
+        "cancelled": "The original order was cancelled — start a new order",
+        "offline": "Add-ons are not available offline",
+        "cancel": "Cancel"
+    },
     "dine": {
         "pay": {
             "button": "Pay now",
@@ -1388,5 +1404,51 @@
         "saved": "Reservation saved",
         "marked": "Reservation status changed",
         "failed": "The reservation could not be saved"
+    },
+    "waste": {
+        "title": "Waste",
+        "subtitle": "Raw materials and menus thrown away.",
+        "create": "Record waste",
+        "back": "Back to the waste list",
+        "status": "Status",
+        "allStatuses": "All statuses",
+        "warehouse": "Warehouse",
+        "allWarehouses": "All warehouses",
+        "reason": "Reason",
+        "chooseReason": "Choose a reason",
+        "item": "Item",
+        "itemNumber": "Item {{number}}",
+        "chooseItem": "Choose a raw material or menu",
+        "addItem": "Add item",
+        "removeItem": "Remove item {{number}}",
+        "qty": "Quantity",
+        "stockLeft": "Stock: {{stock}}",
+        "menuStock": "Stock: — (recipe ingredients are checked on save)",
+        "noteOptional": "Note (optional)",
+        "note": "Note",
+        "total": "Estimated waste value: {{value}}",
+        "estimateNote": "From the current average cost; the final value is calculated on save.",
+        "save": "Save waste",
+        "empty": "No waste records yet",
+        "recordedBy": "Recorded by {{name}}",
+        "lines": "Recorded items",
+        "moves": "Stock taken",
+        "unitCost": "Unit cost",
+        "value": "Value",
+        "notTaken": "The stock has not been taken.",
+        "takenAt": "Stock taken {{date}}",
+        "statuses": {
+            "pending": "Pending approval",
+            "recorded": "Recorded",
+            "rejected": "Rejected",
+            "cancelled": "Cancelled"
+        },
+        "reasons": {
+            "expired": "Expired",
+            "damaged": "Damaged",
+            "wrong_made": "Made wrong",
+            "not_collected": "Not collected",
+            "other": "Other"
+        }
     }
 }

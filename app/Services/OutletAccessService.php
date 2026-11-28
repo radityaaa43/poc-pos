@@ -167,6 +167,7 @@ class OutletAccessService
             'supplier_returns',
             'stock_opnames',
             'product_batches',
+            'stock_wastes',
         ] as $table) {
             if (Schema::hasTable($table)
                 && Schema::hasColumn($table, 'warehouse_id')

@@ -20,13 +20,14 @@ import ReceiptTotalsRows from "@/Components/Receipt/ReceiptTotalsRows";
 import { billSubtotal, receiptBillData } from "@/Utils/billTotals";
 import { useTranslation } from "react-i18next";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
+import AddOnButton, { InvoiceNumber } from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
 import InvoiceTotal from "./InvoiceTotal";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
 
-export default function Print({ transaction, retryable, bankAccounts, paymentGateways }) {
+export default function Print({ transaction, retryable, bankAccounts, paymentGateways, canAddOn }) {
     const { storeProfile, printerSettings } = usePage().props;
     const { can } = useAuthorization();
     const { t } = useTranslation();
@@ -341,6 +342,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                             <IconArrowLeft size={18} />
                             Kembali ke kasir
                         </Link>
+                        <AddOnButton transaction={transaction} allowed={canAddOn} />
 
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
                             {/* Print Mode Selector */}
@@ -607,9 +609,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                     INVOICE
                                                 </span>
                                             </div>
-                                            <p className="text-lg sm:text-2xl font-bold leading-tight">
-                                                {transaction.invoice}
-                                            </p>
+                                            <InvoiceNumber transaction={transaction} />
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at

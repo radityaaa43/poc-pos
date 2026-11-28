@@ -12,8 +12,8 @@ Where the two differ, this file wins. Roles and board columns:
 
 - [0. Flow rules: pull, limits, priorities](#0-flow-rules-pull-limits-priorities)
 - [1. Task: Tech Lead → developer](#1-task-tech-lead--developer)
-- [2. Delivery: developer → Verifier](#2-delivery-developer--verifier)
-- [3. Review: verification, then business](#3-review-verification-then-business)
+- [2. Delivery: developer → Tech Lead → Verifier](#2-delivery-developer--tech-lead--verifier)
+- [3. Review: pre-review, then verification](#3-review-pre-review-then-verification)
 - [4. Business track: Business / PM](#4-business-track-business--pm)
 - [5. Flow track: Verifier](#5-flow-track-verifier)
 
@@ -30,14 +30,13 @@ rules come before sections 1–4.
 - **Stacking.** A ticket whose only open blocker is in the same developer's chain, and is already built
   on a branch, can be pulled too. The developer stacks it on that branch and opens its PR only after
   the blocker merges.
-- **Nothing of their own is ready:** they take any unblocked `low` card in Todo, or the top test-fix or
-  flaky-test issue, and say so.
+- **Nothing of their own is ready:** they take any unblocked `low` card in Todo and say so.
 - **Nothing at all is ready:** they wake the Verifier with `idle` once, and the Verifier gets their
   next ticket planned first.
 - A session that restarts reads the board and its memory and carries on. It doesn't ask what to do.
 
-- **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are flaky-test fixes,
-  CI and tooling changes, dependency upgrades and refactors: `Backlog: none`, with no change a user
+- **Tech-only tickets skip the business track** (maintainer, 2026-11-26). These are tooling changes,
+  dependency upgrades and refactors (test and CI work gets no ticket, 0d): `Backlog: none`, with no change a user
   sees.
   - The Tech Lead files them straight into Todo, with a plan and a `Builder`.
   - They get the technical review only.
@@ -47,12 +46,12 @@ rules come before sections 1–4.
 
 Everyone takes work in this order:
 
-1. **Unblock merges:** a red `main`, a flaky test, a PR waiting for a review you owe.
+1. **Unblock merges:** a red `main`, a PR waiting for a review you owe.
 2. **Finish your In progress work.**
 3. **Pull new work.**
 
-The Verifier merges and verifies before flow work. The Tech Lead answers questions and does risk
-reviews before planning. Business / PM reviews before preparing new tickets.
+The Verifier merges and reviews (technical and business) before flow work. The Tech Lead answers
+questions and pre-reviews developer PRs before planning.
 
 ### 0c. Column limits
 
@@ -62,7 +61,7 @@ reviews before planning. Business / PM reviews before preparing new tickets.
 | Todo | at least 1 per developer with blockers merged | Tech Lead plans more |
 | In progress | 1 main ticket per developer, plus 1 stacked next-in-chain ticket, plus up to 2 `low` | The developer finishes before pulling |
 | Technical review | at most 3 | The Verifier verifies before anything else |
-| Business review | at most 2 | Business / PM reviews before anything else |
+| Business review | at most 2 | The Verifier reviews before anything else |
 
 The Verifier watches the limits and wakes the owner of a column that is off (section 5).
 
@@ -71,9 +70,11 @@ The Verifier watches the limits and wakes the owner of a column that is off (sec
 - **Before Technical review,** the developer runs `/code-review` (low, in a sonnet subagent) on their
   diff, fixes what it finds and pastes the result in the PR. The Evidence table (2a) is complete, with
   one row per AC, BR and TC, plus the screenshots. The Verifier's review confirms; it doesn't discover.
-- **Flaky tests:** a test that fails and then passes on re-run gets a `test(...)` issue the same day.
-  It goes to the next free developer ahead of feature work. A PR is re-run at most once for a known
-  flake.
+- **Pre-review gate** (maintainer, 2026-11-28): the Tech Lead pre-reviews every developer PR against
+  its plan before it reaches Technical review (2b). The card stays In progress until it passes.
+- **Tests and flaky tests get no ticket of their own** (maintainer, 2026-11-28). Tests are written
+  inside the feature PR and run in CI. A flaky test is fixed inside the next feature PR that meets
+  it. A PR is re-run at most once for a known flake.
 - **E2E is the full regression suite** (maintainer, 2026-11-26).
   - CI runs **every** feature's e2e on every PR. Shards split the same full suite and never run a subset.
   - **Every feature or change PR writes its own e2e in the same PR.** It goes in the feature's folder
@@ -106,11 +107,11 @@ said twice and a restarted session misses nothing.
   | Planning | `tech-lead` |
   | Todo | the `Builder` |
   | In progress (sent back) | the developer |
-  | Technical review | `verifier`, and `tech-lead` with `risk review` on a high-risk ticket |
-  | Business review | `business` |
+  | Technical review | `verifier`, from `tech-lead` after a passed pre-review (2b) |
+  | Business review | none: the `verifier` moves the card and holds it |
 
-  Events without a card move: `question` to the session that decides, `AC OK` to `verifier`,
-  `blocked` and `idle` to `verifier`.
+  Events without a card move: `pre-review <PR URL>` to `tech-lead` (2b), `question` to the session
+  that decides, `blocked` and `idle` to `verifier`.
 - **Everything else is read from the board:** started, merged, done. A wake-up gets no reply; the
   next card move is the answer.
 - **Read your columns** when a session starts, after each finished task, and when a wake-up arrives.
@@ -306,10 +307,10 @@ rest (its sections 15 and 16), and the developer pulls the card under 0a.
   posted on the issue with a proposed default, the deciding session is woken with `#<n> | question`,
   and the answer is written on the issue. The developer keeps building on the default meanwhile.
 
-## 2. Delivery: developer → Verifier
+## 2. Delivery: developer → Tech Lead → Verifier
 
-A task is delivered when the PR carries an **Evidence** table and its card is in Technical review.
-"Done" without evidence is not done.
+A task is delivered when the PR carries an **Evidence** table and has passed the Tech Lead's
+pre-review, so its card is in Technical review (2b). "Done" without evidence is not done.
 
 ### 2a. Evidence (in the PR body, the `## Evidence` section)
 
@@ -345,46 +346,66 @@ Valid evidence is one of these:
 "Works", "tested" or "done" alone is not evidence. UI text must use the REQ's exact wording. A skip
 or exception needs its reason.
 
-### 2b. Ready (the card moves to Technical review)
+### 2b. Ready (pre-review, then Technical review)
 
-The developer moves the card to Technical review and wakes the Verifier with
-`#<n> | Technical review`. The CI run, the counted lines, hotspots, migrations and the
-`/code-review` result are in the PR, where the Verifier reads them.
+The developer leaves the card In progress and wakes the Tech Lead with
+`#<n> | pre-review <PR URL>`. A developer never moves their own card to Technical review. The CI run,
+the counted lines, hotspots, migrations and the `/code-review` result are in the PR.
 
 Before sending: run `/code-review low` in a `sonnet` subagent against the worktree diff (not the
-shared checkout), fix or answer each finding, and post the result on the PR.
+shared checkout), fix or answer each finding, and post the result on the PR. Run the manual test on
+the host, never Docker (setup: #403).
 
-## 3. Review: verification, then business
+The Tech Lead pre-reviews the PR against its plan and posts a **pre-review** comment on it:
 
-Reviews run in a fixed order, and each step starts only when the one before it passes:
+- **Passed:** the Tech Lead moves the card to Technical review with
+  `dev-tools/board-move.sh <n> tech-review` and wakes the Verifier with `#<n> | Technical review <PR>`.
+- **Changes:** the findings go on the PR, the card stays In progress, and the Tech Lead wakes the
+  developer.
 
-1. **Verification (Verifier).** The card is in Technical review. The Verifier checks the PR against
-   the issue's criteria, the plan and the standards, and uses the running app for each AC (below).
-   On a **high-risk** ticket (money, stock, locking, a webhook, existing data, or a change of
-   architecture) the Tech Lead reviews in parallel, and both must pass.
-2. **Business review (Business / PM).** After a **VERIFIED** verdict the Verifier moves the card to
+## 3. Review: pre-review, then verification
+
+Reviews run in a fixed order, and each step starts only when the one before it passes. The Verifier
+does the technical **and** the business review (maintainer, 2026-11-28). `business` and `tech-lead`
+review no PR in the Technical review or Business review columns.
+
+1. **Pre-review (Tech Lead).** The card is In progress (2b). The Tech Lead checks the PR against its
+   plan. On a pass it moves the card to Technical review.
+2. **Verification (Verifier).** The Verifier checks the PR against the issue's criteria, the plan and
+   the standards, and uses the running app for each AC (below). On a **high-risk** ticket (money,
+   stock, locking, a webhook, existing data, or a change of architecture) it also checks lock order,
+   idempotency and redelivery, partial failure and rollback, and the plan's TCs against the diff.
+3. **Business review (Verifier).** After a **VERIFIED** verdict the Verifier moves the card to
    Business review. This applies to `feat` PRs and to any PR whose `Backlog:` line names criteria.
-   Business / PM reviews once per ticket, on the PR that closes it (0g), and answers on the PR:
-   `AC check: OK`, or the failing lines.
-3. **Merge (Verifier).** Both reviews passed and CI is green on the latest commit. A `Backlog: none`
-   PR is merged straight from Technical review.
-4. **Done (Verifier).** The board's *Item closed* workflow moves the card when the merged PR's
+   It happens once per ticket, on the PR that closes it (0g), as the per-AC comment
+   `AC check — Business review (verifier)` (section 4, rule 7).
+4. **Merge (Verifier).** Both reviews passed, CI is green on the latest commit and the `Verifier`
+   status is posted (below). A `Backlog: none` PR is merged straight from Technical review.
+5. **Done (Verifier).** The board's *Item closed* workflow moves the card when the merged PR's
    `Closes #n` closes the issue. The Verifier checks the card landed and moves it by hand only if it
    didn't.
 
 **Sent back.** A failed verification or business review is a comment on the PR that names the
 failing criteria and what was seen. The reviewer moves the card back to In progress and wakes the
-developer. After the fix the Verifier re-verifies those lines, then Business / PM re-checks its own.
+developer. After the fix the developer sends it to pre-review again (2b), and the Verifier re-verifies
+the failing lines.
 
-**Who covers whom.** The Tech Lead reviews a PR the Verifier wrote, because an author never verifies
-their own change. When the Verifier is unreachable, the Tech Lead verifies and merges.
+**Who covers whom.** The Tech Lead reviews a PR the Verifier wrote (those PRs only; the owner may
+change this), because an author never verifies their own change. When the Verifier is unreachable,
+the Tech Lead is the backup merger (below).
+
+**The `Verifier` status.** `main` requires a `Verifier` commit status (GitHub ruleset 27731300, added
+2026-11-28). The Verifier posts it with `dev-tools/verifier-status.py` only after a **VERIFIED**
+checklist comment that names the PR's head commit. Then the PR is merged with a literal
+`gh pr merge`. The backup merger posts the same status the same way after the same checklist. A push
+after the status needs a new checklist and a new status.
 
 The Verifier's verdict is a **Requirement & AC checklist** comment on the PR
 ([`REVIEW.md`](../../REVIEW.md) → Review against, item 7). The code review itself may run as
 `/code-review low` in a `sonnet` subagent; the checklist and the verdict are the Verifier's.
 
 ```markdown
-**Verifier: Requirement & AC checklist** (YYYY-MM-DD, REQ-<n> read on <date>)
+**Verifier: Requirement & AC checklist** (YYYY-MM-DD, REQ-<n> read on <date>, head `<sha>`)
 
 **Verdict: VERIFIED | CHANGES**
 
@@ -396,13 +417,14 @@ The Verifier's verdict is a **Requirement & AC checklist** comment on the PR
 ```
 
 - **Every `[AC-xx]`, `[BR-n]` and `[TC-n]` line of the issue has a row.** The Verifier ticks the
-  `[TC-n]` lines in the issue; Business / PM ticks the `[AC-xx]` and `[BR-n]` lines after its own
-  check. A new technical finding is first added as a `[TC-n]` line, then checked.
+  `[TC-n]` lines in the issue, and the `[AC-xx]` and `[BR-n]` lines after the business review. A new
+  technical finding is first added as a `[TC-n]` line, then checked.
 - **Mechanical checks come first:** CI green on the latest commit, no file of another ticket
   deleted, size inside the limit, no retired term (`GLOSSARY.md` → Retired terms), no test skipped
   or loosened.
 - **Use the app for each AC a user can see,** as the role the criterion names, on its main path and
-  its failure path, in a review app. PHPUnit and e2e still run on CI only. When the app can't be
+  its failure path, in a review app on the host, never Docker (setup: #403). PHPUnit and e2e still run
+  on CI only. When the app can't be
   run, the verdict says so and names what stays unproven.
 - Every Evidence row is re-checked against the REQ text, the plan and the code. It is not copied.
 - Any ✗ or unproven row means **CHANGES**, and there is no merge.
@@ -449,10 +471,12 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
    (rule 1). When one comes up, the Tech Lead proposes a default and keeps planning with it. Business /
    PM confirms or corrects it on the issue under rule 2, and writes the answer into the REQ, so the
    next ticket doesn't ask again.
-7. **Business review of a PR** (step 2 of section 3) is one PR comment:
+7. **Business review of a PR** (step 3 of section 3) is done by the Verifier, not by Business / PM
+   (maintainer, 2026-11-28). Business / PM reviews no PR in the Technical review or Business review
+   columns. It is one PR comment:
 
    ```markdown
-   **AC check — Business/PM** (REQ-<n> read on `main` YYYY-MM-DD; issue #<n>)
+   **AC check — Business review (verifier)** (REQ-<n> read on `main` YYYY-MM-DD; issue #<n>)
 
    **Verdict: AC check: OK | changes requested**
 
@@ -467,16 +491,17 @@ delegation in [`issue-tracker.md` → Delegation](issue-tracker.md#delegation).
      business rule found at review is first added as a `[BR-n]` line, then checked; if it changes
      scope, it goes back through Planning.
    - UI wording must match the REQ terms exactly.
-   - Start from the Verifier's checklist, and read the diff where a criterion turns on wording, a
-     decision or a screenshot. Never pass a PR on its description alone.
-   - On ✅, wake the Verifier with `#<n> | AC OK`. On ❌, the PR goes back (section 3, *Sent back*).
+   - Start from the technical checklist (section 3), and read the diff where a criterion turns on
+     wording, a decision or a screenshot. Never pass a PR on its description alone.
+   - Add screenshots per role the criterion names.
+   - On ✅, the PR is merged under section 3, step 4. On ❌, the PR goes back (section 3, *Sent back*).
 8. **After Done.** Update the REQ's *Delivered by* (issues and PRs per criterion). When every
    criterion has shipped, set the REQ to `done`.
 
 ## 5. Flow track: Verifier
 
-The Verifier is the team's scrum master (maintainer, 2026-11-28). It verifies and merges
-(section 3), and it keeps work moving.
+The Verifier is the team's scrum master (maintainer, 2026-11-28). It reviews (technical and
+business), merges (section 3), and it keeps work moving.
 
 1. **Single watcher.** Only the Verifier polls GitHub (CI runs, PR state, the board), at most once a
    minute, because every session shares one API budget. The other sessions read their columns when
@@ -486,8 +511,8 @@ The Verifier is the team's scrum master (maintainer, 2026-11-28). It verifies an
    `tech-lead` for Todo. An idle developer's next ticket is planned first.
 4. **Stuck work.** A card that hasn't moved, a PR with a conflict or a red check, a blocked ticket:
    the Verifier comments on it and wakes the session that holds it.
-5. **Flaky tests** get a `test(...)` issue the same day (0d). The Verifier may fix one itself; the
-   Tech Lead then reviews that PR.
+5. **Flaky tests** get no ticket: the next feature PR that meets one fixes it (0d). A PR the Verifier
+   wrote is reviewed by the Tech Lead.
 6. **Daily flow report:** tickets finished, time per column, rework rounds, CI cancelled or failed,
    stuck PRs, and the one bottleneck to remove next.
 7. **Process changes** start from the flow report and go to the maintainer, as one Standards PR per

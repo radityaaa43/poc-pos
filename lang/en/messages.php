@@ -450,6 +450,22 @@ return [
         'table_has_booking_at_outlet' => 'This table has a reservation of outlet :outlet on :time — mark or cancel it first',
     ],
 
+    'waste' => [
+        'reason_required' => 'Choose a reason.',
+        'item_required' => 'Choose a raw material or menu.',
+        'qty_invalid' => 'The quantity must be a whole number from 1 to 1,000,000.',
+        'recorded' => 'Waste recorded and the stock was taken.',
+        'pending' => 'The waste is pending approval. The stock is unchanged.',
+        'item_not_allowed' => 'Only raw materials and recipe menus can be recorded as waste. ":item" is neither.',
+        'no_recipe' => 'The menu ":item" has no recipe yet.',
+        'nothing_to_take' => 'The quantity of ":item" is too small: no ingredient would be taken.',
+        'insufficient' => 'Not enough stock of :item. Available: :left.',
+        'product_in_use' => 'This product cannot be deleted because it has waste records.',
+        'movement' => 'Stock waste #:id.',
+        'audit_recorded' => 'Waste #:id recorded.',
+        'audit_pending' => 'Waste #:id is pending approval.',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages

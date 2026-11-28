@@ -102,6 +102,10 @@ class PermissionSeeder extends Seeder
         $create('stock-opnames-finalize');
         $create('stock-mutations-access');
 
+        // stock waste
+        $create('stock-waste-create');
+        $create('stock-waste-approve');
+
         // sales returns
         $create('sales-returns-access');
         $create('sales-returns-create');

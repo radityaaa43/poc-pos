@@ -734,6 +734,7 @@ class PosApiController extends Controller
             'transactions.*.payment_method' => ['nullable', 'in:cash,pay_later,bank_transfer'],
             'transactions.*.bank_account_id' => ['nullable', 'integer', 'exists:bank_accounts,id'],
             'transactions.*.pay_later' => ['nullable', 'boolean'],
+            'transactions.*.add_on_to' => ['nullable', 'string'],
             'transactions.*.due_date' => ['nullable', 'date'],
             'transactions.*.order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
             'transactions.*.note' => ['nullable', 'string', 'max:1000'],
@@ -794,8 +795,9 @@ class PosApiController extends Controller
         }
 
         // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
-        if (($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later') {
-            return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
+        $payLater = ($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later';
+        if ($payLater || isset($payload['add_on_to'])) { // nor can an add-on: it needs its original order
+            return ['status' => 'failed', 'reason' => $payLater ? 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online' : 'Pesanan tambahan tidak tersedia saat offline'];
         }
 
         // Rebuild cart rows from the offline items, then reuse the normal
@@ -921,11 +923,9 @@ class PosApiController extends Controller
             $json = json_decode($response->getContent(), true);
 
             if ($response->isSuccessful()) {
-                $transactionId = data_get($json, 'data.id');
-
                 return [
                     'status' => $response->getStatusCode() === 202 ? 'pending_approval' : 'synced',
-                    'transaction_id' => $transactionId,
+                    'transaction_id' => data_get($json, 'data.id'),
                     'invoice' => data_get($json, 'data.invoice'),
                     'grand_total' => (int) data_get($json, 'data.grand_total', 0),
                 ];
