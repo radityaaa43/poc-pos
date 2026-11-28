@@ -142,6 +142,32 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
         await load();
     };
 
+    // A failed row may have reached the server before its answer was lost. Retry it (idempotent by client_uuid)
+    // before offering to discard it, so a lost answer never lets the cashier ring the same sale up twice (#400).
+    const startRemove = async (row) => {
+        setError(null);
+        if (originStatus(row) === "failed" && isOnline) {
+            setBusy(true);
+            try {
+                await onRetry();
+            } catch {
+                setError("retryError");
+            }
+            const still = (await getPendingTransactions(scopeKey)).find((r) => r.id === row.id);
+            setBusy(false);
+            await load();
+            // Gone or no longer failed means it synced: nothing to discard.
+            if (!still || originStatus(still) !== "failed") {
+                setReturnTo("close");
+                onChange?.();
+                return;
+            }
+            setConfirming(still);
+            return;
+        }
+        setConfirming(row);
+    };
+
     // The audit entry reaches the server before the row leaves the device.
     const remove = async () => {
         setBusy(true);
@@ -256,10 +282,7 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
                                                     <button
                                                         type="button"
                                                         autoFocus={returnTo === row.id}
-                                                        onClick={() => {
-                                                            setError(null);
-                                                            setConfirming(row);
-                                                        }}
+                                                        onClick={() => startRemove(row)}
                                                         disabled={!isOnline}
                                                         className={danger}
                                                     >

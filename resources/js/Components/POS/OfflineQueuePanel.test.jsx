@@ -67,6 +67,8 @@ async function open(extra) {
 // Opens the confirmation of the only listed row and confirms it.
 async function removeOnlyRow(user) {
     await user.click(await screen.findByRole("button", { name: "Hapus" }));
+    // Opening the confirmation runs the idempotent retry first, so wait for the dialog before confirming.
+    await screen.findByText(CONFIRM);
     await user.click(screen.getByRole("button", { name: "Hapus" }));
 }
 
@@ -161,7 +163,7 @@ describe("OfflineQueuePanel: list", () => {
             expect(screen.getByRole("button", { name: "Pending offline sales (1)" })).toBeInTheDocument();
             expect(await screen.findByRole("button", { name: "Retry now" })).toBeEnabled();
             await user.click(screen.getByRole("button", { name: "Remove" }));
-            expect(screen.getByText("This sale is not recorded on the server yet. Ring it up again online first, then remove it here.")).toBeInTheDocument();
+            expect(await screen.findByText("This sale is not recorded on the server yet. Ring it up again online first, then remove it here.")).toBeInTheDocument();
             expect(screen.getByText("Remove this offline sale from the device? The removal is recorded in the audit log.")).toBeInTheDocument();
         } finally {
             await i18n.changeLanguage("id");
@@ -225,6 +227,20 @@ describe("OfflineQueuePanel: remove", () => {
         expect(axios.post).not.toHaveBeenCalled();
     });
 
+    it("does not offer to discard a failed row that reached the server on the retry", async () => {
+        const id = await failedRow();
+        const onRetry = vi.fn(() => updatePendingTransaction(id, { status: "synced" }));
+        const { user } = await open({ onRetry });
+
+        await user.click(await screen.findByRole("button", { name: "Hapus" }));
+
+        // The retry is idempotent by client_uuid: the row synced, so there is nothing to warn about or discard.
+        expect(onRetry).toHaveBeenCalledTimes(1);
+        expect(await screen.findByText("Tidak ada transaksi offline yang tertunda.")).toBeInTheDocument();
+        expect(screen.queryByText(NOT_YET)).not.toBeInTheDocument();
+        expect(axios.post).not.toHaveBeenCalled();
+    });
+
     it("a conflict row's confirmation says the server has the sale", async () => {
         await queue("u-conflict", { status: "conflict" });
         const { user } = await open();
@@ -241,7 +257,7 @@ describe("OfflineQueuePanel: remove", () => {
         const { user } = await open();
 
         await user.click(await screen.findByRole("button", { name: "Hapus" }));
-        await user.click(screen.getByRole("button", { name: "Batal" }));
+        await user.click(await screen.findByRole("button", { name: "Batal" }));
 
         expect(await screen.findByText("Stok tidak cukup.")).toBeInTheDocument();
         expect(axios.post).not.toHaveBeenCalled();
@@ -256,11 +272,11 @@ describe("OfflineQueuePanel: remove", () => {
         const second = async () => (await screen.findAllByRole("button", { name: "Hapus" }))[1];
 
         await user.click(await second());
-        await user.click(screen.getByRole("button", { name: "Batal" }));
+        await user.click(await screen.findByRole("button", { name: "Batal" }));
         expect(await second()).toHaveFocus();
 
         await user.click(await second());
-        await user.click(screen.getByRole("button", { name: "Hapus" }));
+        await user.click(await screen.findByRole("button", { name: "Hapus" }));
         await waitFor(() => expect(screen.getByRole("button", { name: "Tutup" })).toHaveFocus());
     });
 
