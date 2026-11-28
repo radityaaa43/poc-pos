@@ -612,6 +612,21 @@
             "warning": "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.",
             "unpaidBooked": "Tagihan belum lunas dibukukan",
             "splitNote": "Split pembayaran yang belum lunas tetap bisa dibayar."
+        },
+        "monthSummary": {
+            "title": "Ringkasan tutup paksa",
+            "outlet": "Outlet",
+            "month": "Bulan",
+            "apply": "Terapkan",
+            "closed": "Shift ditutup",
+            "forceClosed": "Ditutup paksa",
+            "overHold": "Ditutup paksa saat tertahan",
+            "empty": "Belum ada shift ditutup bulan ini",
+            "noHeld": "Tidak ada shift yang ditutup paksa saat tertahan",
+            "cashier": "Kasir",
+            "closedAt": "Ditutup",
+            "note": "Catatan",
+            "viewShift": "Lihat shift #{{id}}"
         }
     },
     "stock": {

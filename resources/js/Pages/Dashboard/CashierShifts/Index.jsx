@@ -4,6 +4,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import Table from "@/Components/Dashboard/Table";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
+import ForceCloseSummary from "./ForceCloseSummary";
 import {
     IconCashBanknote,
     IconClockHour4,
@@ -36,7 +37,7 @@ export default function Index({
     activeShift = null,
     warehouses = [],
 }) {
-    const { auth, errors } = usePage().props;
+    const { auth, errors, forceCloseSummary, summaryFilters, summaryOutlets } = usePage().props;
     const { can } = useAuthorization();
     const [openingCash, setOpeningCash] = useState("");
     const [notes, setNotes] = useState("");
@@ -132,6 +133,8 @@ export default function Index({
                         </Link>
                     )}
                 </div>
+
+                <ForceCloseSummary forceCloseSummary={forceCloseSummary} summaryFilters={summaryFilters} summaryOutlets={summaryOutlets} listFilters={filters} errors={errors} />
 
                 {!activeShift && canOpenShift && (
                     <div
