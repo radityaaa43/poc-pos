@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Customer;
 use App\Models\Outlet;
 use App\Models\Receivable;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 class ReceivableService
@@ -34,6 +35,45 @@ class ReceivableService
     public function scopeQuery($query, Collection $warehouseIds)
     {
         return $this->scope($query, $warehouseIds);
+    }
+
+    /**
+     * REQ-007 "Piutang macet": the overdue total at the end of each of the last 12 months (oldest first), measured
+     * as it stood then — a receivable counts iff its due date had passed by month end, it existed, and its remaining
+     * then (total − paid + payments dated after the month end) was above 0. Today is the as-of for the current month.
+     *
+     * @return list<array{month: string, as_of: string, overdue: int, count: int}>
+     */
+    public function overdueTrend(?Collection $warehouseIds = null): array
+    {
+        $now = CarbonImmutable::now();
+        $todayEnd = $now->endOfDay()->toDateString();
+        $trend = [];
+
+        for ($i = 11; $i >= 0; $i--) {
+            $month = $now->startOfMonth()->subMonths($i);
+            $asOf = $i === 0 ? $todayEnd : $month->endOfMonth()->toDateString();
+
+            $remaining = '(total - paid + coalesce((select sum(amount) from receivable_payments p '
+                .'where p.receivable_id = receivables.id and p.paid_at > ? and p.paid_at <= ?), 0))';
+
+            $row = $this->scope(Receivable::query(), $warehouseIds)
+                ->whereNotNull('due_date')
+                ->whereDate('due_date', '<', $asOf)
+                ->where('created_at', '<=', $asOf.' 23:59:59')
+                ->whereRaw($remaining.' > 0', [$asOf, $todayEnd])
+                ->selectRaw("count(*) as aggregate_count, coalesce(sum({$remaining}), 0) as overdue", [$asOf, $todayEnd])
+                ->first();
+
+            $trend[] = [
+                'month' => $month->format('Y-m'),
+                'as_of' => $asOf,
+                'overdue' => (int) round((float) ($row->overdue ?? 0)),
+                'count' => (int) ($row->aggregate_count ?? 0),
+            ];
+        }
+
+        return $trend;
     }
 
     /**
