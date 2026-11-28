@@ -147,7 +147,7 @@ class DiscountApprovalController extends Controller
             if ($status === 'denied' && isset($updates['grand_total']) && $transaction->customer_id) {
                 $loyaltyDelta = (int) $updates['grand_total'] - $oldGrandTotal;
                 if ($loyaltyDelta > 0) {
-                    app(LoyaltyService::class)->awardAfterDenial($transaction, $loyaltyDelta);
+                    app(LoyaltyService::class)->awardAfterDenial($transaction, $oldGrandTotal, (int) $updates['grand_total']);
                 }
             }
 

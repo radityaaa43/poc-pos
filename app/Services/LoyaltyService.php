@@ -464,8 +464,10 @@ class LoyaltyService
      * A denied discount raises the bill back to its full total (#484): add the difference's points and total spent
      * so loyalty follows the recomputed total (REQ-010 BR-7, #508). Redeemed points are untouched.
      */
-    public function awardAfterDenial(Transaction $sale, int $difference): void
+    public function awardAfterDenial(Transaction $sale, int $oldGrandTotal, int $newGrandTotal): void
     {
+        $difference = $newGrandTotal - $oldGrandTotal;
+
         if ($difference <= 0 || ! $sale->customer_id) {
             return;
         }
@@ -475,7 +477,13 @@ class LoyaltyService
             return;
         }
 
-        $points = $this->calculateEarnPoints($customer, $difference, $this->settings());
+        $settings = $this->settings();
+        $shipping = (int) $sale->shipping_cost;
+        // Points on the full bill, earned on the total before and after: a difference that crosses the earn rate
+        // still earns its point (95.000 -> 100.000 wins 1, though the difference is below the rate).
+        $points = max(0,
+            $this->calculateEarnPoints($customer, max(0, $newGrandTotal - $shipping), $settings)
+            - $this->calculateEarnPoints($customer, max(0, $oldGrandTotal - $shipping), $settings));
 
         $customer->forceFill([
             'loyalty_points' => (int) $customer->loyalty_points + $points,

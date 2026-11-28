@@ -240,6 +240,22 @@ class DiscountDenialTest extends TestCase
         $this->assertDatabaseHas('loyalty_point_histories', ['customer_id' => $customer->id, 'transaction_id' => $sale->id]);
     }
 
+    /** The earn rule is floored on the whole total, so a difference that crosses a rate still earns its point. */
+    public function test_points_follow_the_full_total_across_an_earn_rate_boundary(): void
+    {
+        Setting::set('loyalty_earn_rate_amount', '10000');
+        $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62812', 'address' => 'Jl. Satu']);
+        $customer->forceFill(['is_loyalty_member' => true, 'loyalty_points' => 0, 'loyalty_total_spent' => 0])->save();
+        $sale = $this->sell(self::PPN_WITH_SERVICE, ['customer_id' => $customer->id]);
+        $before = $customer->fresh();
+
+        app(\App\Services\LoyaltyService::class)->awardAfterDenial($sale, 95000, 100000);
+
+        $after = $customer->fresh();
+        $this->assertSame(1, (int) $after->loyalty_points - (int) $before->loyalty_points);
+        $this->assertSame(5000, (int) $after->loyalty_total_spent - (int) $before->loyalty_total_spent);
+    }
+
     public function test_the_api_denial_recomputes_and_keeps_the_notes(): void
     {
         $sale = $this->sell(self::PPN_WITH_SERVICE);
