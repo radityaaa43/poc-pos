@@ -798,7 +798,6 @@ class PosApiController extends Controller
         if (($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later') {
             return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
         }
-
         if (isset($payload['add_on_to'])) { // nor can an add-on: the original order must be checked online (#251)
             return ['status' => 'failed', 'reason' => 'Pesanan tambahan tidak tersedia saat offline'];
         }
