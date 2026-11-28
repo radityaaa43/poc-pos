@@ -162,8 +162,42 @@ class RecapUnowedReturnTest extends TestCase
         $this->assertRecap(cash: 20000, nonCash: 25000, expectedCash: 120000);
     }
 
+    /** Return amounts are line prices, before the bill's discount: a sale never takes off more than it added. */
+    public function test_returns_never_take_off_more_than_the_sale_added(): void
+    {
+        $shift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+        // 2 x 12500 with a discount of 5000, both lines returned one by one while unpaid
+        $bill = $this->saleWithUnrefundedReturn($shift, [
+            'is_pay_later' => true, 'payment_method' => 'pay_later', 'payment_status' => 'unpaid', 'grand_total' => 20000,
+        ], returned: 12500);
+        SalesReturn::create([
+            'code' => 'SR-SECOND', 'transaction_id' => $bill->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
+            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 12500, 'completed_at' => now(),
+        ]);
+        Transaction::create([
+            'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
+            'invoice' => 'TRX-OTHER', 'cash' => 0, 'change' => 0, 'discount' => 0, 'grand_total' => 30000,
+            'payment_method' => 'bank_transfer', 'payment_status' => 'paid',
+        ]);
+
+        $this->assertRecap(cash: 0, nonCash: 30000, expectedCash: 100000);
+    }
+
+    /** The screens follow the recap: a counter transfer was asked in full, whatever is returned afterwards. */
+    public function test_a_counter_transfer_is_still_asked_in_full_after_a_later_return(): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '123', 'account_name' => 'Toko', 'is_active' => true, 'sort_order' => 0]);
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [['method' => 'bank_transfer', 'amount' => self::TOTAL, 'bank_account_id' => $account->id]]);
+
+        $this->returnFromBill($this->bill($order), $this->plain);
+
+        $this->assertSame(self::TOTAL, $this->bill($order)->amountDue());
+        $this->assertNull($this->bill($order)->reducedAmountDue());
+    }
+
     /** @param  array<string, mixed>  $sale */
-    private function saleWithUnrefundedReturn(CashierShift $shift, array $sale): void
+    private function saleWithUnrefundedReturn(CashierShift $shift, array $sale, int $returned = 5000): Transaction
     {
         $transaction = Transaction::create([
             'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
@@ -172,8 +206,10 @@ class RecapUnowedReturnTest extends TestCase
         SalesReturn::create([
             'code' => 'SR-'.$sale['payment_method'], 'transaction_id' => $transaction->id, 'cashier_id' => $this->cashier->id,
             'status' => 'completed', 'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0,
-            'total_return_amount' => 5000, 'completed_at' => now(),
+            'total_return_amount' => $returned, 'completed_at' => now(),
         ]);
+
+        return $transaction;
     }
 
     public function test_closed_shift_recap_is_not_recomputed(): void

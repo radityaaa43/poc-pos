@@ -20,6 +20,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
+use App\Services\ThermalPrintService;
 use App\Services\TransactionPaymentRetryService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
@@ -630,6 +631,43 @@ class PaymentRetryTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(20000, app(CashierShiftService::class)->calculateSummary($this->shift)['non_cash_sales_total']);
+    }
+
+    /** The print page, Riwayat, the public page and every receipt ask what the retry asked, also while it is pending. */
+    public function test_a_pending_retried_transfer_asks_the_owed_amount_everywhere(): void
+    {
+        $this->cashier->givePermissionTo('transactions-confirm-payment');
+        $sale = $this->returnedSale(returnedQty: 1, payLater: false, qty: 5, unit: 5000);
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'bank_transfer', 'bank_account_id' => $this->bankAccount()->id])
+            ->assertSessionHasNoErrors();
+        $sale = $sale->fresh();
+        $this->assertSame('pending', $sale->payment_status);
+
+        $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('transaction.amount_due', 20000));
+        $this->actingAs($this->cashier)->get(route('transactions.history'))
+            ->assertInertia(fn (Assert $page) => $page->where('transactions.data.0.amount_due', 20000));
+        $this->get(route('portal.transaction', ['invoice' => $sale->invoice, 'token' => $sale->access_token]))
+            ->assertInertia(fn (Assert $page) => $page->where('transaction.amount_due', 20000));
+
+        $receipts = ['thermal' => app(ThermalPrintService::class)->generateReceiptText($sale)];
+        $store = ['name' => 'Toko', 'address' => '', 'phone' => '', 'email' => '', 'website' => '', 'logo' => null, 'logo_data' => null];
+        foreach (['invoice', 'receipt_58', 'receipt_80', 'shipping_label'] as $document) {
+            $receipts[$document] = view("pdf.{$document}", ['transaction' => $sale->fresh(), 'store' => $store, 'barcode' => '', 'locale' => 'id'])->render();
+        }
+        foreach ($receipts as $name => $receipt) {
+            $this->assertStringContainsStringIgnoringCase('sisa tagihan', $receipt, $name);
+            $this->assertStringContainsString('20.000', $receipt, $name);
+        }
+
+        // Confirming takes no amount: the sale is then paid, and the recap counts what the retry asked.
+        $this->actingAs($this->cashier)->withSession(['auth.password_confirmed_at' => time()])
+            ->patch(route('transactions.confirm-payment', $sale))->assertSessionHasNoErrors();
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+        $this->assertSame(20000, app(CashierShiftService::class)->calculateSummary($this->shift)['non_cash_sales_total']);
+        $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('transaction.amount_due', null));
     }
 
     /** @return array<string, array<int, bool>> */

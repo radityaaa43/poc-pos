@@ -28,6 +28,12 @@ describe("Public TransactionDetail", () => {
         expect(screen.getByRole("alert")).toHaveTextContent("Gateway pembayaran belum dikonfigurasi.");
     });
 
+    it("says what a returned sale still owes", () => {
+        render(<TransactionDetail transaction={transaction({ receivable: null, amount_due: 20000 })} token="t" />);
+
+        expect(screen.getByText("Sisa tagihan").nextElementSibling).toHaveTextContent(/Rp\s*20\.000/);
+    });
+
     it("labels a failed payment instead of printing the raw status", () => {
         render(<TransactionDetail transaction={transaction({ payment_status: "failed" })} token="t" />);
 

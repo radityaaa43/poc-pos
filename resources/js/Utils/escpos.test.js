@@ -29,6 +29,11 @@ const lines = (data, paper) =>
     render(data, paper).replace(/\x1bE[\x00\x01]/g, "").split("\n");
 
 describe("buildReceiptBytes", () => {
+    it("prints what a returned sale still owes, and nothing extra otherwise", () => {
+        expect(render(baseData({ amount_due: 800 }))).toMatch(/Sisa tagihan +800/);
+        expect(render(baseData({ amount_due: null }))).not.toContain("Sisa tagihan");
+    });
+
     it("starts with init and ends with the cut command", () => {
         const bytes = Array.from(buildReceiptBytes(baseData()));
         expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]);
