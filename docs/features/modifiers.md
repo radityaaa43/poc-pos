@@ -1,7 +1,7 @@
 # Modifier (REQ-008)
 
-Pilihan per menu (Size, Level gula, Topping) tanpa satu produk per variasi: **pengaturan** (J1) dan penjualan
-online di POS (J2); QR menu, dapur dan laporan menyusul. Menu tanpa grup terjual seperti sebelumnya.
+Pilihan per menu (Size, Level gula, Topping) tanpa satu produk per variasi: **pengaturan** (J1), penjualan
+online di POS (J2), retur dan laporan (J5); QR menu dan dapur menyusul. Menu tanpa grup terjual seperti sebelumnya.
 
 - **Settings → Modifier** (`/dashboard/settings/modifiers`, `modifiers-manage`): tambah, ubah, hapus grup.
 - **Grup**: wajib atau opsional. Ditolak: minimum > maksimum, maksimum di luar 1–50, grup wajib dengan minimum 0,
@@ -46,6 +46,20 @@ grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `c
   resep sekarang, ke gudang penjualan (`SalesReturnRestockService`, mutasi `sales_return`). Bahan yang sudah dihapus
   dilewati. Tanpa centang, stok menu dan opsi tidak kembali.
 - Halaman retur (dan API retur) menampilkan opsi dan catatan tiap baris dari salinan penjualan.
+
+## Laporan penjualan per opsi
+
+**Reports → Penjualan per Opsi** (`/dashboard/reports/modifiers`, `reports-access`): per opsi grup, **Terjual** dan
+**Omzet opsi (sebelum diskon)**, urut omzet, 50 per halaman.
+
+- Outlet dan tanggal sama dengan laporan penjualan: gudang outlet aktif (pemilih outlet di header) dan tanggal
+  transaksi di zona waktu aplikasi (`APP_TIMEZONE`; WIB hanya bila diisi `Asia/Jakarta`).
+- Hanya penjualan berstatus `paid`. Berbeda dari laporan penjualan yang menghitung semua status: penjualan tempo
+  yang belum lunas belum masuk.
+- Omzet opsi = tambahan harga opsi × qty, sebelum diskon apa pun.
+- Retur `completed` mengurangi qty dan omzet pada periode penjualannya, bukan periode returnya.
+- Dikelompokkan per opsi dan nama grup serta opsi saat terjual: opsi terhapus tetap tampil, opsi yang diganti nama
+  tampil dua baris (nama lama dan baru).
 
 ## Deploy
 
