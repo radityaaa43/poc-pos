@@ -47,7 +47,6 @@ class DineOrderService
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             $this->refuseIfProcessed($order);
-
             // #251: locked before the first plain read fixes MySQL's snapshot. A refusal rolls the whole accept back.
             $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
 

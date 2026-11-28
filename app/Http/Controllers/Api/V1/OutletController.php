@@ -8,6 +8,7 @@ use App\Http\Requests\UpdateOutletRequest;
 use App\Http\Traits\ApiResponder;
 use App\Models\Outlet;
 use App\Models\Product;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,11 @@ class OutletController extends AppsOutletController
     public function listOutlets(Request $request): JsonResponse
     {
         $outlets = $this->outletAccessService->accessibleOutlets($request->user())
-            ->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')]);
+            ->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')])
+            ->each(function (Model $model) {
+                /** @var Outlet $model accessibleOutlets() returns an untyped Eloquent collection of outlets */
+                $model->setAttribute('bill_settings', $this->billSettings->get($model));
+            });
 
         return $this->ok($outlets);
     }
@@ -99,6 +104,7 @@ class OutletController extends AppsOutletController
             'is_sales_enabled' => $isSalesEnabled,
         ]);
         $this->updatePayLater($outlet, $data);
+        $this->billSettings->update($outlet, $data);
 
         return $this->ok($outlet->fresh()->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')]));
     }

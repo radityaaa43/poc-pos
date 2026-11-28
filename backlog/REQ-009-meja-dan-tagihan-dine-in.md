@@ -245,6 +245,7 @@ stateDiagram-v2
 - **Permissions:** pesanan meja dari POS memakai akses POS; split dan bayar memakai izin bayar dine-in yang ada; izin baru untuk pindah meja dan untuk reservasi.
 - **Settings:** tidak ada pengaturan baru. Jendela Dipesan 30 menit dan selisih reservasi 2 jam tetap di versi ini.
 - **Keputusan saat build (Business/PM, 2026-11-28):** setelah split dibatalkan dengan bagian lunas, split per item ulang boleh untuk item yang belum ada di bagian lunas bila semua bagian lunas per item; baris diskon tagihan hanya tampil bila bukan Rp 0 (#428 BR-3, BR-4). Meja dengan reservasi yang belum ditandai tidak bisa dihapus atau dinonaktifkan (#431 BR-3). Bagian transfer ikut #429; nama pesanan menjadi #445; status Dipesan menjadi #443.
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** penolakan karena reservasi outlet lain menyebut outlet dan jam, tidak pernah nama tamu; audit log tidak menyimpan nama atau nomor HP tamu (#431 BR-4, BR-5). Nama pesanan tampil di semua layar staf termasuk daftar Belum Lunas dan tab Invoice, tidak di dokumen pelanggan; setelah penjualan offline, catatan, tipe pesanan dan nama pesanan dikosongkan (#445 BR-3..BR-6).
 
 ## Non-functional requirements
 

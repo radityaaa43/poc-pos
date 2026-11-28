@@ -163,7 +163,6 @@ describe("dine orders queue", () => {
         expect(toast.error).toHaveBeenCalledWith(refusal);
         vi.unstubAllGlobals();
     });
-
     it("still accepts and rejects a submitted order", async () => {
         const user = userEvent.setup();
         vi.stubGlobal("confirm", () => true);
