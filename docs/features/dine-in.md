@@ -204,7 +204,7 @@ Dikontrol via `Setting` table:
 ### QR Code Generation
 - QR berisi URL: `{APP_URL}/dine/{token}`
 - Di-generate via `simplesoftwareio/simple-qrcode`
-- Dashboard membuka QR sebagai SVG (format PNG butuh ekstensi `imagick`, yang tidak ada di image Docker/CI); endpoint API `/api/v1/dine-tables/{table}/qr` masih PNG
+- Dashboard membuka QR sebagai SVG (format PNG butuh ekstensi `imagick`, yang tidak dipasang di setup host maupun CI); endpoint API `/api/v1/dine-tables/{table}/qr` masih PNG
 
 ### Self-Order Pelanggan
 - Pilih kategori & produk

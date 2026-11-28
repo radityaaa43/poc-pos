@@ -87,15 +87,115 @@ Sistem kasir berbasis Laravel + Inertia + React untuk transaksi penjualan, inven
 
 ## Quick Start
 
+### Local setup
+
+Everything runs on the host: PHP 8.4, Composer, MySQL 8.4 and Node 22+. No containers.
+
+#### Machine setup (Windows, once)
+
+On macOS or Linux, install the same versions and PHP extensions your usual way.
+
+1. Laragon: `winget install LeNgocKhoa.Laragon` (installs to `C:\laragon`).
+2. PHP: download the PHP 8.4 x64 Thread Safe zip (8.4.28) from `windows.php.net`, check its sha256, and unzip it into
+   `C:\laragon\bin\php\php-8.4.28-Win32-vs17-x64`. Copy `php.ini-development` to `php.ini` and set (`bcmath` is
+   built in):
+
+   ```ini
+   extension_dir = "C:/laragon/bin/php/php-8.4.28-Win32-vs17-x64/ext"
+   memory_limit = 512M
+   extension=curl
+   extension=exif
+   extension=fileinfo
+   extension=gd
+   extension=intl
+   extension=mbstring
+   extension=openssl
+   extension=pdo_mysql
+   extension=pdo_sqlite
+   extension=sodium
+   extension=sqlite3
+   extension=zip
+   ```
+
+3. Composer: the one Laragon ships, in `C:\laragon\bin\composer`.
+4. MySQL: unzip the official MySQL 8.4 LTS Windows zip (8.4.11, from `cdn.mysql.com`) into
+   `C:\laragon\bin\mysql\mysql-8.4.11-winx64`. Save this as `my.ini` in that folder:
+
+   ```ini
+   [mysqld]
+   basedir=C:/laragon/bin/mysql/mysql-8.4.11-winx64
+   datadir=C:/laragon/data/mysql-8.4
+   port=3306
+   bind-address=127.0.0.1
+   character-set-server=utf8mb4
+   collation-server=utf8mb4_unicode_ci
+   max_allowed_packet=64M
+   # Dev box with many parallel sessions runs near its Windows commit limit: keep mysqld lean so an
+   # allocation failure doesn't kill it (crash 2026-11-28 22:13Z, uncaught exception after
+   # "DDL failed to create a thread").
+   performance_schema=OFF
+   innodb_buffer_pool_size=256M
+   innodb_ddl_threads=1
+   innodb_parallel_read_threads=1
+   temptable_max_ram=64M
+   max_connections=100
+
+   [client]
+   port=3306
+   default-character-set=utf8mb4
+   ```
+
+   Then, in an administrator Command Prompt in its `bin` folder, create the data folder (`root` gets an empty
+   password) and the `MySQL84` Windows service, which starts with Windows:
+
+   ```bat
+   mysqld --defaults-file=C:\laragon\bin\mysql\mysql-8.4.11-winx64\my.ini --initialize-insecure
+   mysqld --install MySQL84 --defaults-file=C:\laragon\bin\mysql\mysql-8.4.11-winx64\my.ini
+   net start MySQL84
+   ```
+
+   In the same terminal, make the service restart itself after a crash:
+
+   ```bat
+   sc failure MySQL84 reset= 3600 actions= restart/5000/restart/15000/restart/60000
+   sc failureflag MySQL84 1
+   ```
+
+   - Let Windows grow the page file: `mysqld` dies when the commit limit is reached. Under *System → About →
+     Advanced system settings → Performance → Virtual memory*, set a custom size of 8192 to 24576 MB.
+   - Don't use Laragon's bundled MySQL 8.4.3: its zip lacks `lib/private` (ICU) and `mysqld` crashes during migrations.
+   - Don't press Laragon's "Start All" for MySQL: the `MySQL84` service already holds port 3306.
+5. Add the PHP folder, `C:\laragon\bin\composer` and the MySQL `bin` folder to your user `PATH`. In a new terminal,
+   `php -v` shows 8.4.
+6. Create the database:
+
+   ```bash
+   mysql -uroot -h127.0.0.1 -e "CREATE DATABASE point_of_sales CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+   ```
+
+#### Project setup (each clone and each worktree)
+
 ```bash
-cd point-of-sales
-cp .env.example .env
-composer install && PUPPETEER_SKIP_DOWNLOAD=true npm install
-php artisan key:generate
+composer install                  # every worktree needs its own vendor/
+PUPPETEER_SKIP_DOWNLOAD=true npm install
+cp .env.example .env              # only when there is no .env yet
+php artisan key:generate          # same: a new key breaks sessions and encrypted data
 php artisan migrate --seed
 php artisan storage:link
+```
 
-# Dev — server, queue, logs, dan Vite
+`.env.example` already matches the setup above (`DB_HOST=127.0.0.1`, `DB_PORT=3306`, `DB_DATABASE=point_of_sales`,
+`DB_USERNAME=root`, empty `DB_PASSWORD`). Set `APP_URL=http://localhost:8000`. In an older `.env`, change the `DB_*`
+values to these.
+
+#### Run
+
+```bash
+php artisan serve                 # http://localhost:8000
+php artisan queue:listen          # queue worker, second terminal
+npm run dev                       # Vite, third terminal
+
+# or all of them in one terminal
 composer run dev
 
 # Setelah server berjalan, buka http://localhost:8000.
@@ -109,7 +209,7 @@ npm install && npm start
 Tidak ada akun default. Setelah `migrate --seed`, buka root aplikasi (`http://localhost:8000`); pada instalasi pertama aplikasi otomatis mengarahkan ke `/setup` untuk membuat akun admin dan profil toko.
 Ingin langsung mencoba dengan data contoh? Jalankan `php artisan seed:demo --force`. Seeder ini membuat dataset demo lengkap (outlet `MAL`/`TKB`/`PUT`, produk, transaksi, purchasing, CRM, dine-in, bahan baku dengan satuan beli dan resep) beserta tiga akun siap pakai — lihat `docs/demo-data.md`.
 
-End-to-end tests (Playwright, `npm run e2e:up` then `npm run test:e2e`): see [`tests/e2e/README.md`](tests/e2e/README.md).
+End-to-end tests (Playwright; `npm run e2e:up`, `npm run test:e2e`, then `npm run e2e:down`): see [`tests/e2e/README.md`](tests/e2e/README.md).
 
 ### Queue worker
 
@@ -222,9 +322,9 @@ Base URL: `https://dikasir.web.id/api/v1` (dev: `http://localhost:8000/api/v1`)
 2. Buat PR ke `development`
 3. PR ke `main` hanya dari `development` via branching release
 
-Pastikan `php artisan test` lulus sebelum PR.
+PHPUnit and e2e run on CI: a PR needs a green CI run.
 
-Static analysis (Larastan level 5, baseline in `phpstan-baseline.gen.neon`): `docker compose exec -T app composer analyse`. New code must not add errors; do not regenerate the baseline to hide them (regenerate with `--generate-baseline=phpstan-baseline.gen.neon`).
+Static analysis (Larastan level 5, baseline in `phpstan-baseline.gen.neon`): `composer analyse`. New code must not add errors; do not regenerate the baseline to hide them (regenerate with `--generate-baseline=phpstan-baseline.gen.neon`).
 
 ## Lisensi
 
