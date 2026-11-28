@@ -55,6 +55,26 @@ metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `ope
 
 While an accepted order is not completed, or the server would still link to it (an add-on of it is open), its status page offers **Tambah pesanan** (#251). The link opens the table menu with that order's access token (`?add_on_to=`), and the submit stores the order it was made from (`dine_orders.add_on_to_dine_order_id`). The server refuses (422) a token that is unknown, of another table or of an order staff have not accepted, and a cancelled one: "Pesanan asal sudah dibatalkan — buat pesanan baru" (order cancelled or rejected, or every line returned; a `failed` or `expired` payment is not a cancellation, the bill can still be paid). A new order without that link is never merged, even at the same table. At accept the original is checked again under a lock: cancelled means the accept is refused and nothing is written (staff reject the add-on); finished (the original and every non-cancelled add-on paid, nothing left in the kitchen) means a plain new order; otherwise the new sale gets `transactions.parent_transaction_id` = the root sale; the kitchen display still shows it as its own card. Payment, stock and shift are those of any accepted order.
 
+## Pesanan meja dari POS
+
+A cashier or waiter takes a table's order on the POS (REQ-009 J1): **Pesanan meja** above the payment panel, hidden at an outlet without active tables. Pick a table, choose **Pesanan baru** or **Tambah ke pesanan #id** when the table has a running order, choose **Bayar di kasir** or **Bayar Belakangan** (only when the outlet has it on), then **Kirim pesanan**.
+
+- The items are the cashier's server cart (not a held one), priced like the POS preview. A table bill takes no customer, manual discount, voucher, shipping or tax, like a QR bill.
+- The order is a dine order with `source = pos`, created and accepted in one transaction by the same `DineOrderService::accept` as a QR order (`PosTableOrderService`): stock, the Belum Lunas bill, the shift and outlet checks and the pay-later kitchen intake are the same. A pay-at-counter order reaches the kitchen once paid.
+- Any refusal (no stock, empty cart, table inactive or of another outlet, pay later off, a raw material in the cart, an order that cannot be added to) leaves no order and keeps the cart.
+- Adding to a running order follows "Add-on orders" above. The choices are one per running bill: an order and its add-ons share one.
+- It needs a connection: offline the POS refuses with a message and queues nothing. Both routes need `transactions-access`; sending also needs an open shift. The table list never carries a table's QR token.
+- Audit: `dine_order.created_from_pos`.
+
+## Status meja
+
+Each active table is **Kosong**, **Terisi** or **Dipesan**, with its number of Belum Lunas bills, on the POS table list and the Tables page. Nothing is stored: `TableStatusService` reads it from the orders.
+
+- **Terisi:** the table has an order that is `submitted`, `accepted`, `preparing`, `ready` or `served`. Completing, rejecting or cancelling the last one frees the table by itself.
+- **Dipesan:** a reservation starts within 30 minutes and the table is not Terisi. `TableStatusService::reservations()` is the one hook for it and returns nothing until #443 connects the reservations.
+- The bill count is the dine half of the POS "Belum Lunas" list (a table shared by several outlets counts every outlet's bills).
+- A table that is Terisi or Dipesan cannot be switched off or deleted, on the web or the API; the message names the order (`#id`) or the reservation. Its other fields stay editable. The check runs under the table row lock a POS table order takes.
+
 ## Database
 
 ### Tabel: `dine_areas`
@@ -89,6 +109,7 @@ Header pesanan pelanggan.
 | `customer_id` | foreignId | (nullable) |
 | `access_token` | uuid | Token unik untuk halaman status |
 | `status` | string | submitted/accepted/preparing/ready/served/completed, plus rejected/cancelled. Sumber kebenaran siklus pesanan; `completed` = served dan transaksi lunas |
+| `source` | string(8) | `qr` (guest, the default) or `pos` (taken by a cashier) |
 | `notes` | text | Catatan pesanan |
 | `payment_option` | enum | pay_at_counter / pay_later (pay_online ditolak) |
 | `payment_method` | string | midtrans/xendit (nullable) |
@@ -146,6 +167,8 @@ Dikontrol via `Setting` table:
 | POST | `/dashboard/dine-orders/{order}/serve` | permission:dine-orders-handover |
 | POST | `/dashboard/dine-orders/{order}/pay` | permission:dine-orders-process, active_shift |
 | POST | `/dashboard/dine-orders/{order}/reject` | permission:dine-orders-process |
+| GET | `/dashboard/transactions/tables` | permission:transactions-access (JSON: the POS table list) |
+| POST | `/dashboard/transactions/table-orders` | permission:transactions-access, active_shift |
 
 ### Publik
 

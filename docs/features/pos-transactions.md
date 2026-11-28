@@ -46,6 +46,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - `transactions.held`
 - `transactions.store`
 - `transactions.print`
+- `transactions.tables` and `transactions.table-orders.store` (table orders: `docs/features/dine-in.md` "Pesanan meja dari POS")
 - `transactions.public`
 
 ## Permission
