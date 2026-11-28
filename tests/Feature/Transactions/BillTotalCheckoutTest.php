@@ -133,6 +133,26 @@ class BillTotalCheckoutTest extends TestCase
         $this->assertSame('5.00', $sale->service_charge_rate);
     }
 
+    // BR-7: points are earned on the full bill, service charge and PB1 included, as with PPN.
+    public function test_loyalty_points_are_earned_on_the_full_bill(): void
+    {
+        Setting::set('loyalty_earn_rate_amount', 1000);
+        $member = Customer::create([
+            'name' => 'Sari', 'no_telp' => '62812', 'address' => 'Jl. Dua',
+            'is_loyalty_member' => true, 'member_code' => 'MEM-BILL', 'loyalty_tier' => 'regular',
+        ]);
+        $this->charge();
+        Setting::setForOutlet('tax_kind', 'pb1', $this->outlet);
+        Setting::setForOutlet('pb1_rate', '10', $this->outlet);
+        $this->openShift();
+        $this->fillCart();
+
+        $this->sell(['customer_id' => $member->id])->assertSessionHasNoErrors();
+
+        // Rp 23.100 / 1.000 = 23 points; the goods alone (Rp 20.000) would give 20.
+        $this->assertSame(23, (int) Transaction::sole()->loyalty_points_earned);
+    }
+
     public function test_a_sale_that_is_not_dine_in_stores_a_zero_rate(): void
     {
         $this->charge();
