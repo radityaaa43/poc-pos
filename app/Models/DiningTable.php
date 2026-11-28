@@ -61,4 +61,12 @@ class DiningTable extends Model
     {
         return $query->where('is_active', true);
     }
+
+    /** The tables an outlet uses: its own areas', plus the shared ones (no area, or an area without an outlet). */
+    public function scopeForOutlet($query, ?Outlet $outlet)
+    {
+        return $query->where(fn ($tables) => $tables->whereNull('dine_area_id')->orWhereHas('area', fn ($area) => $area
+            ->where(fn ($owner) => $owner->whereNull('outlet_id')
+                ->when($outlet, fn ($query) => $query->orWhere('outlet_id', $outlet->id)))));
+    }
 }

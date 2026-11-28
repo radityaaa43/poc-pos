@@ -410,6 +410,16 @@ return [
         'name_taken' => 'Stasiun dapur dengan nama ini sudah ada.',
         'default_locked' => 'Dapur tidak bisa dihapus.',
     ],
+    'dine_tables' => [
+        'in_use_order' => 'Meja ini masih punya pesanan #:order. Selesaikan atau batalkan dulu.',
+        'in_use_reservation' => 'Meja ini dipesan (reservasi #:reservation, :time). Tandai atau batalkan dulu.',
+    ],
+    'pos_table_order' => [
+        'table_unavailable' => 'Meja ini tidak tersedia.',
+        'pay_later_off' => 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.',
+        'cart_empty' => 'Keranjang kosong. Tambahkan item dulu.',
+        'raw_material' => ':product adalah bahan baku dan tidak dapat dijual.',
+    ],
     'modifiers' => [
         'field_required' => 'Wajib diisi.',
         'whole_number' => 'Isi dengan angka bulat.',

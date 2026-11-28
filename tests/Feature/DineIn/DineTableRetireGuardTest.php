@@ -31,21 +31,21 @@ class DineTableRetireGuardTest extends TestCase
     {
         $order = $this->sentOrder();
 
-        $this->assertRefused(__('messages.dine_tables.in_use_order', ['order' => $order->id]));
+        $this->assertRefused(__('messages.dine_tables.in_use_order', ['order' => $order->id], 'id'));
     }
 
     public function test_a_waiting_qr_order_holds_the_table_too(): void
     {
         $order = DineOrder::create(['dine_table_id' => $this->table->id, 'status' => DineOrder::STATUS_SUBMITTED, 'subtotal' => 0, 'item_count' => 0]);
 
-        $this->assertRefused(__('messages.dine_tables.in_use_order', ['order' => $order->id]));
+        $this->assertRefused(__('messages.dine_tables.in_use_order', ['order' => $order->id], 'id'));
     }
 
     public function test_a_reserved_table_names_the_reservation(): void
     {
         $this->reserve($this->table);
 
-        $this->assertRefused(__('messages.dine_tables.in_use_reservation', ['reservation' => 5, 'time' => '19:00']));
+        $this->assertRefused(__('messages.dine_tables.in_use_reservation', ['reservation' => 5, 'time' => '19:00'], 'id'));
     }
 
     public function test_a_free_table_can_be_retired_and_a_busy_one_renamed(): void

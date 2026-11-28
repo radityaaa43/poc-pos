@@ -101,7 +101,7 @@ class DineTableStatusTest extends TestCase
         $this->assertSame(['Teras', 'Meja 7'], array_column($response->json('tables'), 'name'));
         $this->assertSame(
             ['id' => $this->table->id, 'name' => 'Meja 7', 'area_name' => 'Area Meja 7', 'capacity' => 4, 'status' => 'occupied',
-                'open_bills' => 1, 'orders' => [['id' => $order->id, 'item_count' => 2]]],
+                'open_bills' => 1, 'orders' => [['id' => $order->id, 'status' => 'accepted', 'item_count' => 2]]],
             $response->json('tables.1'),
         );
         $this->assertSame([$shared->id, 'free', []], [$response->json('tables.0.id'), $response->json('tables.0.status'), $response->json('tables.0.orders')]);

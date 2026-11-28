@@ -6,7 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\DineArea;
 use App\Models\DiningTable;
 use App\Services\OutletAccessService;
+use App\Services\TableStatusService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -16,18 +18,10 @@ class DineTableController extends Controller
 {
     public function __construct(protected readonly OutletAccessService $outletAccess) {}
 
-    public function index(Request $request)
+    public function index(Request $request, TableStatusService $tableStatus)
     {
         $outlet = $this->outletAccess->activeOutlet($request);
-        // A table without an area is shared by every outlet, like an area without an outlet.
-        $query = DiningTable::with('area')->where(function ($query) use ($outlet) {
-            $query->whereNull('dine_area_id')->orWhereHas('area', function ($query) use ($outlet) {
-                $query->whereNull('outlet_id');
-                if ($outlet) {
-                    $query->orWhere('outlet_id', $outlet->id);
-                }
-            });
-        });
+        $query = DiningTable::with('area')->forOutlet($outlet);
 
         if ($request->filled('area_id')) {
             $query->where('dine_area_id', $request->area_id);
@@ -40,12 +34,13 @@ class DineTableController extends Controller
         }
 
         $tables = $query->orderBy('dine_area_id')->orderBy('sort_order')->get();
+        $states = $tableStatus->forTables($tables);
         $areas = DineArea::whereNull('outlet_id')
             ->when($outlet, fn ($query) => $query->orWhere('outlet_id', $outlet->id))
             ->orderBy('sort_order')->get();
 
         return Inertia::render('Dashboard/DineIn/Tables/Index', [
-            'tables' => $tables,
+            'tables' => $tables->map(fn (DiningTable $table) => $table->toArray() + Arr::only($states[$table->id], ['status', 'open_bills'])),
             'areas' => $areas,
             'filters' => [
                 'area_id' => $request->area_id,
@@ -75,7 +70,7 @@ class DineTableController extends Controller
         return back()->with('success', 'Meja berhasil ditambahkan.');
     }
 
-    public function update(Request $request, DiningTable $dineTable)
+    public function update(Request $request, DiningTable $dineTable, TableStatusService $tableStatus)
     {
         abort_unless($this->ownsTable($dineTable, $request), 404);
         $validated = $request->validate([
@@ -90,15 +85,17 @@ class DineTableController extends Controller
         ]);
         $this->validateAreaAccess($validated['dine_area_id'] ?? null, $request);
 
-        $dineTable->update($validated);
+        // AC-23: only switching a table off is refused; a busy one can still be edited.
+        $switchesOff = $dineTable->is_active && ! ($validated['is_active'] ?? true);
+        $tableStatus->retire($dineTable, fn () => $dineTable->update($validated), when: $switchesOff);
 
         return back()->with('success', 'Meja berhasil diperbarui.');
     }
 
-    public function destroy(DiningTable $dineTable)
+    public function destroy(DiningTable $dineTable, TableStatusService $tableStatus)
     {
         abort_unless($this->ownsTable($dineTable, request()), 404);
-        $dineTable->delete();
+        $tableStatus->retire($dineTable, fn () => $dineTable->delete());
 
         return back()->with('success', 'Meja berhasil dihapus.');
     }
