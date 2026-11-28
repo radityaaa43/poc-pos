@@ -686,6 +686,8 @@ class TransactionController extends Controller
         );
 
         $result = $this->checkoutService->execute($context);
+        // The sale is saved: the POS shows its success toast only for this flash, so every redirect below carries it (#473).
+        $request->session()->flash('success', 'Transaksi berhasil!');
 
         if ($result->needsDiscountApproval) {
             $result->transaction->update([

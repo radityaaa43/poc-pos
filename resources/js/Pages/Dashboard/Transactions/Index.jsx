@@ -815,13 +815,8 @@ export default function Index({
                                   : null,
                       }))
                     : null,
-                payment_gateway: splitMode
-                    ? null
-                    : payLater
-                      ? null
-                      : isCashPayment
-                        ? null
-                        : paymentMethod,
+                payment_gateway:
+                    splitMode || payLater || isCashPayment ? null : paymentMethod,
                 bank_account_id: isBankTransfer
                     ? selectedBankAccount?.id
                     : null,
@@ -831,7 +826,10 @@ export default function Index({
                 note: orderNote || null,
             },
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    setIsSubmitting(false);
+                    // Only a saved sale flashes success. A refusal also lands here, and keeps the form (#473).
+                    if (!page.props.flash?.success) return;
                     setDiscountInput("");
                     setRedeemPointsInput("");
                     setCashInput("");
@@ -845,8 +843,7 @@ export default function Index({
                     setDueDate("");
                     setOrderType("in_store");
                     setOrderNote("");
-                    setIsSubmitting(false);
-                    toast.success("Transaksi berhasil!");
+                    toast.success(page.props.flash.success);
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);

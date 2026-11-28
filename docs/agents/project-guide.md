@@ -92,6 +92,7 @@ After seeding, a default `PUSAT` warehouse is created and existing product stock
 9. **Version bump on release** — update `APP_VERSION` in `.env` + `.env.example` when tagging.
 10. **Concurrency patterns** — all stock mutations (checkout, transfer, receiving, payment) are wrapped in `DB::transaction` with `lockForUpdate()` on affected rows. Never skip the transaction or lock.
 11. **Dine-in online payment is disabled** — `payment_option=pay_online` returns 422. Only `pay_at_counter` and (setting-gated) `pay_later` are accepted.
+12. **Background requests eat flash data** — Laravel ages the flash on every request, so a poll or background fetch can delete the errors a form post is about to show. Give such a route the `keep_flash` middleware. `onSuccess` alone does not prove success (a refusal can redirect with `flash.error`), so checkout toasts only the server's `flash.success`.
 
 ## Release process
 
