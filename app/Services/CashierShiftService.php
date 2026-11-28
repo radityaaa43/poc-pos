@@ -135,8 +135,7 @@ class CashierShiftService
             ->sum('amount');
 
         // Only money received counts: an unpaid bill (Belum Lunas) has taken none yet, and a gateway sale counts once it is paid (see countedInClosedRecap).
-        $nonCashSalesTotal = (int) (clone $transactions)
-            ->whereKeyNot($bookedBillIds)
+        $nonCashSales = (clone $transactions)
             ->whereNotIn('payment_method', ['cash', 'split', Transaction::METHOD_OPEN_BILL])
             ->where(fn ($sales) => $sales
                 ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
@@ -145,8 +144,8 @@ class CashierShiftService
             ->where(fn ($sales) => $sales
                 ->where('payment_method', '!=', 'pay_later')
                 ->orWhere('payment_status', 'paid')
-                ->orWhereIn('transactions.id', Receivable::query()->select('transaction_id')))
-            ->sum('grand_total');
+                ->orWhereIn('transactions.id', Receivable::query()->select('transaction_id')));
+        $nonCashSalesTotal = (int) (clone $nonCashSales)->whereKeyNot($bookedBillIds)->sum('grand_total');
 
         // A booked bill is already a shortfall (BR-16): like a split, only the non-cash part it did receive counts here.
         $nonCashSalesTotal += (int) (clone $paidTenders)
@@ -155,6 +154,41 @@ class CashierShiftService
                 ->whereIn('transaction_id', $splitSales)
                 ->orWhereIn('transaction_id', $bookedBillIds))
             ->sum('amount');
+
+        // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
+        // open bill (pay-later or dine-in) or a retried payment is asked for less than its grand total.
+        $neverAsked = function ($sales) use ($bookedBillIds): int {
+            $askedLater = $sales
+                ->whereKeyNot($bookedBillIds) // booked by a forced close: not counted above, so nothing to take off
+                ->where(fn ($later) => $later->where('is_pay_later', true)->orWhere('payment_attempt', '>', 0)->orWhereHas('dineOrder'))
+                ->doesntHave('receivable');
+
+            // A counter payment wrote tenders totalling what it asked, so a return completed later changes nothing here.
+            $tenderedShort = (int) (clone $askedLater)->whereHas('tenders')->sum('grand_total')
+                - (int) TransactionTender::query()->whereIn('transaction_id', (clone $askedLater)->select('id'))->sum('amount');
+
+            // Without tenders (guest online, retry) the asked amount is the total less the returns that refunded nothing.
+            // shortcut: a return made while a no-tender payment (guest online, retry) is waiting under-counts the recap;
+            // exact fix = store the asked amount on the bill.
+            $unrefunded = SalesReturn::query()
+                ->where('status', 'completed')
+                ->where('refund_amount', 0)
+                ->where('credited_amount', 0)
+                ->groupBy('transaction_id')
+                ->selectRaw('transaction_id, sum(total_return_amount) as unrefunded_total');
+            // Capped per sale: returns are priced before a bill discount, and a sale must not take off more than it added.
+            $returnedShort = (int) (clone $askedLater)->doesntHave('tenders')
+                ->joinSub($unrefunded, 'unrefunded', 'unrefunded.transaction_id', '=', 'transactions.id')
+                ->sum(DB::raw('case when unrefunded_total > grand_total then grand_total else unrefunded_total end'));
+
+            return $tenderedShort + $returnedShort;
+        };
+
+        $cashSalesTotal -= $neverAsked((clone $transactions)
+            ->where('payment_method', 'cash')
+            ->where('payment_status', 'paid'));
+        // The same sales as added above, so nothing comes off that never went in (no split, no unpaid pay later).
+        $nonCashSalesTotal -= $neverAsked(clone $nonCashSales);
 
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')

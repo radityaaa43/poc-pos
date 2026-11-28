@@ -87,6 +87,7 @@ return [
         'before_tax' => 'Before Tax',
         'tax_rate' => 'TAX :rate%',
         'grand_total' => 'TOTAL',
+        'amount_due' => 'AMOUNT DUE',
         'payment_method' => 'Payment via',
         'cash_payment' => 'Cash',
         'card_payment' => 'Card',

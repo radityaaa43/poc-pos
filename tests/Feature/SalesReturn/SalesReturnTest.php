@@ -127,6 +127,45 @@ class SalesReturnTest extends TestCase
         $this->assertSame(0, SalesReturn::first()->refund_amount);
     }
 
+    /** The webhook and the receivable payments lock the receivable, then the sale: a return must not do the reverse. */
+    public function test_completing_a_return_on_a_credit_sale_locks_the_receivable_before_the_sale(): void
+    {
+        $user = $this->createUserWithPermissions([
+            'transactions-access', 'sales-returns-access', 'sales-returns-create', 'sales-returns-complete',
+            'cashier-shifts-access', 'cashier-shifts-open', 'cashier-shifts-close',
+        ]);
+        [$transaction, $detail] = $this->createTransaction(
+            $user, qty: 3, paymentMethod: 'pay_later', paymentStatus: 'unpaid', withReceivable: true
+        );
+        $this->openShiftFor($user);
+        $this->actingAs($user)->post(route('sales-returns.store', $transaction), [
+            'return_type' => 'refund_cash',
+            'items' => [[
+                'transaction_detail_id' => $detail->id, 'qty_return' => 1,
+                'return_reason' => 'Salah ukuran', 'restock_to_inventory' => true,
+            ]],
+        ]);
+
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->actingAs($user)->post(route('sales-returns.complete', SalesReturn::first()))->assertSessionHasNoErrors();
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+
+        // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
+        $first = fn (string $pattern, int $from = 0) => $queries->slice($from)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $receivable = $first('/from [`"]receivables[`"] where [`"]receivables[`"]\.[`"]id[`"] = \?/');
+        $this->assertIsInt($receivable);
+        $sale = $first('/from [`"]transactions[`"] where [`"]transactions[`"]\.[`"]id[`"] = \?/', $receivable);
+        $this->assertIsInt($sale);
+        $this->assertLessThan($first('/^update [`"]sales_returns[`"]/'), $sale);
+
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', strtolower($queries[$receivable]));
+            $this->assertStringContainsString('for update', strtolower($queries[$sale]));
+        }
+    }
+
     public function test_repeated_partial_returns_of_a_part_paid_pay_later_sale_never_refund_more_than_was_paid(): void
     {
         $user = $this->createUserWithPermissions([

@@ -334,6 +334,14 @@
                             {{ number_format($grandTotal, 0, ',', '.') }}
                         </td>
                     </tr>
+                    @if (($due = $transaction->reducedAmountDue()) !== null)
+                        <tr>
+                            <td style="font-weight:700; font-size:13px;">Sisa Tagihan</td>
+                            <td class="right" style="font-weight:800; font-size:13px;">
+                                {{ number_format($due, 0, ',', '.') }}
+                            </td>
+                        </tr>
+                    @endif
                 </table>
             </td>
         </tr>

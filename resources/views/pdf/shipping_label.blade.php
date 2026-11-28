@@ -221,6 +221,12 @@
                                 <td style="padding-top: 15pt; text-align: right;" class="text-bold">
                                     {{ $formatPrice($transaction->grand_total) }}</td>
                             </tr>
+                            @if (($due = $transaction->reducedAmountDue()) !== null)
+                                <tr>
+                                    <td class="text-bold">Sisa Tagihan</td>
+                                    <td style="text-align: right;" class="text-bold">{{ $formatPrice($due) }}</td>
+                                </tr>
+                            @endif
                         </table>
                     </div>
                 </td>
