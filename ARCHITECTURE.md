@@ -164,6 +164,7 @@ Logika domain yang dipakai lebih dari satu tempat ada di sini dan di-inject lewa
 | Harga | `PricingService` | Engine promo: `standard_discount`, `qty_break`, `bundle_price`, `buy_x_get_y`; scope `all/walk_in/registered/member`; `previewCart()` |
 | | `PriceListService` | Harga khusus per kelompok pelanggan |
 | | `TaxService` | PPN per item, `exclusive`/`inclusive`, default dari setting `tax_default_rate` (11%) |
+| | `BillTotalService` | Satu-satunya penyusun total tagihan: service charge dan PB1/PPN dari `BillSettingsService`; dipakai preview, checkout, dan offline sync lewat `previewCheckout()` |
 | | `UnitConversionService` | Konversi satuan (pcs ↔ box ↔ karton) ke base unit |
 | Loyalty | `LoyaltyService` | Tier (regular/silver/gold/platinum), earn/redeem poin, voucher, `previewCheckout()` + `finalizeTransaction()` |
 | Inventory | `StockMutationService` | Ledger stok terpusat (`recordMutation`): penjualan, dine-in, stok awal, opname, retur, inbound PO, retur supplier, expire transaksi gateway |
