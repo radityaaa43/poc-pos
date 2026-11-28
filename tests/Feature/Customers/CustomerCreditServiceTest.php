@@ -99,7 +99,7 @@ class CustomerCreditServiceTest extends TestCase
         $this->assertFalse($standing->mayBuyOnCredit);
     }
 
-    public function test_only_the_locked_standing_locks_the_customer_then_reads_the_receivables_with_a_lock(): void
+    public function test_only_the_locked_standing_locks_the_customer_and_the_receivables_are_read_plainly(): void
     {
         $this->receivable($this->budi);
         $customer = $this->budi->fresh();
@@ -117,7 +117,8 @@ class CustomerCreditServiceTest extends TestCase
         if (DB::getDriverName() === 'mysql') {
             $this->assertStringNotContainsString('lock in share mode', $plain[0]);
             $this->assertStringContainsString('for update', $locked[0]);
-            $this->assertStringContainsString('lock in share mode', $locked[1]);
+            // No gap locks on receivables (#483): the customer lock is the mutex.
+            $this->assertStringNotContainsString('lock in share mode', $locked[1]);
         }
     }
 }

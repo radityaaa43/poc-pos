@@ -791,8 +791,8 @@ export default function Index({
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.add_on_to || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The credit rules, the add-on, the pay-later gate and the guest note rule answer with their own message.
+                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
