@@ -1,6 +1,6 @@
 # REQ-011: Pencatatan waste bahan baku dan menu
 
-- **Status:** draft
+- **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:inventory
 - **Updated:** 2026-11-28
@@ -29,6 +29,9 @@ Hari ini bahan yang rusak, kedaluwarsa, atau menu yang dibuang tidak punya penca
 8. **Waste tidak bisa melebihi stok yang ada** di gudang itu; ditolak dengan pesan. Alasan: sama dengan aturan stok penjualan. (Business/PM, 2026-11-28)
 9. **Waste yang sudah memotong stok tidak bisa diedit atau dihapus.** Koreksi dilakukan dengan **Batalkan waste** oleh pemegang `stock-waste-approve` dengan alasan wajib; stok dikembalikan dan biaya waste dibalik di periode pembatalan. Alasan: jejak tetap utuh. (Business/PM, 2026-11-28)
 10. **Waste tidak masuk HPP penjualan;** biaya waste adalah baris tersendiri di laporan laba (keputusan 4), sehingga margin per menu tidak tercampur. (Business/PM, 2026-11-28)
+11. **Penyetuju lain dari outlet mana pun** yang bisa diakses pengguna (termasuk pemilik) boleh menyetujui; tidak ada pengecualian persetujuan sendiri. Daftar menampilkan **Menunggu persetujuan orang lain**. Alasan: empat mata tetap berlaku di outlet yang hanya punya satu manajer. (Business/PM, 2026-11-28, Q-A feasibility #455)
+12. **Pilihan item hanya bahan baku dan menu resep;** produk retail siap jual ditolak server dan tetap memakai stock opname. (Business/PM, 2026-11-28, Q-B; keputusan 1)
+13. **Pembatalan mengembalikan nilai HPP yang keluar** (bukan sekadar menambah jumlah), supaya harga rata-rata tetap benar untuk penjualan berikutnya; produk yang punya catatan waste tidak bisa dihapus. (Business/PM, 2026-11-28, dari feasibility #455)
 
 ## Process
 
@@ -186,7 +189,7 @@ stateDiagram-v2
 
 ## Open questions
 
-- **Q1:** Feasibility read oleh tech-lead (mutasi stok, HPP, laporan laba, penguncian approve, produk terhapus, ukuran ticket) — decides: tech-lead. `?`
+- **Q1:** Feasibility read — **answered** (#455, 2026-11-28): layak di atas kode stok dan HPP yang ada (`InventoryCostService::lineCost`, pola keluar stok checkout, `StockMutationService`). Menu dipecah ke bahan resepnya saat stok terpotong; dua penyetuju atau double submit: hanya yang pertama tercatat. Laporan laba menambah biaya waste dan laba setelah waste. Dipotong menjadi tiga ticket: W1 catat waste (±1.300), W2 batas, persetujuan, penolakan, dan pembatalan (±1.500; W3 tech-lead digabung karena kode dan builder sama), W4 baris laba dan laporan waste (±850). Urutan: W1, lalu W2 dan W4 paralel. Q-A dan Q-B menjadi keputusan 11 dan 12.
 
 ## Delivered by
 
