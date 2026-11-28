@@ -1506,6 +1506,14 @@
         "reasons": "Waste per Reason",
         "reason": "Reason",
         "records": "Records",
-        "empty": "No waste in this period"
+        "empty": "No waste in this period",
+        "date": "Date",
+        "recorderDays": "Waste per Recorder and Day",
+        "recorder": "Recorder",
+        "nearLimit": "At or near limit",
+        "limitNote": "Limit {{amount}} per record; near = within 10%",
+        "deletedUser": "Deleted user",
+        "wastePercent": "Waste as % of sales cost",
+        "noSalesCost": "No sales cost in this period"
     }
 }

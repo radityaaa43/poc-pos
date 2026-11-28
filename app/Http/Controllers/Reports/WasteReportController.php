@@ -7,6 +7,7 @@ use App\Models\Outlet;
 use App\Models\Warehouse;
 use App\Services\OutletAccessService;
 use App\Services\StockWasteReportService;
+use App\Services\StockWasteService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -16,7 +17,7 @@ class WasteReportController extends Controller
     /**
      * Display the waste report (REQ-011 AC-11): quantity and value per item and per reason.
      */
-    public function index(Request $request, OutletAccessService $outletAccessService, StockWasteReportService $service)
+    public function index(Request $request, OutletAccessService $outletAccessService, StockWasteReportService $service, StockWasteService $stockWasteService)
     {
         $user = $request->user();
         $outlets = $outletAccessService->accessibleOutlets($user);
@@ -40,11 +41,16 @@ class WasteReportController extends Controller
         $startDate = $input['start_date'] ?? now($timezone)->startOfMonth()->toDateString();
         $endDate = $input['end_date'] ?? now($timezone)->endOfMonth()->toDateString();
         $report = $service->report($warehouseIds, $startDate, $endDate);
+        $salesCost = $service->salesCost($warehouseIds, $startDate, $endDate);
 
         return Inertia::render('Dashboard/Reports/Waste', [
             'filters' => ['outlet_id' => $outlet?->id, 'start_date' => $startDate, 'end_date' => $endDate],
             'outlets' => $outlets->map(fn ($accessible) => $accessible->only(['id', 'code', 'name']))->values(),
             ...$report,
+            'recorder_days' => $service->byRecorderAndDay($warehouseIds, $startDate, $endDate),
+            'approval_limit' => $outlet ? $stockWasteService->approvalLimit($outlet) : null,
+            'sales_cost' => $salesCost,
+            'waste_percent' => $salesCost > 0 ? round($report['total_value'] * 100 / $salesCost, 1) : null,
         ]);
     }
 }
