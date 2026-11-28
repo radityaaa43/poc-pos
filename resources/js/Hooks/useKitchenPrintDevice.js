@@ -82,6 +82,12 @@ async function print(ticket, extraLabels) {
     }
 }
 
+// A split shop reprints one ticket per station, so one sale can have two jobs in flight: drop only one (#345).
+const dropOne = (ids, id) => {
+    const at = ids.indexOf(id);
+    return at === -1 ? ids : ids.filter((_, index) => index !== at);
+};
+
 const reprintTicket = (order, key) => ({
     key,
     number: order.number,
@@ -232,7 +238,7 @@ export function useKitchenPrintDevice(outlet) {
             setReprintFailed(job.orderId);
             throw error;
         } finally {
-            setReprinting((ids) => ids.filter((id) => id !== job.orderId));
+            setReprinting((ids) => dropOne(ids, job.orderId));
         }
     }, []);
 
@@ -296,7 +302,7 @@ export function useKitchenPrintDevice(outlet) {
         const dropReprints = () => {
             for (const job of queue.jobs) {
                 if (job.manual && queue.remove(job.key)) {
-                    setReprinting((ids) => ids.filter((id) => id !== job.orderId));
+                    setReprinting((ids) => dropOne(ids, job.orderId));
                     setReprintFailed(job.orderId);
                 }
             }

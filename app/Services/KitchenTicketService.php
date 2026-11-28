@@ -12,6 +12,7 @@ use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class KitchenTicketService
 {
@@ -87,15 +88,18 @@ class KitchenTicketService
         // An all-stations device gets the same split, one titled ticket per station.
         $liveStations = KitchenStation::pluck('id')->map(fn ($id) => (int) $id)->all();
         $effective = fn ($stationId) => $stationId !== null && in_array((int) $stationId, $liveStations, true) ? $stationId : $defaultId;
+        // Dapur's current name: it can be renamed, and a null-station item still belongs to it.
+        $defaultName = KitchenStation::where('is_default', true)->value('name') ?? KitchenStation::DEFAULT_NAME;
 
-        return $orders->flatMap(function (array $order) use ($effective, $defaultId) {
+        return $orders->flatMap(function (array $order) use ($effective, $defaultId, $defaultName) {
             $groups = $order['items']->groupBy(fn (array $item) => $effective($item['station_id']));
 
-            return $groups->map(function (Collection $stationItems, $stationId) use ($order, $groups, $defaultId) {
-                $key = $groups->count() === 1 ? 't'.$order['id'] : 't'.$order['id'].'-s'.$stationId;
-                $title = (int) $stationId === (int) $defaultId
-                    ? KitchenStation::DEFAULT_NAME
-                    : $stationItems->first()['station'];
+            return $groups->map(function (Collection $stationItems, $stationId) use ($order, $defaultId, $defaultName) {
+                // In a split shop every station's key carries the station, so a partial order never renames its ticket
+                // between polls (#345).
+                $key = 't'.$order['id'].'-s'.$stationId;
+                $title = $stationItems->first()['station']
+                    ?? ((int) $stationId === (int) $defaultId ? $defaultName : null);
 
                 return $this->ticket($order, $key, $stationItems, $title);
             })->values();
@@ -110,7 +114,13 @@ class KitchenTicketService
      */
     public function servedStationIds(KitchenPrintDevice $device): array
     {
-        $chosen = $device->stations()->withTrashed()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all();
+        // Read the pivot itself: the relation cannot include a soft-deleted station, and a chosen station that was
+        // deleted must still be known here to fall back to Dapur (#345).
+        $chosen = DB::table('kitchen_print_device_station')
+            ->where('kitchen_print_device_id', $device->id)
+            ->pluck('kitchen_station_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
 
         if ($chosen === []) {
             return [];
@@ -205,6 +215,7 @@ class KitchenTicketService
         // A split shop groups a return's cancellations per station and titles each ticket, like a normal ticket.
         $multi = KitchenStation::count() > 1;
         $defaultId = $multi ? KitchenStation::defaultId() : null;
+        $defaultName = $multi ? (KitchenStation::where('is_default', true)->value('name') ?? KitchenStation::DEFAULT_NAME) : null;
         $liveStations = $multi ? KitchenStation::pluck('id')->map(fn ($id) => (int) $id)->all() : [];
         $effective = fn ($stationId) => $stationId !== null && in_array((int) $stationId, $liveStations, true) ? $stationId : $defaultId;
 
@@ -221,7 +232,7 @@ class KitchenTicketService
         $orders = KitchenOrders::fromItems($tickets->flatMap(fn ($group) => $group->pluck('item'))->unique('id'))->keyBy('id');
         $lines = $orders->flatMap(fn (array $order) => $order['items'])->keyBy('id');
 
-        return $tickets->map(function ($group, $key) use ($orders, $lines, $multi, $effective, $defaultId) {
+        return $tickets->map(function ($group, $key) use ($orders, $lines, $multi, $effective, $defaultId, $defaultName) {
             $first = $group->first();
             $ticket = [
                 'key' => $key,
@@ -238,8 +249,9 @@ class KitchenTicketService
 
             if ($multi) {
                 $stationId = $effective($first->item->kitchen_station_id);
+                // Dapur's current name, and the item's own for a live station; a deleted station reads as Dapur.
                 $ticket['station'] = (int) $stationId === (int) $defaultId
-                    ? KitchenStation::DEFAULT_NAME
+                    ? $defaultName
                     : $first->item->kitchenStation?->name;
             }
 

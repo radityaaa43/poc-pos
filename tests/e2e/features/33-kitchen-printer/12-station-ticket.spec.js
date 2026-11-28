@@ -45,13 +45,13 @@ test.describe('33-kitchen-printer: station tickets', () => {
         const [dapurItem, barItem] = sale.flagged; // the last flagged product is the Bar one
 
         const barTicket = await ticket(barDevice, sale.invoice);
-        expect(barTicket).toContain(`\n${bar}\n`); // the station name as the ticket title
+        expect(barTicket).toContain(`\n${bar.toUpperCase()}\n`); // the station name as the ticket title, in capitals
         expect(barTicket).toContain(barItem);
         expect(barTicket).not.toContain(dapurItem);
-        expect(barTicket).not.toContain('Dapur');
+        expect(barTicket).not.toContain('DAPUR');
 
         const dapurTicket = await ticket(dapurDevice, sale.invoice);
-        expect(dapurTicket).toContain('Dapur');
+        expect(dapurTicket).toContain('DAPUR');
         expect(dapurTicket).toContain(dapurItem);
         expect(dapurTicket).not.toContain(barItem);
     });

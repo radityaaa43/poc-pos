@@ -536,6 +536,63 @@ class KitchenTicketTest extends TestCase
         $this->assertSame([$bar->id], $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all());
     }
 
+    // TC-2: a deleted station can no longer be chosen, and the change is audited (#345).
+    public function test_a_deleted_station_cannot_be_saved_and_the_change_is_audited(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+        $device = $this->device();
+
+        $this->actingAs($this->cook)
+            ->putJson(route('kitchen.print-devices.stations', $device), ['station_ids' => [$dapur]])
+            ->assertOk();
+
+        $bar->delete();
+
+        $this->actingAs($this->cook)
+            ->putJson(route('kitchen.print-devices.stations', $device), ['station_ids' => [$bar->id]])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('station_ids.0');
+
+        $this->assertSame([$dapur], $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all());
+        $this->assertDatabaseHas('audit_logs', [
+            'event' => 'kitchen.print_device_stations',
+            'auditable_id' => $device->id,
+        ]);
+    }
+
+    // A renamed Dapur prints its new name, not the constant (#345).
+    public function test_a_renamed_dapur_prints_its_new_name(): void
+    {
+        $dapur = KitchenStation::defaultId();
+        KitchenStation::whereKey($dapur)->update(['name' => 'Dapur Utama']);
+        KitchenStation::create(['name' => 'Bar']);
+
+        $sale = $this->sale('INV-RENAMED');
+        $this->kitchenItem($sale)->update(['kitchen_station_id' => $dapur]);
+
+        $tickets = $this->tickets($this->device());
+
+        $this->assertCount(1, $tickets);
+        $this->assertSame('Dapur Utama', $tickets[0]['station']);
+    }
+
+    // A split shop's ticket key always carries the station, even when the order holds one station (#345).
+    public function test_a_split_shops_key_carries_its_station_even_for_one_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        KitchenStation::defaultId();
+
+        $sale = $this->sale('INV-ONE');
+        $barItem = $this->kitchenItem($sale);
+        $barItem->update(['kitchen_station_id' => $bar->id]);
+
+        $tickets = $this->tickets($this->device());
+
+        $this->assertCount(1, $tickets);
+        $this->assertSame('t'.$sale->id.'-s'.$bar->id, $tickets[0]['key']);
+    }
+
     private function tickets(KitchenPrintDevice $device): array
     {
         return $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk()->json('tickets');

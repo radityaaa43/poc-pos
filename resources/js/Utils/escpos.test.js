@@ -505,8 +505,8 @@ describe("buildKitchenTicketBytes", () => {
         ]);
     });
 
-    it("titles the ticket with the station name in double size under the number (#345)", () => {
-        const text = textOf(ticket({ station: "BAR" }), "80mm");
+    it("titles the ticket with the station name in double size, in capitals, under the number (#345)", () => {
+        const text = textOf(ticket({ station: "Bar" }), "80mm");
         expect(text.startsWith(`\x1b@\x1d!\x11Meja 5\nBAR\n\x1d!\x00`)).toBe(true);
     });
 
