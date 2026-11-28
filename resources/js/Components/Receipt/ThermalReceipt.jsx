@@ -3,6 +3,16 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 import { billSubtotal, taxLabel } from "@/Utils/billTotals";
 
+const paymentLabels = {
+    cash: "TUNAI",
+    bank_transfer: "TRANSFER BANK",
+    midtrans: "MIDTRANS",
+    xendit: "XENDIT",
+    qris: "QRIS",
+    split: "SPLIT PEMBAYARAN",
+    open_bill: "BELUM DIBAYAR",
+};
+
 /**
  * ThermalReceipt - Receipt template optimized for thermal printers (58mm/80mm)
  *
@@ -54,15 +64,6 @@ export default function ThermalReceipt({
     const cash = transaction?.cash || 0;
     const change = transaction?.change || 0;
 
-    const paymentLabels = {
-        cash: "TUNAI",
-        bank_transfer: "TRANSFER BANK",
-        midtrans: "MIDTRANS",
-        xendit: "XENDIT",
-        qris: "QRIS",
-        split: "SPLIT PEMBAYARAN",
-        open_bill: "BELUM DIBAYAR",
-    };
     const paymentMethod =
         paymentLabels[transaction?.payment_method?.toLowerCase()] || "TUNAI";
 

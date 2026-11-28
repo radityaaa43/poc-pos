@@ -157,6 +157,11 @@ class OutletController extends Controller
 
     protected function hasOperationalHistory(Outlet $outlet): bool
     {
+        // Reservations cascade with their outlet, and an outlet without a warehouse can hold them (#431 BR-3).
+        if (DB::table('dine_reservations')->where('outlet_id', $outlet->id)->exists()) {
+            return true;
+        }
+
         $warehouseIds = $outlet->warehouses()->pluck('id');
         if ($warehouseIds->isEmpty()) {
             return false;

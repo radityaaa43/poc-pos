@@ -61,6 +61,12 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Bill settings ("Tagihan") | The per-outlet rules a bill is computed with: service charge rate, tax type (PPN per product, or PB1), PB1 rate and cash rounding (Tanpa, 100, 500). Changed in the outlet form with `outlets-update`, audit-logged; they apply to new bills only | Tagihan as a bill or an unpaid sale ("Belum lunas") | `BillSettingsService`; `settings` keys `service_charge_rate`, `tax_kind`, `pb1_rate`, `cash_rounding_unit` (per `outlet_id`) |
 | Service charge | A percentage an outlet adds to dine-in bills (a POS sale with order type Di Tempat, `in_store`), on the subtotal after discounts; 0 = off | Tax; `shipping_cost` | `settings.service_charge_rate`, `transactions.service_charge` |
 | PB1 | The regional restaurant tax: one outlet rate on the whole bill, used instead of per-product PPN at an outlet whose tax type is PB1 | PPN: per product | `settings.tax_kind = pb1`, `settings.pb1_rate`, `transactions.tax_kind` |
+| Service charge | A percentage an outlet adds to dine-in bills; 0 = off | Tax; `shipping_cost` | `settings.service_charge_rate`, `transactions.service_charge` |
+| PB1 | The regional restaurant tax: one outlet rate on the whole bill, used instead of per-product PPN at an outlet whose tax type is PB1 | PPN: per product | `settings.tax_kind = pb1`, `settings.pb1_rate`, `transactions.tax_kind` |
+| Reservasi (reservation) | One booking of one dine-in table for a guest at a date and time, recorded by staff. Starts as Dicatat; two on one table must be at least 2 hours apart | Dine order: what the guest orders once there | `DineReservation` / `dine_reservations` |
+| Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
+| Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
+| Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
 
 ## Retired terms
 

@@ -60,14 +60,14 @@ Route::get('crm-reminders', [CrmReminderController::class, 'index'])
     ->name('crm-reminders.index');
 
 // route customer history
-Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory'])->middleware('permission:transactions-access')->name('customers.history');
+Route::get('/customers/{customer}/history', [CustomerController::class, 'getHistory'])->middleware(['permission:transactions-access', 'keep_flash'])->name('customers.history');
 Route::put('/customers/{customer}/segments', [CustomerController::class, 'syncSegments'])->middleware('permission:customers-edit')->name('customers.segments.sync');
 Route::match(['post', 'put'], '/customers/{customer}/upgrade-member', [CustomerController::class, 'upgradeToMember'])
     ->middleware('permission:customers-upgrade-member|customers-edit')
     ->name('customers.upgrade-member');
 Route::patch('/customers/{customer}/credit', [CustomerController::class, 'updateCredit'])->middleware('permission:customers-credit-approve')->name('customers.credit');
 Route::patch('/customers/{customer}/credit-limit', [CustomerController::class, 'updateCreditLimit'])->middleware('permission:customers-credit-approve')->name('customers.credit-limit');
-Route::get('/customers/{customer}/credit-summary', [CustomerController::class, 'creditSummary'])->middleware('permission:transactions-access')->name('customers.credit-summary');
+Route::get('/customers/{customer}/credit-summary', [CustomerController::class, 'creditSummary'])->middleware(['permission:transactions-access', 'keep_flash'])->name('customers.credit-summary');
 
 // route customer store via AJAX (no redirect)
 Route::post('/customers/store-ajax', [CustomerController::class, 'storeAjax'])->middleware('permission:customers-create')->name('customers.storeAjax');
