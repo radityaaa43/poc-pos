@@ -34,6 +34,8 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - `sales-returns-create`
 - `sales-returns-complete`
 
+Di API, kemampuan token sama dengan izin web: baca `sales-returns-access`, form/buat/ubah draft `sales-returns-create`, selesaikan `sales-returns-complete`.
+
 ## Alur User
 
 1. user membuka histori transaksi

@@ -145,6 +145,9 @@ class SalesReturnController extends AppsSalesReturnController
         $payload = $this->prepareDraftPayload($salesReturn->transaction, $request->validated(), $salesReturn->id);
 
         DB::transaction(function () use ($salesReturn, $payload) {
+            // A completion may have committed since the draft was read: lock it and check again before rewriting it.
+            $this->ensureDraft(SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail());
+
             $salesReturn->update([
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
@@ -228,6 +231,9 @@ class SalesReturnController extends AppsSalesReturnController
                 locking: true,
             );
 
+            // Summed per sale line: a draft saved with a line twice may not return more than was sold.
+            $requested = collect($salesReturn->getRelationValue('items'))->groupBy('transaction_detail_id')->map->sum('qty_return');
+
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
@@ -240,7 +246,7 @@ class SalesReturnController extends AppsSalesReturnController
                 $returnedBefore = (int) ($returnedQtyMap[$detail->id] ?? 0);
                 $remainingQty = (int) $detail->qty - $returnedBefore;
 
-                if ($item->qty_return > $remainingQty) {
+                if ($requested[$detail->id] > $remainingQty) {
                     throw ValidationException::withMessages([
                         'sales_return' => 'Ada item retur yang melebihi sisa qty yang bisa diretur.',
                     ]);
@@ -305,7 +311,7 @@ class SalesReturnController extends AppsSalesReturnController
                     'notes' => 'Saldo toko dari retur penjualan '.$salesReturn->code,
                 ]);
             }
-        });
+        }, 3); // retried on a deadlock: the restock locks stock by product id, a checkout in cart order
 
         $salesReturn->refresh();
         $salesReturn->load('items.product');
