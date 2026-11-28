@@ -15,6 +15,7 @@ use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\OutletAccessService;
 use App\Services\StockMutationService;
+use App\Services\StockOpnameVarianceService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,7 +29,8 @@ class StockOpnameController extends Controller
     public function __construct(
         protected readonly StockMutationService $stockMutationService,
         protected readonly AuditLogService $auditLogService,
-        protected readonly OutletAccessService $outletAccessService
+        protected readonly OutletAccessService $outletAccessService,
+        protected readonly StockOpnameVarianceService $stockOpnameVarianceService
     ) {}
 
     public function index(Request $request): Response
@@ -61,10 +63,14 @@ class StockOpnameController extends Controller
             ->paginate($this->perPage())->withQueryString()
             ->withQueryString();
 
+        $outlet = $this->outletAccessService->activeOutlet($request);
+        $variance = $this->stockOpnameVarianceService->byMonth($outlet ? Warehouse::where('outlet_id', $outlet->id)->pluck('id')->all() : [], now());
+
         return Inertia::render('Dashboard/StockOpnames/Index', [
             'stockOpnames' => $stockOpnames,
             'filters' => $filters,
             'warehouses' => $this->outletAccessService->warehousesFor($request->user()),
+            'variance' => $variance,
         ]);
     }
 
@@ -284,6 +290,9 @@ class StockOpnameController extends Controller
         $stockOpname->refresh();
         $stockOpname->load('items.product');
 
+        // Snapshot the cost at finalize so the variance report never revalues an old opname at today's price.
+        $unitCosts = $this->stockOpnameVarianceService->snapshotUnitCosts($stockOpname);
+
         $this->auditLogService->log(
             event: 'stock.opname.finalized',
             module: 'stock',
@@ -300,6 +309,7 @@ class StockOpnameController extends Controller
                     'stock_before' => (int) $item->system_stock,
                     'stock_after' => $item->physical_stock !== null ? (int) $item->physical_stock : null,
                     'difference' => $item->difference !== null ? (int) $item->difference : null,
+                    'unit_cost' => $unitCosts[$item->product_id] ?? null,
                     'reason' => $item->adjustment_reason,
                     'reference' => $stockOpname->code,
                 ])->values()->all(),
