@@ -126,7 +126,6 @@ class TransactionController extends Controller
                 ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
                 'stock' => $product->stockIn($warehouseId),
                 'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
-                // What the options panel starts from: the outlet's price list, not products.sell_price.
                 'menu_price' => $product->is_composite ? $product->compositeSellPrice() : $pricing['base_unit_price'],
                 'modifiers_sold_out' => ModifierSelection::isSoldOut($modifierGroups->get($product->id, [])),
                 'units' => $product->units->map(fn ($u) => [

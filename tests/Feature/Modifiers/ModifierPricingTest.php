@@ -27,7 +27,6 @@ class ModifierPricingTest extends ModifierSaleTestCase
         return app(PricingService::class)->previewCart(Cart::with('product')->orderBy('id')->get(), $customer, null, $this->outlet);
     }
 
-    // A percentage acts on menu + options; a fixed price replaces only the menu price.
     #[TestWith([PricingRule::TYPE_PERCENTAGE, 10, 45000])]
     #[TestWith([PricingRule::TYPE_FIXED_PRICE, 10000, 30000])]
     public function test_a_line_discount_on_menu_plus_options(string $type, int $value, int $total): void
@@ -41,7 +40,6 @@ class ModifierPricingTest extends ModifierSaleTestCase
         $this->assertSame(['Large'], array_column($item['options'], 'name'));
     }
 
-    // BR-5: every line of a menu counts towards its break, whatever the option or note.
     #[TestWith([['Regular'], null, 10000])]
     #[TestWith([['Large'], 'Tanpa gula', 15000])]
     public function test_qty_break_counts_every_line_of_the_same_menu(array $options, ?string $note, int $lastTotal): void
@@ -56,13 +54,11 @@ class ModifierPricingTest extends ModifierSaleTestCase
             'qty' => 1, 'conversion_factor' => 12, 'price' => 200000,
         ]);
 
-        // Neither the box nor the other menu makes up the third.
         $this->assertSame([50000, 8000, 200000], array_column($this->preview()['items'], 'line_total'));
 
         $box->delete();
         $this->add($options, 1, $note);
 
-        // Half the menu price (10.000) on each line; Large +5.000 stays on top.
         $this->assertSame([30000, 8000, $lastTotal], array_column($this->preview()['items'], 'line_total'));
         $this->checkout()->assertSessionHasNoErrors();
         $this->assertEquals([30000, 8000, $lastTotal], TransactionDetail::orderBy('id')->pluck('price')->all());
@@ -93,7 +89,6 @@ class ModifierPricingTest extends ModifierSaleTestCase
         ]);
         $this->add(['Large'], 2);
 
-        // 2 x 25.000, one menu (20.000) free: its Large is still charged.
         $this->assertSame(30000, $this->preview()['items'][0]['line_total']);
     }
 
@@ -104,7 +99,6 @@ class ModifierPricingTest extends ModifierSaleTestCase
         $this->add(['Large']);
         $this->add(['Regular', 'Boba']);
 
-        // Bundle 30.000 for both menus, plus Large 5.000 and Boba 3.000.
         $this->assertSame(38000, $this->preview()['summary']['subtotal_after_promo']);
     }
 

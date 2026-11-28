@@ -12,7 +12,6 @@ const formatPrice = (value = 0) =>
 
 // Single Product Card
 function ProductCard({ product, onAddToCart, isAdding }) {
-    // Sold out also when a required modifier group has no option left (REQ-008 AC-09).
     const hasStock = product.stock > 0 && !product.modifiers_sold_out;
     const lowStock = product.stock > 0 && product.stock <= 5;
     const promoBadge = product.pricing_badge;

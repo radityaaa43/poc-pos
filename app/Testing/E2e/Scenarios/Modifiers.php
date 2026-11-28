@@ -50,8 +50,7 @@ class Modifiers
                 return ['code' => $outlet->code, 'name' => $outlet->name];
             },
 
-            // Menu --arg=title (20.000, stock 20): Size (Large +5.000 uses 2 milk), Topping max 1 (Boba is out), required
-            // Gula (default Normal is out; Less too with --arg=sold_out=1). --arg=percent=<n> adds a menu promo.
+            // --arg=title; --arg=sold_out=1 leaves required Gula nothing to pick; --arg=percent=<n> adds a menu promo.
             'modifier-menu' => function (array $options): array {
                 $product = fn (string $title, int $stock, bool $raw = false) => tap(Product::create([
                     'category_id' => Category::where('name', 'E2E Kategori')->value('id'), 'title' => $title,
@@ -88,8 +87,7 @@ class Modifiers
                 return ['product_id' => $menu->id, 'milk_id' => $milk->id];
             },
 
-            // After a line is in the cart: --arg=product=<menu id> --arg=option=<name> is switched off at the E2E
-            // outlet, or renamed and repriced with --arg=rename=<text>.
+            // --arg=product=<menu id> --arg=option=<name>: switched off at the E2E outlet, or --arg=rename=<text>.
             'modifier-change' => function (array $options): array {
                 $groups = Product::findOrFail($options['product'])->modifierGroups->modelKeys();
                 $option = ModifierOption::where('name', $options['option'])->whereIn('modifier_group_id', $groups)->firstOrFail();
@@ -103,7 +101,6 @@ class Modifiers
                 return ['option_id' => $option->id];
             },
 
-            // Stock of --arg=product=<id> in the E2E warehouse.
             'modifier-stock' => fn (array $options): array => [
                 'stock' => (int) ProductWarehouse::where('product_id', $options['product'])
                     ->where('warehouse_id', Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->value('id'))->value('stock'),

@@ -17,10 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
-/**
- * A cashier with an open shift and one menu: Size (required, one) = Regular (default) | Large +5.000 using 2 milk,
- * and Topping (optional, up to two) = Boba +3.000 using 1 boba | Jelly +2.000 | Cheese +4.000.
- */
+// An open shift and one menu, as built at the end of setUp().
 abstract class ModifierSaleTestCase extends TestCase
 {
     use RefreshDatabase;

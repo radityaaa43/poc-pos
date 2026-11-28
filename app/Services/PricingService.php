@@ -238,8 +238,7 @@ class PricingService
             $this->applyComplexStage($buyGetRules, $items, $remainingQuantities, 'buy_get')
         );
 
-        // BR-5: quantity breaks count every line of a menu together, whatever its options or note. Pieces a bundle or
-        // free item used, and unit lines, are already absent from the remaining quantities.
+        // BR-5: quantity breaks count a menu's lines together; pieces a bundle used and unit lines are already gone.
         $menuQuantities = $items->groupBy('product_id')
             ->map(fn (Collection $lines) => $lines->sum(fn (array $line) => $remainingQuantities[$line['cart_id']]));
 
@@ -561,8 +560,7 @@ class PricingService
             return null;
         }
 
-        // Percentage and amount discounts act on menu + options; a rule that sets a price (quantity break, fixed
-        // price) acts on the menu price only, so paid options are charged on top (REQ-008 decisions 5 and 16).
+        // Discounts act on menu + options; a rule that sets a price acts on the menu price only (decisions 5, 16).
         $menuUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
         $baseUnitPrice = $menuUnitPrice + $optionUnitTotal;
         $lineBaseTotal = $baseUnitPrice * $quantity;

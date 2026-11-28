@@ -45,7 +45,6 @@ class ModifierCatalog
             ->map(fn (array $groups) => ['orderable' => self::shortGroup($groups) === null, 'groups' => $groups]);
     }
 
-    /** The first group with fewer active options than its minimum: the outlet cannot order such a menu (BR-6). */
     public static function shortGroup(array $groups): ?array
     {
         return Arr::first($groups, fn (array $group) => count($group['options']) < $group['min_select']);

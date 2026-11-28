@@ -146,7 +146,6 @@ class TransactionDetail extends Model
         return $this->hasMany(TransactionDetailModifier::class)->orderBy('id');
     }
 
-    /** Receipt lines under the item: options and note, read from the sale's rows, never the master (AC-14). */
     public function receiptExtras(): array
     {
         $lines = $this->modifiers->map(fn (TransactionDetailModifier $row) => '+ '.$row->option_name

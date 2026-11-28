@@ -4,7 +4,6 @@ import { cashInput, finish, openPos, rupiah, total } from '../../support/pos.js'
 
 const cashier = roles.find((role) => role.key === 'cashier');
 
-// A menu from `modifier-menu` and the cashier on the POS with an empty cart; `choose` opens its panel.
 async function sell({ asRole, arrange, uniq }, options = {}, language = 'id') {
     const title = uniq('Kopi');
     const menu = arrange('modifier-menu', { title, ...options });
@@ -41,7 +40,6 @@ test.describe('48-modifiers: selling on the POS', () => {
         await expect(price(panel)).toContainText(rupiah(20000));
         await panel.getByLabel(/^Large/).check();
         await expect(price(panel)).toContainText(rupiah(25000));
-        // Its default is out of ingredients: shown as Habis, not picked, and the group is named.
         await expect(panel.getByLabel(/^Normal/)).toBeDisabled();
         await expect(panel.locator('label').filter({ hasText: 'Normal' })).toContainText('Habis');
         await expect(add).toBeDisabled();
