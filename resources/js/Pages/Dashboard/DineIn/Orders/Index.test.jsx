@@ -150,6 +150,18 @@ describe("dine orders queue", () => {
         vi.unstubAllGlobals();
     });
 
+    it("says an order was already processed when it is accepted again", async () => {
+        const refusal = "Pesanan ini sudah diproses.";
+        router.post.mockImplementationOnce((url, data, options) => options.onError({ order: refusal }));
+        vi.stubGlobal("confirm", () => true);
+        render(<Index orders={orders} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Terima" }));
+
+        expect(toast.error).toHaveBeenCalledWith(refusal);
+        vi.unstubAllGlobals();
+    });
+
     it("still accepts and rejects a submitted order", async () => {
         const user = userEvent.setup();
         vi.stubGlobal("confirm", () => true);

@@ -46,6 +46,11 @@ class DineOrderService
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
+            // #438: judged on the locked row, so a second accept waits for the first and cannot sell the order again
+            if (! $order->isPending() || $order->transaction_id) {
+                throw ValidationException::withMessages(['order' => 'Pesanan ini sudah diproses.']);
+            }
+
             // #251: locked before the first plain read fixes MySQL's snapshot. A refusal rolls the whole accept back.
             $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
 
