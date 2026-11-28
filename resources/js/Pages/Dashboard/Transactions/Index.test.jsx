@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent } from "@testing-library/react";
+import { render, fireEvent, act } from "@testing-library/react";
 import { router } from "@inertiajs/react";
 import toast from "react-hot-toast";
 import Index from "./Index";
@@ -26,9 +26,13 @@ const carts = [{ id: 1, product_id: 1, qty: 1, price: 0, product: { id: 1, title
 const pricing = { items: [], summary: {} };
 const screen = () => <Index carts={carts} initialPricingPreview={pricing} />;
 
-/** Renders the POS, presses F2 (pay) and returns the view with the callbacks the checkout visit got. */
-const checkout = () => {
+/** Renders the POS, lets the pricing preview settle, presses F2 (pay) and returns the checkout visit's callbacks. */
+const checkout = async () => {
     const view = render(screen());
+    // F2 is ignored while the pricing preview loads (#499), so let the mocked fetch settle before paying.
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    });
     fireEvent.keyDown(window, { key: "F2" });
     const [url, , callbacks] = router.post.mock.calls[0];
     expect(url).toBe("/transactions.store");
@@ -42,20 +46,20 @@ beforeEach(() => {
 
 // #473: a refusal can arrive as a page without errors, so only the server's success flash proves a sale.
 describe("POS checkout toast", () => {
-    it("shows the success the server flashed", () => {
-        checkout().onSuccess({ props: { flash: { success: "Transaksi berhasil!" } } });
+    it("shows the success the server flashed", async () => {
+        (await checkout()).onSuccess({ props: { flash: { success: "Transaksi berhasil!" } } });
 
         expect(toast.success).toHaveBeenCalledExactlyOnceWith("Transaksi berhasil!");
     });
 
-    it("shows no success for a page that carries none, such as a refusal whose errors were lost", () => {
-        checkout().onSuccess({ props: { flash: { success: null, error: null } } });
+    it("shows no success for a page that carries none, such as a refusal whose errors were lost", async () => {
+        (await checkout()).onSuccess({ props: { flash: { success: null, error: null } } });
 
         expect(toast.success).not.toHaveBeenCalled();
     });
 
-    it("shows a refusal redirected with an error flash, and no success", () => {
-        const { view, onSuccess } = checkout();
+    it("shows a refusal redirected with an error flash, and no success", async () => {
+        const { view, onSuccess } = await checkout();
         const flash = { success: null, error: "Shift kasir belum dibuka." };
 
         page.props = { ...page.props, flash };
@@ -66,8 +70,8 @@ describe("POS checkout toast", () => {
         expect(toast.success).not.toHaveBeenCalled();
     });
 
-    it("shows a refusal that comes back as errors, and no success", () => {
-        checkout().onError({ stock: "Stok Kopi tidak mencukupi. Tersedia: 0." });
+    it("shows a refusal that comes back as errors, and no success", async () => {
+        (await checkout()).onError({ stock: "Stok Kopi tidak mencukupi. Tersedia: 0." });
 
         expect(toast.error).toHaveBeenCalledExactlyOnceWith("Gagal menyimpan transaksi");
         expect(toast.success).not.toHaveBeenCalled();

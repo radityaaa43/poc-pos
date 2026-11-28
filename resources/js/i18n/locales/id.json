@@ -1234,6 +1234,29 @@
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
+        },
+        "bill": {
+            "title": "Tagihan",
+            "appliesToNew": "Berlaku untuk tagihan berikutnya; tagihan yang sudah dibuat tidak berubah.",
+            "serviceCharge": {
+                "label": "Service charge (%)",
+                "hint": "0 = nonaktif"
+            },
+            "taxKind": {
+                "label": "Jenis pajak",
+                "ppn": "PPN",
+                "ppnHint": "PPN per produk",
+                "pb1": "PB1",
+                "pb1Hint": "Satu tarif untuk seluruh tagihan"
+            },
+            "pb1Rate": {
+                "label": "Tarif PB1 (%)",
+                "hint": "Dipakai saat jenis pajak PB1."
+            },
+            "rounding": {
+                "label": "Pembulatan tunai",
+                "none": "Tanpa"
+            }
         }
     },
     "dineMenu": {
