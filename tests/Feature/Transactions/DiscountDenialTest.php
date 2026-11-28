@@ -196,9 +196,10 @@ class DiscountDenialTest extends TestCase
         $this->actingAs($this->manager);
         $order = [];
         DB::listen(function ($query) use (&$order) {
-            // Inside the denial's own transaction only (the test's outer transaction is level 1).
-            if (DB::transactionLevel() > 1 && preg_match('/^select \* from ["`]?(cashier_shifts|customers|transactions)["`]?/i', $query->sql, $match)) {
-                $order[] = strtolower($match[1]);
+            // Inside the denial's own transaction only (the test's outer transaction is level 1). `->value('id')` locks
+            // run `select "id" from …`; SQLite compiles lockForUpdate to nothing, so match the id- and *-selects.
+            if (DB::transactionLevel() > 1 && preg_match('/^select (\*|"id"|`id`) from ["`]?(cashier_shifts|customers|transactions)["`]?/i', $query->sql, $match)) {
+                $order[] = strtolower($match[2]);
             }
         });
 
