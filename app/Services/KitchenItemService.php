@@ -101,40 +101,25 @@ class KitchenItemService
         });
     }
 
-    /**
-     * The display's card: Semua siap over the original order and its add-ons (#251).
-     *
-     * @param  array<int, int>|null  $stationIds
-     */
+    /** @param  array<int, int>|null  $stationIds  The card's Semua siap over the original order and its add-ons (#251). */
     public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
     {
         DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds)));
     }
 
-    /**
-     * Serahkan semua over the original order and its add-ons (#251): each sale keeps its own dine order sync.
-     *
-     * @param  array<int, int>|null  $stationIds
-     */
+    /** @param  array<int, int>|null  $stationIds  Serahkan semua over the group (#251): each sale syncs its own dine order. */
     public function handOverOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
     {
         DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds)));
     }
 
-    /**
-     * Newest first: an add-on is locked before its original, as at checkout and accept, so they cannot deadlock.
-     *
-     * @return Collection<int, Transaction> the sale and, when it is an original order, its add-ons
-     */
+    /** @return Collection<int, Transaction> the sale and its add-ons, newest first: an add-on is locked before its original */
     private function orderGroup(Transaction $root): Collection
     {
         return Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
     }
 
-    /**
-     * Lock order of every kitchen write: the dine order, then its items, then (when it settles) its bill. Taps on one order
-     * queue here, so syncDineOrder can lock all of its items without two taps deadlocking on each other's.
-     */
+    /** Taken first by every kitchen write (order, items, bill), so taps on one order queue instead of deadlocking. */
     public function lockDineOrder(int $transactionId): void
     {
         DineOrder::where('transaction_id', $transactionId)->lockForUpdate()->value('id');
@@ -194,6 +179,8 @@ class KitchenItemService
 
         // Also without a kitchen item of its own: returning the last plain line can complete the cancellation of the order.
         $this->syncDineOrder(Transaction::findOrFail($return->transaction_id), $return);
+        // The sale before any stock row, as an add-on holds it while taking stock (#251). Shared: its profit row takes that anyway.
+        Transaction::whereKey($return->transaction_id)->sharedLock()->value('id');
     }
 
     /** One step: valid only from `$from`. The row lock makes the first tap win; a later one is told who did it (AC-23). */

@@ -182,6 +182,8 @@ class KitchenAddOnGroupTest extends TestCase
             }
         }
         $this->assertSame(DineOrder::STATUS_COMPLETED, $root->dineOrder->fresh()->status);
+        // The return ran last: it holds its sale before any stock row, as an add-on holds that sale while it takes stock.
+        $this->assertMatchesRegularExpression('/from .transactions./', end($log)->sql);
     }
 
     // A payment and a hand-over can commit side by side: neither side may decide from what it loaded earlier.
@@ -219,13 +221,8 @@ class KitchenAddOnGroupTest extends TestCase
         return $this->actingAs($this->staff)->get(route('kitchen.index'))->assertOk();
     }
 
-    private function sale(
-        string $invoice,
-        ?Transaction $parent = null,
-        string $status = 'paid',
-        ?string $table = null,
-        string $dineStatus = DineOrder::STATUS_ACCEPTED,
-    ): Transaction {
+    private function sale(string $invoice, ?Transaction $parent = null, string $status = 'paid', ?string $table = null, string $dineStatus = DineOrder::STATUS_ACCEPTED): Transaction
+    {
         $sale = Transaction::create([
             'cashier_id' => $this->staff->id, 'warehouse_id' => $this->warehouse->id, 'invoice' => $invoice,
             'parent_transaction_id' => $parent?->id, 'cash' => 0, 'change' => 0, 'discount' => 0, 'shipping_cost' => 0,
