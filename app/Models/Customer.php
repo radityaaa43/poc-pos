@@ -36,10 +36,12 @@ class Customer extends Model
         'village_name',
     ];
 
-    // may_buy_on_credit is deliberately not fillable: only updateCredit() sets it, behind customers-credit-approve.
+    // may_buy_on_credit and credit_limit are deliberately not fillable: only updateCredit() and
+    // updateCreditLimit() set them, behind customers-credit-approve.
     protected $casts = [
         'is_loyalty_member' => 'boolean',
         'may_buy_on_credit' => 'boolean',
+        'credit_limit' => 'integer',
         'loyalty_points' => 'integer',
         'loyalty_total_spent' => 'integer',
         'loyalty_transaction_count' => 'integer',

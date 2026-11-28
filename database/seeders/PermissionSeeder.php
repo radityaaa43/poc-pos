@@ -186,6 +186,9 @@ class PermissionSeeder extends Seeder
         $create('dine-orders-prepare');
         $create('dine-orders-handover');
 
+        // modifiers (REQ-008)
+        $create('modifiers-manage');
+
         app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

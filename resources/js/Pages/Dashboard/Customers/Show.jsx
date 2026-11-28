@@ -4,6 +4,7 @@ import { Head, Link, router, useForm } from "@inertiajs/react";
 import Swal from "sweetalert2";
 import { useTranslation } from "react-i18next";
 import hasAnyPermission from "@/Utils/Permission";
+import CreditLimitCard from "@/Components/Customers/CreditLimitCard";
 import {
     IconArrowLeft,
     IconCoins,
@@ -40,6 +41,7 @@ export default function Show({
     frequentProducts,
     rewardHistory,
     vouchers,
+    creditStanding = null,
 }) {
     const segmentForm = useForm({
         segment_ids: manualSegmentIds,
@@ -152,6 +154,9 @@ export default function Show({
 
                 <div className="grid gap-6 xl:grid-cols-[1.7fr_1fr]">
                     <div className="space-y-6">
+                        {customer.may_buy_on_credit && creditStanding && (
+                            <CreditLimitCard customer={customer} standing={creditStanding} canApprove={canApproveCredit} />
+                        )}
                         <section className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
                             <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-white">
                                 Ringkasan Pelanggan

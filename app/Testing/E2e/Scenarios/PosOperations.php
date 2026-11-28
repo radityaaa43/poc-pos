@@ -171,11 +171,14 @@ class PosOperations
             },
 
             // A pay-later sale with its receivable: --arg=total (default 100000), --arg=paid (default 0),
-            // --arg=due_days from today (negative = overdue, default 14), --arg=customer=<name>.
+            // --arg=due_days from today (negative = overdue, default 14), --arg=customer=<name> (a new
+            // customer) or --arg=customer_id=<id> (an existing one).
             'posops.receivable' => function (array $options): array {
                 $total = (int) ($options['total'] ?? 100000);
                 $paid = (int) ($options['paid'] ?? 0);
-                $customer = self::customer($options['customer'] ?? 'Pelanggan '.Str::upper(Str::random(5)));
+                $customer = isset($options['customer_id'])
+                    ? Customer::findOrFail($options['customer_id'])
+                    : self::customer($options['customer'] ?? 'Pelanggan '.Str::upper(Str::random(5)));
 
                 $transaction = Transaction::create([
                     'cashier_id' => self::user('cashier@e2e.test')->id,
