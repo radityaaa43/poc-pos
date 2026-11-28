@@ -164,6 +164,46 @@ class BillTotalCheckoutTest extends TestCase
         $this->assertSame('0.00', Transaction::sole()->service_charge_rate);
     }
 
+    public function test_a_two_rate_bill_previews_the_total_it_stores(): void
+    {
+        $this->charge();
+        $this->openShift();
+
+        // Line A at 11 % then line B at 5 %. Checkout taxes shipping and the service charge at the last taxed
+        // line's rate, so the preview must read the cart in the same order or it shows a total the sale never
+        // stores (Rp 227,100 vs Rp 226,500).
+        $this->product->update(['sell_price' => 100000]);
+        $five = Product::create([
+            'title' => 'Teh', 'barcode' => 'SVC-002', 'sku' => 'SKU-SVC-002', 'image' => '', 'description' => '',
+            'buy_price' => 50000, 'sell_price' => 100000, 'stock' => 50, 'category_id' => $this->product->category_id,
+            'tax_type' => 'exclusive', 'tax_rate' => 5,
+        ]);
+        $five->warehouses()->attach($this->warehouse->id, ['stock' => 50]);
+
+        Cart::create([
+            'cashier_id' => $this->cashier->id, 'warehouse_id' => $this->warehouse->id,
+            'product_id' => $this->product->id, 'qty' => 1, 'price' => 100000,
+        ]);
+        Cart::create([
+            'cashier_id' => $this->cashier->id, 'warehouse_id' => $this->warehouse->id,
+            'product_id' => $five->id, 'qty' => 1, 'price' => 100000,
+        ]);
+
+        $summary = $this->actingAs($this->cashier)
+            ->postJson(route('transactions.pricing-preview'), ['order_type' => 'in_store'])
+            ->assertOk()
+            ->assertJsonPath('data.summary.service_charge', 10000)
+            ->assertJsonPath('data.summary.grand_total', 226500)
+            ->json('data.summary');
+
+        $this->sell(['cash' => 300000])->assertSessionHasNoErrors();
+
+        $sale = Transaction::sole();
+        $this->assertSame(226500, $sale->grand_total);
+        $this->assertSame($summary['grand_total'], $sale->grand_total);
+        $this->assertSame(5.0, (float) $sale->tax_rate);
+    }
+
     public function test_default_outlet_sale_stores_ppn_and_no_service_charge(): void
     {
         $this->openShift();
