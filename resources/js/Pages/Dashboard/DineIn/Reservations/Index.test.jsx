@@ -154,6 +154,15 @@ describe("Reservations page", () => {
         });
     });
 
+    it("keeps a booked table selectable after it has left this outlet", async () => {
+        const user = userEvent.setup();
+        page([row({ dine_table_id: 99, table_name: "Meja Pindah", area_name: null })]);
+
+        await user.click(screen.getByRole("button", { name: "Ubah: Budi" }));
+
+        expect(screen.getByLabelText("Meja")).toHaveDisplayValue("Meja Pindah");
+    });
+
     it("shows the clash message under Jam", async () => {
         formErrors = { reserved_time: "Meja ini sudah direservasi atas nama Budi." };
         const user = userEvent.setup();

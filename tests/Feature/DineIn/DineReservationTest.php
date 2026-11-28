@@ -4,6 +4,7 @@ namespace Tests\Feature\DineIn;
 
 use App\Models\AuditLog;
 use App\Models\DineArea;
+use App\Models\DineOrder;
 use App\Models\DineReservation;
 use App\Models\DiningTable;
 use App\Models\Outlet;
@@ -21,7 +22,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
-/** Table reservations (REQ-009 AC-16, AC-18, AC-19, AC-21, AC-22, BR-1, BR-2; issue #431 BR-3). */
+/** Table reservations (REQ-009 AC-16, AC-18, AC-19, AC-21, AC-22, BR-1, BR-2; issue #431 BR-3, BR-4). */
 class DineReservationTest extends TestCase
 {
     use RefreshDatabase;
@@ -106,17 +107,84 @@ class DineReservationTest extends TestCase
 
     public function test_the_table_row_is_locked_before_the_clash_query(): void
     {
-        $this->assertTableLockedBeforeReservationsAreRead(fn () => $this->book()->assertSessionHasNoErrors());
+        $this->assertLockedBefore(fn () => $this->book()->assertSessionHasNoErrors(), 'dine_tables', 'from [`"]dine_reservations');
     }
 
     public function test_removing_a_table_locks_its_row_before_looking_for_a_reservation(): void
     {
-        $this->assertTableLockedBeforeReservationsAreRead(fn () => app(DineReservationService::class)->deleteTable($this->table));
+        $remove = fn () => app(DineReservationService::class)->deleteTable($this->table, $this->staff, $this->outlet);
+
+        $this->assertLockedBefore($remove, 'dine_tables', 'from [`"]dine_reservations');
+    }
+
+    public function test_change_and_mark_lock_the_reservation_before_writing_it(): void
+    {
+        $reservation = $this->reservation();
+        $service = app(DineReservationService::class);
+
+        foreach ([
+            fn () => $service->update($reservation, $this->outlet, $this->form(['note' => 'Teras']), $this->staff),
+            fn () => $service->mark($reservation, 'arrived', $this->staff),
+        ] as $act) {
+            $this->assertLockedBefore($act, 'dine_reservations', '^update [`"]dine_reservations');
+        }
+    }
+
+    /** #431 BR-4: whoever cannot see that outlet's reservations learns the outlet and the time, never the guest. */
+    public function test_a_refusal_never_names_a_guest_the_reader_cannot_see(): void
+    {
+        $shared = $this->tableAt(null, 'Teras');
+        $this->reservation(['dine_table_id' => $shared->id, 'guest_name' => 'Tamu Rahasia']);
+        $other = $this->userAt($this->outletNamed('OUT-B'), ['dine-reservations-manage', 'dine-tables-update', 'dine-tables-delete']);
+        $edit = ['name' => 'Teras', 'is_active' => false];
+        $messages = [
+            'id' => [
+                'Meja ini punya reservasi outlet OUT-A pada 10/12/2026 19:00 — tandai atau batalkan dulu',
+                'Meja ini sudah direservasi outlet OUT-A pada 10/12/2026 19:00. Beri jarak minimal 2 jam.',
+            ],
+            'en' => [
+                'This table has a reservation of outlet OUT-A on 10/12/2026 19:00 — mark or cancel it first',
+                'This table is already reserved by outlet OUT-A on 10/12/2026 19:00. Leave at least 2 hours between bookings.',
+            ],
+        ];
+
+        foreach ($messages as $locale => [$removal, $clash]) {
+            $other->update(['locale' => $locale]);
+            $this->actingAs($other)->delete(route('dine-tables.destroy', $shared))->assertSessionHasErrors(['table' => $removal]);
+            $this->patch(route('dine-tables.update', $shared), $edit)->assertSessionHasErrors(['table' => $removal]);
+            $this->book(['dine_table_id' => $shared->id, 'reserved_time' => '20:00'], $other)->assertSessionHasErrors(['reserved_time' => $clash]);
+        }
+
+        // Their own outlet is not enough without the reservation permission.
+        $waiter = $this->userAt($this->outlet, ['dine-tables-delete']);
+        $waiter->update(['locale' => 'en']);
+        $this->actingAs($waiter)->delete(route('dine-tables.destroy', $shared))->assertSessionHasErrors(['table' => $messages['en'][0]]);
+
+        Sanctum::actingAs($other, ['*']);
+        foreach ($messages as $locale => [$removal]) {
+            app()->setLocale($locale); // the API has no locale middleware
+            $this->deleteJson(route('api.dine-tables.destroy', $shared))->assertStatus(422)->assertJsonPath('errors.table.0', $removal);
+            $this->patchJson(route('api.dine-tables.update', $shared), $edit)->assertStatus(422)->assertJsonPath('errors.table.0', $removal);
+        }
+    }
+
+    public function test_a_booking_stays_editable_after_its_shared_table_moves_to_another_outlet(): void
+    {
+        $outletB = $this->outletNamed('OUT-B');
+        $staffB = $this->userAt($outletB, ['dine-reservations-manage']);
+        $shared = $this->tableAt(null, 'Teras');
+        $reservation = $this->reservation(['outlet_id' => $outletB->id, 'dine_table_id' => $shared->id]);
+        $shared->update(['dine_area_id' => $this->table->dine_area_id]); // now outlet A's
+
+        $this->change($reservation, ['dine_table_id' => $shared->id, 'phone' => '0813 9999 2222'], $staffB)->assertSessionHasNoErrors();
+        $this->assertSame('0813 9999 2222', $reservation->fresh()->phone);
+        // Moving the booking onto a table that is not theirs is still refused.
+        $this->change($reservation, ['dine_table_id' => $this->table->id], $staffB)->assertNotFound();
     }
 
     public function test_table_with_a_booked_reservation_cannot_be_deleted_or_deactivated(): void
     {
-        $manager = $this->userAt($this->outlet, ['dine-tables-update', 'dine-tables-delete']);
+        $manager = $this->userAt($this->outlet, ['dine-reservations-manage', 'dine-tables-update', 'dine-tables-delete']);
         $manager->update(['locale' => 'id']);
         $edit = ['dine_area_id' => $this->table->dine_area_id, 'name' => 'Meja 1', 'is_active' => false];
 
@@ -323,6 +391,9 @@ class DineReservationTest extends TestCase
             ...glob(app_path('Services/*Print*.php')),
             ...glob(app_path('Services/*Ticket*.php')),
             ...glob(resource_path('js/Components/Receipt/*.jsx')),
+            ...glob(resource_path('views/pdf/*.blade.php')),
+            resource_path('js/Pages/Dashboard/Transactions/Print.jsx'),
+            resource_path('js/Pages/Public/DineOrderStatus.jsx'),
         ];
         $this->assertNotEmpty($printPaths);
         foreach ($printPaths as $file) {
@@ -331,9 +402,10 @@ class DineReservationTest extends TestCase
 
         $this->reservation(['guest_name' => 'Tamu Rahasia', 'reserved_at' => '2026-12-10 10:15:00']);
 
-        $this->get(route('dine.menu', $this->table->token))->assertOk()
-            ->assertDontSee('812-0000-1111')
-            ->assertDontSee('Tamu Rahasia');
+        $order = DineOrder::create(['dine_table_id' => $this->table->id, 'status' => DineOrder::STATUS_SUBMITTED, 'payment_option' => 'pay_at_counter', 'subtotal' => 0, 'item_count' => 0, 'submitted_at' => now()]);
+        foreach ([route('dine.menu', $this->table->token), route('dine-order.status', $order->access_token)] as $page) {
+            $this->get($page)->assertOk()->assertDontSee('812-0000-1111')->assertDontSee('Tamu Rahasia');
+        }
     }
 
     public function test_create_change_and_mark_are_audited_once_each(): void
@@ -363,13 +435,15 @@ class DineReservationTest extends TestCase
     {
         $this->book()->assertSessionHasNoErrors();
         $reservation = DineReservation::sole();
-        $this->change($reservation, ['phone' => '0813 9999 2222'])->assertSessionHasNoErrors();
+        $this->change($reservation, ['phone' => '0813 9999 2222', 'guest_name' => 'Sari'])->assertSessionHasNoErrors();
         $this->mark($reservation, 'no_show')->assertSessionHasNoErrors();
 
         $logs = AuditLog::where('module', 'dine_reservations')->orderBy('id')->get();
         $this->assertCount(3, $logs);
         $this->assertTrue($logs[0]->after['phone_changed']);
         $this->assertTrue($logs[1]->after['phone_changed']);
+        $this->assertTrue($logs[1]->after['guest_name_changed']);
+        $this->assertDoesNotMatchRegularExpression('/Budi|Sari/', $logs->toJson()); // BR-4: the log is not outlet-bound
         $this->assertStringNotContainsString('812-0000-1111', $logs->toJson());
         $this->assertStringNotContainsString('9999 2222', $logs->toJson());
     }
@@ -450,8 +524,8 @@ class DineReservationTest extends TestCase
         }
     }
 
-    /** The table row lock must come before any reservation read: that order is what queues two writers. */
-    private function assertTableLockedBeforeReservationsAreRead(callable $act): void
+    /** The row of $table must be locked by key before $then runs: that order is what queues two writers. */
+    private function assertLockedBefore(callable $act, string $table, string $then): void
     {
         DB::flushQueryLog();
         DB::enableQueryLog();
@@ -461,8 +535,8 @@ class DineReservationTest extends TestCase
 
         // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
         $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
-        $lock = $first('/^select \* from [`"]dine_tables[`"] where [`"]dine_tables[`"]\.[`"]id[`"] = \?/');
-        $read = $first('/from [`"]dine_reservations[`"]/');
+        $lock = $first('/^select \* from [`"]'.$table.'[`"] where [`"]'.$table.'[`"]\.[`"]id[`"] = \?/');
+        $read = $first('/'.$then.'/');
 
         $this->assertIsInt($lock);
         $this->assertIsInt($read);
