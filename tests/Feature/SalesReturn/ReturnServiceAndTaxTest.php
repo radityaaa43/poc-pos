@@ -236,7 +236,7 @@ class ReturnServiceAndTaxTest extends TestCase
 
         $return = $this->complete($user, $this->draft($user, $sale, [$this->item($details[0], 1)]));
 
-        $this->assertSame(11550, $sale->receivable()->first()->total);
+        $this->assertSame(11550, (int) $sale->receivable()->first()->total);
         $this->assertSame(0, $return->refund_amount);
     }
 
@@ -277,7 +277,7 @@ class ReturnServiceAndTaxTest extends TestCase
         $this->complete($user, $first);
 
         // Whatever the order, the two returns share the 100 service charge exactly.
-        $this->assertSame(100, SalesReturn::sum('service_refunded'));
+        $this->assertSame(100, (int) SalesReturn::sum('service_refunded'));
         $this->assertSame(20000, SalesReturn::all()->sum(fn (SalesReturn $return) => $return->total_return_amount - $return->service_refunded));
     }
 
