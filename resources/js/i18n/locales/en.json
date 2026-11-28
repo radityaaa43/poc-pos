@@ -1163,7 +1163,8 @@
             "wakeLockOff": "The screen may sleep — keep the device awake",
             "reprint": "REPRINT",
             "reprintButton": "Reprint",
-            "reprintFailed": "Reprint failed"
+            "reprintFailed": "Reprint failed",
+            "addon": "ADD-ON"
         },
         "actions": {
             "start": "Start",
@@ -1294,6 +1295,7 @@
     },
     "addOn": {
         "add": "Add to order",
+        "label": "Add-on",
         "banner": "Add-on order for {{invoice}}",
         "receipt": "Add-on to {{invoice}}",
         "completed": "The previous order is finished. This starts a new order.",

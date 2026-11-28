@@ -1163,7 +1163,8 @@
             "wakeLockOff": "Layar bisa tidur — jaga perangkat tetap menyala",
             "reprint": "CETAK ULANG",
             "reprintButton": "Cetak ulang",
-            "reprintFailed": "Gagal mencetak ulang"
+            "reprintFailed": "Gagal mencetak ulang",
+            "addon": "TAMBAHAN"
         },
         "actions": {
             "start": "Mulai buat",
@@ -1294,6 +1295,7 @@
     },
     "addOn": {
         "add": "Tambah pesanan",
+        "label": "Tambahan",
         "banner": "Pesanan tambahan untuk {{invoice}}",
         "receipt": "Tambahan untuk {{invoice}}",
         "completed": "Pesanan sebelumnya sudah selesai. Dibuat sebagai pesanan baru.",
