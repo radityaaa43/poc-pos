@@ -21,6 +21,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 
 - cari produk via barcode / pencarian
 - cart multi-item
+- menu dengan modifier: panel opsi dan catatan per baris, harga dan stok opsi dihitung server ([`modifiers.md`](modifiers.md))
 - update qty cart
 - hold transaction
 - resume held cart

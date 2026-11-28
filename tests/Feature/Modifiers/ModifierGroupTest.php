@@ -141,7 +141,7 @@ class ModifierGroupTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame([$sugar->id, $size->id], $product->modifierGroups()->pluck('modifier_groups.id')->all());
-        $this->assertSame(['Gula', 'Ukuran'], array_column(ModifierCatalog::forOutlet(null, collect([$product->id]))[$product->id], 'name'));
+        $this->assertSame(['Gula', 'Ukuran'], array_column(ModifierCatalog::forOutlet(null, collect([$product->id]))[$product->id]['groups'], 'name'));
         $this->get(route('products.edit', $product))->assertInertia(fn (Assert $page) => $page
             ->has('modifier_groups', 2)
             ->where('product.modifier_groups.0.id', $sugar->id));
@@ -185,7 +185,7 @@ class ModifierGroupTest extends TestCase
         $menu = $this->product();
         $plain = $this->product();
         $menu->modifierGroups()->attach($group->id);
-        $names = fn (Outlet $outlet) => array_column(ModifierCatalog::forOutlet($outlet, collect([$menu->id]))[$menu->id][0]['options'], 'name');
+        $names = fn (Outlet $outlet) => array_column(ModifierCatalog::forOutlet($outlet, collect([$menu->id]))[$menu->id]['groups'][0]['options'], 'name');
 
         $this->assertSame(['Regular', 'Large'], $names($a));
         $this->assertSame(['Regular'], $names($b));
@@ -194,7 +194,7 @@ class ModifierGroupTest extends TestCase
         $catalog = ModifierCatalog::forOutlet($a, collect([$menu->id, $plain->id]));
         $this->assertCount(4, DB::getQueryLog(), 'products, groups, options, components');
         $this->assertFalse($catalog->has($plain->id));
-        $this->assertSame([['product_id' => $milk->id, 'qty' => 50.0]], $catalog[$menu->id][0]['options'][1]['components']);
+        $this->assertSame([['product_id' => $milk->id, 'qty' => 50.0]], $catalog[$menu->id]['groups'][0]['options'][1]['components']);
 
         // A save without the key (a form opened before the switch existed) keeps the switches; an empty list clears them.
         $save = fn (array $extra) => $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => $group->options()->get()

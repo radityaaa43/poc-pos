@@ -1,4 +1,5 @@
 import React from "react";
+import LineModifiers from "@/Components/Modifiers/LineModifiers";
 
 import { useTranslation } from "react-i18next";
 import { billSubtotal, taxLabel } from "@/Utils/billTotals";
@@ -160,6 +161,7 @@ export default function ThermalReceipt({
                             <p className="font-medium truncate">
                                 {item.product?.title}
                             </p>
+                            <LineModifiers item={item} className="pl-2" />
                             {Number(item.discount_total || 0) > 0 &&
                                 baseUnitPrice > unitPrice && (
                                     <div className="flex justify-between text-[10px] text-slate-500">
@@ -379,6 +381,7 @@ export function ThermalReceipt58mm({
                 return (
                     <div key={i} className="mb-1">
                         <p className="truncate">{item.product?.title}</p>
+                        <LineModifiers item={item} className="pl-2" />
                         {Number(item.discount_total || 0) > 0 &&
                             baseUnitPrice > unitPrice && (
                                 <div className="flex justify-between text-[9px] text-slate-500">

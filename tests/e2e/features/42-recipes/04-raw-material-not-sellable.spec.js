@@ -22,7 +22,7 @@ test.describe('42-recipes', () => {
             const xsrf = decodeURIComponent(document.cookie.split('; ').find((c) => c.startsWith('XSRF-TOKEN=')).split('=')[1]);
             const response = await fetch('/dashboard/transactions/addToCart', {
                 method: 'POST',
-                headers: { 'X-Inertia': 'true', 'X-Inertia-Version': JSON.parse(document.querySelector('script[data-page="app"]').textContent).version, 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
+                headers: { Accept: 'text/html, application/xhtml+xml', 'X-Inertia': 'true', 'X-Inertia-Version': JSON.parse(document.querySelector('script[data-page="app"]').textContent).version, 'X-Requested-With': 'XMLHttpRequest', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': xsrf },
                 body: JSON.stringify({ product_id: productId, qty: 1 }),
             });
 

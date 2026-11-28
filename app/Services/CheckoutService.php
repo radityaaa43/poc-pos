@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\Cart;
+use App\Models\ModifierOption;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Receivable;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
+use App\Services\Modifiers\ModifierSelection;
 use App\Support\Checkout\CheckoutContext;
 use App\Support\Checkout\CheckoutResult;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,6 +30,7 @@ class CheckoutService
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
         private readonly KitchenIntakeService $kitchenIntake,
+        private readonly ComponentStockService $componentStock,
         private readonly CustomerCreditService $customerCredit,
         private readonly AddOnOrderService $addOnOrderService,
     ) {}
@@ -62,6 +65,8 @@ class CheckoutService
             if ($carts->isEmpty()) {
                 abort(422, 'Keranjang kosong.');
             }
+
+            $selections = ModifierSelection::forCheckout($carts, $ctx->outlet, $activeShift->warehouse_id);
 
             $pricingPreview = $this->pricingService->previewCart($carts, $ctx->customer, null, $ctx->outlet);
             $checkoutPreview = $this->loyaltyService->previewCheckout(
@@ -149,7 +154,7 @@ class CheckoutService
                 $this->addOnOrderService->record($transaction);
             }
 
-            $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
+            $this->processCartItems($transaction, $carts, $selections, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
 
             // The sale is created already paid, before its lines exist, so the Transaction `updated` hook never sees it.
             // Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
@@ -201,6 +206,7 @@ class CheckoutService
     private function processCartItems(
         Transaction $transaction,
         $carts,
+        array $selections,
         array $pricingPreview,
         $outlet,
         int $subtotalAfterPromo,
@@ -209,6 +215,12 @@ class CheckoutService
         int $userId,
     ): void {
         $pricingItems = collect($pricingPreview['items']);
+        // withTrashed: an option deleted since the check above still has the recipe this sale was priced with.
+        $recipes = ModifierOption::withTrashed()->with('components')
+            ->findMany(collect($selections)->pluck('options.*.id')->flatten()->all())->keyBy('id');
+        $this->componentStock->lock($carts->pluck('product')
+            ->flatMap(fn (Product $product) => $product->is_composite ? $product->components->modelKeys() : [$product->id])
+            ->merge($recipes->flatMap->components->pluck('id')), $warehouseId);
 
         foreach ($carts as $cart) {
             $pricingItem = $pricingItems->firstWhere('cart_id', $cart->id);
@@ -225,8 +237,14 @@ class CheckoutService
                 ]);
             }
 
+            $selection = $selections[$cart->id] ?? null;
+            $options = $selection['options'] ?? [];
+
             // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
             $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, $cart->qty, (float) ($cart->conversion_factor ?? 1));
+            $costTotal += $this->inventoryCostService->recipeCost(
+                collect($options)->flatMap(fn (array $option) => $recipes[$option['id']]->components), $warehouseId, $cart->qty
+            );
 
             $detail = $transaction->details()->create([
                 'transaction_id' => $transaction->id,
@@ -245,7 +263,15 @@ class CheckoutService
                 'pricing_rule_kind' => data_get($pricingItem, 'pricing_rule.kind'),
                 'pricing_group_key' => data_get($pricingItem, 'pricing_group_key'),
                 'pricing_group_label' => data_get($pricingItem, 'pricing_group_label'),
+                'note' => $cart->note,
+                'modifier_total' => $selection['unit_total'] ?? 0,
             ]);
+            $detail->modifiers()->createMany(ModifierSelection::snapshot($options, $recipes));
+
+            foreach ($options as $option) {
+                $refusal = __('messages.modifiers.option_sold_out', ['menu' => $product->title, 'option' => $option['name']]);
+                $this->componentStock->deduct($transaction, $recipes[$option['id']]->components, 1, (int) $cart->qty, $warehouseId, "opsi {$option['name']} {$product->title}", $userId, $refusal);
+            }
 
             $lineShare = $subtotalAfterPromo > 0 ? $lineTotal / $subtotalAfterPromo : 0;
             $allocatedManualDiscount = (int) round($appliedManualDiscount * $lineShare);
@@ -259,39 +285,7 @@ class CheckoutService
 
             if ($product->is_composite) {
                 $product->load('components');
-                foreach ($product->components as $component) {
-                    $componentQty = (int) round((float) $component->pivot->qty * $cart->qty);
-                    $pw = $warehouseId
-                        ? ProductWarehouse::where([
-                            'product_id' => $component->id,
-                            'warehouse_id' => $warehouseId,
-                        ])->lockForUpdate()->first()
-                        : null;
-                    $available = $pw ? (int) $pw->stock : (int) $component->stock;
-                    if ($available < $componentQty) {
-                        throw ValidationException::withMessages([
-                            'stock' => "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
-                        ]);
-                    }
-                    $stockBefore = $available;
-                    if ($pw) {
-                        $pw->decrement('stock', $componentQty);
-                    }
-                    $component->decrement('stock', $componentQty);
-
-                    $this->stockMutationService->recordMutation(
-                        product: $component,
-                        warehouseId: $warehouseId,
-                        referenceType: 'transaction',
-                        referenceId: $transaction->id,
-                        mutationType: 'out',
-                        qty: $componentQty,
-                        stockBefore: $stockBefore,
-                        stockAfter: $stockBefore - $componentQty,
-                        notes: "Penjualan {$transaction->invoice} (komponen komposit {$product->title})",
-                        userId: $userId,
-                    );
-                }
+                $this->componentStock->deduct($transaction, $product->components->whereInstanceOf(Product::class), 1, (int) $cart->qty, $warehouseId, "komponen komposit {$product->title}", $userId);
             } else {
                 $baseQty = (int) round($cart->qty * (float) ($cart->conversion_factor ?? 1));
 
@@ -301,7 +295,8 @@ class CheckoutService
                         'warehouse_id' => $warehouseId,
                     ])->lockForUpdate()->first()
                     : null;
-                $available = $pw ? (int) $pw->stock : (int) $product->stock;
+                // Read fresh: this line's options may have taken from the menu since $product was loaded.
+                $available = (int) ($pw ? $pw->stock : Product::lockForUpdate()->findOrFail($product->id)->stock);
                 if ($available < $baseQty) {
                     throw ValidationException::withMessages([
                         'stock' => "Stok {$product->title} tidak mencukupi. Tersedia: {$available}.",

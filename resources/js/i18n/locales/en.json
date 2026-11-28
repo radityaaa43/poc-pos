@@ -1263,6 +1263,20 @@
                 "conflict": "Conflict",
                 "discarding": "Being removed"
             }
+        },
+        "modifiers": {
+            "required": "Required",
+            "optional": "Optional",
+            "range": "Pick {{min}}–{{max}}",
+            "soldOut": "Sold out",
+            "note": "Note",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Portion price",
+            "add": "Add",
+            "cancel": "Cancel",
+            "incomplete": "Complete your choices: {{group}}",
+            "noteLine": "Note: {{note}}",
+            "offline": "A sale with options or notes cannot be saved offline yet"
         }
     },
     "outlets": {

@@ -19,6 +19,9 @@ import OpenBills from "@/Components/POS/OpenBills";
 import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
+import ModifierPanel from "@/Components/POS/ModifierPanel";
+import LineModifiers from "@/Components/Modifiers/LineModifiers";
+import useAddToCart from "@/Hooks/useAddToCart";
 import OfflineQueuePanel from "@/Components/POS/OfflineQueuePanel";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
@@ -68,6 +71,7 @@ export default function Index({
     warehouses = [],
     loyaltyTierOptions = [],
     payLaterEnabled = false,
+    modifierGroups = {},
 }) {
     const {
         auth,
@@ -92,7 +96,7 @@ export default function Index({
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [isSearching, setIsSearching] = useState(false);
-    const [addingProductId, setAddingProductId] = useState(null);
+    const { addToCart: handleAddToCart, addingProductId, panel: modifierPanel } = useAddToCart(modifierGroups);
     const [removingItemId, setRemovingItemId] = useState(null);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [pricingPreview, setPricingPreview] = useState(initialPricingPreview);
@@ -163,8 +167,7 @@ export default function Index({
 
             if (product) {
                 if (product.stock > 0) {
-                    handleAddToCart(product);
-                    toast.success(`${product.title} ditambahkan (barcode)`);
+                    if (handleAddToCart(product)) toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
                     toast.error(`${product.title} ${i18n.t("common.soldOut")}`);
                 }
@@ -380,34 +383,6 @@ export default function Index({
             warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
         }));
-    };
-
-    // Handle add product to cart
-    const handleAddToCart = async (product, unit = null) => {
-        if (!product?.id) return;
-
-        setAddingProductId(product.id);
-
-        router.post(
-            route("transactions.addToCart"),
-            withAddOn({
-                product_id: product.id,
-                sell_price: unit ? unit.sell_price : product.sell_price,
-                qty: 1,
-                unit_id: unit ? unit.unit_id : undefined,
-            }),
-            {
-                preserveScroll: true,
-                onSuccess: () => {
-                    toast.success(`${product.title}${unit ? ` (${unit.code})` : ""} ditambahkan`);
-                    setAddingProductId(null);
-                },
-                onError: (errors) => {
-                    toast.error(errors?.message || "Gagal menambahkan produk");
-                    setAddingProductId(null);
-                },
-            }
-        );
     };
 
     // Handle update cart quantity
@@ -690,7 +665,10 @@ export default function Index({
 
         setIsSubmitting(true);
 
-        const refusal = !navigator.onLine && offlineRefusal(splitMode, payLater);
+        // The offline queue carries no options or notes: queuing such a line would sell it without them.
+        const refusal = !navigator.onLine &&
+            (offlineRefusal(splitMode, payLater) ||
+                (carts.some((item) => item.line_key) ? i18n.t("pos.modifiers.offline") : null));
         if (refusal) {
             toast.error(refusal);
             setIsSubmitting(false);
@@ -791,8 +769,8 @@ export default function Index({
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The credit rules, the add-on, the pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The credit rules, the add-on, the modifiers, the pay-later gate and the guest note rule answer with their own message.
+                    toast.error(errors?.modifiers || errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1100,6 +1078,7 @@ export default function Index({
                                                     {item.product?.title ||
                                                         "Produk"}
                                                 </p>
+                                                <LineModifiers item={{ options: pricingItem?.options, note: item.note }} />
                                                 <div className="text-xs text-slate-500">
                                                     {pricingRule &&
                                                         effectiveUnitPrice <
@@ -1910,6 +1889,7 @@ export default function Index({
             </div>
 
             {/* Numpad Modal */}
+            {modifierPanel && <ModifierPanel {...modifierPanel} />}
             <NumpadModal
                 isOpen={numpadOpen}
                 onClose={() => setNumpadOpen(false)}

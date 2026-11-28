@@ -37,12 +37,17 @@ class ThermalPrintService
         }
         $lines[] = $this->line($maxWidth);
 
-        foreach ($transaction->details as $detail) {
+        foreach ($transaction->details->loadMissing('modifiers') as $detail) {
             $title = mb_substr($detail->product?->title ?? 'Produk', 0, $maxWidth - 10);
             $linePrice = number_format((int) $detail->price, 0, ',', '.');
             $lineTotal = "{$detail->qty}x @ ".number_format((int) ($detail->unit_price ?: $detail->price / max(1, $detail->qty)), 0, ',', '.');
             $lines[] = $this->left($title, $maxWidth);
             $lines[] = $this->leftRight($lineTotal, $linePrice, $maxWidth);
+            foreach ($detail->receiptExtras() as $extra) {
+                foreach (explode("\n", wordwrap($extra, $maxWidth - 2, "\n", true)) as $part) {
+                    $lines[] = $this->left('  '.$part, $maxWidth);
+                }
+            }
         }
 
         $lines[] = $this->line($maxWidth);

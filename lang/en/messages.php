@@ -430,6 +430,12 @@ return [
         'qty_below_one' => 'The ingredient quantity must be at least 1.',
         'raw_material' => 'A raw material cannot take modifiers.',
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
+        'option_unavailable' => 'Option :option for :menu is no longer available.',
+        'option_sold_out' => 'Option :option for :menu is sold out.',
+        'group_min' => 'Group :group for :menu is incomplete (pick at least :min).',
+        'group_max' => 'Group :group for :menu takes at most :max.',
+        'group_unavailable' => ':menu cannot be ordered at this outlet: group :group has too few options here.',
+        'note_line' => 'Note: :note',
     ],
     'outlet_bill' => [
         'service_charge_rate' => 'Service charge must be 0 to 100, with at most 2 decimals.',
