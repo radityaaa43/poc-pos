@@ -11,11 +11,11 @@ import {
  * Handles Laravel paginator links: prev/next (locale-proof), ellipsis,
  * disabled states, and wraps gracefully on mobile.
  */
-export default function Pagination({ links }) {
+export default function Pagination({ links, defaultPerPage = "10" }) {
     if (!links || links.length <= 3) return null;
 
     const [perPage, setPerPage] = useState(
-        () => new URLSearchParams(window.location.search).get("per_page") || "10"
+        () => new URLSearchParams(window.location.search).get("per_page") || defaultPerPage
     );
 
     const changePerPage = (value) => {

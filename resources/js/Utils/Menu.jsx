@@ -329,6 +329,13 @@ export default function Menu() {
                     icon: <IconStopwatch size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["reports-access"]),
                 },
+                {
+                    title: t("sidebar.items.modifierSalesReport"),
+                    href: route("reports.modifiers.index"),
+                    active: url.startsWith("/dashboard/reports/modifiers"),
+                    icon: <IconAdjustments size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["reports-access"]),
+                },
             ],
         },
         {
