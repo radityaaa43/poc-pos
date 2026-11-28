@@ -199,10 +199,13 @@ class StockWasteService
         [$rows, $products] = $locked;
         $this->assertAvailable($moves, $rows->map(fn (?ProductWarehouse $row) => $row?->stock));
         // Receiving into this warehouse waits for the row locks, so this cost holds until commit.
-        $priced = $this->priced($moves, $waste->warehouse_id);
+        $priced = $this->priced(
+            array_map(fn (array $move) => ['product' => $products[$move['product']->id]] + $move, $moves),
+            $waste->warehouse_id,
+        );
 
         foreach ($priced as $move) {
-            $product = $products[$move['product']->id];
+            $product = $move['product'];
             $row = $rows[$product->id];
             $before = (int) $row->stock;
 

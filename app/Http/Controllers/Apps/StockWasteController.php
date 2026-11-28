@@ -36,7 +36,7 @@ class StockWasteController extends Controller
             ->whereIn('warehouse_id', $warehouses->modelKeys())
             ->when($filters['status'], fn ($query, $status) => $query->where('status', $status))
             ->when($filters['warehouse_id'], fn ($query, $id) => $query->where('warehouse_id', $id))
-            ->with(['warehouse:id,code,name', 'creator:id,name', 'approver:id,name', 'lines.product' => $product, 'moves.product' => $product])
+            ->with(['warehouse:id,code,name', 'creator:id,name', 'lines.product' => $product, 'moves.product' => $product])
             ->latest('id')
             ->paginate($this->perPage(15))
             ->withQueryString();

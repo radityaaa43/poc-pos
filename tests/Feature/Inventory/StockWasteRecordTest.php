@@ -192,6 +192,11 @@ class StockWasteRecordTest extends TestCase
 
         // 990 g typed plus 18 g inside a latte is 1008 g of 1000.
         $this->assertRefused($this->record([[$this->beans, 990], [$this->latte, 1]]), 'stock', 'insufficient', ['item' => 'Biji Kopi', 'left' => 1000]);
+
+        // Enough for both: one material moves twice, each movement starting where the last one ended.
+        $this->record([[$this->beans, 100], [$this->latte, 1]])->assertSessionHasNoErrors();
+        $this->assertSame(882, $this->stock($this->beans));
+        $this->assertSame([900, 882], StockMutation::where('product_id', $this->beans->id)->orderBy('id')->get()->map(fn ($m) => (int) $m->stock_after)->all());
     }
 
     public function test_item_without_a_warehouse_row_is_refused_as_zero_stock(): void
@@ -381,13 +386,13 @@ class StockWasteRecordTest extends TestCase
         $this->get(route('stock-waste.index', ['status' => 'pending']))->assertInertia(fn (Assert $page) => $page->has('wastes.data', 0));
     }
 
-    public static function waste(): array
+    public static function wasteQuantities(): array
     {
         // 401 g is above the limit: a pending record has lines but no moves.
         return ['recorded' => [10], 'pending' => [401]];
     }
 
-    #[DataProvider('waste')]
+    #[DataProvider('wasteQuantities')]
     public function test_a_product_with_waste_history_cannot_be_deleted(int $qty): void
     {
         $this->record([[$this->beans, $qty]])->assertSessionHasNoErrors();
