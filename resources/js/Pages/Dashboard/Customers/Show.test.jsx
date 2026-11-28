@@ -15,10 +15,10 @@ vi.mock("@inertiajs/react", () => ({
     Head: () => null,
     Link: ({ children }) => children,
     router: { patch: vi.fn() },
-    useForm: () => ({ data: { segment_ids: [] }, setData: vi.fn(), put: vi.fn() }),
+    useForm: () => ({ data: { segment_ids: [] }, setData: vi.fn(), put: vi.fn(), errors: {} }),
 }));
 
-const renderShow = (mayBuyOnCredit = false) =>
+const renderShow = (mayBuyOnCredit = false, creditStanding = null) =>
     render(
         <Show
             customer={{ id: 7, name: "Budi", loyalty_points: 0, is_loyalty_member: true, may_buy_on_credit: mayBuyOnCredit }}
@@ -27,6 +27,7 @@ const renderShow = (mayBuyOnCredit = false) =>
             frequentProducts={[]}
             rewardHistory={[]}
             vouchers={[]}
+            creditStanding={creditStanding}
         />
     );
 
@@ -56,6 +57,17 @@ describe("Customer page: may buy on credit", () => {
 
         await waitFor(() => expect(Swal.fire).toHaveBeenCalled());
         expect(router.patch).not.toHaveBeenCalled();
+    });
+
+    it("shows the credit limit card to credit customers only", () => {
+        const standing = { credit_limit: null, used: 0, has_overdue: false };
+        const { unmount } = renderShow(true, standing);
+
+        expect(screen.getByRole("heading", { name: /customers\.credit\.limitLabel: customers\.credit\.noLimit/ })).toBeTruthy();
+        unmount();
+
+        renderShow(false, standing);
+        expect(screen.queryByRole("heading", { name: /customers\.credit\.limitLabel/ })).toBeNull();
     });
 
     it("hides the button from users without the permission", () => {

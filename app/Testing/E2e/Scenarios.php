@@ -66,7 +66,10 @@ class Scenarios
                     $product = Product::create([
                         'category_id' => $category->id,
                         'barcode' => 'E2E-'.Str::upper(Str::random(10)),
+                        // The product form needs a SKU to save an edit.
+                        'sku' => 'E2E-'.Str::upper(Str::random(10)),
                         'title' => $options['title'] ?? 'Produk E2E '.Str::upper(Str::random(5)),
+                        'description' => 'Produk E2E',
                         'buy_price' => 5000,
                         'sell_price' => 10000,
                         'stock' => $stock,

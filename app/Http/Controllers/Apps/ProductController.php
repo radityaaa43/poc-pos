@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Models\Category;
 use App\Models\KitchenStation;
+use App\Models\ModifierGroup;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Unit;
@@ -17,7 +18,6 @@ use App\Services\TaxService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -75,6 +75,7 @@ class ProductController extends Controller
             'default_tax_rate' => app(TaxService::class)->getDefaultRate($this->outletAccessService->activeOutlet($request)),
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
             'kitchen_stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
+            'modifier_groups' => $this->modifierGroupChoices($request),
         ]);
     }
 
@@ -105,7 +106,8 @@ class ProductController extends Controller
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             ...$this->compositeRules(),
             ...$this->unitRules(),
-        ], $this->purchasedByMessages());
+            ...$this->modifierGroupRules($request),
+        ], $this->purchasedByMessages() + $this->modifierGroupMessages());
         // upload image
         $image = $request->file('image');
         $image?->storeAs('public/products', $image->hashName());
@@ -155,6 +157,7 @@ class ProductController extends Controller
 
             $this->stockMutationService->recordInitialStock($product, $request->user()?->id, $warehouse?->id);
         }
+        $this->syncModifierGroups($request, $product);
         $this->auditLogService->log(
             event: 'product.created',
             module: 'products',
@@ -179,12 +182,13 @@ class ProductController extends Controller
         $categories = Category::all();
 
         return Inertia::render('Dashboard/Products/Edit', [
-            'product' => $product->load('components', 'units'),
+            'product' => $product->load('components', 'units', 'modifierGroups'),
             'categories' => $categories,
             'products' => $this->componentCandidates($request, $product),
             'cost_outlet' => $this->outletAccessService->activeOutlet($request)?->code,
             'units' => Unit::orderBy('code')->get(['id', 'code', 'symbol']),
             'kitchen_stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
+            'modifier_groups' => $this->modifierGroupChoices($request),
         ]);
     }
 
@@ -215,10 +219,12 @@ class ProductController extends Controller
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             ...$this->compositeRules(),
             ...$this->unitRules(),
-        ], $this->purchasedByMessages());
+            ...$this->modifierGroupRules($request),
+        ], $this->purchasedByMessages() + $this->modifierGroupMessages());
 
         if ($request->boolean('is_composite')) {
             $this->validateComponentProducts($request, $product);
+            $product->refuseModifierIngredient('components'); // before the old image is removed
         } elseif ($product->is_composite && $product->components()->exists()) {
             return back()->withErrors([
                 'components' => 'Produk komposit harus memiliki minimal satu komponen.',
@@ -263,6 +269,7 @@ class ProductController extends Controller
                 $this->syncUnits($product, $request->input('units'));
             }
 
+            $this->syncModifierGroups($request, $product);
             $this->logProductUpdate($product, $before);
 
             return to_route('products.index');
@@ -295,6 +302,7 @@ class ProductController extends Controller
             $this->syncUnits($product, $request->input('units'));
         }
 
+        $this->syncModifierGroups($request, $product);
         $this->logProductUpdate($product, $before);
 
         // redirect
@@ -313,11 +321,9 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $before = $this->productAuditPayload($product);
 
-        // remove image
-        Storage::disk('local')->delete('public/products/'.basename($product->image));
-
-        // delete
+        // delete first: a refused delete keeps the image
         $product->delete();
+        Storage::disk('local')->delete('public/products/'.basename($product->image));
 
         $this->auditLogService->log(
             event: 'product.deleted',
@@ -329,6 +335,44 @@ class ProductController extends Controller
 
         // redirect
         return back();
+    }
+
+    /** The groups the form may attach; none without modifiers-manage, which hides the field (REQ-008 AC-05). */
+    private function modifierGroupChoices(Request $request)
+    {
+        return $request->user()->can('modifiers-manage')
+            ? ModifierGroup::orderBy('name')->get(['id', 'name', 'is_required'])
+            : [];
+    }
+
+    /** Sending the field takes modifiers-manage (REQ-008 AC-05): refused here, before anything is written. */
+    private function modifierGroupRules(Request $request): array
+    {
+        abort_if($request->has('modifier_group_ids') && ! $request->user()->can('modifiers-manage'), 403);
+
+        return [
+            'modifier_group_ids' => ['nullable', 'array', Rule::prohibitedIf($request->boolean('is_raw_material'))],
+            'modifier_group_ids.*' => ['integer', 'distinct', Rule::exists('modifier_groups', 'id')->whereNull('deleted_at')],
+        ];
+    }
+
+    private function modifierGroupMessages(): array
+    {
+        return [
+            'modifier_group_ids.prohibited' => __('messages.modifiers.raw_material'),
+            'modifier_group_ids.*.exists' => __('messages.modifiers.gone'),
+        ];
+    }
+
+    /** The array order is the display order. A request without the field leaves the menu's groups as they are. */
+    private function syncModifierGroups(Request $request, Product $product): void
+    {
+        if ($request->has('modifier_group_ids')) {
+            $product->modifierGroups()->sync(collect($request->input('modifier_group_ids'))
+                ->values()
+                ->mapWithKeys(fn ($id, int $sort) => [$id => ['sort' => $sort]])
+                ->all());
+        }
     }
 
     private function purchasedByMessages(): array
@@ -370,23 +414,12 @@ class ProductController extends Controller
         ];
     }
 
-    /**
-     * Non-composite products for the component picker: raw materials first, each with its
-     * base-unit symbol (one subquery, no N+1; null when the product has no units) and unit_cost.
-     */
+    /** The component picker's products, each with its unit_cost. */
     private function componentCandidates(Request $request, ?Product $except = null)
     {
-        $candidates = Product::where('is_composite', false)
+        $candidates = Product::select(['id', 'title', 'buy_price', 'sell_price', 'is_composite', 'is_raw_material'])
+            ->recipeComponents()
             ->when($except, fn ($query) => $query->where('id', '!=', $except->id))
-            ->addSelect(['id', 'title', 'buy_price', 'sell_price', 'is_composite', 'is_raw_material'])
-            ->addSelect(['unit_symbol' => DB::table('product_units')
-                ->join('units', 'units.id', '=', 'product_units.unit_id')
-                ->select('units.symbol')
-                ->whereColumn('product_units.product_id', 'products.id')
-                ->where('product_units.is_base', true)
-                ->limit(1)])
-            ->orderByDesc('is_raw_material')
-            ->orderBy('title')
             ->get();
 
         // Each component's cost per stock unit in the active outlet, for the recipe's live HPP.
@@ -541,6 +574,6 @@ class ProductController extends Controller
             'sell_price',
             'stock',
             'category_id',
-        ]);
+        ]) + ['modifier_group_ids' => $product->modifierGroups()->pluck('modifier_groups.id')->all()];
     }
 }

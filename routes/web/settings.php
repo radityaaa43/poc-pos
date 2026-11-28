@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Apps\BankAccountController;
 use App\Http\Controllers\Apps\KitchenStationController;
+use App\Http\Controllers\Apps\ModifierGroupController;
 use App\Http\Controllers\Apps\OutletController;
 use App\Http\Controllers\Apps\PaymentSettingController;
 use App\Http\Controllers\Apps\PriceListController;
@@ -89,3 +90,10 @@ Route::resource('/settings/kitchen-stations', KitchenStationController::class)
     ->except(['create', 'edit', 'show'])
     ->names('settings.kitchen-stations')
     ->middleware('permission:products-edit');
+
+// settings modifier groups (shop-wide, REQ-008)
+Route::resource('/settings/modifiers', ModifierGroupController::class)
+    ->except(['create', 'edit', 'show'])
+    ->parameters(['modifiers' => 'modifierGroup'])
+    ->names('settings.modifiers')
+    ->middleware('permission:modifiers-manage');
