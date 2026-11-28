@@ -17,6 +17,7 @@ import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
+import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
@@ -377,12 +378,12 @@ export default function Index({
     };
 
     const handleOpenShift = () => {
-        router.post(route("cashier-shifts.store"), {
+        router.post(route("cashier-shifts.store"), withAddOn({
             opening_cash: Number(openingCashInput || 0),
             notes: shiftNotesInput,
             warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
-        });
+        }));
     };
 
     // Handle add product to cart
@@ -393,12 +394,12 @@ export default function Index({
 
         router.post(
             route("transactions.addToCart"),
-            {
+            withAddOn({
                 product_id: product.id,
                 sell_price: unit ? unit.sell_price : product.sell_price,
                 qty: 1,
                 unit_id: unit ? unit.unit_id : undefined,
-            },
+            }),
             {
                 preserveScroll: true,
                 onSuccess: () => {
@@ -738,12 +739,9 @@ export default function Index({
 
         setIsSubmitting(true);
 
-        if (!navigator.onLine && (splitMode || payLater)) {
-            toast.error(
-                splitMode
-                    ? "Split pembayaran tidak tersedia saat offline"
-                    : i18n.t("pos.payLater.offline")
-            );
+        const refusal = !navigator.onLine && offlineRefusal(splitMode, payLater);
+        if (refusal) {
+            toast.error(refusal);
             setIsSubmitting(false);
             return;
         }
@@ -786,7 +784,7 @@ export default function Index({
 
         router.post(
             route("transactions.store"),
-            {
+            withAddOn({
                 customer_id: selectedCustomer?.id ?? null,
                 discount,
                 redeem_points: Number(redeemPointsInput || 0),
@@ -819,7 +817,7 @@ export default function Index({
                 due_date: dueDate,
                 order_type: orderType,
                 note: orderNote || null,
-            },
+            }),
             {
                 onSuccess: (page) => {
                     setIsSubmitting(false);
@@ -843,7 +841,7 @@ export default function Index({
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.add_on_to || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1054,6 +1052,7 @@ export default function Index({
                         />
                     </div>
 
+                    <AddOnBanner />
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 
                     {/* Held Transactions & Alerts */}

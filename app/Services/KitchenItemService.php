@@ -45,6 +45,7 @@ class KitchenItemService
     public function allReady(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
+            $this->lockKitchenRows([$transaction->id]);
             $now = now();
 
             $items = KitchenItem::where('transaction_id', $transaction->id)
@@ -82,6 +83,7 @@ class KitchenItemService
     public function handOverAll(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
+            $this->lockKitchenRows([$transaction->id]);
             $now = now();
 
             KitchenItem::where('transaction_id', $transaction->id)
@@ -97,6 +99,13 @@ class KitchenItemService
 
             $this->syncDineOrder($transaction);
         });
+    }
+
+    /** Taken first by every kitchen write, in a shift close's order: all the items, then the dine orders, then any bill. */
+    public function lockKitchenRows(array $transactionIds): void
+    {
+        KitchenItem::whereIn('transaction_id', $transactionIds)->lockForUpdate()->get(['id']);
+        DineOrder::whereIn('transaction_id', $transactionIds)->lockForUpdate()->get(['id']);
     }
 
     /**
@@ -145,6 +154,7 @@ class KitchenItemService
      */
     public function cancelForReturn(SalesReturn $return): void
     {
+        $this->lockKitchenRows([$return->transaction_id]);
         // items() and a query, not the property: Larastan cannot see the untyped SalesReturn relations.
         $lines = $return->items()->get();
         $items = KitchenItem::whereIn('transaction_detail_id', $lines->pluck('transaction_detail_id'))
@@ -172,6 +182,7 @@ class KitchenItemService
     private function step(KitchenItem $item, string $from, string $to, User $user): void
     {
         DB::transaction(function () use ($item, $from, $to, $user) {
+            $this->lockKitchenRows([$item->transaction_id]);
             $item = KitchenItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
 
             // BR-7: a return that won the race has already cancelled the item
@@ -228,7 +239,8 @@ class KitchenItemService
             return;
         }
 
-        $all = KitchenItem::where('transaction_id', $transaction->id)->get();
+        // A locking read: the snapshot misses a tap of another station that committed while this one waited.
+        $all = KitchenItem::where('transaction_id', $transaction->id)->lockForUpdate()->get();
         $items = $all->where('status', '!=', KitchenItem::STATUS_CANCELLED); // a cancelled item no longer holds the order back
 
         // BR-11: nothing left to make. Every item cancelled cancels the order; a served one means it was fulfilled, so it completes as usual.

@@ -42,6 +42,20 @@ async function orderOne(overrides = {}) {
 const pesan = () => screen.getByText("Pesan — Bayar di Kasir");
 
 describe("DineMenu order feedback", () => {
+    it("sends the order it was opened from (Tambah pesanan) and shows its refusal", async () => {
+        const refusal = "Pesanan asal sudah dibatalkan — buat pesanan baru";
+        window.history.pushState({}, "", "?add_on_to=tok-1");
+        router.post.mockImplementation((url, data, options) => options.onError({ add_on_to: refusal }));
+        const user = await orderOne();
+        await user.click(pesan());
+
+        expect(router.post.mock.calls[0][1].add_on_to).toBe("tok-1");
+        expect(await screen.findByText(refusal)).toBeTruthy();
+        await user.click(pesan());
+        expect(router.post.mock.calls[1][1].add_on_to).toBeUndefined(); // "Buat pesanan baru": a normal order, no rescan
+        window.history.pushState({}, "", "/");
+    });
+
     it("tells the guest when self ordering is off", async () => {
         const user = await orderOne({ selfOrderEnabled: false });
         await user.click(pesan());
