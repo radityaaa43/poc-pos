@@ -8,6 +8,7 @@ use App\Http\Requests\StoreStockWasteRequest;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\StockWaste;
+use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\InventoryCostService;
 use App\Services\OutletAccessService;
@@ -41,6 +42,7 @@ class StockWasteController extends Controller
             ->latest('id')
             ->paginate($this->perPage(15))
             ->withQueryString();
+        $wastes->through(fn (StockWaste $waste) => $this->withActions($waste, $request->user()));
 
         return Inertia::render('Dashboard/StockWaste/Index', [
             'wastes' => $wastes,
@@ -100,6 +102,21 @@ class StockWasteController extends Controller
         $this->stockWasteService->cancel($stockWaste, $request->user(), $request->validated('reason'));
 
         return back()->with('success', __('messages.waste.cancelled'));
+    }
+
+    /** The record with the list's action flags for this user (REQ-011 AC-07, AC-13); the server still enforces. */
+    private function withActions(StockWaste $waste, User $user): StockWaste
+    {
+        $approve = $user->can('stock-waste-approve');
+        $pending = $waste->status === StockWaste::STATUS_PENDING;
+        $own = (int) $waste->created_by === (int) $user->id;
+
+        $waste->setAttribute('can_approve', $pending && $approve && $this->outletAccessService->canUseWarehouse($user, $waste->warehouse) && ! $own);
+        $waste->setAttribute('can_reject', $pending && $approve && $this->outletAccessService->canManageWarehouse($user, $waste->warehouse));
+        $waste->setAttribute('can_cancel', $waste->status === StockWaste::STATUS_RECORDED && $approve && $this->outletAccessService->canManageWarehouse($user, $waste->warehouse));
+        $waste->setAttribute('awaiting_other', $pending && $approve && $own);
+
+        return $waste;
     }
 
     /**
