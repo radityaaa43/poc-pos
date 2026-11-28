@@ -427,4 +427,13 @@ class Transaction extends Model
 
         return false;
     }
+
+    /**
+     * "PB1 10%" on a PB1 sale. Null on a PPN one, whose wording each document keeps (a null kind, from before
+     * the bill rules, reads as PPN).
+     */
+    public function pb1Label(): ?string
+    {
+        return $this->tax_kind === 'pb1' ? __('pdf/labels.receipt.pb1_rate', ['rate' => (float) $this->tax_rate]) : null;
+    }
 }
