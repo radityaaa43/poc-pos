@@ -612,7 +612,7 @@ class PaymentWebhookLockTest extends TestCase
     public function test_a_force_closed_shift_counts_as_closed(): void
     {
         [, $bill] = $this->guestBill('midtrans');
-        $this->closeShiftOf($bill, force: true);
+        $this->closeShiftOf($bill);
 
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
 
@@ -765,24 +765,24 @@ class PaymentWebhookLockTest extends TestCase
     }
 
     /**
-     * A guest's attempt 1 is paid while the cashier collects by QRIS (attempt 2): flagged. Then her QRIS expires.
+     * A guest's attempt 1 is paid while the cashier collects by QRIS (attempt 2): flagged. Then her QRIS expires, and the
+     * re-check books the payment if its amount fits.
      *
      * @return array{0: DineOrder, 1: Transaction}
      */
-    private function flaggedWhileACashierChargeIsPending(string $reference): array
+    private function flaggedWhileACashierChargeIsPending(string $reference, ?int $amount = null): array
     {
         [$order, $bill] = $this->guestBill('midtrans');
         $this->cashierPays($order, 'qris');
-        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: $reference)->assertOk();
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', amount: $amount, reference: $reference)->assertOk();
         $this->assertNotNull($bill->fresh()->late_superseded_payment_at);
         $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
-        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // nothing holds the bill any more
-        $this->assertSame('failed', $bill->fresh()->payment_status);
+        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // nothing holds the bill any more: re-checked
 
         return [$order, $bill];
     }
 
-    public function test_a_flagged_payment_that_is_booked_on_redelivery_loses_the_refund_marker_and_keeps_both_audits(): void
+    public function test_a_flagged_payment_booked_when_the_cashier_charge_expires_loses_the_refund_marker_and_keeps_both_audits(): void
     {
         [, $bill] = $this->flaggedWhileACashierChargeIsPending('guest-ref');
 
@@ -798,7 +798,7 @@ class PaymentWebhookLockTest extends TestCase
 
     public function test_booking_keeps_the_refund_marker_when_a_different_reference_was_flagged(): void
     {
-        [, $bill] = $this->flaggedWhileACashierChargeIsPending('ref-other');
+        [, $bill] = $this->flaggedWhileACashierChargeIsPending('ref-other', amount: 20000); // too little: stays flagged
 
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: 'ref-booked')->assertOk();
 

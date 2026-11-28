@@ -234,7 +234,7 @@ class DineOrderTakeoverTest extends TestCase
         $bill->refresh();
         $this->assertNotSame($closedShiftId, $bill->cashier_shift_id);
         $this->assertSame($newShift->id, $bill->cashier_shift_id);
-        $this->assertSame(CashierShift::STATUS_CLOSED, CashierShift::findOrFail($closedShiftId)->status);
+        $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, CashierShift::findOrFail($closedShiftId)->status);
         $this->assertNull($bill->paid_after_close_at);
 
         // The guest's late payment of attempt 1 is flagged for a refund, still not "paid after close".

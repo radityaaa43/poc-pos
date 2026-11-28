@@ -185,13 +185,16 @@ class MemberManagementTest extends TestCase
         $cashier = User::factory()->create();
         $cashier->assignRole('cashier');
         $customer = Customer::create(['name' => 'Calon Member', 'no_telp' => '62814002', 'address' => 'Jl. Calon']);
+        $customer->forceFill(['may_buy_on_credit' => true])->save();
 
         $this->assertFalse($cashier->can('customers-edit'));
 
         $this->actingAs($cashier)
             ->postJson(route('customers.upgrade-member', $customer), ['loyalty_tier' => LoyaltyService::TIER_REGULAR])
             ->assertOk()
-            ->assertJsonPath('customer.is_loyalty_member', true);
+            ->assertJsonPath('customer.is_loyalty_member', true)
+            // The POS replaces its picked customer with this payload, and the credit panel reads the flag.
+            ->assertJsonPath('customer.may_buy_on_credit', true);
     }
 
     public function test_upgrade_is_forbidden_without_the_permission(): void

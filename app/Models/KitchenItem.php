@@ -23,7 +23,10 @@ class KitchenItem extends Model
     /** How long the display keeps showing a cancelled item (Dibatalkan) before it leaves the queue. */
     public const CANCELLED_VISIBLE_MINUTES = 2;
 
-    /** Not yet served or cancelled: still waiting on the kitchen or the pass. */
+    /** Terminal: Tidak diambil, set when a shift is force-closed over food not handed over (REQ-003 AC-13). */
+    public const STATUS_NOT_COLLECTED = 'not_collected';
+
+    /** None of served, cancelled or not collected: still waiting on the kitchen or the pass. */
     public const OPEN_STATUSES = [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY];
 
     protected $fillable = [

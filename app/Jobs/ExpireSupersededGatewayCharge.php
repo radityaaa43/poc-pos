@@ -112,7 +112,7 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
     /**
      * Whether there is still a charge to expire, read before the call.
      *
-     * @return array{gateway: string, setting: PaymentSetting, seen: array<int, mixed>}|null
+     * @return array{gateway: string, setting: PaymentSetting, seen: int}|null
      */
     private function check(TransactionTenderService $tenders): ?array
     {
@@ -152,7 +152,7 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
         });
     }
 
-    /** @param  array{gateway: string, setting: PaymentSetting, seen: array<int, mixed>}|null  $check  null: the check itself failed */
+    /** @param  array{gateway: string, setting: PaymentSetting, seen: int}|null  $check  null: the check itself failed */
     private function record(AuditLogService $audit, ?array $check, string $result): void
     {
         DB::transaction(function () use ($audit, $check, $result) {
@@ -214,14 +214,12 @@ class ExpireSupersededGatewayCharge implements ShouldBeUnique, ShouldQueue
     }
 
     /**
-     * What a payment of this charge would change, to compare across the call. Not the bill's status: a cashier's own
-     * charge failing or being paid meanwhile says nothing about this one.
-     *
-     * @return array<int, mixed>
+     * The reports of this charge being paid, to compare across the call. Not the bill's status or refund marker: another
+     * payment failing, being paid or being re-checked meanwhile says nothing about this one.
      */
-    private function settlement(Transaction $bill): array
+    private function settlement(Transaction $bill): int
     {
-        return [(string) $bill->late_superseded_payment_at, $this->audits($bill, self::REPORTED_PAID)->count()];
+        return $this->audits($bill, self::REPORTED_PAID)->count();
     }
 
     private function skip(string $level, string $reason): null

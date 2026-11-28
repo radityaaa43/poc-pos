@@ -33,6 +33,7 @@ class CashierShift extends Model
         'transactions_count',
         'sales_returns_count',
         'cash_difference',
+        'unpaid_bills_total',
         'notes',
         'close_notes',
         'status',
@@ -55,6 +56,7 @@ class CashierShift extends Model
         'transactions_count' => 'integer',
         'sales_returns_count' => 'integer',
         'cash_difference' => 'integer',
+        'unpaid_bills_total' => 'integer',
     ];
 
     public function user()
