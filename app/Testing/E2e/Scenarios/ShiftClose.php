@@ -10,8 +10,11 @@ use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
+use App\Models\Warehouse;
 use App\Testing\E2e\Scenarios;
+use Database\Seeders\E2eSeeder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /** Closing a shift that still holds work (REQ-003 AC-12, 13, 17, 20, 27). All names are `shiftclose.*`. */
 class ShiftClose
@@ -74,6 +77,46 @@ class ShiftClose
                 User::findOrFail($manager['id'])->outlets()->sync([$outletId => ['is_default' => true]]);
 
                 return ['email' => $manager['email']];
+            },
+
+            // Three shifts of the E2E outlet closed in 2024-02 (a fixed month no other step uses): a plain close, a
+            // force close that was not held, and a force close over a hold with a note. --arg=marker makes a rerun
+            // replace them instead of adding a second set.
+            'shiftclose.summary-shifts' => function (array $options): array {
+                $marker = $options['marker'] ?? 'shiftclose-summary';
+                $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
+                $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
+                CashierShift::where('notes', $marker)->delete();
+
+                $make = function (string $status, string $day, ?string $note, bool $overHold) use ($warehouse, $cashier, $marker): CashierShift {
+                    $closedAt = Carbon::parse($day.' 10:00:00', config('app.timezone'));
+                    $shift = CashierShift::create([
+                        'user_id' => $cashier->id, 'warehouse_id' => $warehouse->id, 'opened_by' => $cashier->id,
+                        'opened_at' => $closedAt->copy()->subHours(8),
+                        'closed_at' => $closedAt,
+                        'opening_cash' => 100000, 'expected_cash' => 100000, 'actual_cash' => 100000,
+                        'status' => $status, 'close_notes' => $note, 'notes' => $marker,
+                    ]);
+                    if ($overHold) {
+                        AuditLog::create([
+                            'event' => 'cashier_shift.hold_overridden', 'module' => 'cashier_shifts',
+                            'auditable_type' => $shift->getMorphClass(), 'auditable_id' => $shift->id,
+                            'description' => 'Shift ditutup paksa dengan item belum diserahkan.',
+                            'meta' => ['note' => $note],
+                        ]);
+                    }
+
+                    return $shift;
+                };
+
+                $plain = $make(CashierShift::STATUS_CLOSED, '2024-02-10', 'Tutup biasa', false);
+                $forced = $make(CashierShift::STATUS_FORCE_CLOSED, '2024-02-11', 'Ditutup paksa', false);
+                $held = $make(CashierShift::STATUS_FORCE_CLOSED, '2024-02-12', 'Tamu sudah pulang', true);
+
+                return [
+                    'month' => '2024-02', 'outlet_id' => $warehouse->outlet_id,
+                    'plain_id' => $plain->id, 'forced_id' => $forced->id, 'held_id' => $held->id,
+                ];
             },
         ];
     }
