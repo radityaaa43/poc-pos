@@ -34,6 +34,22 @@ describe("buildReceiptBytes", () => {
         expect(render(baseData({ amount_due: null }))).not.toContain("Sisa tagihan");
     });
 
+    it("prints the order name line under the invoice, without control bytes, only when set", () => {
+        const text = lines(baseData({ order_name_line: "Nama pesanan: Budi\x1bp\n7" }));
+        const at = text.indexOf("Nama pesanan: Budip 7");
+
+        expect(at).toBeGreaterThan(0);
+        expect(text[at - 1]).toContain("#INV-1");
+        expect(render(baseData({ order_name_line: null }))).not.toContain("Nama pesanan");
+    });
+
+    it("wraps a long order name line on 58mm paper instead of cutting it", () => {
+        const text = lines(baseData({ order_name_line: "Nama pesanan: Pelanggan Meja Depan" }), "58mm");
+
+        expect(text).toContain("Nama pesanan: Pelanggan Meja");
+        expect(text).toContain("Depan");
+    });
+
     it("starts with init and ends with the cut command", () => {
         const bytes = Array.from(buildReceiptBytes(baseData()));
         expect(bytes.slice(0, 2)).toEqual([0x1b, 0x40]);

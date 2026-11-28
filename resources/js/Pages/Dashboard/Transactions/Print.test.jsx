@@ -55,6 +55,26 @@ describe("Print page", () => {
         expect(screen.getByText(/Jatuh tempo:/)).toHaveTextContent(/^Jatuh tempo: -$/);
     });
 
+    // REQ-009 AC-20 (#445): the invoice view, both thermal previews and the printer bytes.
+    it("shows the order name on every receipt, and no line without one", async () => {
+        printReceipt.mockResolvedValue();
+        vi.spyOn(window, "open").mockReturnValue(null);
+        window.matchMedia = () => ({ matches: false });
+        const { unmount } = render(<Print transaction={{ ...transaction, order_name: "Budi 7" }} />);
+
+        expect(screen.getByText("Nama pesanan: Budi 7")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Struk 80mm" }));
+        expect(screen.getByText("Nama pesanan: Budi 7")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Struk 58mm" }));
+        expect(screen.getByText("Nama pesanan: Budi 7")).toBeInTheDocument();
+        await userEvent.click(screen.getByRole("button", { name: "Thermal" }));
+        expect(printReceipt.mock.calls.at(-1)[0].order_name_line).toBe("Nama pesanan: Budi 7");
+
+        unmount();
+        render(<Print transaction={transaction} />);
+        expect(screen.queryByText(/Nama pesanan/)).not.toBeInTheDocument();
+    });
+
     // #130: the page has no layout, so it has to render its own Toaster.
     it("shows the toast when thermal printing fails", async () => {
         printReceipt.mockRejectedValue(new Error("Printer belum terhubung."));
