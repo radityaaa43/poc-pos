@@ -11,8 +11,12 @@ export const needsKitchen = (carts = []) => carts.some((cart) => Boolean(cart.pr
 /** Queues an offline sale and, when the kitchen has to make part of it, says it has not arrived there (REQ-003 AC-14). */
 export async function queueOfflineSale(payload, scopeKey, carts) {
     const kitchen = needsKitchen(carts);
-    // Marked on the queue record, not the payload: the server decides for itself what the kitchen makes.
-    const id = await queueTransaction(payload, scopeKey, { needs_kitchen: kitchen });
+    // Titles for the stuck-sales panel: a product that sells out leaves the POS list.
+    const titles = Object.fromEntries(
+        carts.filter((cart) => cart.product?.title).map((cart) => [cart.product_id, cart.product.title])
+    );
+    // Kept on the queue record, not the payload: the server decides for itself what the kitchen makes.
+    const id = await queueTransaction(payload, scopeKey, { needs_kitchen: kitchen, product_titles: titles });
 
     if (kitchen) {
         window.dispatchEvent(new Event(QUEUED_EVENT));

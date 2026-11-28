@@ -272,8 +272,8 @@ describe("useKitchenPrintDevice: reprint (REQ-004 K2)", () => {
     });
 
     it.each([
-        ["id", { type: "Dine-in", unpaid: "BELUM LUNAS", reprint: "CETAK ULANG" }],
-        ["en", { type: "Dine-in", unpaid: "UNPAID", reprint: "REPRINT" }],
+        ["id", { type: "Dine-in", unpaid: "BELUM LUNAS", reprint: "CETAK ULANG", addon: "TAMBAHAN" }],
+        ["en", { type: "Dine-in", unpaid: "UNPAID", reprint: "REPRINT", addon: "ADD-ON" }],
     ])("in %s, prints a marked reprint on the stored printer, with no request, nothing recorded", async (lang, labels) => {
         await i18n.changeLanguage(lang);
         const { result } = mount();

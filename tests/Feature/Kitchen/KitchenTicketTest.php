@@ -60,7 +60,7 @@ class KitchenTicketTest extends TestCase
 
         $ticket = $response->json('tickets.0');
         $this->assertCount(1, $response->json('tickets'));
-        $this->assertSame(['key', 'number', 'type', 'unpaid', 'since', 'item_ids', 'items'], array_keys($ticket));
+        $this->assertSame(['key', 'kind', 'root_id', 'number', 'type', 'unpaid', 'since', 'item_ids', 'items'], array_keys($ticket));
         $this->assertSame('t'.$sale->id, $ticket['key']);
         $this->assertSame('Meja 5', $ticket['number']);
         $this->assertSame('dine_in', $ticket['type']);

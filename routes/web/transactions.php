@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\PosApiController;
 use App\Http\Controllers\Apps\CrmCampaignController;
 use App\Http\Controllers\Apps\TransactionController;
+use App\Http\Controllers\Apps\Transactions\OfflineSaleDiscardController;
 use App\Http\Controllers\Apps\TransactionSettleController;
 use App\Http\Middleware\EnsureHoldNotAwaitingCredit;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,8 @@ Route::post('/transactions/store', [TransactionController::class, 'store'])->mid
 Route::post('/transactions/{transaction}/settle', TransactionSettleController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.settle');
 // offline queue flush from the browser (session auth); the shift is checked per sale in syncOne()
 Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.sync');
+// a queued offline sale removed on the device: audited first (the queue exists only in the browser POS)
+Route::post('/transactions/offline-queue/discard', OfflineSaleDiscardController::class)->middleware(['permission:transactions-access', 'throttle:30,1'])->name('transactions.offline-discard');
 Route::get('/transactions/{invoice}/status', [TransactionController::class, 'status'])->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.status');
 Route::get('/transactions/{invoice}/qr', [TransactionController::class, 'qrisImage'])->middleware('permission:transactions-access')->name('transactions.qr');
 Route::get('/transactions/{invoice}/print', [TransactionController::class, 'print'])->middleware('permission:transactions-access')->name('transactions.print');

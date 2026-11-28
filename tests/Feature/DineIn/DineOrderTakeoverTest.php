@@ -218,29 +218,35 @@ class DineOrderTakeoverTest extends TestCase
         $this->assertSame(1, AuditLog::where('event', 'payment.late_superseded')->count());
     }
 
-    public function test_a_takeover_after_the_owning_shift_closed_is_not_paid_after_close(): void
+    public function test_a_takeover_after_the_owning_shift_closed_is_marked_paid_after_close(): void
     {
         $this->useGateway('midtrans');
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
         $this->guestPays($order)->assertOk();
         $closedShiftId = $bill->cashier_shift_id;
-        $this->closeShiftOf($bill);
+        $closed = $this->closeShiftOf($bill);
+        $recap = $closed->only(['expected_cash', 'cash_sales_total', 'non_cash_sales_total', 'transactions_count']);
         $newShift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 50000, null, $this->warehouse->id);
 
         $this->cashierPays($order);
 
-        // The money is in the new shift's drawer, so the payment moves there and nothing is flagged.
+        // Business decision #469 BR-1: a till payment after the owning shift was force-closed is marked; the money is in
+        // the new shift's drawer, and the closed recap is a stored snapshot that does not change (BR-3).
         $bill->refresh();
         $this->assertNotSame($closedShiftId, $bill->cashier_shift_id);
         $this->assertSame($newShift->id, $bill->cashier_shift_id);
         $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, CashierShift::findOrFail($closedShiftId)->status);
-        $this->assertNull($bill->paid_after_close_at);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closedShiftId, 'till'], [$log->meta['shift_id'], $log->meta['source']]);
+        $this->assertSame($recap, CashierShift::findOrFail($closedShiftId)->only(array_keys($recap)));
 
-        // The guest's late payment of attempt 1 is flagged for a refund, still not "paid after close".
+        // The guest's late payment of attempt 1 is flagged for a refund, still marked only once.
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
         $bill->refresh();
-        $this->assertNull($bill->paid_after_close_at);
+        $this->assertNotNull($bill->paid_after_close_at);
         $this->assertNotNull($bill->late_superseded_payment_at);
+        $this->assertSame(1, AuditLog::where('event', 'payment.paid_after_close')->count());
     }
 }

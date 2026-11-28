@@ -99,11 +99,13 @@ describe("getUnsyncedCount", () => {
 });
 
 describe("pruneExpiredPendingTransactions", () => {
-    it("only removes old failed and conflict rows", async () => {
+    // A failed row is a sale missing from the books: only the cashier removes it, through the audit (#400 BR-9).
+    it("only removes old conflict rows, never a failed one", async () => {
         const make = (status, days) => putRaw({ data: { status, days }, scope_key: "s", status, created_at: daysAgo(days) });
         await make("failed", 31);
         await make("conflict", 31);
-        await make("failed", 29);
+        await make("conflict", 29);
+        await make("discarding", 40);
         await make("pending", 40);
         await make("syncing", 40);
 
@@ -111,7 +113,9 @@ describe("pruneExpiredPendingTransactions", () => {
 
         const rows = await getPendingTransactions("s");
         expect(rows.map((r) => `${r.status}:${r.data.days}`).sort()).toEqual([
-            "failed:29",
+            "conflict:29",
+            "discarding:40",
+            "failed:31",
             "pending:40",
             "syncing:40",
         ]);

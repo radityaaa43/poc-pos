@@ -847,7 +847,7 @@ class TransactionController extends Controller
             })
             // sales whose superseded attempt was paid after a retry: money to refund by hand
             ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'))
-            // gateway sales paid after their shift closed: the closed recap was left as it was
+            // sales of any method paid after their shift closed: the closed recap was left as it was
             ->when($filters['paid_after_close'], fn (Builder $builder) => $builder->whereNotNull('paid_after_close_at'));
 
         $transactions = $query->paginate($this->perPage())->withQueryString();
