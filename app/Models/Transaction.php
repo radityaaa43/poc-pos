@@ -261,6 +261,36 @@ class Transaction extends Model
     }
 
     /**
+     * The part of overpaid_amount taken in cash (#444): what a split's excess is beyond its paid non-cash tenders. The
+     * cashier hands it back in cash, and the shift recap takes it off the cash sales.
+     */
+    public function cashExcess(): int
+    {
+        // Only a split holds both: any other overpaid sale was paid without cash.
+        if ($this->payment_method !== 'split' || $this->overpaid_amount < 1) {
+            return 0;
+        }
+
+        return max(0, (int) $this->overpaid_amount - (int) $this->tenders()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->where('method', '!=', TransactionTender::METHOD_CASH)
+            ->sum('amount'));
+    }
+
+    /**
+     * For the refund notice of the sale page: the cash to hand back, and whether the sale's shift is still open. A closed
+     * recap is a stored snapshot, so cash handed back after the close is a cash out of the current shift.
+     *
+     * @return array{cash_excess: int, shift_open: bool}
+     */
+    public function cashRefundNotice(): array
+    {
+        $cash = $this->cashExcess();
+
+        return ['cash_excess' => $cash, 'shift_open' => $cash > 0 && CashierShift::whereKey($this->cashier_shift_id)->open()->exists()];
+    }
+
+    /**
      * What the customer is asked for this sale, after returns. A credit sale keeps its total (its receivable says what is
      * owed). An unpaid, failed or expired sale is asked what it still owes. A pending or paid one was asked the sum of
      * its tenders; without tenders, an open bill or a retried payment its total less the returns that refunded nothing,

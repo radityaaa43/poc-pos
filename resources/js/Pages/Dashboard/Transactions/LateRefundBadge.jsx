@@ -1,9 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-const formatPrice = (value = 0) =>
-    Number(value || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
-
 // A paid callback of a superseded payment attempt arrived after the retry was paid: the money needs a manual refund.
 export default function LateRefundBadge({ transaction }) {
     const { t } = useTranslation();
@@ -20,13 +17,15 @@ export default function LateRefundBadge({ transaction }) {
 }
 
 export function LateRefundNotice({ transaction }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     if (!transaction.late_superseded_payment_at) {
         return null;
     }
 
     const overpaid = transaction.overpaid_amount > 0;
+    // The sentences carry "Rp" themselves: only the number is formatted.
+    const formatAmount = (value) => new Intl.NumberFormat(i18n.language).format(value);
 
     return (
         <p role="status" className="mt-3 text-sm font-medium text-danger-700 dark:text-danger-400">
@@ -34,7 +33,14 @@ export function LateRefundNotice({ transaction }) {
             {t(overpaid ? "transactions.lateRefund.checkHistory" : "transactions.lateRefund.notice")}
             {overpaid && (
                 <span className="block">
-                    {t("transactions.lateRefund.overpaid", { amount: formatPrice(transaction.overpaid_amount) })}
+                    {t("transactions.lateRefund.overpaid", { amount: formatAmount(transaction.overpaid_amount) })}
+                </span>
+            )}
+            {transaction.cash_excess > 0 && (
+                <span className="block">
+                    {t(transaction.shift_open ? "transactions.lateRefund.cashOpen" : "transactions.lateRefund.cashClosed", {
+                        cash: formatAmount(transaction.cash_excess),
+                    })}
                 </span>
             )}
         </p>

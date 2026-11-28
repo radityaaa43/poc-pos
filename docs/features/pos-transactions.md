@@ -109,6 +109,10 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   gateway notification's amount (none in it: nothing is flagged), or for a transfer what it asked: the total at checkout,
   the amount of the last retry (kept in the `transaction.payment_retried` audit entry; a retry made before this change
   kept none and is not flagged). A credit sale is left to its receivable. The refund itself is manual.
+  The cash part of an excess (`Transaction::cashExcess()`: a split's excess beyond its **paid** non-cash tenders, kept
+  as `meta.cash_excess`) gets its own line on the sale page: while the sale's shift is open, hand it back from the
+  drawer without recording a cash out; once that shift is closed, hand it back and record it as a cash out in the
+  current shift.
 - Web POS only; the mobile API does not retry.
 
 ## Integrasi Data

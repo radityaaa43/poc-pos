@@ -288,7 +288,7 @@ class TransactionTenderService
             module: 'transactions',
             auditable: $bill,
             description: "Pembayaran invoice {$bill->invoice} melebihi sisa tagihan setelah retur; kelebihan Rp ".number_format($excess, 0, ',', '.').' perlu refund manual.',
-            meta: ['settled' => $settled, 'owed' => $owed, 'excess' => $excess, ...$meta],
+            meta: ['settled' => $settled, 'owed' => $owed, 'excess' => $excess, 'cash_excess' => $bill->cashExcess(), ...$meta],
         );
 
         Log::warning('Payment beyond what the sale owed after returns', ['invoice' => $bill->invoice, 'excess' => $excess]);
