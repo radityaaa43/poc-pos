@@ -68,8 +68,9 @@ test.describe('33-kitchen-printer', () => {
 
         // Reload device A with its printer already granted, and let it poll twice (on load, then 5 s later).
         await fakePrinter(a, { granted: true });
+        await a.goto('about:blank'); // the old page stops polling, so the next poll seen is the new page's
         const firstPoll = a.waitForResponse(isTicketsPoll);
-        await a.reload();
+        await a.goto('/dashboard/kitchen');
         expect((await (await firstPoll).json()).tickets).toEqual([]);
         const secondPoll = a.waitForResponse(isTicketsPoll, { timeout: 15_000 });
         expect((await (await secondPoll).json()).tickets).toEqual([]);
