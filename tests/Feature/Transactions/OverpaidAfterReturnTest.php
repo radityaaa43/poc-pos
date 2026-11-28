@@ -277,6 +277,45 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertSaleShiftNonCash($sale, 10000);
     }
 
+    /** #507 TC-4: a denied discount leaves the sale unpaid with its transfer tender pending; it can still be confirmed. */
+    public function test_confirm_takes_a_pending_transfer_on_an_unpaid_sale_at_the_received_amount(): void
+    {
+        $sale = $this->posSale('bank_transfer', 'unpaid');
+        $sale->tenders()->create(['method' => 'bank_transfer', 'amount' => 25000, 'payment_status' => 'pending', 'bank_account_id' => $this->bankAccount()->id]);
+
+        $this->confirmOnTheWeb($sale, received: 25000);
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame(0, (int) $sale->overpaid_amount);
+        $this->assertSame(25000, (int) $sale->tenders()->where('method', 'bank_transfer')->value('amount'));
+    }
+
+    public function test_confirm_below_the_owed_amount_on_an_unpaid_sale_is_allowed(): void
+    {
+        $sale = $this->posSale('bank_transfer', 'unpaid');
+        $sale->tenders()->create(['method' => 'bank_transfer', 'amount' => 25000, 'payment_status' => 'pending', 'bank_account_id' => $this->bankAccount()->id]);
+
+        $this->confirmOnTheWeb($sale, received: 20000);
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame(0, (int) $sale->overpaid_amount);
+        $this->assertSame(20000, (int) $sale->tenders()->where('method', 'bank_transfer')->value('amount'));
+    }
+
+    public function test_confirm_above_the_owed_amount_on_an_unpaid_sale_is_flagged(): void
+    {
+        $sale = $this->posSale('bank_transfer', 'unpaid');
+        $sale->tenders()->create(['method' => 'bank_transfer', 'amount' => 25000, 'payment_status' => 'pending', 'bank_account_id' => $this->bankAccount()->id]);
+
+        $this->confirmOnTheWeb($sale, received: 30000);
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame(5000, (int) $sale->overpaid_amount);
+    }
+
     public function test_paying_what_is_owed_after_a_return_is_not_flagged(): void
     {
         $this->useGateway('midtrans');

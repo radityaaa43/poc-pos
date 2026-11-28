@@ -205,6 +205,15 @@ class TransactionTenderService
             || $transaction->tenders()->where('method', TransactionTender::METHOD_BANK_TRANSFER)->exists();
     }
 
+    /** A transfer tender still waiting for the bank: the only thing a confirm settles, whatever the sale's status (#507). */
+    public function hasPendingTransfer(Transaction $transaction): bool
+    {
+        return $transaction->tenders()
+            ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
+            ->where('payment_status', TransactionTender::STATUS_PENDING)
+            ->exists();
+    }
+
     /**
      * Mark the transfer tender paid, then store and return the sale's new status: a split sale with another pending
      * tender (a gateway) stays pending. Under the sale's row lock, because a shift close, the expiry command or a return
@@ -222,10 +231,7 @@ class TransactionTenderService
 
             // A denied discount leaves the sale unpaid with its transfer tender pending; that can still be confirmed
             // with Jumlah diterima (business BR-5, #507 TC-4). Otherwise a pending/pending_approval sale as before.
-            $confirmsUnpaid = $bill->payment_status === 'unpaid' && $bill->tenders()
-                ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
-                ->where('payment_status', TransactionTender::STATUS_PENDING)
-                ->exists();
+            $confirmsUnpaid = $bill->payment_status === 'unpaid' && $this->hasPendingTransfer($bill);
 
             // A sale that moved to another shift meanwhile is refused too: that shift is not the one locked.
             if ((! in_array($bill->payment_status, ['pending', 'pending_approval'], true) && ! $confirmsUnpaid)

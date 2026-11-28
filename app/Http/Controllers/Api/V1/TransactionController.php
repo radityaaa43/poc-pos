@@ -206,7 +206,10 @@ class TransactionController extends AppsTransactionController
             return $this->error('Transaksi transfer bank belum memiliki rekening tujuan.', 422);
         }
 
-        if (! in_array($transaction->payment_status, ['pending', 'pending_approval'], true)) {
+        // A denied discount leaves the sale unpaid with its transfer tender pending; the tender is what is confirmed.
+        $confirmsUnpaid = $transaction->payment_status === 'unpaid' && $tenderService->hasPendingTransfer($transaction);
+
+        if (! in_array($transaction->payment_status, ['pending', 'pending_approval'], true) && ! $confirmsUnpaid) {
             return $this->error('Status transaksi tidak dapat dikonfirmasi saat ini.', 422);
         }
 

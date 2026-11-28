@@ -934,7 +934,10 @@ class TransactionController extends Controller
                 ->with('error', 'Transaksi transfer bank belum memiliki rekening tujuan.');
         }
 
-        if (! in_array($transaction->payment_status, ['pending', 'pending_approval'], true)) {
+        // A denied discount leaves the sale unpaid with its transfer tender pending; the tender is what is confirmed.
+        $confirmsUnpaid = $transaction->payment_status === 'unpaid' && $tenderService->hasPendingTransfer($transaction);
+
+        if (! in_array($transaction->payment_status, ['pending', 'pending_approval'], true) && ! $confirmsUnpaid) {
             return redirect()
                 ->back()
                 ->with('error', 'Status transaksi tidak dapat dikonfirmasi saat ini.');
