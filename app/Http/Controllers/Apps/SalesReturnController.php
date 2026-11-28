@@ -352,6 +352,7 @@ class SalesReturnController extends Controller
                 'customer:id,name',
                 'receivable',
                 'details.product:id,title,barcode,sku,buy_price',
+                'details.modifiers',
                 'details.salesReturnItems.salesReturn:id,status',
             ])
             ->when(! $request->user()->isSuperAdmin(), fn (Builder $query) => $query->where('cashier_id', $request->user()->id))
@@ -375,9 +376,11 @@ class SalesReturnController extends Controller
                 'transaction.customer:id,name',
                 'transaction.receivable',
                 'transaction.details.product:id,title,barcode,sku,buy_price',
+                'transaction.details.modifiers',
                 'transaction.details.salesReturnItems.salesReturn:id,status',
                 'items.product:id,title,barcode,sku,buy_price',
-                'items.transactionDetail:id,transaction_id,product_id,qty,price',
+                'items.transactionDetail:id,transaction_id,product_id,qty,price,note',
+                'items.transactionDetail.modifiers',
             ])
             ->when(! $request->user()->isSuperAdmin(), function (Builder $query) use ($request) {
                 $query->whereHas('transaction', fn (Builder $builder) => $builder->where('cashier_id', $request->user()->id));
@@ -448,6 +451,9 @@ class SalesReturnController extends Controller
                     ] : null,
                     'qty' => $qtySold,
                     'price' => (int) $detail->price,
+                    // Tells apart two lines of one menu; the model hides the recipe.
+                    'modifiers' => $detail->modifiers,
+                    'note' => $detail->note,
                     'returned_completed_qty' => $completedReturnedQty,
                     'remaining_returnable_qty' => max(0, $qtySold - $completedReturnedQty),
                     'kitchen_status' => $kitchenStatus,
@@ -466,6 +472,8 @@ class SalesReturnController extends Controller
 
     protected function transformSalesReturn(SalesReturn $salesReturn): array
     {
+        $salesReturn->loadMissing('items.transactionDetail.modifiers');
+
         return [
             'id' => $salesReturn->id,
             'code' => $salesReturn->code,
@@ -499,6 +507,8 @@ class SalesReturnController extends Controller
                         'barcode' => $item->product->barcode,
                         'sku' => $item->product->sku,
                     ] : null,
+                    'modifiers' => $item->transactionDetail->modifiers ?? [],
+                    'note' => $item->transactionDetail?->note,
                     'qty_sold' => (int) $item->qty_sold,
                     'qty_returned_before' => (int) $item->qty_returned_before,
                     'qty_return' => (int) $item->qty_return,

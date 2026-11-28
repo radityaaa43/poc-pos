@@ -7,6 +7,7 @@ use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
 
 // REQ-008 AC-14, decision 14 (#420): a return gives back the whole line with its options.
@@ -58,8 +59,9 @@ class ModifierReturnTest extends ModifierSaleTestCase
         $draft = $this->draft(2);
         Sanctum::actingAs($this->cashier, ['*']);
 
-        $this->postJson(route('api.sales-returns.complete', $draft))->assertOk();
-
+        $this->postJson(route('api.sales-returns.complete', $draft))->assertOk()
+            ->assertJsonPath('data.items.0.modifiers.0.option_name', 'Large')
+            ->assertJsonMissingPath('data.items.0.modifiers.0.components');
 
         $this->assertSame([[50, 50], [10, 10]], $this->stocks($this->menu, $this->milk));
     }
@@ -103,6 +105,26 @@ class ModifierReturnTest extends ModifierSaleTestCase
         $this->assertNotFalse($products);
         $this->assertLessThan($products, $warehouse);
         $this->assertSame($ids, array_slice($queries[$warehouse]['bindings'], 1));
+    }
+
+    public function test_return_page_and_api_list_the_sold_options_and_note(): void
+    {
+        $this->sell(['Large', 'Boba'], 1, 'es sedikit');
+        $this->option('Large')->update(['name' => 'Jumbo']);
+        $draft = $this->draft(1);
+
+        $this->get(route('sales-returns.show', $draft))->assertInertia(fn (Assert $page) => $page
+            ->where('transaction.details.0.modifiers.0.option_name', 'Large')
+            ->where('transaction.details.0.modifiers.1.price_delta', 3000)
+            ->where('transaction.details.0.note', 'es sedikit')
+            ->where('salesReturn.items.0.modifiers.0.option_name', 'Large')
+            ->missing('transaction.details.0.modifiers.0.components'));
+
+        Sanctum::actingAs($this->cashier, ['*']);
+        $this->getJson(route('api.sales-returns.show', $draft))->assertOk()
+            ->assertJsonPath('data.items.0.modifiers.1.option_name', 'Boba')
+            ->assertJsonPath('data.items.0.note', 'es sedikit')
+            ->assertJsonMissingPath('data.items.0.modifiers.0.components');
     }
 
     private function sell(array $options, int $qty = 1, ?string $note = null): void

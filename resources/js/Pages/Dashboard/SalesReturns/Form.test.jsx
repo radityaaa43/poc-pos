@@ -57,6 +57,22 @@ const renderForm = (details) =>
 const restockBox = (title) =>
     within(screen.getByText(title).closest("tr")).getByRole("checkbox");
 
+it("lists each line's sold options and note, so two lines of one menu can be told apart", () => {
+    renderForm([
+        {
+            ...detail(1, "Kopi Susu", null, true),
+            modifiers: [{ option_name: "Large", price_delta: 5000 }],
+            note: "es sedikit",
+        },
+        { ...detail(2, "Kopi Susu", null, true), modifiers: [], note: null },
+    ]);
+    const [large, plain] = screen.getAllByText("Kopi Susu").map((title) => within(title.closest("tr")));
+
+    expect(large.getByText("+ Large 5.000")).toBeInTheDocument();
+    expect(large.getByText("Catatan: es sedikit")).toBeInTheDocument();
+    expect(plain.queryByText(/Large|Catatan/)).not.toBeInTheDocument();
+});
+
 beforeEach(async () => {
     globalThis.route = (name) => `/${name}`;
     await i18n.changeLanguage("id");
