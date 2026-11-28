@@ -65,8 +65,9 @@ class ReturnBillShareService
         $tax = $this->share($bill['refundable_tax'], $to, $base) - $this->share($bill['refundable_tax'], $from, $base);
 
         // Items refund at pre-discount line prices, so a discounted sale can already give back more than it took. Cap
-        // the share at what is left of the paid amount after the completed returns and this item value.
-        $cap = max(0, $bill['paid'] - $bill['returned_total'] - max(0, $itemValue));
+        // the share at what is left of the paid amount after the completed returns and this return's actual item
+        // value ($to - $from, not the requested $itemValue, which may overshoot the remaining base).
+        $cap = max(0, $bill['paid'] - $bill['returned_total'] - ($to - $from));
         if ($service + $tax > $cap) {
             $service = min($service, $cap);
             $tax = min($tax, $cap - $service);
