@@ -65,6 +65,21 @@ class KitchenPrintDeviceController extends Controller
         return response()->noContent();
     }
 
+    /** The stations a device serves (#345). An empty list means every station, so a shop without a split is unchanged. */
+    public function stations(Request $request, KitchenPrintDevice $device): JsonResponse
+    {
+        $this->authorizeDevice($request, $device);
+        $data = $request->validate([
+            'station_ids' => ['present', 'array'],
+            'station_ids.*' => ['integer', 'exists:kitchen_stations,id'],
+        ]);
+        $device->stations()->sync($data['station_ids']);
+
+        return response()->json([
+            'station_ids' => $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all(),
+        ]);
+    }
+
     /** A device belongs to one outlet: another outlet's staff get 404, as if it did not exist. */
     private function authorizeDevice(Request $request, KitchenPrintDevice $device): void
     {

@@ -7,6 +7,7 @@ use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
 use App\Models\KitchenPrintDevice;
+use App\Models\KitchenStation;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -406,6 +407,80 @@ class KitchenTicketTest extends TestCase
     }
 
     /** @return array<int, array<string, mixed>> */
+    // AC-07 / BR-2 (#345): a device prints only its stations' items, each ticket titled.
+    public function test_a_device_serves_only_its_stations_and_titles_the_ticket(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+
+        $sale = $this->sale('INV-SPLIT');
+        $barItem = $this->kitchenItem($sale);
+        $barItem->update(['kitchen_station_id' => $bar->id]);
+        $this->kitchenItem($sale)->update(['kitchen_station_id' => $dapur]);
+
+        $device = $this->device();
+        $device->stations()->sync([$bar->id]);
+
+        $tickets = $this->tickets($device);
+
+        $this->assertCount(1, $tickets);
+        $this->assertSame('Bar', $tickets[0]['station']);
+        $this->assertSame([$barItem->id], $tickets[0]['item_ids']);
+    }
+
+    public function test_a_two_station_order_prints_one_ticket_per_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+
+        $sale = $this->sale('INV-TWO');
+        $barItem = $this->kitchenItem($sale);
+        $barItem->update(['kitchen_station_id' => $bar->id]);
+        $dapurItem = $this->kitchenItem($sale);
+        $dapurItem->update(['kitchen_station_id' => $dapur]);
+
+        $device = $this->device();
+        $device->stations()->sync([$bar->id, $dapur]);
+        $tickets = collect($this->tickets($device))->keyBy('station');
+
+        $this->assertCount(2, $tickets);
+        $this->assertSame([$barItem->id], $tickets['Bar']['item_ids']);
+        $this->assertSame([$dapurItem->id], $tickets['Dapur']['item_ids']);
+        $this->assertSame('t'.$sale->id.'-s'.$bar->id, $tickets['Bar']['key']);
+    }
+
+    public function test_a_null_station_item_only_prints_on_a_device_that_serves_dapur(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+
+        $sale = $this->sale('INV-NULL');
+        $this->kitchenItem($sale)->update(['kitchen_station_id' => null]);
+
+        $barDevice = $this->device('Bar 1');
+        $barDevice->stations()->sync([$bar->id]);
+        $this->assertSame([], $this->tickets($barDevice));
+
+        $dapurDevice = $this->device('Dapur 1');
+        $dapurDevice->stations()->sync([$dapur]);
+        $tickets = $this->tickets($dapurDevice);
+        $this->assertCount(1, $tickets);
+        $this->assertSame('Dapur', $tickets[0]['station']);
+    }
+
+    public function test_a_device_stores_its_stations(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $device = $this->device();
+
+        $this->actingAs($this->cook)
+            ->putJson(route('kitchen.print-devices.stations', $device), ['station_ids' => [$bar->id]])
+            ->assertOk()
+            ->assertJson(['station_ids' => [$bar->id]]);
+
+        $this->assertSame([$bar->id], $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all());
+    }
+
     private function tickets(KitchenPrintDevice $device): array
     {
         return $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk()->json('tickets');

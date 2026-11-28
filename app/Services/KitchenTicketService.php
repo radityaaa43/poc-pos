@@ -6,6 +6,7 @@ use App\Models\KitchenCancellation;
 use App\Models\KitchenCancellationPrint;
 use App\Models\KitchenItem;
 use App\Models\KitchenPrintDevice;
+use App\Models\KitchenStation;
 use App\Models\KitchenTicketPrint;
 use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Database\Eloquent\Builder;
@@ -33,11 +34,26 @@ class KitchenTicketService
      */
     public function pending(KitchenPrintDevice $device): Collection
     {
+        // The stations this device serves (#345). None: every station, one ticket per order, as before.
+        $served = $device->stations()->pluck('kitchen_stations.id')->all();
+        $defaultId = $served === [] ? null : KitchenStation::defaultId();
+        $includesDefault = $served !== [] && in_array($defaultId, $served, true);
+
         $unprinted = fn (): Builder => KitchenItem::open()
             ->inOutlet($device->outlet_id)
             // Only what reached the kitchen at or after the device was named (a new tablet does not reprint the queue).
             ->whereRaw('COALESCE(accepted_at, created_at) >= ?', [$device->created_at])
-            ->whereDoesntHave('ticketPrints', fn ($q) => $q->where('kitchen_print_device_id', $device->id));
+            ->whereDoesntHave('ticketPrints', fn ($q) => $q->where('kitchen_print_device_id', $device->id))
+            // A device that serves some stations prints only theirs. Dapur's items (a null or deleted station, B1)
+            // print only on a device that serves Dapur (Tech Lead answer on #345).
+            ->when($served !== [], fn (Builder $q) => $q->where(function (Builder $stations) use ($served, $includesDefault) {
+                $stations->whereIn('kitchen_station_id', $served);
+
+                if ($includesDefault) {
+                    $stations->orWhereNull('kitchen_station_id')
+                        ->orWhereNotIn('kitchen_station_id', KitchenStation::query()->select('id'));
+                }
+            }));
 
         $transactionIds = $unprinted()
             ->select('transaction_id')
@@ -58,22 +74,64 @@ class KitchenTicketService
             ->orderBy('id')
             ->get();
 
-        return KitchenOrders::fromItems($items)->map(fn (array $order) => [
-            'key' => 't'.$order['id'],
+        $orders = KitchenOrders::fromItems($items);
+
+        if ($served === []) {
+            return $orders->map(fn (array $order) => $this->ticket($order, 't'.$order['id']));
+        }
+
+        // One ticket per (order, station), titled with the station name. A null or deleted station is Dapur.
+        $liveStations = KitchenStation::pluck('id')->all();
+        $effective = fn ($stationId) => $stationId !== null && in_array($stationId, $liveStations, true) ? $stationId : $defaultId;
+
+        return $orders->flatMap(function (array $order) use ($effective, $defaultId) {
+            $groups = $order['items']->groupBy(fn (array $item) => $effective($item['station_id']));
+
+            return $groups->map(function (Collection $stationItems, $stationId) use ($order, $groups, $defaultId) {
+                $key = $groups->count() === 1 ? 't'.$order['id'] : 't'.$order['id'].'-s'.$stationId;
+                $title = (int) $stationId === (int) $defaultId
+                    ? KitchenStation::DEFAULT_NAME
+                    : $stationItems->first()['station'];
+
+                return $this->ticket($order, $key, $stationItems, $title);
+            })->values();
+        })->values();
+    }
+
+    /**
+     * One ticket from an order and a set of its items, optionally titled with a station name (#345).
+     *
+     * @param  array<string, mixed>  $order
+     * @param  Collection<int, array<string, mixed>>|null  $items
+     * @return array<string, mixed>
+     */
+    private function ticket(array $order, string $key, ?Collection $items = null, ?string $station = null): array
+    {
+        $items ??= $order['items'];
+
+        $ticket = [
+            'key' => $key,
             'kind' => $order['root_id'] === $order['id'] ? 'order' : 'addon',
             'root_id' => $order['root_id'],
             'number' => $order['number'],
             'type' => $order['type'],
             'unpaid' => $order['unpaid'],
             'since' => $order['since']->toIso8601String(),
-            'item_ids' => $order['items']->pluck('id')->all(),
-            'items' => $order['items']->map(fn (array $item) => [
+            'item_ids' => $items->pluck('id')->all(),
+            'items' => $items->map(fn (array $item) => [
                 'id' => $item['id'],
                 'title' => $item['title'],
                 'qty' => $item['qty'],
                 'note' => $item['note'],
             ])->all(),
-        ]);
+        ];
+
+        // A single-station shop prints no title (REQ-006 decision 8); a station split does.
+        if ($station !== null) {
+            $ticket['station'] = $station;
+        }
+
+        return $ticket;
     }
 
     /**
