@@ -29,6 +29,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - bagian transfer pada split payment menunggu konfirmasi seperti transfer tunggal: transaksi tetap `pending` ("Menunggu") sampai user dengan izin `transactions-confirm-payment` mengonfirmasi; konfirmasi menandai tender transfer dan transaksi `paid`. Bagian tunai langsung tercatat dan masuk ke kas laci shift
 - print invoice / receipt / shipping label
 - share invoice publik
+- pelanggan berbatas piutang yang ditolak: dialog bayar sekarang atau minta pengecualian persetujuan (lihat `receivables.md`)
 - add customer langsung dari POS
 - penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk memakai poin, voucher, atau harga member; pay later (Bayar Belakangan) tidak lagi butuh pelanggan: tamu cukup mengisi catatan minimal 2 karakter
 
