@@ -123,11 +123,7 @@ class Transaction extends Model
         return $this->hasMany(TransactionDetail::class);
     }
 
-    /**
-     * customer
-     *
-     * @return void
-     */
+    /** @return BelongsTo<Customer, $this> */
     public function customer()
     {
         return $this->belongsTo(Customer::class);

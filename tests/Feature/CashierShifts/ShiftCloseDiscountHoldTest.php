@@ -4,8 +4,11 @@ namespace Tests\Feature\CashierShifts;
 
 use App\Models\AuditLog;
 use App\Models\CashierShift;
+use App\Models\Category;
 use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
+use App\Models\Product;
+use App\Models\Setting;
 use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\User;
@@ -90,11 +93,8 @@ class ShiftCloseDiscountHoldTest extends TestCase
         );
         $this->close($this->shift)->assertSessionHasNoErrors();
 
-        $closed = $this->shift->fresh();
-        $this->assertSame(CashierShift::STATUS_CLOSED, $closed->status);
-        $this->assertSame(0, $closed->cash_sales_total); // an unpaid cash sale is no money received
-        $this->assertSame(100000, $closed->expected_cash);
-        $this->assertSame(1, $closed->transactions_count);
+        // Only the close: a denied sale's own recap is #509's (BR-1), so this test does not pin it.
+        $this->assertSame(CashierShift::STATUS_CLOSED, $this->shift->fresh()->status);
     }
 
     public function test_cashier_cannot_decide_from_the_list(): void
@@ -181,6 +181,46 @@ class ShiftCloseDiscountHoldTest extends TestCase
         $this->assertSame('force_closed', $this->shift->fresh()->status);
         $this->assertNotSame('pending', $sale->fresh()->discount_approval_status);
         $this->assertSame($before, $this->recap($this->shift->fresh()));
+    }
+
+    // TC-9 (amendment A1): the API sync stores a pending-discount cash sale as `pending_approval`, and its cash counts
+    // in the recap while pending, so a force close over it is not a false surplus.
+    public function test_a_synced_pending_discount_counts_in_the_recap_without_a_surplus(): void
+    {
+        Setting::set('discount_approval_threshold', '1');
+        $category = Category::create(['name' => 'Sync', 'image' => '', 'description' => '']);
+        $product = Product::create([
+            'title' => 'Produk Sync', 'barcode' => 'HOLD-SYNC', 'sku' => 'SKU-HOLD-SYNC', 'image' => '', 'description' => '',
+            'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 50, 'category_id' => $category->id,
+            'tax_type' => 'exclusive', 'tax_rate' => 0, 'min_stock' => 0, 'max_stock' => 100, 'is_composite' => false,
+        ]);
+        $product->warehouses()->attach($this->warehouse->id, ['stock' => 50]);
+
+        Sanctum::actingAs($this->cashier, ['*']);
+        $this->postJson('/api/v1/pos/transactions/sync', ['transactions' => [[
+            'client_uuid' => (string) Str::uuid(),
+            'items' => [['product_id' => $product->id, 'qty' => 2, 'unit_id' => null]],
+            'discount' => 5000,
+            'cash' => 15000,
+            'payment_method' => 'cash',
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'synced');
+
+        $sale = Transaction::latest('id')->firstOrFail();
+        $this->assertSame(
+            ['pending_approval', 'pending', 'cash', 15000],
+            [$sale->payment_status, $sale->discount_approval_status, $sale->payment_method, (int) $sale->grand_total],
+        );
+
+        $this->close($this->shift, $this->approver, [
+            'force' => true, 'actual_cash' => 115000, 'close_notes' => 'Diskon masih menunggu',
+        ])->assertSessionHasNoErrors();
+
+        $closed = $this->shift->fresh();
+        $this->assertSame('force_closed', $closed->status);
+        $this->assertSame(15000, $closed->cash_sales_total);
+        $this->assertSame(115000, $closed->expected_cash);
+        $this->assertSame(0, $closed->cash_difference);
+        $this->assertSame('pending_approval', $sale->fresh()->payment_status);
     }
 
     public function test_other_shifts_pending_discount_is_untouched(): void
