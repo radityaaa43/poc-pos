@@ -2,7 +2,7 @@ import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
 import { sentWith, setUpPrintDevice } from '../../support/kitchen.js';
 import { fillCart, readQueue } from '../../support/offline-pos.js';
-import { addToCart, finish, openPos } from '../../support/pos.js';
+import { addToCart, finish, openPos, rupiah, total } from '../../support/pos.js';
 import { fakePrinter } from '../../support/webusb.js';
 
 const cashier = roles.find((role) => role.key === 'cashier');
@@ -29,6 +29,8 @@ test.describe('POS checkout: order name', () => {
         const page = await asRole(cashier);
         await openPos(page);
         await addToCart(page, title);
+        // The add is answered before the cart re-renders: 'Uang pas' pressed too early pays Rp 0.
+        await expect(total(page)).toHaveText(rupiah(10000));
         await page.getByLabel('Nama pesanan').fill(orderName);
         await page.getByRole('button', { name: 'Uang pas' }).click();
         const invoice = await finish(page);
@@ -86,6 +88,7 @@ test.describe('POS checkout: order name', () => {
         await expect(input).toHaveAttribute('placeholder', 'Name / buzzer number (optional)');
         await input.fill('Buzzer 1234567890123'); // exactly 20 characters
         await expect(page.getByText('20 characters maximum')).toBeVisible();
+        await expect(total(page)).toHaveText(rupiah(10000));
         await page.getByRole('button', { name: 'Uang pas' }).click();
         await finish(page);
 
