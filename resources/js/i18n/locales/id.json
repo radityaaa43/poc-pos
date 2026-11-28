@@ -310,7 +310,8 @@
             "units": "Satuan",
             "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp",
-            "modifiers": "Modifier"
+            "modifiers": "Modifier",
+            "dineReservations": "Reservasi"
         },
         "menu": {
             "overview": "Overview",
@@ -1348,5 +1349,38 @@
         "moveUp": "Naikkan {{name}}",
         "moveDown": "Turunkan {{name}}",
         "detach": "Lepas {{name}}"
+    },
+    "dineReservations": {
+        "title": "Reservasi",
+        "add": "Tambah reservasi",
+        "edit": "Ubah",
+        "editTitle": "Ubah reservasi",
+        "date": "Tanggal",
+        "time": "Jam",
+        "guestName": "Nama tamu",
+        "phone": "Nomor HP",
+        "partySize": "Jumlah tamu",
+        "table": "Meja",
+        "chooseTable": "Pilih meja",
+        "removedTable": "Meja sudah dihapus",
+        "note": "Catatan",
+        "status": "Status",
+        "empty": "Belum ada reservasi pada tanggal ini",
+        "statuses": {
+            "booked": "Dicatat",
+            "arrived": "Datang",
+            "cancelled": "Batal",
+            "no_show": "Tidak datang"
+        },
+        "actions": {
+            "arrived": "Datang",
+            "cancelled": "Batal",
+            "no_show": "Tidak datang"
+        },
+        "markTitle": "Tandai reservasi {{name}}: {{status}}?",
+        "markConfirm": "Tanda ini tidak bisa diubah lagi.",
+        "saved": "Reservasi disimpan",
+        "marked": "Status reservasi diubah",
+        "failed": "Reservasi tidak bisa disimpan"
     }
 }

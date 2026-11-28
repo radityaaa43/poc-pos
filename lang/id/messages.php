@@ -438,6 +438,18 @@ return [
         'cash_rounding_unit' => 'Pembulatan tunai harus Tanpa, 100, atau 500.',
     ],
 
+    'dine_reservations' => [
+        'clash' => 'Meja ini sudah direservasi atas nama :name pada :time. Beri jarak minimal 2 jam.',
+        'not_booked' => 'Reservasi ini sudah ditandai dan tidak bisa diubah lagi.',
+        'required' => 'Wajib diisi.',
+        'invalid_phone' => 'Nomor HP berisi 6 sampai 30 karakter: angka, spasi, +, -, atau tanda kurung.',
+        'invalid_party_size' => 'Jumlah tamu antara 1 dan 100.',
+        'table_unavailable' => 'Meja ini tidak tersedia.',
+        'table_has_booking' => 'Meja ini punya reservasi :name :time — tandai atau batalkan dulu',
+        'clash_at_outlet' => 'Meja ini sudah direservasi outlet :outlet pada :time. Beri jarak minimal 2 jam.',
+        'table_has_booking_at_outlet' => 'Meja ini punya reservasi outlet :outlet pada :time — tandai atau batalkan dulu',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages
