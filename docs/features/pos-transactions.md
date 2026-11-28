@@ -32,6 +32,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - share invoice publik
 - add customer langsung dari POS
 - penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk memakai poin, voucher, atau harga member; pay later (Bayar Belakangan) tidak lagi butuh pelanggan: tamu cukup mengisi catatan minimal 2 karakter
+- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet and do not change any total yet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet).
 
 ## Halaman dan Route
 
@@ -107,6 +108,14 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   public invoice page, thermal receipts, the PDF invoice and receipts and the shipping label. Confirming a transfer takes
   no amount: it only marks the sale paid. The mobile API still returns `grand_total` only.
 - Web POS only; the mobile API does not retry.
+
+## Add-on orders
+
+**Tambah pesanan** on a sale's receipt (`transactions-access`) opens the POS with that order pinned (`?add_on_to=<invoice>`); the checkout then makes a new sale with its own invoice, payment, stock, shift, promotions and points, linked by `transactions.parent_transaction_id` to the root order. The original is never rewritten. Rules (`app/Services/AddOnOrderService.php`, checked again at checkout, under a lock):
+- It needs an open shift in the original order's outlet; a shift closed mid-cart keeps the pinned order.
+- A finished order (the original and every non-cancelled add-on paid, nothing left in the kitchen) starts a new order without a link; otherwise the add-on joins it.
+- A cancelled original (expired and restocked by `transactions:expire`, dine-in order cancelled or rejected, or every line returned) is refused: "Pesanan asal sudah dibatalkan — buat pesanan baru", and its receipt has no button. A `failed` or `expired` payment that was not restocked is not a cancellation: the add-on is allowed and linked.
+- Not available offline or on the mobile API; a queued offline sale carrying `add_on_to` is rejected at sync. Audit log: `transaction.add_on_created`. The add-on's receipt page shows "Tambahan untuk <original invoice>". Schema: migration `2026_12_14_100001` adds `transactions.parent_transaction_id` and `dine_orders.add_on_to_dine_order_id`, both nullable, no backfill.
 
 ## Integrasi Data
 

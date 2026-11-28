@@ -41,6 +41,7 @@ class Transaction extends Model
     protected $fillable = [
         'cashier_id',
         'cashier_shift_id',
+        'parent_transaction_id',
         'warehouse_id',
         'customer_id',
         'invoice',
@@ -73,6 +74,9 @@ class Transaction extends Model
         'bank_account_id',
         'tax_rate',
         'tax_total',
+        'service_charge',
+        'tax_kind',
+        'tax_base',
         'customer_npwp',
         'price_list_id',
         'discount_approved_by',
@@ -86,6 +90,7 @@ class Transaction extends Model
         'cashier_id' => 'integer',
         'cashier_shift_id' => 'integer',
         'customer_id' => 'integer',
+        'parent_transaction_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'cash' => 'integer',
@@ -100,6 +105,8 @@ class Transaction extends Model
         'bank_account_id' => 'integer',
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
+        'service_charge' => 'integer',
+        'tax_base' => 'integer',
         'discount_approved_at' => 'datetime',
         'payment_attempt' => 'integer',
         'late_superseded_payment_at' => 'datetime',
@@ -135,6 +142,18 @@ class Transaction extends Model
     public function cashierShift()
     {
         return $this->belongsTo(CashierShift::class);
+    }
+
+    /** @return BelongsTo<Transaction, $this> the root order of an add-on sale (#251); null for a normal sale */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_transaction_id');
+    }
+
+    /** The order a sale belongs to: the link always points at the root, so no recursion. */
+    public function orderRootId(): int
+    {
+        return $this->parent_transaction_id ?? $this->id;
     }
 
     /** @return BelongsTo<Warehouse, $this> */

@@ -99,7 +99,8 @@ class DemoDatabaseResetter
                     $dependencies[$parent][] = $table;
                 }
 
-                if ($parent === $table) {
+                // A self-reference that clears or cascades on delete (add-on links) never blocks deleting the whole table.
+                if ($parent === $table && ! in_array($foreignKey['on_delete'], ['set null', 'cascade'], true)) {
                     throw new RuntimeException("Demo reset cannot order self-referencing table [{$table}].");
                 }
             }
