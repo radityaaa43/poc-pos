@@ -1,5 +1,6 @@
 import { test, expect } from '../../support/fixtures.js';
 import { roles } from '../../support/roles.js';
+import { field } from '../../support/inventory.js';
 import { sentWith, setUpPrintDevice } from '../../support/kitchen.js';
 import { fillCart, readQueue } from '../../support/offline-pos.js';
 import { addToCart, finish, openPos, rupiah, total } from '../../support/pos.js';
@@ -58,13 +59,18 @@ test.describe('POS checkout: order name', () => {
         const page = await asRole(cashier);
         await fillCart(page, { title, customer });
         await page.getByLabel('Nama pesanan').fill(orderName);
+        const note = page.getByPlaceholder('Catatan pesanan (opsional)');
+        await note.fill('tanpa es');
+        await page.getByRole('button', { name: 'Bawa Pulang' }).click();
 
         await page.context().setOffline(true);
         await page.getByRole('button', { name: 'Selesaikan Transaksi' }).click();
         await expect.poll(() => readQueue(page)).toHaveLength(1);
         const [queued] = await readQueue(page);
-        expect(queued.data.order_name).toBe(orderName);
+        expect(queued.data).toMatchObject({ order_name: orderName, order_type: 'takeaway', note: 'tanpa es' });
         await expect(page.getByLabel('Nama pesanan')).toHaveValue('');
+        await expect(note).toHaveValue('');
+        await expect(page.getByRole('button', { name: 'Di Tempat' })).toHaveClass(/bg-primary-500/);
 
         await page.context().setOffline(false);
         await expect(page.getByText('1 transaksi offline tersinkronisasi. Page akan dimuat ulang.')).toBeVisible();
@@ -72,6 +78,31 @@ test.describe('POS checkout: order name', () => {
         const display = await asRole(cashier);
         await display.goto('/dashboard/kitchen');
         await expect(display.locator('article', { hasText: invoice }).getByRole('heading', { name: orderName, exact: true })).toBeVisible();
+    });
+
+    test('a pay-later bill is listed under Belum Lunas with its order name', async ({ asRole, arrange, uniq }) => {
+        const title = uniq('Soto');
+        arrange('product', { title, stock: 5 });
+        arrange('paylater.setting', { enabled: 1 });
+        arrange('pos.open-shift', { cash: 100000 });
+        const orderName = uniq('B');
+        const note = uniq('Teras');
+        const page = await asRole(cashier);
+        await openPos(page);
+        await addToCart(page, title);
+        await expect(total(page)).toHaveText(rupiah(10000));
+        await page.getByRole('checkbox').check({ force: true });
+        await field(page, 'Catatan (wajib untuk tamu)').fill(note);
+        await page.getByLabel('Nama pesanan').fill(orderName);
+        const invoice = await finish(page);
+
+        await openPos(page);
+        await page.getByRole('button', { name: /Belum Lunas/ }).click();
+        const row = page.getByTestId('open-bills').getByRole('listitem').filter({ hasText: invoice });
+        await expect(row).toContainText(`${orderName} · ${note} · ${invoice}`);
+        // A fully returned bill leaves the list, so it holds no later step's shift close.
+        arrange('paylater.return', { invoice });
+        arrange('paylater.setting', { enabled: 0 });
     });
 
     test('in English the field, the limit warning and the receipt line are in English', { tag: ['@REQ-009-AC-22'] }, async ({ asRole, arrange, uniq }) => {
@@ -87,7 +118,7 @@ test.describe('POS checkout: order name', () => {
         const input = page.getByLabel('Order name');
         await expect(input).toHaveAttribute('placeholder', 'Name / buzzer number (optional)');
         await input.fill('Buzzer 1234567890123'); // exactly 20 characters
-        await expect(page.getByText('20 characters maximum')).toBeVisible();
+        await expect(page.getByText('Max 20 characters')).toBeVisible();
         await expect(total(page)).toHaveText(rupiah(10000));
         await page.getByRole('button', { name: 'Uang pas' }).click();
         await finish(page);
