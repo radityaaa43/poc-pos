@@ -75,8 +75,8 @@ Since 2026-11-25 the maintainer delegates day-to-day decisions by track:
   that only touch `backlog/`.
 - **The Tech Lead decides the technical track**: architecture, database, implementation, skills and
   tooling, and the pre-review of every developer PR against its plan (maintainer, 2026-11-28).
-- **The Verifier decides whether a ticket is done, and runs the flow**: all technical review (high
-  risk included) and the business review of every PR, merge, the board and its limits, and the flow
+- **The Verifier decides whether a ticket is done, and runs the flow**: reviews every PR, technical
+  and business, high risk included; merges, keeps the board and its limits, and writes the flow
   report (maintainer, 2026-11-28).
 - **Still the maintainer's call**: irreversible or outward-facing actions outside the repo
   (production data, deploys, paid services, credentials, legal), and weakening a CI gate or a Never
@@ -98,9 +98,8 @@ it on the issue.
 | **Backlog** | Business / PM | It meets the business Definition of Ready (below) | Business / PM → Planning |
 | **Planning** | Tech Lead | The plan is a comment on the issue, Effort is set, the plan names the developer, and `ready-for-agent` (or `ready-for-human`) is set | Tech Lead → Todo |
 | **Todo** | Developer | The developer starts on a branch | Developer → In progress |
-| **In progress** | Developer | A PR with `Closes #<n>` is open, CI is green, and the Tech Lead's pre-review against the plan passed | Tech Lead → Technical review |
-| **Technical review** | Verifier | The Verifier's verdict is VERIFIED (high-risk checks included). A `feat` PR or any PR with criteria goes on to Business review; a `Backlog: none` PR is merged from here, after the `Verifier` status | Verifier → Business review ([`handoff.md`](handoff.md) → 3); or merges |
-| **Business review** | Verifier | The Verifier's AC check (`AC check — Business review (verifier)`) is OK, CI is green, and the `Verifier` status is posted on the head commit. On a failed check the card goes back to In progress | Verifier merges |
+| **In progress** | Developer | A PR with `Closes #<n>` is open, and the Tech Lead's pre-review against the plan passed | Tech Lead → Review |
+| **Review** | Verifier | The Verifier reviews technical and business, and the `feat` PR's AC check (`AC check — Review (verifier)`) is OK; CI is green and the `Verifier` status is posted on the head commit. On a failed check the card goes back to In progress | Verifier merges |
 | **Done** | Verifier | — | The *Item closed* workflow; the Verifier checks it, once every review passed and the PR is merged ([`handoff.md`](handoff.md) → 3) |
 
 New issues land in Backlog. Dependencies stay as `Blocked by #<n>` and sub-issues; there is no
@@ -120,7 +119,7 @@ developer's delivery with evidence, and the Verifier's review checklist are in
 **One GitHub login.** While every session uses the same account, the assignee can't tell developers
 apart and GitHub refuses a self-requested review. So the `Builder:` line in the plan names who builds
 it (the assignee still marks the issue as claimed), review is requested by moving the card to
-Technical review, and the Verifier's checklist posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
+Review, and the Verifier's checklist posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
 maintainer). Drop this once each role has its own account.
 
 **Worktrees.** A developer works in their own git worktree with its own `composer install` and
@@ -135,7 +134,7 @@ files.
 **Moving a card**: `gh project item-list 1 --owner radityaaa43 --format json` gives the item IDs, then
 `gh project item-edit --project-id PVT_kwHOA9U6R84BtLzZ --id <item> --field-id
 PVTSSF_lAHOA9U6R84BtLzZzhrWdvw --single-select-option-id <option>`. Status options: Backlog
-`92c46c55`, Planning `a8b028cf`, Todo `bcf512e5`, In progress `beac7de7`, Technical review `d3a2e75a`,
-Business review `5ba4293e`, Done `ba2a9002`. Effort is field `PVTSSF_lAHOA9U6R84BtLzZzhrWmx4`, options low `925e9424`, medium
+`92c46c55`, Planning `a8b028cf`, Todo `bcf512e5`, In progress `beac7de7`, Review `d3a2e75a`,
+Done `ba2a9002`. Effort is field `PVTSSF_lAHOA9U6R84BtLzZzhrWmx4`, options low `925e9424`, medium
 `d05ec75c`, high `6ccd014c`, xhigh `1cfdc60d`, max `98931aeb`. `gh` needs the `project` scope
 (`gh auth refresh -s project`).

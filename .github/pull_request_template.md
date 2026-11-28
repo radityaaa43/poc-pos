@@ -37,4 +37,3 @@ step + what you saw. Format: docs/agents/handoff.md → 2a. -->
 - **Tests added/updated:** <!-- test files, or "none — reason" (e.g. no behavior change) -->
 - **E2E:** <!-- `feat` PRs: tests/e2e/features/<NN-feature>/ added or updated (`npm run e2e:new`), or "none — <reason>". Each Backlog criterion needs a test tagged @REQ-<n>-AC-<n>, or "AC-<n> none — <reason>" here (several: separate with ";"). Other PRs: optional -->
 - **Hotspot files touched:** <!-- which of the hotspot files in AGENTS.md, or "none" -->
-- **CI run:** <!-- link to the green run; unrelated failures linked to their issue -->

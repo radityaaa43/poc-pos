@@ -17,12 +17,10 @@ first-pass review on every PR, so the human reviewer can spend their time on jud
 5. [`GLOSSARY.md`](GLOSSARY.md) for names. Decisions already in `docs/adr/` or settled in the issue
    are not re-litigated in review.
 
-6. **Business acceptance** (`feat` PRs, and any PR whose `Backlog:` line names criteria): after the
-   Verifier's verdict is VERIFIED and the card is in Business review, and before the merge,
-   Business / PM comments on the
-   PR that each criterion on its `Backlog:` line behaves as the issue's *What good looks like* says,
-   or names the criteria that don't. That comment is a check, not an approval; the Verifier's
-   verdict is the approval.
+6. **Business acceptance** (`feat` PRs, and any PR whose `Backlog:` line names criteria): in the
+   Review column, before the merge, the Verifier checks that each criterion on the `Backlog:` line
+   behaves as the issue's *What good looks like* says, or names the criteria that don't. It is part
+   of the verdict; business acceptance stays with the Verifier (owner rule 2026-11-28).
 7. **Evidence and the Requirement & AC checklist**: the PR's `## Evidence` table has a row with
    proof for every Done-when line, every `Backlog:` criterion and every plan item. The Verifier's
    verdict ticks the owner's list (`[TC-n]`) against the Evidence, or, on tickets that predate the

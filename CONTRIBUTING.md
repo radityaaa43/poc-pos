@@ -59,7 +59,7 @@ upstream Git Flow (`development`, `release/*`) is not used here (ADR 0001). Rele
 ## Ownership
 
 Every area of the product has an Owner and backups. The Owner decides scope questions in their
-module, through Business / PM. The Tech Lead pre-reviews developer PRs against their plan, and the Verifier does the technical and business review and merges PRs in every module. When the
+module, through Business / PM. The Tech Lead pre-reviews developer PRs against their plan, and the Verifier reviews PRs (technical and business) and merges them in every module. When the
 Owner is away, ask the Backup.
 
 | Label | Module | Scope | Paths | Owner | Backup |
@@ -74,8 +74,8 @@ Owner is away, ask the Backup.
 
 - **Every issue gets exactly one `module:*` label** at triage: the module whose behavior its
   Done-when changes. Work that spans modules takes the main one and names the others in Background.
-- **Ask for review**: wake the Tech Lead for the pre-review, which moves the card to Technical review
-  (`docs/agents/handoff.md` → 2b); the Verifier then reviews. While every session shares
+- **Ask for review**: wake the Tech Lead for the pre-review, which moves the card to Review
+  (`docs/agents/handoff.md` → 2b); the Verifier then reviews and merges. While every session shares
   one GitHub login (its checklist as a PR comment is the approval), otherwise `gh pr edit <n> --add-reviewer
   <handle>`. A change that also
   touches another module's code mentions that module's Owner in the PR.
@@ -101,9 +101,9 @@ The repo's basic standards are owned by `@radityaaa43`:
 ### Single maintainer
 
 While `@radityaaa43` is the only maintainer, the "another reviewer's approval" for `feat`, `fix` and
-`refactor` PRs is an agent review: run `/code-review` (and optionally `ponytail-review`) on the
-final diff, resolve or answer every finding, and link or paste the result in the PR before merging.
-Add a human reviewer as soon as a second person joins.
+`refactor` PRs is an agent review: for a ticket with Expected size L or larger run `/code-review`
+(and optionally `ponytail-review`) on the final diff, resolve or answer every finding, and paste the
+result in the PR; the Verifier's review covers XS, S and M. Add a human reviewer as soon as a second person joins.
 
 **A PR over 2000 counted lines is merged by the maintainer, by hand.** The Claude Code guard hook
 refuses `gh pr merge` on such a PR unless someone other than its author approved it, and an agent
