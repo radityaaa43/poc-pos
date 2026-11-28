@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\Warehouse;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
+use App\Support\Kitchen\KitchenOrderGroups;
 use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -32,7 +33,7 @@ class KitchenController extends Controller
             : collect();
 
         return Inertia::render('Dashboard/Kitchen/Index', [
-            'orders' => KitchenOrders::fromItems($items),
+            'orders' => KitchenOrderGroups::fromItems($items),
             'outlet' => $outlet?->only('id', 'name'),
             // Active stations only (the model's soft-delete scope); the display filters by them in the browser.
             'stations' => KitchenStation::ordered()->get(['id', 'name', 'is_default']),
@@ -62,7 +63,7 @@ class KitchenController extends Controller
             'station_ids' => ['sometimes', 'array'],
             'station_ids.*' => ['integer'],
         ]);
-        $service->allReady($transaction, $request->user(), $data['station_ids'] ?? null);
+        $service->allReadyOrderGroup($transaction, $request->user(), $data['station_ids'] ?? null);
 
         return back();
     }
@@ -82,7 +83,7 @@ class KitchenController extends Controller
             'station_ids' => ['sometimes', 'array'],
             'station_ids.*' => ['integer'],
         ]);
-        $service->handOverAll($transaction, $request->user(), $data['station_ids'] ?? null);
+        $service->handOverOrderGroup($transaction, $request->user(), $data['station_ids'] ?? null);
 
         return back();
     }
