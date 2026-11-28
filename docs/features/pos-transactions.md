@@ -129,5 +129,4 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 
 - `routes/web/transactions.php`
 - `app/Http/Controllers/Apps/TransactionController.php`
-- `app/Services/CartService.php` (tambah ke keranjang)
 - `resources/js/Pages/Dashboard/Transactions`
