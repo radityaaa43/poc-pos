@@ -7,7 +7,6 @@ use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
-use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
@@ -19,7 +18,7 @@ use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
-use App\Services\StockMutationService;
+use App\Services\SalesReturnRestockService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +34,6 @@ use Inertia\Response;
 class SalesReturnController extends Controller
 {
     public function __construct(
-        protected readonly StockMutationService $stockMutationService,
         protected readonly CashierShiftService $cashierShiftService,
         protected readonly AuditLogService $auditLogService,
         protected readonly OutletAccessService $outletAccessService
@@ -255,40 +253,6 @@ class SalesReturnController extends Controller
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
-                // Stock effect is in base units: selling qty x conversion factor.
-                $baseQty = (int) round((int) $item->qty_return * (float) ($detail->conversion_factor ?? 1));
-
-                if ($item->restock_to_inventory && $item->product) {
-                    $product = $item->product()->lockForUpdate()->first();
-
-                    if ($product) {
-                        $stockBefore = (int) $product->stock;
-                        $stockAfter = $stockBefore + $baseQty;
-
-                        $product->update([
-                            'stock' => $stockAfter,
-                        ]);
-
-                        // Restock to transaction warehouse
-                        $transactionWarehouseId = $salesReturn->transaction->warehouse_id;
-                        if ($transactionWarehouseId) {
-                            ProductWarehouse::where([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $transactionWarehouseId,
-                            ])->increment('stock', $baseQty);
-                        }
-
-                        $this->stockMutationService->recordSalesReturnRestock(
-                            product: $product,
-                            salesReturn: $salesReturn,
-                            stockBefore: $stockBefore,
-                            stockAfter: $stockAfter,
-                            reason: $item->return_reason,
-                            userId: $request->user()?->id,
-                        );
-                    }
-                }
-
                 // Reverse margin proportionally: (unit sell - unit cost) x returned qty.
                 $margin = $detail->returnMargin((int) $item->qty_return);
 
@@ -297,6 +261,8 @@ class SalesReturnController extends Controller
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
@@ -699,13 +665,13 @@ class SalesReturnController extends Controller
             ->where('transaction_id', $transactionId)
             ->where('status', 'completed')
             ->when($locking, fn (Builder $query) => $query->lockForUpdate())
-            ->pluck('id')
-            // Not in SQL: `id != ?` made MySQL scan by primary key and lock the draft of a waiting completion (deadlock).
-            ->diff([$excludeSalesReturnId]);
+            ->pluck('id');
 
         return SalesReturnItem::query()
             ->selectRaw('transaction_detail_id, COALESCE(SUM(qty_return), 0) as total_qty')
             ->whereIn('sales_return_id', $returnIds)
+            // Excluded here: `id != ?` above made MySQL scan by primary key and lock a waiting completion's draft (deadlock).
+            ->when($excludeSalesReturnId, fn (Builder $query, int $id) => $query->where('sales_return_id', '!=', $id))
             ->when($locking, fn (Builder $query) => $query->lockForUpdate())
             ->groupBy('transaction_detail_id')
             ->pluck('total_qty', 'transaction_detail_id');

@@ -54,6 +54,15 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - `receivables`
 - `stock_mutations`
 
+## Restock
+
+Completing a return puts every line with restock ticked back into the sale's warehouse, in `product_warehouse.stock` and `products.stock` (`SalesReturnRestockService`).
+
+- A plain product gets the returned quantity × conversion factor back, with one stock mutation.
+- A recipe (composite) menu holds no stock: each component gets recipe quantity × returned quantity × conversion factor back, rounded to whole base units per return, with one mutation per component (warehouse stock before and after). The menu's stock is untouched. The same routine restocks a cancelled unpaid sale.
+- The recipe is read at completion, not as it was at the sale.
+- Returns of recipe menus completed before #486 restocked the menu itself and are not corrected (no backfill).
+
 ## Kitchen items
 
 Completing a return (`sales-returns-complete`, web and API, in the return's own transaction) takes the returned lines off the kitchen (`KitchenItemService::cancelForReturn`). A draft touches nothing.
@@ -81,4 +90,5 @@ Completing a return (`sales-returns-complete`, web and API, in the return's own 
 ## File Sentral
 
 - `app/Http/Controllers/Apps/SalesReturnController.php`
+- `app/Services/SalesReturnRestockService.php`
 - `resources/js/Pages/Dashboard/SalesReturns`
