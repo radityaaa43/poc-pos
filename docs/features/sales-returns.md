@@ -26,6 +26,7 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - `sales-returns.show`
 - `sales-returns.update`
 - `sales-returns.complete`
+- API: `POST /api/v1/sales-returns` takes the sale as `transaction_id` in the body, with the same fields as the web form (201 with the draft; 404 for a sale the user cannot access, 422 without `transaction_id`)
 
 ## Permission
 

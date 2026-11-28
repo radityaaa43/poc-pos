@@ -90,13 +90,13 @@ class SalesReturnController extends AppsSalesReturnController
 
     /**
      * POST /api/v1/sales-returns
-     * Create a draft sales return.
+     * Create a draft sales return for the sale in `transaction_id`.
      */
-    public function createReturn(StoreSalesReturnRequest $request, Transaction $transaction): JsonResponse
+    public function createReturn(StoreSalesReturnRequest $request): JsonResponse
     {
         $this->ensureSalesReturnTablesExist();
 
-        $transaction = $this->resolveAccessibleTransaction($request, $transaction->id);
+        $transaction = $this->resolveAccessibleTransaction($request, (int) $request->validated('transaction_id'));
         $payload = $this->prepareDraftPayload($transaction, $request->validated());
 
         $salesReturn = DB::transaction(function () use ($request, $transaction, $payload) {

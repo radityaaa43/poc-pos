@@ -14,6 +14,8 @@ class StoreSalesReturnRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // The web names the sale in the URL, the API in the body.
+            'transaction_id' => [$this->route('transaction') ? 'nullable' : 'required', 'integer'],
             'return_type' => ['required', 'in:refund_cash,store_credit'],
             'notes' => ['nullable', 'string'],
             'items' => ['required', 'array', 'min:1'],
