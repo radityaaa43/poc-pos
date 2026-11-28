@@ -42,7 +42,6 @@ class HandleInertiaRequests extends Middleware
         $stepUpFreshUntil = null;
         $payableAgingSummary = null;
         $receivableAgingSummary = null;
-        $overdueTrend = [];
         $pendingApprovalCount = 0;
         $pendingDineOrdersCount = 0;
         $activeShift = null;
@@ -146,10 +145,6 @@ class HandleInertiaRequests extends Middleware
 
             $payableAgingSummary = $payableAgingService->getAgingSummary($warehouseIds);
             $receivableAgingSummary = $receivableService->getAgingSummary($warehouseIds);
-            // Only the aging report needs the 12-month trend; elsewhere it stays empty (12 aggregate queries).
-            $overdueTrend = request()->routeIs('aging.index')
-                ? $receivableService->overdueTrend($warehouseIds)
-                : [];
 
             $receivableNotifications = $receivableService->scopeQuery(Receivable::query(), $warehouseIds)
                 ->whereNot('status', 'paid')
@@ -289,7 +284,6 @@ class HandleInertiaRequests extends Middleware
             'payableNotifications' => $payableNotifications,
             'payableAgingSummary' => $payableAgingSummary,
             'receivableAgingSummary' => $receivableAgingSummary,
-            'overdueTrend' => $overdueTrend,
             'activeCashierShift' => $activeCashierShift,
             'storeProfile' => $storeProfile,
             'printerSettings' => $printerSettings,
