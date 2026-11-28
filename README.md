@@ -211,6 +211,12 @@ Ingin langsung mencoba dengan data contoh? Jalankan `php artisan seed:demo --for
 
 End-to-end tests (Playwright; `npm run e2e:up`, `npm run test:e2e`, then `npm run e2e:down`): see [`tests/e2e/README.md`](tests/e2e/README.md).
 
+### Time zone
+
+Production and local development run `APP_TIMEZONE=Asia/Jakarta` (set in `.env.example`), so report days and dates are
+WIB. Timestamps are stored in this zone: changing it on a running installation shifts how old rows read. The tests run in
+UTC (pinned in `phpunit.xml`).
+
 ### Queue worker
 
 With `QUEUE_CONNECTION=database` (the default in `.env.example`) a worker must run: `php artisan queue:work --tries=3`
