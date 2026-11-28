@@ -234,6 +234,26 @@ class KitchenIntakeTest extends TestCase
         $this->assertSame('tanpa cabai', KitchenItem::sole()->note);
     }
 
+    public function test_dine_item_note_reaches_the_kitchen_when_the_sale_detail_note_is_null(): void
+    {
+        // Pre-deploy dine sales wrote the note only on the dine item; the sale detail's own note stayed null.
+        $rujak = $this->product('Rujak', flagged: true);
+        $table = DiningTable::create(['name' => 'Meja 9', 'is_active' => true, 'capacity' => 4, 'sort_order' => 0]);
+        $this->post(route('dine-order.store', $table->token), [
+            'items' => [['product_id' => $rujak->id, 'qty' => 2, 'note' => 'tanpa cabai']],
+            'payment_option' => 'pay_at_counter',
+        ])->assertSessionHasNoErrors();
+        $order = DineOrder::firstOrFail();
+        $this->actingAs($this->cashier)->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        TransactionDetail::where('transaction_id', $order->fresh()->transaction_id)->update(['note' => null]);
+        $this->assertNull(TransactionDetail::sole()->note);
+
+        $this->payAtCounter($order->fresh());
+
+        $this->assertSame('tanpa cabai', KitchenItem::sole()->note);
+    }
+
     public function test_pos_line_has_no_kitchen_note(): void
     {
         $this->addToCart($this->product('Nasi goreng', flagged: true));

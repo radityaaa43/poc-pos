@@ -8,7 +8,7 @@ Not in the browser (PHPUnit `DineModifierOrderTest`): the guest submit stores so
 the accept re-resolves at the latest data, writes `note`, `modifier_total`, snapshot rows and a unit price with the
 options; an option gone between submit and accept refuses the accept and leaves the order submitted (BR-3); option recipe
 stock is taken at accept in the same warehouse and transaction (BR-2); a legacy line without options accepts writing none;
-the kitchen item's note comes from its own detail, not a product+unit match, and the `KitchenOrders` read model carries
+the kitchen item's note comes from its own detail, falling back to a product+unit match only when that note is null (a pre-deploy sale), and the `KitchenOrders` read model carries
 the option names in snapshot order (free options included). Vitest covers the QR picker and cart (`DineMenu`), the
 kitchen card (`OrderCard`) and the ticket wrapping at 32/48 characters (`escpos`).
 
