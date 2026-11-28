@@ -80,13 +80,16 @@ describe("Opname variance by month", () => {
         expect(screen.getByText(/memakai HPP rata-rata hari ini/)).toBeInTheDocument();
     });
 
-    it("switches the phase text and headings to English", async () => {
+    it("switches the phase text, headings and estimate label to English", async () => {
         await i18n.changeLanguage("en");
-        render(<OpnameVarianceByMonth variance={variance()} />);
+        const data = variance();
+        data.months[2] = { ...data.months[2], estimated: true };
+        render(<OpnameVarianceByMonth variance={data} />);
 
         const en = screen.getByRole("region", { name: "Opname variance by month" });
         expect(within(en).getByRole("row", { name: /March 2026/ })).toHaveTextContent("Before");
         expect(within(en).getByRole("row", { name: /May 2026/ })).toHaveTextContent("After");
         expect(within(en).getByRole("row", { name: /May 2026/ })).toHaveTextContent("Waste recording started");
+        expect(within(en).getByRole("row", { name: /May 2026/ })).toHaveTextContent("Estimated");
     });
 });
