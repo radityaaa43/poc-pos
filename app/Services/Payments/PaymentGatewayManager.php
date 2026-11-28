@@ -41,6 +41,20 @@ class PaymentGatewayManager
     }
 
     /**
+     * Ask the gateway holding a charge to expire it. Midtrans knows it by the order id (or its page), Xendit by its invoice id.
+     *
+     * @return string expired, not_pending, not_found, transient or permanent
+     */
+    public function expireCharge(string $gateway, PaymentSetting $setting, string $orderId, ?string $reference, ?string $pageUrl = null): string
+    {
+        return match ($gateway) {
+            PaymentSetting::GATEWAY_MIDTRANS => $this->midtransGateway->expireCharge($setting->midtransConfig(), $orderId, $pageUrl),
+            PaymentSetting::GATEWAY_XENDIT => $reference ? $this->xenditGateway->expireInvoice($setting->xenditConfig(), $reference) : 'permanent',
+            default => 'permanent',
+        };
+    }
+
+    /**
      * Charge a single tender. For split payments the gateway amount must be
      * the tender amount and the orderId unique per transaction+tender, so
      * gateway webhooks don't flip the whole transaction paid.

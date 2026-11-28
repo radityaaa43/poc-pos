@@ -45,6 +45,8 @@ trait MakesDineBills
 
         $this->flagged = $this->makeProduct('Rujak', 'FLAG', 10000, $category, true);
         $this->plain = $this->makeProduct('Air', 'PLAIN', 5000, $category, false);
+
+        Http::preventStrayRequests(); // a superseded charge is expired on the sync queue: never at a real gateway
     }
 
     private function makeProduct(string $title, string $code, int $price, Category $category, bool $needsPreparation): Product
@@ -91,6 +93,8 @@ trait MakesDineBills
 
         if ($fakeHttp) {
             Http::fake([
+                'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '407'], 200), // expiry
+                'api.xendit.co/invoices/*' => Http::response(['status' => 'EXPIRED'], 200), // expiry
                 'app.sandbox.midtrans.com/*' => Http::response(['token' => 'tok', 'redirect_url' => 'https://pay.test/midtrans', 'qr_string' => '000201MIDTRANS'], 201),
                 'api.xendit.co/*' => Http::response(['id' => 'xnd-1', 'invoice_url' => 'https://pay.test/xendit', 'qr_string' => '000201XENDIT'], 200),
             ]);

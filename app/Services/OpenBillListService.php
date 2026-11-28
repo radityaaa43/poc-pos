@@ -27,6 +27,8 @@ class OpenBillListService
             ->with('dineOrder:id,transaction_id,dine_table_id,status', 'dineOrder.table:id,name')
             // 1 or null: lets isAwaitingGuestPayment() answer without a query per row
             ->addSelect(['tenders_exists' => TransactionTender::query()->selectRaw('1')->whereColumn('transaction_tenders.transaction_id', 'transactions.id')->limit(1)])
+            // 1 or null: the request died before storing the charge, so there is no QR to show and the row offers Bayar
+            ->addSelect(['abandoned_claim' => TransactionTender::query()->abandonedClaim()->selectRaw('1')->whereColumn('transaction_tenders.transaction_id', 'transactions.id')->limit(1)])
             ->addSelect(['customer_name' => Customer::select('name')->whereColumn('customers.id', 'transactions.customer_id')->limit(1)])
             ->withSum(['salesReturns' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount')
             ->oldest()
@@ -40,7 +42,7 @@ class OpenBillListService
                 'grand_total' => (int) $bill->grand_total,
                 'amount' => max(0, (int) $bill->grand_total - (int) $bill->getAttribute('sales_returns_sum_total_return_amount')),
                 'order_status' => $bill->dineOrder?->status,
-                'pending' => $bill->payment_status === 'pending',
+                'pending' => $bill->payment_status === 'pending' && ! $bill->getAttribute('abandoned_claim'),
                 // Dine-in only: taking over is DineOrderService::pay, and a pay-later POS sale has no guest charge.
                 'awaiting_online' => $bill->dineOrder !== null && $bill->isAwaitingGuestPayment(),
                 'late_payment' => $bill->late_superseded_payment_at !== null,
