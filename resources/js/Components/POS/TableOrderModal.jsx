@@ -69,9 +69,10 @@ export default function TableOrderModal({ carts }) {
         return true;
     };
 
-    // Statuses move while the POS stays open, so every opening asks again.
+    // Statuses and the cart total move while the POS stays open: every opening asks again and shows nothing older.
     const open = () => {
         if (refusedOffline()) return;
+        setList(null);
         setTableId(null);
         setAddOnId(null);
         setPayment("pay_at_counter");

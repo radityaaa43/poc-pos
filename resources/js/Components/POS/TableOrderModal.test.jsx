@@ -78,6 +78,17 @@ describe("TableOrderModal", () => {
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
+    it("asks again on every opening, so the total is the current one", async () => {
+        render(<TableOrderModal carts={carts} />);
+        const button = await screen.findByRole("button", { name: "Pesanan meja" });
+        answer({ cartTotal: 30000 });
+
+        await userEvent.click(button);
+        await pick("Meja 1");
+
+        expect(screen.getByText(/30\.000/)).toBeInTheDocument();
+    });
+
     it("adds to a running order and offers pay later when the outlet has it", async () => {
         answer({ payLaterEnabled: true });
         await open();
