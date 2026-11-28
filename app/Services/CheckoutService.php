@@ -30,6 +30,7 @@ class CheckoutService
         private readonly KitchenIntakeService $kitchenIntake,
         private readonly CustomerCreditService $customerCredit,
         private readonly AddOnOrderService $addOnOrderService,
+        private readonly ProfitLedgerService $profitLedger,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
@@ -82,7 +83,8 @@ class CheckoutService
             $appliedManualDiscount = (int) data_get($checkoutPreview, 'summary.manual_discount_total', 0);
             $loyaltyDiscount = (int) data_get($checkoutPreview, 'summary.loyalty_discount_total', 0);
             $voucherDiscount = (int) data_get($checkoutPreview, 'summary.voucher_discount_total', 0);
-            $subtotalAfterPromo = (int) data_get($pricingPreview, 'summary.subtotal_after_promo', 0);
+            // Every bill-level discount, so the profit ledger nets all of them (#570 BR-2); promotions are in the line price.
+            $billDiscount = $appliedManualDiscount + $loyaltyDiscount + $voucherDiscount;
 
             if ($ctx->isCashPayment && $ctx->cashAmount < $grandTotal) {
                 throw ValidationException::withMessages([
@@ -149,7 +151,7 @@ class CheckoutService
                 $this->addOnOrderService->record($transaction);
             }
 
-            $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
+            $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $billDiscount, $activeShift->warehouse_id, $ctx->userId);
 
             // The sale is created already paid, before its lines exist, so the Transaction `updated` hook never sees it.
             // Money first: a kitchen-intake failure is reported, never allowed to undo a payment.
@@ -203,12 +205,12 @@ class CheckoutService
         $carts,
         array $pricingPreview,
         $outlet,
-        int $subtotalAfterPromo,
-        int $appliedManualDiscount,
+        int $billDiscount,
         ?int $warehouseId,
         int $userId,
     ): void {
         $pricingItems = collect($pricingPreview['items']);
+        $profitLines = [];
 
         foreach ($carts as $cart) {
             $pricingItem = $pricingItems->firstWhere('cart_id', $cart->id);
@@ -247,15 +249,11 @@ class CheckoutService
                 'pricing_group_label' => data_get($pricingItem, 'pricing_group_label'),
             ]);
 
-            $lineShare = $subtotalAfterPromo > 0 ? $lineTotal / $subtotalAfterPromo : 0;
-            $allocatedManualDiscount = (int) round($appliedManualDiscount * $lineShare);
-            $netSellPrice = max(0, $lineTotal - $allocatedManualDiscount);
-            $profits = $netSellPrice - $costTotal;
-
-            $transaction->profits()->create([
-                'transaction_id' => $transaction->id,
-                'total' => $profits,
-            ]);
+            $profitLines[] = [
+                'price' => $lineTotal,
+                'cost_total' => $costTotal,
+                'included_ppn' => $this->profitLedger->includedPpn($product, $lineTotal, $outlet),
+            ];
 
             if ($product->is_composite) {
                 $product->load('components');
@@ -365,5 +363,8 @@ class CheckoutService
                 }
             }
         }
+
+        // One builder for checkout and a denied discount (BR-6); cumulative shares keep the rows exact to the rupiah.
+        $this->profitLedger->writeRows($transaction, $profitLines);
     }
 }

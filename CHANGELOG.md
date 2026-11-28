@@ -13,6 +13,7 @@ All notable application releases are listed here. Git tags using the same
 
 ### Changed
 
+- **A sale's profit is net of every discount**: the profit ledger now takes off vouchers, redeemed points and the PPN a price already includes as well as the manual discount (promotions were already inside the line price), and denying a manual discount rebuilds the sale's rows from the restored bill. Sales recorded before this release keep the profit they recorded. `ProfitLedgerService`, `#570`.
 - **Email verification disabled**: `User` no longer implements `MustVerifyEmail`; the `verified` middleware, verification routes/controllers, and `Auth/VerifyEmail` page are removed. The setup wizard and public registration now land users directly on the dashboard. `markEmailAsVerified()` remains available via the retained trait for seeders/tests.
 - `DineInSettingsSeeder` now sets `dine_in_pay_online_enabled = 0` to match the enforced behavior (only `pay_at_counter` is accepted).
 - `seed:demo` and `DemoSeeder` output now lists all three demo accounts with role and outlet scope.

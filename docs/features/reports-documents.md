@@ -75,6 +75,13 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 
 Laporan profit menampilkan **Biaya waste** sebagai baris sendiri dan **Profit setelah waste** (profit penjualan dikurangi biaya waste), dihitung dari `stock_wastes` yang berstatus `recorded`/`cancelled` pada `recorded_at` di periode itu, dikurangi nilai yang dibatalkan pada `cancelled_at` di periode itu. Jadi pembatalan mengurangi periodenya sendiri; `pending` dan `rejected` tidak pernah dihitung. Nilai waste tidak masuk ke HPP penjualan: `profit_total` dan `margin` tetap penjualan saja. Kedua baris disembunyikan (dengan catatan penjelasan) saat filter faktur, kasir atau pelanggan aktif, karena waste tidak punya ketiganya. Nilainya juga ada di `GET /api/v1/reports/profits` (`summary.waste_cost_total`, `summary.profit_after_waste`).
 
+### How a sale's profit is worked out
+
+One `profits` row per sale line, written at checkout by `ProfitLedgerService`: the line's price, less its share of every bill-level discount (manual, redeemed points, voucher) and less the PPN its price includes, less its frozen HPP. A promotion is already inside the line price, so it is never taken off twice; service charge, tax on top (PB1, exclusive PPN) and shipping are added to the bill but are not revenue, so they never enter profit. The shares use cumulative rounding, so the rows add up to the sale's net revenue less HPP to the rupiah. Denying a manual discount restores the bill and rebuilds the rows; approving keeps them.
+
+This is forward only: sales recorded before this rule keep their stored profit, so a voucher or points sale from before it still shows the overstatement it recorded. The report has no before/after marker.
+
+
 **Laporan Waste** (`reports.waste.index`, menu Reports, permission `profits-access`) menampilkan satu outlet dan satu periode (default bulan berjalan di zona waktu aplikasi): total biaya waste, jumlah dan nilai per item (menu tampil sebagai menu, nilainya dari harga pokok bahan resep) dan jumlah catatan serta nilai per alasan. Pembatalan mengurangi nilainya; sebuah item yang bersih nol pada periode itu tidak ditampilkan.
 
 ## Efek Bisnis Penting
