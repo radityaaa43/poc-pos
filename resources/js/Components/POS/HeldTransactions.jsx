@@ -19,6 +19,9 @@ const formatPrice = (value = 0) =>
         minimumFractionDigits: 0,
     });
 
+// Parked for a credit exception (REQ-007 J4): untouchable while an approver decides.
+const awaiting = (hold) => hold.credit_status === "pending";
+
 /**
  * HeldTransactions - Compact badge with expandable panel
  * Takes minimal space when collapsed, expands to show list with max height
@@ -135,68 +138,63 @@ export default function HeldTransactions({
 
             {/* List with max height - won't take over cart space */}
             <div className="max-h-[140px] overflow-y-auto">
-                {heldCarts.map((hold) => {
-                    // Parked for a credit exception (REQ-007 J4): untouchable while an approver decides.
-                    const awaiting = hold.credit_status === "pending";
-
-                    return (
-                        <div
-                            key={hold.hold_id}
-                            className="px-3 py-2 border-b border-amber-100/50 dark:border-amber-900/30 last:border-0 flex items-center justify-between gap-2"
-                        >
-                            <div className="flex-1 min-w-0">
-                                {hold.credit_status ? (
-                                    <p className="flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
-                                        <IconAlertTriangle size={12} className="shrink-0" aria-hidden="true" />
-                                        {t(awaiting ? "pos.credit.awaiting" : "pos.credit.denied")}
-                                    </p>
-                                ) : (
-                                    <p className="text-xs font-medium text-amber-800 dark:text-amber-200 truncate">
-                                        {hold.label}
-                                    </p>
-                                )}
-                                {hold.credit_status === "denied" && (
-                                    <p className="text-xs text-amber-800 dark:text-amber-200 break-words">{hold.credit_note}</p>
-                                )}
-                                <p className="text-xs text-amber-600 dark:text-amber-400">
-                                    {hold.items_count} item •{" "}
-                                    {formatPrice(hold.total)}
+                {heldCarts.map((hold) => (
+                    <div
+                        key={hold.hold_id}
+                        className="px-3 py-2 border-b border-amber-100/50 dark:border-amber-900/30 last:border-0 flex items-center justify-between gap-2"
+                    >
+                        <div className="flex-1 min-w-0">
+                            {hold.credit_status ? (
+                                <p className="flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                    <IconAlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+                                    {t(awaiting(hold) ? "pos.credit.awaiting" : "pos.credit.denied")}
                                 </p>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <button
-                                    onClick={() => handleResume(hold.hold_id)}
-                                    disabled={
-                                        awaiting || resumingId === hold.hold_id || hasActiveCart
-                                    }
-                                    className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1"
-                                    title={
-                                        awaiting
-                                            ? t("pos.credit.awaiting")
-                                            : hasActiveCart
-                                              ? "Kosongkan keranjang dulu"
-                                              : "Lanjutkan"
-                                    }
-                                >
-                                    {resumingId === hold.hold_id ? (
-                                        <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <IconPlayerPlay size={12} />
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => handleDelete(hold.hold_id)}
-                                    disabled={awaiting || deletingId === hold.hold_id}
-                                    aria-label="Hapus transaksi ditahan"
-                                    title="Hapus transaksi ditahan"
-                                    className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-600 disabled:opacity-50"
-                                >
-                                    <IconTrash size={12} />
-                                </button>
-                            </div>
+                            ) : (
+                                <p className="text-xs font-medium text-amber-800 dark:text-amber-200 truncate">
+                                    {hold.label}
+                                </p>
+                            )}
+                            {hold.credit_status === "denied" && (
+                                <p className="text-xs text-amber-800 dark:text-amber-200 break-words">{hold.credit_note}</p>
+                            )}
+                            <p className="text-xs text-amber-600 dark:text-amber-400">
+                                {hold.items_count} item •{" "}
+                                {formatPrice(hold.total)}
+                            </p>
                         </div>
-                    );
-                })}
+                        <div className="flex items-center gap-1">
+                            <button
+                                onClick={() => handleResume(hold.hold_id)}
+                                disabled={
+                                    awaiting(hold) || resumingId === hold.hold_id || hasActiveCart
+                                }
+                                className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1"
+                                title={
+                                    awaiting(hold)
+                                        ? t("pos.credit.awaiting")
+                                        : hasActiveCart
+                                          ? "Kosongkan keranjang dulu"
+                                          : "Lanjutkan"
+                                }
+                            >
+                                {resumingId === hold.hold_id ? (
+                                    <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <IconPlayerPlay size={12} />
+                                )}
+                            </button>
+                            <button
+                                onClick={() => handleDelete(hold.hold_id)}
+                                disabled={awaiting(hold) || deletingId === hold.hold_id}
+                                aria-label="Hapus transaksi ditahan"
+                                title="Hapus transaksi ditahan"
+                                className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-600 disabled:opacity-50"
+                            >
+                                <IconTrash size={12} />
+                            </button>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );
