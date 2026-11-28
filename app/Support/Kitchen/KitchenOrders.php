@@ -10,7 +10,7 @@ class KitchenOrders
 {
     /** Relations fromItems() reads, with only the columns it needs (no prices). */
     public const RELATIONS = [
-        'transaction:id,invoice,order_type,payment_status,created_at',
+        'transaction:id,invoice,order_type,payment_status,created_at,parent_transaction_id',
         'transaction.dineOrder:id,transaction_id,dine_table_id',
         'transaction.dineOrder.table:id,name',
         'transaction.parent:id,invoice', // an add-on is named after its original (#314)
