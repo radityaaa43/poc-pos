@@ -228,6 +228,7 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
   dine-in dibatalkan atau ditolak, penjualan dibatalkan dan stoknya dikembalikan (kedaluwarsa atau
   tutup shift), atau diretur penuh. Pembayaran yang gagal atau kedaluwarsa pada tagihan yang masih
   bisa dibayar tidak termasuk batal (koreksi 2026-11-28, #251 BR-12 dan BR-13).
+- **Keputusan saat build (Business/PM, 2026-11-28):** catatan tutup paksa wajib hanya bila menimpa hold (#242 BR-5). AC-27 untuk dine-in: tagihan dine-in milik shift yang menerimanya sampai ada pembayaran, lalu milik shift yang menerima pembayaran (#242 BR-19). Penjualan Bayar Belakangan yang belum dibayar tanpa piutang tidak dihitung sebagai penjualan non-tunai (#396 BR-7).
 
 ## Kebutuhan non-fungsional
 

@@ -669,8 +669,8 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                 transaction.receivable && (
                                                     <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
                                                         Jatuh tempo:{" "}
-                                                        {transaction.receivable
-                                                            ?.due_date || "-"}
+                                                        {transaction.receivable.due_date ? new Date(transaction.receivable.due_date)
+                                                            .toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-"}
                                                     </span>
                                                 )}
                                         </div>

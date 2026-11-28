@@ -594,7 +594,8 @@
         "closeBlocked": {
             "title": "Close blocked",
             "item": "Not handed over",
-            "bill": "Unpaid"
+            "bill": "Unpaid",
+            "syncFirst": "Sync offline transactions first"
         },
         "forced": {
             "submit": "Force close",
@@ -1152,7 +1153,12 @@
             "notPrinted": "Not printed",
             "retry": "Try again",
             "unsupported": "This device does not support USB printers",
-            "unsupportedInsecure": "USB printing needs a secure (HTTPS) connection"
+            "unsupportedInsecure": "USB printing needs a secure (HTTPS) connection",
+            "stale": "Kitchen printer offline or tab asleep",
+            "wakeLockOff": "The screen may sleep — keep the device awake",
+            "reprint": "REPRINT",
+            "reprintButton": "Reprint",
+            "reprintFailed": "Reprint failed"
         },
         "actions": {
             "start": "Start",
@@ -1168,6 +1174,11 @@
             "progress": "{{ready}} of {{total}} ready",
             "removed": "The selected station was removed. Showing all stations.",
             "emptyForSelection": "No orders for this station yet"
+        },
+        "pickup": {
+            "title": "Ready for pickup ({{count}})",
+            "all": "Show all ({{count}})",
+            "less": "Show less"
         }
     },
     "pos": {
@@ -1202,6 +1213,11 @@
             "awaitingOnline": "Waiting for online payment",
             "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
             "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
+        },
+        "offlineKitchen": {
+            "notice": "The kitchen has not received this order. Tell the kitchen directly.",
+            "close": "Close",
+            "pending": "Offline orders not received by the kitchen: {{count}}"
         },
         "credit": {
             "limit": "Limit",

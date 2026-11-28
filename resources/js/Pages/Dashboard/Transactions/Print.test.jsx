@@ -44,6 +44,17 @@ describe("Print page", () => {
         asked.forEach((label) => expect(label.nextElementSibling).toHaveTextContent(/Rp\s*20\.000/));
     });
 
+    // #441 BR-1: the server sends the due date as an ISO timestamp.
+    it("shows a credit sale's due date as dd/mm/yyyy, never the raw ISO value", () => {
+        const credit = (due_date) => ({ ...transaction, payment_method: "pay_later", payment_status: "unpaid", receivable: { id: 1, due_date } });
+        const { rerender } = render(<Print transaction={credit("2026-12-05T00:00:00.000000Z")} />);
+
+        expect(screen.getByText(/Jatuh tempo:/)).toHaveTextContent(/^Jatuh tempo: 05\/12\/2026$/);
+
+        rerender(<Print transaction={credit(null)} />);
+        expect(screen.getByText(/Jatuh tempo:/)).toHaveTextContent(/^Jatuh tempo: -$/);
+    });
+
     // #130: the page has no layout, so it has to render its own Toaster.
     it("shows the toast when thermal printing fails", async () => {
         printReceipt.mockRejectedValue(new Error("Printer belum terhubung."));
