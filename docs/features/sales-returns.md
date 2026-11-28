@@ -51,7 +51,7 @@ Di API, kemampuan token sama dengan izin web: baca `sales-returns-access`, form/
 
 `total_return_amount` = nilai item yang diretur + `service_refunded` + `tax_refunded`. Refund tunai, saldo toko, penurunan piutang, sisa tagihan (`remainingTotal()`), daftar open bill, dan rekap shift semuanya membaca nilai ini.
 
-- Service charge dan pajak dibagi proporsional terhadap nilai item yang diretur, dengan pembulatan kumulatif bilangan bulat: bagian dari seluruh retur satu penjualan berjumlah tepat sebesar yang pernah ditagih, tidak pernah lebih, dan retur terakhir menanggung sisa pembulatan.
+- Service charge dan pajak dibagi proporsional terhadap nilai item yang diretur, dengan pembulatan kumulatif bilangan bulat: bagian dari seluruh retur satu penjualan berjumlah tepat sebesar yang pernah ditagih dan retur terakhir menanggung sisa pembulatan. Karena harga baris masih sebelum diskon, bagian ini dibatasi agar total retur tidak pernah melebihi yang dibayar pembeli (`grand_total` dikurangi ongkir dan pajaknya).
 - Pajak yang dikembalikan tidak termasuk PPN atas ongkos kirim (ongkir bukan baris item). PB1 tidak mengenakan pajak pada ongkir.
 - Penjualan sebelum rilis (`tax_kind` null) dibaca sebagai PPN tanpa service charge, jadi hanya pajaknya yang dikembalikan (BR-2). Retur yang sudah selesai sebelum rilis tidak pernah dihitung ulang dan tetap bernilai item saja.
 - Pembulatan tunai (`cash_rounding`) tidak pernah dikembalikan.

@@ -74,6 +74,13 @@ export default function SalesReturnForm({
         const itemMap = new Map(
             form.data.items.map((item) => [item.transaction_detail_id, item])
         );
+        const storedItems = new Map(
+            (salesReturn?.items ?? []).map((item) => [
+                item.transaction_detail_id,
+                item,
+            ])
+        );
+        const completed = salesReturn?.status === "completed";
 
         return transaction.details.map((detail) => {
             const current = itemMap.get(detail.id) ?? {
@@ -86,8 +93,12 @@ export default function SalesReturnForm({
             const share = (units) =>
                 Math.round((Number(detail.price || 0) * units) / Math.max(1, detail.qty));
             const returnedBefore = Number(detail.returned_completed_qty || 0);
+            const storedItem = storedItems.get(detail.id);
+            // A completed return shows the items and shares stored at completion, not a live recomputation.
             const subtotal =
-                share(returnedBefore + qtyReturn) - share(returnedBefore);
+                completed && storedItem
+                    ? Number(storedItem.subtotal || 0)
+                    : share(returnedBefore + qtyReturn) - share(returnedBefore);
 
             return {
                 ...detail,
@@ -97,7 +108,7 @@ export default function SalesReturnForm({
                 subtotal,
             };
         });
-    }, [form.data.items, transaction.details]);
+    }, [form.data.items, transaction.details, salesReturn]);
 
     const summary = useMemo(() => {
         const selectedItems = itemStates.filter((item) => item.qty_return > 0);
@@ -105,7 +116,7 @@ export default function SalesReturnForm({
             (carry, item) => carry + item.qty_return,
             0
         );
-        const totalAmount = selectedItems.reduce(
+        const computedAmount = selectedItems.reduce(
             (carry, item) => carry + item.subtotal,
             0
         );
@@ -115,29 +126,63 @@ export default function SalesReturnForm({
             0
         );
 
+        // A completed return shows the amounts stored at completion, not a share recomputed from the sale today.
+        const isCompleted = salesReturn?.status === "completed";
+        const totalAmount = isCompleted
+            ? Number(salesReturn.total_return_amount || 0) -
+              Number(salesReturn.service_refunded || 0) -
+              Number(salesReturn.tax_refunded || 0)
+            : computedAmount;
+
         // Shares the sale's service charge and tax like ReturnBillShareService: cumulative round-half-up, so the
         // returns of one sale add up to what it charged. Null bill_share (an older server payload) shows no rows.
         const billShare = transaction.bill_share ?? null;
         const base = Number(billShare?.base || 0);
         const returnedValue = Number(billShare?.returned_value || 0);
-        const returnedBefore = Math.min(base, returnedValue);
-        const cumulative = Math.min(base, returnedBefore + totalAmount);
-        const shareOf = (total, at) =>
-            base > 0 ? Math.floor((2 * total * at + base) / (2 * base)) : 0;
-        const serviceShare = billShare
-            ? shareOf(Number(billShare.service_charge || 0), cumulative) -
-              shareOf(Number(billShare.service_charge || 0), returnedBefore)
-            : 0;
-        const taxShare = billShare
-            ? shareOf(Number(billShare.refundable_tax || 0), cumulative) -
-              shareOf(Number(billShare.refundable_tax || 0), returnedBefore)
-            : 0;
-        const grossAmount = totalAmount + serviceShare + taxShare;
+
+        let serviceShare = 0;
+        let taxShare = 0;
+        if (isCompleted) {
+            serviceShare = Number(salesReturn.service_refunded || 0);
+            taxShare = Number(salesReturn.tax_refunded || 0);
+        } else if (billShare) {
+            const returnedBefore = Math.min(base, returnedValue);
+            const cumulative = Math.min(base, returnedBefore + totalAmount);
+            const shareOf = (total, at) =>
+                base > 0 ? Math.floor((2 * total * at + base) / (2 * base)) : 0;
+            serviceShare =
+                shareOf(Number(billShare.service_charge || 0), cumulative) -
+                shareOf(Number(billShare.service_charge || 0), returnedBefore);
+            taxShare =
+                shareOf(Number(billShare.refundable_tax || 0), cumulative) -
+                shareOf(Number(billShare.refundable_tax || 0), returnedBefore);
+            // Items refund at pre-discount line prices, so cap the share at what is left of the paid amount.
+            if (billShare.paid != null) {
+                const cap = Math.max(
+                    0,
+                    Number(billShare.paid || 0) -
+                        Number(billShare.returned_total || 0) -
+                        totalAmount
+                );
+                if (serviceShare + taxShare > cap) {
+                    serviceShare = Math.min(serviceShare, cap);
+                    taxShare = Math.min(taxShare, cap - serviceShare);
+                }
+            }
+        }
+        const grossAmount = isCompleted
+            ? Number(salesReturn.total_return_amount || 0)
+            : totalAmount + serviceShare + taxShare;
 
         let receivableAfter = null;
         let settlementAmount = 0;
 
-        if (
+        if (isCompleted) {
+            // The stored return already lowered the receivable; show its current total, do not subtract again.
+            receivableAfter = transaction.receivable
+                ? Number(transaction.receivable.total || 0)
+                : null;
+        } else if (
             transaction.payment_method === "pay_later" &&
             transaction.receivable
         ) {
@@ -165,14 +210,21 @@ export default function SalesReturnForm({
             serviceShare,
             taxShare,
             grossAmount,
-            hasBillShare:
-                Boolean(billShare) && (serviceShare !== 0 || taxShare !== 0),
+            hasBillShare: isCompleted
+                ? serviceShare !== 0 || taxShare !== 0
+                : Boolean(billShare) && (serviceShare !== 0 || taxShare !== 0),
             restockQty,
             receivableAfter,
-            refundAmount:
-                effectiveReturnType === "refund_cash" ? settlementAmount : 0,
-            creditedAmount:
-                effectiveReturnType === "store_credit" ? settlementAmount : 0,
+            refundAmount: isCompleted
+                ? Number(salesReturn.refund_amount || 0)
+                : effectiveReturnType === "refund_cash"
+                  ? settlementAmount
+                  : 0,
+            creditedAmount: isCompleted
+                ? Number(salesReturn.credited_amount || 0)
+                : effectiveReturnType === "store_credit"
+                  ? settlementAmount
+                  : 0,
             hasSelectedItems: selectedItems.length > 0,
         };
     }, [
@@ -183,6 +235,7 @@ export default function SalesReturnForm({
         transaction.payment_status,
         transaction.receivable,
         transaction.bill_share,
+        salesReturn,
     ]);
 
     const updateItem = (transactionDetailId, key, value) => {
@@ -289,7 +342,7 @@ export default function SalesReturnForm({
                     />
                     <InfoCard
                         label="Nominal Retur"
-                        value={formatCurrency(summary.totalAmount)}
+                        value={formatCurrency(summary.grossAmount)}
                     />
                 </div>
 

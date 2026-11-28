@@ -4,19 +4,20 @@ namespace App\Services;
 
 use App\Models\SalesReturn;
 use App\Models\Transaction;
+use Illuminate\Support\Collection;
 
 /**
  * What a return gives back of a sale's service charge and tax, in proportion to the item value returned (REQ-010
- * AC-10). Cumulative integer rounding: the shares of all returns of a sale add up to exactly what it charged, and the
- * last return takes the remainder. Cash rounding is never part of it.
+ * AC-10). Cumulative integer rounding: the shares of all returns of a sale add up to what it charged, and the last
+ * return takes the remainder. Cash rounding is never part of it, and no return refunds more than the sale took.
  */
 class ReturnBillShareService
 {
     /**
-     * The sale's figures a return shares out, plus the item value its completed returns already returned (their item
-     * part, excluding $exceptReturnId).
+     * The sale's figures a return shares out, plus the item value and the full total its completed returns already
+     * gave back (excluding $exceptReturnId), and what the sale actually took.
      *
-     * @return array{base:int, service_charge:int, refundable_tax:int, returned_value:int}
+     * @return array{base:int, service_charge:int, refundable_tax:int, returned_value:int, returned_total:int, paid:int}
      */
     public function billShare(Transaction $sale, ?int $exceptReturnId = null, bool $lock = false): array
     {
@@ -25,11 +26,20 @@ class ReturnBillShareService
         // A pre-release sale (tax_kind null) is treated as PPN with no service charge (BR-2/A1).
         $service = $sale->tax_kind === null ? 0 : max(0, (int) $sale->service_charge);
 
+        $completed = $this->completedReturns($sale, $exceptReturnId, $lock);
+
         return [
             'base' => $base,
             'service_charge' => $service,
             'refundable_tax' => $this->refundableTax($sale),
-            'returned_value' => min($base, max(0, $this->returnedItemValue($sale, $exceptReturnId, $lock))),
+            'returned_value' => min($base, max(0, (int) $completed->sum(
+                fn (SalesReturn $return) => (int) $return->total_return_amount
+                    - (int) $return->service_refunded
+                    - (int) $return->tax_refunded
+            ))),
+            'returned_total' => (int) $completed->sum(fn (SalesReturn $return) => (int) $return->total_return_amount),
+            // What the sale actually took: shipping and its tax are never refunded.
+            'paid' => max(0, (int) $sale->grand_total - (int) $sale->shipping_cost - $this->shippingTax($sale)),
         ];
     }
 
@@ -51,10 +61,18 @@ class ReturnBillShareService
         $from = $bill['returned_value'];
         $to = min($base, $from + max(0, $itemValue));
 
-        return [
-            'service_refunded' => $this->share($bill['service_charge'], $to, $base) - $this->share($bill['service_charge'], $from, $base),
-            'tax_refunded' => $this->share($bill['refundable_tax'], $to, $base) - $this->share($bill['refundable_tax'], $from, $base),
-        ];
+        $service = $this->share($bill['service_charge'], $to, $base) - $this->share($bill['service_charge'], $from, $base);
+        $tax = $this->share($bill['refundable_tax'], $to, $base) - $this->share($bill['refundable_tax'], $from, $base);
+
+        // Items refund at pre-discount line prices, so a discounted sale can already give back more than it took. Cap
+        // the share at what is left of the paid amount after the completed returns and this item value.
+        $cap = max(0, $bill['paid'] - $bill['returned_total'] - max(0, $itemValue));
+        if ($service + $tax > $cap) {
+            $service = min($service, $cap);
+            $tax = min($tax, $cap - $service);
+        }
+
+        return ['service_refunded' => $service, 'tax_refunded' => $tax];
     }
 
     /** Round half up of $total x $cumulative / $base, integer only: the rule TransactionDetail::returnAmount uses. */
@@ -69,39 +87,36 @@ class ReturnBillShareService
      */
     private function refundableTax(Transaction $sale): int
     {
-        $tax = max(0, (int) $sale->tax_total);
+        return max(0, max(0, (int) $sale->tax_total) - $this->shippingTax($sale));
+    }
 
-        if ($tax < 1) {
+    /** PPN on shipping, or 0 when no tax was charged or PB1 never taxes shipping. */
+    private function shippingTax(Transaction $sale): int
+    {
+        if ((int) $sale->tax_total < 1 || $sale->tax_kind === 'pb1' || (int) $sale->shipping_cost < 1) {
             return 0;
         }
 
-        $shippingTax = 0;
-        if ($sale->tax_kind !== 'pb1' && (int) $sale->shipping_cost > 0) {
-            $shippingTax = (int) round((int) $sale->shipping_cost * (float) $sale->tax_rate / 100);
-        }
-
-        return max(0, $tax - $shippingTax);
+        return (int) round((int) $sale->shipping_cost * (float) $sale->tax_rate / 100);
     }
 
     /**
-     * The item value of the sale's completed returns, excluding $exceptReturnId. A completed return's item part is its
-     * total less the shares it already refunded, so an old items-only return counts in full (BR-1).
+     * The sale's completed returns, excluding $exceptReturnId. When locking, the id is filtered in PHP: a
+     * `where id != ?` under FOR UPDATE is the pattern that deadlocked on MySQL (#486).
      */
-    private function returnedItemValue(Transaction $sale, ?int $exceptReturnId, bool $lock): int
+    private function completedReturns(Transaction $sale, ?int $exceptReturnId, bool $lock): Collection
     {
         $query = SalesReturn::query()
             ->where('transaction_id', $sale->id)
-            ->where('status', 'completed')
-            ->when($exceptReturnId, fn ($builder, int $id) => $builder->where('id', '!=', $id));
+            ->where('status', 'completed');
 
         if ($lock) {
             $query->lockForUpdate();
         }
 
-        return (int) $query
-            ->get(['total_return_amount', 'service_refunded', 'tax_refunded'])
-            ->sum(fn (SalesReturn $return) => (int) $return->total_return_amount
-                - (int) $return->service_refunded
-                - (int) $return->tax_refunded);
+        return $query
+            ->get(['id', 'total_return_amount', 'service_refunded', 'tax_refunded'])
+            ->reject(fn (SalesReturn $return) => $exceptReturnId !== null && (int) $return->id === $exceptReturnId)
+            ->values();
     }
 }

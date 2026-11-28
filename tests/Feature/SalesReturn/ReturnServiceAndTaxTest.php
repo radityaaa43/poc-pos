@@ -154,6 +154,45 @@ class ReturnServiceAndTaxTest extends TestCase
         $this->assertNotSame((int) $sale->grand_total, $return->refund_amount);
     }
 
+    public function test_discounted_full_return_never_refunds_above_paid(): void
+    {
+        $user = $this->user();
+        $this->openShiftFor($user);
+        // PB1: line 100.000, voucher 10.000 -> service 4.500, tax 9.450, paid 103.950. Items alone refund 100.000;
+        // the shares are capped at what is left: 103.950 - 100.000 = 3.950 (not the 13.950 charged).
+        [$sale, $details] = $this->makeSale($user, [['price' => 100000, 'qty' => 1]], [
+            'discount' => 10000,
+            'service_charge' => 4500, 'tax_kind' => 'pb1', 'tax_rate' => 10, 'tax_total' => 9450, 'grand_total' => 103950,
+        ]);
+
+        $return = $this->complete($user, $this->draft($user, $sale, [$this->item($details[0], 1)]));
+
+        $this->assertSame(3950, $return->service_refunded + $return->tax_refunded);
+        $this->assertSame(103950, $return->total_return_amount);
+        $this->assertSame(103950, $return->refund_amount);
+        $this->assertSame(0, $sale->fresh()->remainingTotal());
+    }
+
+    public function test_two_partial_returns_of_a_discounted_sale_add_up_to_paid(): void
+    {
+        $user = $this->user();
+        $this->openShiftFor($user);
+        // PB1 with a small voucher: line 100.000 (qty 2), voucher 2.000 -> paid 113.190. Two half returns.
+        [$sale, $details] = $this->makeSale($user, [['price' => 100000, 'qty' => 2]], [
+            'discount' => 2000,
+            'service_charge' => 4900, 'tax_kind' => 'pb1', 'tax_rate' => 10, 'tax_total' => 10290, 'grand_total' => 113190,
+        ]);
+
+        $first = $this->complete($user, $this->draft($user, $sale, [$this->item($details[0], 1)]));
+        $second = $this->complete($user, $this->draft($user, $sale, [$this->item($details[0], 1)]));
+
+        // The first return takes its proportional share; the second is capped so the two never exceed what was paid.
+        $this->assertSame(57595, $first->total_return_amount);
+        $this->assertSame(55595, $second->total_return_amount);
+        $this->assertSame(113190, $first->total_return_amount + $second->total_return_amount);
+        $this->assertSame(0, $sale->fresh()->remainingTotal());
+    }
+
     public function test_pre_release_sale_refunds_tax_but_never_service(): void
     {
         $user = $this->user();
@@ -411,7 +450,7 @@ class ReturnServiceAndTaxTest extends TestCase
             'invoice' => 'TRX-'.Str::upper(Str::random(8)),
             'cash' => $grand,
             'change' => 0,
-            'discount' => 0,
+            'discount' => $bill['discount'] ?? 0,
             'shipping_cost' => $bill['shipping_cost'] ?? 0,
             'service_charge' => $bill['service_charge'] ?? 0,
             'tax_total' => $bill['tax_total'] ?? 0,
