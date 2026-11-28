@@ -379,7 +379,8 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
-  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
+  closed recap did not hold the money (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas), a gateway sale unpaid at close,
+  an unpaid pay-later sale without a receivable or the unreceived part of a split sale; see `cashier-shifts.md`).
 - **What the cashier sees** (REQ-005 AC-06, AC-08, AC-10). The POS unpaid bill (Belum Lunas) section marks a dine-in bill whose
   guest charge is pending **Menunggu pembayaran online** (`awaiting_online`, from `Transaction::isAwaitingGuestPayment()`), in place of
   "Menunggu Pembayaran"; **Bayar** stays, and **Lihat QR** stays only for the cashier's own pending charge. Opening **Bayar** on such a

@@ -596,13 +596,15 @@
             "title": "Close blocked",
             "item": "Not handed over",
             "bill": "Unpaid",
-            "syncFirst": "Sync offline transactions first"
+            "syncFirst": "Sync offline transactions first",
+            "split": "Split payment not fully paid — {{amount}} still owed"
         },
         "forced": {
             "submit": "Force close",
             "note": "Force-close note",
             "warning": "Items not handed over are marked not collected, and unpaid bills go into the cash difference.",
-            "unpaidBooked": "Unpaid bills booked"
+            "unpaidBooked": "Unpaid bills booked",
+            "splitNote": "Split payments not fully paid stay payable."
         }
     },
     "stock": {

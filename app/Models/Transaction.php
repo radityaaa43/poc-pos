@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\KitchenIntakeService;
+use Closure;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -221,20 +222,38 @@ class Transaction extends Model
                 ." where sr2.transaction_id = transactions.id and sr2.status = 'completed'), 0)");
     }
 
-    /**
-     * Bayar sekarang sales with no money received, cancelled when their shift closes (REQ-003 AC-20). Never a bill
-     * (pay later or dine-in), a split with a paid part or a sale with a completed return (BR-15), or one already cancelled.
-     */
-    public function scopeUnpaidPayNow($query)
+    /** Bayar sekarang sales: never a bill (pay later or dine-in), one with a completed return (BR-15) or a cancelled one. */
+    public function scopePayNow($query)
     {
         return $query->where('is_pay_later', false)
-            ->whereIn('payment_status', ['pending', 'failed', 'expired'])
             ->whereNotIn('payment_method', ['pay_later', self::METHOD_OPEN_BILL])
             ->doesntHave('dineOrder')
             ->doesntHave('receivable')
-            ->whereDoesntHave('tenders', fn ($tenders) => $tenders->where('payment_status', TransactionTender::STATUS_PAID))
             ->whereDoesntHave('salesReturns', fn ($returns) => $returns->where('status', 'completed'))
             ->notRestocked();
+    }
+
+    /** Bayar sekarang sales with no money received, cancelled when their shift closes (REQ-003 AC-20). */
+    public function scopeUnpaidPayNow($query)
+    {
+        return $query->payNow()
+            ->whereIn('payment_status', ['pending', 'failed', 'expired'])
+            ->whereDoesntHave('tenders', self::receivedTender());
+    }
+
+    /** Bayar sekarang split sales with some money received but not all of it: they hold their shift's close (#396). */
+    public function scopePartlyPaidSplit($query)
+    {
+        return $query->payNow()
+            ->where('payment_method', 'split')
+            ->where('payment_status', '!=', 'paid')
+            ->whereHas('tenders', self::receivedTender());
+    }
+
+    /** The one test of "money received": the close cancels a sale without it and is held by a split with it. */
+    private static function receivedTender(): Closure
+    {
+        return fn ($tenders) => $tenders->where('payment_status', TransactionTender::STATUS_PAID);
     }
 
     /** Not cancelled: see wasRestocked(). */

@@ -226,6 +226,11 @@ class TransactionTenderService
                 throw ValidationException::withMessages(['payment' => 'Status transaksi tidak dapat dikonfirmasi saat ini.']);
             }
 
+            // What this confirmation collects, read before it does: what the sale was asked (a return recorded while it
+            // waited changes nothing, #405) less the parts already received.
+            $owed = max(0, $transaction->amountDue()
+                - (int) $transaction->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
+
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
                 ->update(['payment_status' => TransactionTender::STATUS_PAID]);
@@ -233,7 +238,9 @@ class TransactionTenderService
             $tenders = $transaction->tenders()->get();
             $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
 
-            $this->flagIfBookedAtClose($transaction, $newStatus);
+            // A plain read after the sale's lock: a close that held the sale has committed and is seen; one still waiting
+            // for it counts this payment in its recap.
+            $this->flagPaidAfterClose($transaction, CashierShift::find($transaction->cashier_shift_id), $newStatus, $owed);
             $transaction->update(['payment_status' => $newStatus]);
 
             if ($newStatus === 'paid') {
@@ -306,13 +313,30 @@ class TransactionTenderService
      * A bill a forced close booked as a shortfall is in no recap of that shift (REQ-003 BR-16): paid by a later
      * confirmation it stays on the shift, so it is marked "Dibayar setelah shift ditutup", as a gateway payment is.
      */
-    private function flagIfBookedAtClose(Transaction $transaction, string $newStatus): void
-    {
-        $shift = CashierShift::find($transaction->cashier_shift_id);
+    public function flagPaidAfterClose(
+        Transaction $transaction,
+        ?CashierShift $shift,
+        string $newStatus,
+        int $owed,
+        ?string $methodBefore = null,
+    ): void {
+        if ($newStatus !== 'paid') {
+            return;
+        }
 
-        if ($newStatus !== 'paid' || ! $shift || $shift->isOpen() || $shift->unpaid_bills_total === 0
-            || (! $transaction->is_pay_later && ! $transaction->dineOrder()->exists())
-            || $transaction->receivable()->exists()) {
+        if (! $shift || $shift->isOpen()) {
+            $shift = CashierShiftService::forcedCloseThatBooked($transaction);
+        }
+
+        if (! $shift) {
+            return;
+        }
+
+        $booked = $shift->unpaid_bills_total > 0
+            && ($transaction->is_pay_later || $transaction->dineOrder()->exists())
+            && ! $transaction->receivable()->exists();
+
+        if (! $booked && CashierShiftService::countedInClosedRecap($transaction, $methodBefore)) {
             return;
         }
 
@@ -322,8 +346,8 @@ class TransactionTenderService
             event: 'payment.paid_after_close',
             module: 'transactions',
             auditable: $transaction,
-            description: "Pembayaran invoice {$transaction->invoice} dikonfirmasi setelah shift ditutup.",
-            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice],
+            description: "Invoice {$transaction->invoice} dibayar setelah shift ditutup; rekap shift tidak berubah.",
+            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice, 'amount' => $owed],
         );
     }
 
