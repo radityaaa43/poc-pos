@@ -63,6 +63,7 @@ class Transaction extends Model
         'payment_failure_reason',
         'late_superseded_payment_at',
         'paid_after_close_at',
+        'overpaid_amount',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -103,6 +104,7 @@ class Transaction extends Model
         'payment_attempt' => 'integer',
         'late_superseded_payment_at' => 'datetime',
         'paid_after_close_at' => 'datetime',
+        'overpaid_amount' => 'integer',
     ];
 
     /** @return HasMany<TransactionDetail, $this> */
@@ -235,6 +237,7 @@ class Transaction extends Model
                 .' < (select coalesce(sum(td.qty), 0) from transaction_details td where td.transaction_id = transactions.id)'));
     }
 
+    /** @return HasMany<SalesReturn, $this> */
     public function salesReturns(): HasMany
     {
         return $this->hasMany(SalesReturn::class);
@@ -245,6 +248,16 @@ class Transaction extends Model
     {
         return max(0, (int) $this->grand_total
             - (int) $this->salesReturns()->where('status', 'completed')->sum('total_return_amount'));
+    }
+
+    /**
+     * What a sale owes after the returns that handed nothing back, those completed before it was paid: a payment beyond
+     * it is an overpayment (#444). The shift recap takes off the same returns.
+     */
+    public function owedAfterReturns(): int
+    {
+        return max(0, (int) $this->grand_total
+            - (int) $this->salesReturns()->nothingRefunded()->sum('total_return_amount'));
     }
 
     /**

@@ -606,6 +606,15 @@ class PaymentWebhookController extends Controller
             $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} melebihi sisa piutang; kelebihan perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'excess' => $excess], $reference);
         }
 
+        // A return completed while this payment waited may have lowered the bill. A late booking already matched what is owed.
+        if ($values['payment_status'] === 'paid' && ! $late) {
+            app(TransactionTenderService::class)->flagOverpayment(
+                $bill,
+                is_numeric($amount) ? (int) round((float) $amount) : null,
+                ['source' => 'gateway', 'order_id' => $providerId],
+            );
+        }
+
         if ($afterClose) {
             app(AuditLogService::class)->log(
                 event: 'payment.paid_after_close',
