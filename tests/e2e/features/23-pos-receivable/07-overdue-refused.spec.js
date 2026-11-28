@@ -25,11 +25,12 @@ test.describe('POS: pay later while a receivable is overdue', () => {
         await expect(total(page)).toHaveText(/Rp\s*100\.000/);
         await page.getByRole('button', { name: 'Selesaikan Transaksi' }).click();
 
-        await expect(page.getByText('Lunasi piutang yang lewat jatuh tempo dulu')).toBeVisible();
+        const refusal = page.getByRole('dialog');
+        await expect(refusal.getByText('Lunasi piutang yang lewat jatuh tempo dulu')).toBeVisible();
         expect(arrange('paylater.credit-state', { customer_id })).toMatchObject({ sales: 1, receivables: 1 });
 
-        // The same cart, paid in cash instead.
-        await page.getByText('Bayar Belakangan', { exact: true }).click();
+        // The same cart, paid in cash instead: "Bayar sekarang" switches pay later off.
+        await refusal.getByRole('button', { name: 'Bayar sekarang' }).click();
         await expect(page.getByRole('checkbox')).not.toBeChecked();
         await page.getByRole('button', { name: 'Uang pas' }).click();
         const invoice = await finish(page);
