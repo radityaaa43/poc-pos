@@ -40,9 +40,7 @@ class ShiftCloseHoldTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-
         $this->setUpDineBill();
-
         foreach (['cashier-shifts-access', 'cashier-shifts-close', 'cashier-shifts-force-close'] as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
@@ -102,7 +100,7 @@ class ShiftCloseHoldTest extends TestCase
         $item = $this->kitchenSale($this->shift);
         $bill = $this->guestPayLater($this->shift);
 
-        $this->close($this->shift, $manager, ['actual_cash' => 120000, 'close_notes' => 'Tamu pulang'])->assertSessionHasNoErrors();
+        $this->close($this->shift, $manager, ['force' => true, 'actual_cash' => 120000, 'close_notes' => 'Tamu pulang'])->assertSessionHasNoErrors();
 
         $closed = $this->shift->fresh();
         $this->assertSame(CashierShift::STATUS_FORCE_CLOSED, $closed->status);
@@ -135,9 +133,17 @@ class ShiftCloseHoldTest extends TestCase
     public function test_force_close_of_a_held_shift_requires_a_note(): void
     {
         $item = $this->kitchenSale($this->shift);
-        $this->close($this->shift, $this->manager(), ['close_notes' => '  '])->assertSessionHasErrors('close_notes');
+        $this->close($this->shift, $this->manager(), ['force' => true, 'close_notes' => '  '])->assertSessionHasErrors('close_notes');
         $this->assertTrue($this->shift->fresh()->isOpen());
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
+    }
+
+    // The manager's page may have loaded before the hold appeared: without the flag they get the list, not a silent shortfall.
+    public function test_a_managers_close_without_the_force_flag_is_refused_on_a_held_shift(): void
+    {
+        $this->guestPayLater($this->shift);
+        $this->close($this->shift, $this->manager(), ['close_notes' => 'Tutup'])->assertSessionHasErrors('shift');
+        $this->assertTrue($this->shift->fresh()->isOpen());
     }
 
     public function test_forcing_a_held_shift_without_the_permission_is_refused(): void
@@ -182,9 +188,7 @@ class ShiftCloseHoldTest extends TestCase
     {
         $sales = collect(['pending', 'failed', 'expired'])->map(fn (string $status) => $this->sale($this->shift, 'qris', $status));
         $this->assertSame(14, $this->stock()['warehouse']); // 3 sales of 2 left the shelf
-
         $this->close($this->shift)->assertSessionHasNoErrors();
-
         $this->assertSame(['warehouse' => 20, 'product' => 20], $this->stock());
         foreach ($sales as $sale) {
             $this->assertSame('failed', $sale->fresh()->payment_status);
@@ -212,9 +216,7 @@ class ShiftCloseHoldTest extends TestCase
         $returned = $this->sale($this->shift, 'qris', 'pending');
         $this->completedReturn($returned);
         $stock = $this->stock();
-
         $this->close($this->shift)->assertSessionHasNoErrors(); // BR-15: none of these holds the close either
-
         $this->assertSame('paid', $paid->fresh()->payment_status);
         $this->assertSame('pending', $returned->fresh()->payment_status);
         $this->assertSame($stock, $this->stock());
@@ -309,6 +311,104 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertTrue($report['empty']);
     }
 
+    public function test_credit_sale_with_an_expired_portal_charge_stays_in_the_recap(): void
+    {
+        $credit = $this->sale($this->shift, 'pay_later', 'failed', ['is_pay_later' => true]);
+        Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 20000, 'status' => 'unpaid']);
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $this->assertSame(1, $this->shift->fresh()->transactions_count);
+        $this->assertSame(20000, $this->shift->fresh()->non_cash_sales_total);
+    }
+
+    public function test_restock_locks_the_stock_rows(): void
+    {
+        $this->sale($this->shift, 'qris', 'pending');
+        DB::enableQueryLog();
+        $this->close($this->shift)->assertSessionHasNoErrors();
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+        $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $lock = $first('/^select \* from [`"]product_warehouse[`"] where [`"]warehouse_id[`"]/');
+        $this->assertIsInt($lock);
+        $this->assertLessThan($first('/^update [`"]product_warehouse[`"]/'), $lock);
+        if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
+            $this->assertStringContainsString('for update', strtolower($queries[$lock]));
+        }
+    }
+
+    // Intake runs after the payment commits, so a close can come first: it takes the sale in itself.
+    public function test_a_paid_sale_that_has_not_reached_the_kitchen_holds_the_close(): void
+    {
+        $sale = $this->sale($this->shift, 'cash', 'paid', ['cash' => 20000]);
+        $sale->details()->update(['needs_preparation' => true]);
+        $this->close($this->shift)->assertSessionHasErrors('shift');
+        // Kept although the close was refused, so the page lists it and offers the force close.
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, KitchenItem::where('transaction_id', $sale->id)->sole()->status);
+        $this->forceClose($this->shift, $this->cashier);
+        $this->assertSame(KitchenItem::STATUS_NOT_COLLECTED, KitchenItem::where('transaction_id', $sale->id)->sole()->status);
+    }
+
+    public function test_close_locks_the_kitchen_rows_of_a_sale_that_arrived_after_the_ids_were_read(): void
+    {
+        $this->kitchenSale($this->shift);
+        $arrived = false;
+        $itemLocks = 0;
+        DB::listen(function ($query) use (&$arrived, &$itemLocks) {
+            if (! $arrived && preg_match('/^select \* from [`"]cashier_shifts[`"]/', $query->sql)) {
+                $arrived = true;
+                $this->kitchenSale($this->shift);
+            }
+            $itemLocks += preg_match('/^select [`"]id[`"] from [`"]kitchen_items[`"] where/', $query->sql);
+        });
+        $this->forceClose($this->shift, $this->cashier);
+        $this->assertSame(2, $itemLocks);
+    }
+
+    // Marking a dine bill paid can complete its order, which a close locks before the bill.
+    public function test_confirming_a_transfer_locks_the_dine_order_before_the_sale(): void
+    {
+        $sale = $this->sale($this->shift, 'bank_transfer', 'pending');
+        DB::enableQueryLog();
+        app(TransactionTenderService::class)->confirmTransfer($sale);
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+        $this->assertMatchesRegularExpression('/from [`"]dine_orders[`"] where [`"]transaction_id[`"]/', $queries[0]);
+        $this->assertMatchesRegularExpression('/from [`"]transactions[`"] where/', $queries[1]);
+    }
+
+    // MySQL fixes its snapshot at the first plain read, and two lock orders can deadlock: all rows are locked first.
+    public function test_close_locks_items_dine_orders_and_sales_before_it_reads_them(): void
+    {
+        $this->kitchenSale($this->shift);
+        DB::enableQueryLog();
+        $this->forceClose($this->shift, $this->cashier);
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+        $start = $queries->search(fn (string $sql) => (bool) preg_match('/^select \* from [`"]cashier_shifts[`"]/', $sql));
+        foreach (['cashier_shifts', 'kitchen_items', 'dine_orders', 'transactions'] as $step => $table) {
+            $this->assertMatchesRegularExpression("/^select .+ from [`\"]{$table}[`\"] where/", $queries[$start + $step]);
+            if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
+                $this->assertStringContainsString('for update', $queries[$start + $step]);
+            }
+        }
+    }
+
+    // The bill is created under the shift lock, so it cannot land on a shift that a close has just passed.
+    public function test_accepting_an_order_locks_the_shift_inside_its_transaction(): void
+    {
+        $outer = DB::transactionLevel();
+        $reads = [];
+        DB::listen(function ($query) use (&$reads) {
+            $reads[] = ['sql' => $query->sql, 'level' => DB::transactionLevel()];
+        });
+        $this->acceptedOrder();
+        $shiftRead = collect($reads)->first(fn (array $read) => (bool) preg_match('/^select \* from [`"]cashier_shifts[`"] where [`"]user_id[`"]/', $read['sql']));
+        $this->assertGreaterThan($outer, $shiftRead['level']);
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', $shiftRead['sql']);
+        }
+    }
+
     public function test_unpaid_bills_total_migration_rolls_back(): void
     {
         $migration = require database_path('migrations/2026_12_08_100001_add_unpaid_bills_total_to_cashier_shifts_table.php');
@@ -399,7 +499,7 @@ class ShiftCloseHoldTest extends TestCase
         $split = $this->splitSale($this->shift);
         $stock = $this->stock();
 
-        $this->close($this->shift, $this->manager(), ['actual_cash' => 105000, 'close_notes' => 'Transfer ditunggu'])
+        $this->close($this->shift, $this->manager(), ['force' => true, 'actual_cash' => 105000, 'close_notes' => 'Transfer ditunggu'])
             ->assertSessionHasNoErrors();
 
         $closed = $this->shift->fresh();
@@ -601,7 +701,8 @@ class ShiftCloseHoldTest extends TestCase
             'invoice' => 'TRX-'.Str::upper(Str::random(8)), 'cash' => 0, 'change' => 0, 'discount' => 0,
             'grand_total' => 20000, 'payment_method' => $method, 'payment_status' => $status, ...$attributes,
         ]);
-        $sale->details()->create(['product_id' => $this->flagged->id, 'qty' => 2, 'price' => 20000]);
+        // Not a kitchen line: kitchenSale() adds the item itself, and the close would take in any other.
+        $sale->details()->create(['product_id' => $this->flagged->id, 'qty' => 2, 'price' => 20000, 'needs_preparation' => false]);
         $this->flagged->decrement('stock', 2);
         DB::table('product_warehouse')->where('product_id', $this->flagged->id)->decrement('stock', 2);
 

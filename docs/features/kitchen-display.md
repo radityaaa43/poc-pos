@@ -35,9 +35,7 @@ One screen for the kitchen: every paid order that still has something to prepare
 
 An item whose sale line was returned (a completed sales return, #241) shows **Dibatalkan**, struck through and without buttons, for 2 minutes after the return (`KitchenItem::onDisplay()`, measured on `updated_at`), then leaves the queue on a later poll. A partial return only lowers the quantity shown. A start or ready tap on a cancelled item answers "Sudah dibatalkan".
 
-## Not collected items
-
-When a shift is force-closed over food that was not handed over (see `cashier-shifts.md`), those items become `not_collected` (Tidak diambil). The status is final: the items leave the queue, no step button applies, and they stay out of the speed report. A dine-in order whose remaining items are all served or not collected counts as served, so it completes once paid.
+**Not collected items.** When a shift is force-closed over food that was not handed over (see `cashier-shifts.md`), those items become `not_collected` (Tidak diambil). The status is final: the items leave the queue, no step button applies, and they stay out of the speed report. A dine-in order whose remaining items are all served or not collected counts as served, so it completes once paid.
 
 ## Outlet scope
 
@@ -87,8 +85,10 @@ When **Cetak otomatis** is on, the display shows at most one printer warning at 
 | Warning | When | What to do |
 |---|---|---|
 | **Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB** | On Windows, connecting or re-attaching the printer failed with a USB "network error": the printer is on Windows' own driver. Also shown in the printer settings panel, with **Lihat langkah** (the five WinUSB steps, no link). Not retried by itself | Follow the steps; see "Windows: switch the printer to the WinUSB driver" in `docs/features/thermal-printer.md` |
-| **Printer dapur tidak terhubung** | No printer is connected, the saved printer is not found, or the browser reported it unplugged | Plug it in or press **Hubungkan printer**; the next poll prints what waits |
-| **Gagal mencetak — coba lagi** | The printer did not accept a ticket (USB transfer failed, or it could not be claimed off Windows). Has a **Coba lagi** button | Fix the printer; the next 5-second poll retries, or press **Coba lagi** |
+| **Printer dapur tidak terhubung** | No kitchen printer is chosen (nothing is sent to any other printer), the saved printer is not found (also when the page loads), or the browser reported it unplugged | Plug it in or press **Hubungkan printer**; the next poll prints what waits |
+| **Gagal mencetak — coba lagi** | The printer did not accept a ticket (USB transfer failed, stalled or gave no answer for 15 seconds, or it could not be claimed off Windows), or the server refused to record printed tickets (they are not printed again, and the record is retried). Has a **Coba lagi** button | Fix the printer; the next 5-second poll retries, or press **Coba lagi** |
+
+Switching **Cetak otomatis** off stops what still waits to print; switching it on again first lets a ticket already being sent finish, so none prints twice. A send with no answer after 15 seconds (opening, claiming or sending) counts as failed; if the printer had already taken the bytes, **Coba lagi** prints the ticket a second time.
 
 - **Belum tercetak** / "Not printed": a chip on the order's card, shown when its ticket failed or is still unprinted after 30 seconds. It goes away when the original ticket prints. An order that is printed shows no chip.
 - A card with the chip has **Coba lagi**, which prints the normal ticket and records it as printed. Other cards have no print button.

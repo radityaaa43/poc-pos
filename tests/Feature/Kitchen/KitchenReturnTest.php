@@ -20,6 +20,7 @@ use App\Services\KitchenItemService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
@@ -431,6 +432,31 @@ class KitchenReturnTest extends TestCase
     }
 
     /** @param  list<string>  $permissions */
+    // #242: a shift close and a webhook lock the dine order before the sale; the other order here can deadlock them.
+    public function test_return_completion_locks_the_dine_order_then_the_receivable_then_the_sale(): void
+    {
+        [$sale, $detail] = $this->sale(table: 'Meja 1', paymentMethod: 'pay_later');
+        Receivable::create(['transaction_id' => $sale->id, 'invoice' => $sale->invoice, 'total' => 10000, 'paid' => 0,
+            'due_date' => now()->addWeek(), 'status' => 'unpaid']);
+        $return = $this->draft($sale, $detail, 1);
+        DB::enableQueryLog();
+        $this->completeReturn($return);
+        $queries = collect(DB::getQueryLog())->pluck('query');
+        DB::disableQueryLog();
+        $first = fn (string $pattern) => $queries->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $dineLock = $first('/^select \* from [`"]dine_orders[`"] where [`"]transaction_id[`"] =/');
+        $marker = $first('/^select \* from [`"]stock_mutations[`"] where [`"]reference_type[`"]/'); // read right after the sale lock
+        $this->assertIsInt($dineLock);
+        $receivableLock = $first('/^select \* from [`"]receivables[`"] where [`"]receivables[`"]\.[`"]id[`"] =/');
+        $this->assertLessThan($receivableLock, $dineLock);
+        $this->assertLessThan($marker - 1, $receivableLock);
+        $this->assertMatchesRegularExpression('/^select \* from [`"]transactions[`"]/', $queries[$marker - 1]);
+        if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
+            $this->assertStringContainsString('for update', $queries[$dineLock]);
+            $this->assertStringContainsString('for update', $queries[$marker - 1]);
+        }
+    }
+
     private function userWith(array $permissions): User
     {
         $user = User::factory()->create();

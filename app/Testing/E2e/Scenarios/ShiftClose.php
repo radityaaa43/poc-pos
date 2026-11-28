@@ -2,7 +2,6 @@
 
 namespace App\Testing\E2e\Scenarios;
 
-use App\Http\Controllers\TourController;
 use App\Models\AuditLog;
 use App\Models\CashierShift;
 use App\Models\Product;
@@ -12,10 +11,7 @@ use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
 use App\Testing\E2e\Scenarios;
-use Database\Seeders\E2eSeeder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Str;
 
 /** Closing a shift that still holds work (REQ-003 AC-12, 13, 17, 20, 27). All names are `shiftclose.*`. */
 class ShiftClose
@@ -27,8 +23,7 @@ class ShiftClose
             // The shift --arg=shift_id=<id>, or the one the sale --arg=invoice=<invoice> belongs to: its status, stored
             // recap, audit entries per event and what the forced close over a hold recorded (`override`, else null).
             'shiftclose.state' => function (array $options): array {
-                $shift = CashierShift::findOrFail($options['shift_id']
-                    ?? Transaction::where('invoice', $options['invoice'])->firstOrFail()->cashier_shift_id);
+                $shift = CashierShift::findOrFail($options['shift_id'] ?? Transaction::where('invoice', $options['invoice'])->firstOrFail()->cashier_shift_id);
 
                 return [
                     'shift_id' => $shift->id,
@@ -75,17 +70,10 @@ class ShiftClose
             // the seeded manager@e2e.test is not in.
             'shiftclose.manager' => function (array $options): array {
                 $outletId = CashierShift::with('warehouse')->findOrFail($options['shift_id'])->warehouse->outlet_id;
-                $manager = User::create([
-                    'name' => 'Manajer Tagihan '.Str::upper(Str::random(5)),
-                    'email' => 'manager-'.Str::lower(Str::random(8)).'@e2e.test',
-                    'password' => Hash::make(E2eSeeder::PASSWORD),
-                    'completed_tours' => TourController::TOURS, // else a tour overlay blocks clicks
-                ]);
-                $manager->markEmailAsVerified();
-                $manager->syncRoles(['manager']);
-                $manager->outlets()->sync([$outletId => ['is_default' => true]]);
+                $manager = Scenarios::registry()['platform.user']([]);
+                User::findOrFail($manager['id'])->outlets()->sync([$outletId => ['is_default' => true]]);
 
-                return ['email' => $manager->email];
+                return ['email' => $manager['email']];
             },
         ];
     }
@@ -94,7 +82,6 @@ class ShiftClose
     private static function auditCounts(Model $subject): array
     {
         return AuditLog::where('auditable_type', $subject->getMorphClass())->where('auditable_id', $subject->getKey())
-            ->selectRaw('event, COUNT(*) as total')->groupBy('event')->pluck('total', 'event')
-            ->map(fn ($total) => (int) $total)->all();
+            ->selectRaw('event, COUNT(*) as total')->groupBy('event')->pluck('total', 'event')->map(fn ($total) => (int) $total)->all();
     }
 }

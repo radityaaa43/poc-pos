@@ -120,7 +120,7 @@ resources/
 │   ├── Utils/             Menu (sidebar), Permission, authorization, escpos (WebUSB), offlineDb, tours
 │   └── i18n/locales/      id.json, en.json
 └── views/app.blade.php    Satu-satunya Blade root (Inertia)
-routes/                    web.php (±246 route dashboard), api.php (±216 route v1), auth.php, console.php (scheduler)
+routes/                    web.php + web/*.php (±246 route dashboard), api.php (±216 route v1), auth.php, console.php (scheduler)
 public/sw.js, manifest.json  PWA
 whatsapp-service/          Microservice Node.js WhatsApp
 tests/                     87 file test (580 test): POS, checkout, outlet scoping, inventory, API V1, security, loyalty, dll.
@@ -136,12 +136,12 @@ Ada tiga file route utama yang didaftarkan di [bootstrap/app.php](bootstrap/app.
 
 | File | Isi | Proteksi |
 |---|---|---|
-| [routes/web.php](routes/web.php) | Landing & halaman publik (`/`, `/fitur`, `/dokumentasi`, `/roadmap`), setup wizard `/setup`, invoice publik `/share/transactions/{invoice}`, portal customer `/portal/...`, menu dine-in `/dine/{token}`, dan **semua route dashboard di bawah prefix `/dashboard`** | `auth`, lalu `permission:<nama>` per route (verifikasi email sudah dinonaktifkan) |
+| [routes/web.php](routes/web.php), [routes/web/](routes/web/) | Landing & halaman publik (`/`, `/fitur`, `/dokumentasi`, `/roadmap`), setup wizard `/setup`, invoice publik `/share/transactions/{invoice}`, portal customer `/portal/...`, menu dine-in `/dine/{token}`, dan **semua route dashboard di bawah prefix `/dashboard`** | `auth`, lalu `permission:<nama>` per route (verifikasi email sudah dinonaktifkan) |
 | [routes/auth.php](routes/auth.php) | Login, register, forgot/reset password, confirm password | `guest` / `auth`, `bot.guard`, `registration.enabled`, throttle |
 | [routes/api.php](routes/api.php) | `/api/webhooks/{midtrans,xendit}` dan `/api/v1/*` | Webhook: verifikasi signature/token. v1: `auth:sanctum` + `throttle:api` + `abilities:<permission>` per endpoint; POS butuh `abilities:pos-access`; aksi sensitif `api_step_up` |
 | [routes/console.php](routes/console.php) | Jadwal: `transactions:expire` tiap jam, `crm:sync-segments` 01:00, `crm:generate-reminders` 01:15, `reorder:generate` 02:00 | — |
 
-Pola otorisasi di `web.php` konsisten: `Route::resource(...)->middlewareFor('index', 'permission:x-access')->middlewareFor('store', 'permission:x-create')`. Aksi sensitif ditambah `step_up` (konfirmasi password ulang). Seluruh aksi POS (cart, hold/resume, checkout) ditambah `active_shift`.
+Pola otorisasi di `routes/web/*.php` konsisten: `Route::resource(...)->middlewareFor('index', 'permission:x-access')->middlewareFor('store', 'permission:x-create')`. Aksi sensitif ditambah `step_up` (konfirmasi password ulang). Seluruh aksi POS (cart, hold/resume, checkout) ditambah `active_shift`.
 
 ### 4.2 Controller
 
@@ -172,6 +172,7 @@ Logika domain yang dipakai lebih dari satu tempat ada di sini dan di-inject lewa
 | | `ReorderService` | Produk di bawah reorder point → draft PO |
 | Purchasing | `PurchaseOrderService`, `GoodsReceivingService`, `SupplierReturnService` | Rantai PO → penerimaan barang → hutang → retur |
 | Finance | `ReceivableService`, `PayableAgingService` | Aging piutang/hutang, statement |
+| | `CustomerCreditService` | Batas piutang pelanggan vs pemakaian di semua outlet; `lockedStanding()` mengunci baris pelanggan untuk keputusan kredit |
 | CRM | `CustomerSegmentationService`, `CrmAutomationService` | Segmen otomatis/manual, campaign, reminder, share invoice |
 | Dine-in | `DineOrderService` | Accept (potong stok, lock row) / reject pesanan meja |
 | Integrasi | `Payments/PaymentGatewayManager` (+ `MidtransGateway`, `XenditGateway`), `WhatsAppService`, `ThermalPrintService` | Dispatch gateway & QRIS, HTTP ke WA service, teks ESC/POS |

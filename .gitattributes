@@ -6,6 +6,11 @@
 *.md diff=markdown
 *.php diff=php
 
+# Parallel PRs append rows here: keep both sides instead of conflicting. A line edited on both
+# sides comes back twice; the Glossary terms check catches that in GLOSSARY.md.
+/GLOSSARY.md merge=union
+/tests/e2e/features/*/COVERAGE.md merge=union
+
 /.github export-ignore
 CHANGELOG.md export-ignore
 .styleci.yml export-ignore

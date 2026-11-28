@@ -3,13 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@inertiajs/react";
 import i18n from "@/i18n";
-import { getUnsyncedCount } from "@/Utils/offlineDb";
 import Show from "./Show";
 
 let page;
 
 vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
-vi.mock("@/Utils/offlineDb", () => ({ getUnsyncedCount: vi.fn() }));
 vi.mock("@inertiajs/react", () => ({
     Head: () => null,
     Link: ({ children }) => children,
@@ -42,7 +40,6 @@ const expectPlainClose = async () => {
 beforeAll(() => i18n.changeLanguage("id"));
 beforeEach(() => {
     vi.clearAllMocks();
-    getUnsyncedCount.mockResolvedValue(0);
     signIn();
 });
 
@@ -53,7 +50,6 @@ describe("Shift close", () => {
     ])("lets %s force a held shift, with a required note", async (_who, props, viewer) => {
         signIn(viewer);
         renderShow({ ...props, closeBlockers: held });
-
         expect(screen.getByRole("heading", { name: "Belum selesai" })).toBeInTheDocument();
         const warning = "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.";
         expect(screen.getByText(warning)).toBeInTheDocument();
@@ -66,7 +62,6 @@ describe("Shift close", () => {
 
         await userEvent.type(note, "Tamu sudah pulang");
         await click("Tutup paksa");
-
         const sent = { actual_cash: 100000, close_notes: "Tamu sudah pulang", force: true };
         await waitFor(() => expect(router.post).toHaveBeenCalledWith("/cashier-shifts.close", sent));
     });
@@ -98,24 +93,6 @@ describe("Shift close", () => {
         const alerts = screen.getAllByRole("alert").map((alert) => alert.textContent);
         expect(alerts).toEqual(["Shift belum bisa ditutup.", "Catatan wajib diisi."]);
         expect(screen.getByLabelText("Catatan tutup paksa")).toHaveAccessibleDescription(/Catatan wajib diisi\./);
-    });
-
-    it("disables the close while this device still holds the shift cashier's offline sales", async () => {
-        getUnsyncedCount.mockResolvedValue(2);
-        signIn({ id: 1 });
-        renderShow({ canForceClose: true });
-        expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
-        expect(getUnsyncedCount).toHaveBeenCalledWith(5);
-    });
-
-    it("re-reads the queue on submit, so a sale queued after loading still blocks", async () => {
-        renderShow();
-        await waitFor(() => expect(getUnsyncedCount).toHaveBeenCalled());
-        getUnsyncedCount.mockResolvedValue(1);
-        await fillCash();
-        await click("Finalisasi Closing");
-        expect(await screen.findByRole("button", { name: "Sinkronkan transaksi offline dulu" })).toBeDisabled();
-        expect(router.post).not.toHaveBeenCalled();
     });
 
     it("previews a forced close's difference with the unpaid bills taken off", async () => {

@@ -3,25 +3,40 @@
 namespace App\Services;
 
 use App\Exceptions\PaymentGatewayException;
+use App\Http\Controllers\Api\PaymentWebhookController;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
+use App\Models\TransactionTender;
 use App\Models\User;
 use App\Services\Payments\PaymentGatewayManager;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 /**
  * Takes payment for an open bill: the one money path shared by dine-in (DineOrderService::pay)
  * and a POS pay-later bill settled at the counter (settle).
+ *
+ * Two steps: claim() writes the payment under the caller's row locks; charge() talks to the gateway after that
+ * commit, so a slow gateway never holds a lock or an open transaction.
+ *
+ * @phpstan-type Claim array{transaction: Transaction, cashier: User, outlet: ?Outlet, tender_ids: array<int, int|string>, gateway_tender: ?TransactionTender, before: array<string, mixed>}
  */
 class TransactionSettlementService
 {
+    /** What a failed charge puts back as the claim found it (the status and its reason have their own rule). */
+    private const RESTORED = ['cashier_id', 'cashier_shift_id', 'cash', 'change', 'payment_method', 'bank_account_id'];
+
     public function __construct(
         private CashierShiftService $cashierShiftService,
         private TransactionTenderService $tenderService,
         private PaymentGatewayManager $gatewayManager,
+        private AuditLogService $auditLogService,
     ) {}
 
     /**
@@ -32,13 +47,14 @@ class TransactionSettlementService
      */
     public function settle(Transaction $transaction, User $cashier, array $tenderInput): Transaction
     {
-        return DB::transaction(function () use ($transaction, $cashier, $tenderInput) {
+        $claim = DB::transaction(function () use ($transaction, $cashier, $tenderInput) {
             $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
 
-            // First cashier wins: the second one waits on this lock, then finds the bill paid.
+            // First cashier wins: the second one waits on this lock, then finds the bill paid or claimed.
             $transaction = Transaction::with('warehouse')->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
 
-            // Read after the bill's lock, so that on MySQL every later plain read sees a close that held it.
+            // No plain read before the bill lock: on MySQL it would fix the snapshot, and the tender checks would then
+            // miss a claim, and the after-close mark a shift close, committed while this request waited.
             $shift->load('warehouse.outlet');
             $outlet = $shift->warehouse?->outlet;
 
@@ -47,14 +63,15 @@ class TransactionSettlementService
             }
 
             // A pending gateway payment or transfer already holds the bill: no second charge or tender, finish that one.
-            if ($transaction->payment_status === 'pending') {
+            // An abandoned claim does not: it is replaced.
+            if ($transaction->payment_status === 'pending' && ! $transaction->tenders()->abandonedClaim()->exists()) {
                 throw ValidationException::withMessages([
                     'bill' => 'Tagihan ini sedang menunggu pembayaran (gateway atau konfirmasi transfer). Selesaikan pembayaran itu dulu, lihat QR di struk.',
                 ]);
             }
 
-            // Only an unpaid, failed or expired bill can be settled (a pending one was refused above).
-            if (! in_array($transaction->payment_status, Transaction::OPEN_BILL_PAYABLE, true)) {
+            // Only an unpaid, failed or expired bill can be settled (a pending one still here is an abandoned claim).
+            if (! in_array($transaction->payment_status, [...Transaction::OPEN_BILL_PAYABLE, 'pending'], true)) {
                 throw ValidationException::withMessages(['bill' => 'Tagihan ini tidak bisa dilunasi di sini.']);
             }
 
@@ -73,30 +90,33 @@ class TransactionSettlementService
                 ]);
             }
 
-            // collect() moves the bill to the paying shift: keep what it was, to mark a payment its old shift's recap lacks.
-            $ownerShiftId = $transaction->cashier_shift_id;
-            $methodBefore = $transaction->payment_method;
             $owed = $transaction->remainingTotal();
+            $claim = $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
 
-            $settled = $this->collect($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
-
+            // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A gateway claim
+            // is still pending, so the webhook decides that one.
             $this->tenderService->flagPaidAfterClose(
-                $settled, CashierShift::find($ownerShiftId), $settled->payment_status, $owed, $methodBefore,
+                $transaction, CashierShift::find($claim['before']['cashier_shift_id']), $transaction->payment_status,
+                $owed, $claim['before']['payment_method'],
             );
-            $settled->save();
+            $transaction->save();
 
-            return $settled;
+            return $claim;
         });
+
+        return $this->charge($claim);
     }
 
     /**
-     * Record the tenders on a bill the caller has locked and checked, and start any gateway charge.
-     * Runs inside the caller's DB::transaction; a failed charge rolls the whole settlement back.
+     * Record the tenders on a bill the caller has locked and checked, and claim any gateway charge: the committed
+     * pending bill and its tender refuse a second payment while charge() talks to the gateway.
+     * Runs inside the caller's DB::transaction, with no network call.
      * $expectedTotal is what the tenders must add up to (default: the grand total).
      *
      * @param  array<int, array<string, mixed>>  $tenderInput
+     * @return Claim
      */
-    public function collect(Transaction $transaction, User $cashier, CashierShift $shift, ?Outlet $outlet, array $tenderInput, ?int $expectedTotal = null): Transaction
+    public function claim(Transaction $transaction, User $cashier, CashierShift $shift, ?Outlet $outlet, array $tenderInput, ?int $expectedTotal = null): array
     {
         $tenders = $this->tenderService->normalize($tenderInput, $expectedTotal ?? (int) $transaction->grand_total, allowEmpty: false, outlet: $outlet);
         $gatewayMethods = collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS);
@@ -107,6 +127,8 @@ class TransactionSettlementService
                 'tenders' => 'Pembayaran gateway tidak dapat digabung dengan metode lain pada tagihan dine-in.',
             ]);
         }
+
+        $before = $transaction->only([...self::RESTORED, 'payment_status', 'payment_failure_reason', 'payment_attempt', 'payment_reference', 'payment_url']);
 
         // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
         $transaction->tenders()->delete();
@@ -123,26 +145,145 @@ class TransactionSettlementService
             'payment_reference' => null,
             'payment_url' => null,
             'qr_string' => null,
-            // A bill with a payment history (a guest attempt, a retry) moves its counter on every settlement: an older
-            // charge that is paid afterwards is then a late payment (marked, never booked twice), and a gateway charge
-            // made here gets a fresh order id. Attempt 0 bills are written exactly as before.
-            ...($transaction->payment_attempt > 0
+            // Every gateway charge is its own attempt, so its own order id: one that timed out may still exist at the
+            // gateway. A bill with a payment history (a guest attempt, a retry) moves its counter on any settlement: an
+            // older charge paid afterwards is then a late payment, never booked twice. Cash at attempt 0 leaves it.
+            ...($gatewayMethods->isNotEmpty() || $transaction->payment_attempt > 0
                 ? ['payment_attempt' => $transaction->payment_attempt + 1, 'payment_failure_reason' => null]
                 : []),
         ]);
 
-        foreach ($tenderModels->whereIn('method', TransactionTenderService::GATEWAY_METHODS) as $tender) {
-            try {
-                $charge = $this->gatewayManager->createTenderPayment($transaction, $tender, PaymentSetting::forOutlet($outlet));
-            } catch (PaymentGatewayException $exception) {
-                // rolls the whole settlement back: the bill stays unpaid and the cashier can pick another method
-                throw ValidationException::withMessages(['tenders' => $exception->getMessage()]);
-            }
+        return [
+            'transaction' => $transaction,
+            'cashier' => $cashier,
+            'outlet' => $outlet,
+            'tender_ids' => $tenderModels->modelKeys(),
+            'gateway_tender' => $tenderModels->whereIn('method', TransactionTenderService::GATEWAY_METHODS)->first(),
+            'before' => $before,
+        ];
+    }
 
-            $tender->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
-            $transaction->update(['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']]);
+    /**
+     * Create the claim's gateway charge, after the claim committed and with no transaction open, then store it only
+     * while the claim is still the bill's current attempt. A claim without a gateway tender is already complete.
+     *
+     * @param  Claim  $claim
+     *
+     * @throws ValidationException tenders: the charge failed and the bill is payable again
+     */
+    public function charge(array $claim): Transaction
+    {
+        ['transaction' => $transaction, 'gateway_tender' => $tender] = $claim;
+
+        if (! $tender) {
+            return $transaction;
         }
 
-        return $transaction;
+        $attempt = (int) $transaction->payment_attempt;
+        // Read before the call: a newer claim changes the bill's tenders, and this id is derived from them.
+        $orderId = $tender->setRelation('transaction', $transaction)->order_reference;
+        $context = ['transaction_id' => $transaction->id, 'attempt' => $attempt, 'method' => $tender->method];
+        Log::info('Dine cashier charge started', $context);
+
+        try {
+            $charge = $this->gatewayManager->createTenderPayment($transaction, $tender, PaymentSetting::forOutlet($claim['outlet']));
+        } catch (Throwable $exception) {
+            // Any failure counts, a timeout too: a pending bill without a QR could not be paid.
+            $this->restore($claim, $exception);
+        }
+
+        $values = ['payment_reference' => $charge['reference'], 'payment_url' => $charge['payment_url'], 'qr_string' => $charge['qr_string']];
+
+        DB::transaction(function () use ($transaction, $tender, $attempt, $values, $context, $orderId) {
+            if (! Transaction::storeChargeResult($transaction->id, $attempt, $values)) {
+                // The charge exists at the gateway but the bill has moved on (a webhook, or a newer claim).
+                Log::warning('Dine cashier charge not stored', [...$context, 'reference' => $values['payment_reference'], 'order_id' => $orderId]);
+
+                return;
+            }
+
+            $tender->update($values);
+        });
+
+        return $transaction->refresh();
+    }
+
+    /**
+     * The charge failed: put the bill back as the claim found it, guarded like the store, and delete only the claim's
+     * own tenders (the status is never derived from other tenders). The attempt stays: the gateway may know its order id.
+     *
+     * @param  Claim  $claim
+     *
+     * @throws ValidationException
+     */
+    private function restore(array $claim, Throwable $exception): never
+    {
+        ['transaction' => $transaction, 'gateway_tender' => $tender, 'before' => $before] = $claim;
+        $refused = $exception instanceof PaymentGatewayException;
+
+        if (! $refused) {
+            report($exception);
+        }
+
+        // A bill found pending held the guest's charge (a takeover), which is superseded now: failed, so payable.
+        $status = $before['payment_status'] === 'pending'
+            ? ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']
+            : Arr::only($before, ['payment_status', 'payment_failure_reason']);
+        $meta = ['attempt' => (int) $transaction->payment_attempt, 'method' => $tender?->method, 'exception' => $exception::class];
+
+        $restored = DB::transaction(function () use ($claim, $transaction, $before, $status, $meta) {
+            $restored = Transaction::storeChargeResult($transaction->id, $meta['attempt'], [
+                ...Arr::only($before, self::RESTORED),
+                ...$status,
+                'payment_reference' => null,
+                'payment_url' => null,
+                'qr_string' => null,
+            ]);
+
+            if ($restored) {
+                $transaction->tenders()->whereKey($claim['tender_ids'])->delete();
+            }
+
+            // No exception message in the log or the audit: a gateway answer may echo request data.
+            Log::warning(
+                $restored ? 'Dine cashier charge failed, claim restored' : 'Dine cashier charge failed, claim no longer current',
+                ['transaction_id' => $transaction->id, ...$meta],
+            );
+            $this->auditLogService->log(
+                event: 'transaction.gateway_charge_failed',
+                module: 'transactions',
+                auditable: $transaction,
+                description: "Tagihan gateway invoice {$transaction->invoice} gagal dibuat.",
+                meta: $meta,
+                actor: $claim['cashier'],
+            );
+
+            return $restored;
+        });
+
+        if ($restored) {
+            // BR-4: payments flagged because this charge was pending. Not nested in the restore: a MySQL deadlock rolls
+            // back the whole transaction, and a savepoint does not survive it. A failure is reported and keeps the flags.
+            rescue(fn () => $this->recheckFlagged($transaction->id, $before['cashier_shift_id'], $meta['attempt']));
+        }
+
+        throw ValidationException::withMessages([
+            'tenders' => $refused ? $exception->getMessage() : 'Gagal menghubungi gateway pembayaran. Coba lagi.',
+        ]);
+    }
+
+    /** The re-check may book a payment, so it takes the webhook's locks in its order: shift, dine order, bill. */
+    private function recheckFlagged(int $billId, ?int $shiftId, int $attempt): void
+    {
+        DB::transaction(function () use ($billId, $shiftId, $attempt) {
+            $shift = $shiftId ? CashierShift::whereKey($shiftId)->sharedLock()->first() : null;
+            DineOrder::where('transaction_id', $billId)->lockForUpdate()->value('id');
+            $bill = Transaction::whereKey($billId)->lockForUpdate()->firstOrFail();
+
+            // A newer claim took the bill meanwhile: it holds it now, and moved it to its own shift.
+            if ($bill->payment_attempt === $attempt) {
+                app(PaymentWebhookController::class)->recheckFlaggedPayments($bill, $shift, 'cashier_charge_failed', $attempt);
+            }
+        });
     }
 }

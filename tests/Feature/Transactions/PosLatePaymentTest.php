@@ -561,8 +561,7 @@ class PosLatePaymentTest extends TestCase
     #[DataProvider('gateways')]
     public function test_an_expired_qr_booked_after_the_shift_closed_is_flagged_paid_after_close_and_the_recap_is_unchanged(string $gateway): void
     {
-        // A guest's pay-later bill outlives its shift (force-closed, booked as a shortfall). A pay-now sale does not: the
-        // close cancels it (#242 BR-11, next test).
+        // A guest's pay-later bill outlives its force-closed shift (booked as a shortfall); a pay-now sale is cancelled (#242 BR-11).
         $sale = $this->sale(overrides: ['is_pay_later' => true]);
         $closed = app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0, 'Tutup paksa', forceClose: true);
         $this->assertSame(0, (int) $closed->non_cash_sales_total); // a failed gateway sale is not in the snapshot
@@ -583,9 +582,7 @@ class PosLatePaymentTest extends TestCase
     {
         $sale = $this->sale();
         app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0); // REQ-003 AC-20: cancels and restocks
-
         $this->notify($gateway, $sale)->assertOk();
-
         $sale->refresh();
         $this->assertSame('failed', $sale->payment_status);
         $this->assertNotNull($sale->late_superseded_payment_at);

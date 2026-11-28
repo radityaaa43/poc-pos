@@ -10,6 +10,7 @@ use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Models\User;
 use Database\Seeders\E2eSeeder;
 
 /**
@@ -32,11 +33,33 @@ class PayLater
                 return ['enabled' => $enabled];
             },
 
-            // Flags the customer --arg=customer_id=<id> "Boleh piutang" (it is not fillable: only its approver sets it).
+            // Flags the customer --arg=customer_id=<id> "Boleh piutang" and, with --arg=limit=<rupiah>, sets their credit
+            // limit (neither is fillable: only their approver sets them).
             'paylater.credit' => function (array $options): array {
-                Customer::findOrFail($options['customer_id'])->forceFill(['may_buy_on_credit' => true])->save();
+                $limit = isset($options['limit']) ? ['credit_limit' => (int) $options['limit']] : [];
+                Customer::findOrFail($options['customer_id'])->forceFill(['may_buy_on_credit' => true] + $limit)->save();
 
                 return ['customer_id' => (int) $options['customer_id']];
+            },
+
+            // The customer --arg=customer_id=<id>: credit limit, receivable count and every audited limit change.
+            'paylater.credit-state' => function (array $options): array {
+                $customer = Customer::findOrFail($options['customer_id']);
+
+                return [
+                    'credit_limit' => $customer->credit_limit,
+                    'receivables' => $customer->receivables()->count(),
+                    'audits' => AuditLog::where('event', 'customer.credit_limit_updated')
+                        ->where('auditable_type', $customer->getMorphClass())
+                        ->where('auditable_id', $customer->id)
+                        ->orderBy('id')->get()
+                        ->map(fn (AuditLog $log): array => [
+                            'user' => User::whereKey($log->user_id)->value('email'),
+                            'at' => $log->created_at->toIso8601String(),
+                            'before' => $log->before['credit_limit'],
+                            'after' => $log->after['credit_limit'],
+                        ])->all(),
+                ];
             },
 
             // The setting of the outlet --arg=code=<outlet code> (default the E2E outlet) and how many audit rows its changes left.

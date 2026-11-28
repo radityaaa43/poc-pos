@@ -60,7 +60,7 @@ test.describe('80-dine-online-payment', () => {
     test('the cashier\'s own pending QRIS is Lihat QR with no chip', { tag: ['@REQ-005-AC-10'] }, async ({ arrange, page }) => {
         const own = arrange('dine.bill', { staff: '1' });
         arrange('dine.bill-act', { access_token: own.access_token, action: 'qris-pending' });
-        expect(arrange('dine.order-state', { access_token: own.access_token })).toMatchObject({ payment_status: 'pending', payment_attempt: 0 });
+        expect(arrange('dine.order-state', { access_token: own.access_token })).toMatchObject({ payment_status: 'pending', payment_attempt: 1 });
 
         await signIn(page, own.cashier_email);
         await openList(page);

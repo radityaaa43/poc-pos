@@ -403,6 +403,25 @@ describe("useKitchenPrintDevice: one tab prints per device", () => {
         expect(printBytes).toHaveBeenCalledTimes(1);
     });
 
+    it("does not blame another tab while its own send is still finishing after off and on", async () => {
+        let release;
+        printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+        const { result } = mount();
+        await flush();
+
+        act(() => result.current.setAutoPrint(false));
+        act(() => result.current.setAutoPrint(true));
+        await flush();
+        expect(result.current.otherTab).toBe(false);
+
+        await act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+        expect(result.current.otherTab).toBe(false);
+        expect(locks.request).toHaveBeenCalledTimes(2);
+    });
+
     it("unmount releases the lock, and a waiting tab's cleanup aborts its request", async () => {
         const leader = mount();
         await flush();
@@ -468,7 +487,9 @@ describe("useKitchenPrintDevice: cancel tickets (DIBATALKAN)", () => {
             { type: "Dine-in", unpaid: "BELUM LUNAS", cancelled: "DIBATALKAN" }
         );
         expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
-        expect(cancelPosts()).toEqual([["/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }]]);
+        expect(cancelPosts()).toEqual([
+            ["/kitchen.print-devices.cancellation-prints", { cancellation_ids: [71, 72] }, { timeout: 10000 }],
+        ]);
         expect(itemPosts()).toEqual([]);
         expect(unconfirmedCancellations()).toEqual([]);
     });

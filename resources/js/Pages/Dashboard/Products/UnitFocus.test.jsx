@@ -14,7 +14,7 @@ vi.mock("@inertiajs/react", () => ({
         const [data, setAll] = useState(initial);
         const setData = (key, value) =>
             setAll((prev) => (typeof key === "string" ? { ...prev, [key]: value } : { ...prev, ...key }));
-        return { data, setData, post: vi.fn(), put: vi.fn(), processing: false, errors: {} };
+        return { data, setData, transform: vi.fn(), post: vi.fn(), put: vi.fn(), processing: false, errors: {} };
     },
 }));
 

@@ -24,7 +24,6 @@ describeShiftClose(() => {
         await page.getByRole('button', { name: 'Tutup paksa' }).click();
         expect(await note.evaluate((field) => field.validity.valueMissing)).toBe(true);
         expect(arrange('shiftclose.state', { shift_id }).status).toBe('open');
-
         await note.fill('Tamu sudah pulang');
         await page.getByRole('button', { name: 'Tutup paksa' }).click();
         await expect(page.getByText('Force Closed', { exact: true })).toBeVisible();
@@ -32,7 +31,6 @@ describeShiftClose(() => {
         await expect(page.getByText('Selisih', { exact: true }).locator('xpath=following-sibling::span')).toHaveText(/-Rp\s*20\.000/);
         // Only the money the bank received: the QRIS sale, not the booked bill.
         await expect(page.getByText('Penjualan Non Tunai', { exact: true }).locator('xpath=following-sibling::p')).toHaveText(/Rp\s*10\.000$/);
-
         const state = arrange('shiftclose.state', { shift_id });
         expect(state).toMatchObject({
             status: 'force_closed', close_notes: 'Tamu sudah pulang', non_cash_sales_total: 10000,

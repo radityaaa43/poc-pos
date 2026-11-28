@@ -309,7 +309,8 @@
             "outlets": "Outlets",
             "units": "Units",
             "kitchenStations": "Kitchen stations",
-            "whatsApp": "WhatsApp"
+            "whatsApp": "WhatsApp",
+            "modifiers": "Modifier"
         },
         "menu": {
             "overview": "Overview",
@@ -468,7 +469,14 @@
             "no": "No",
             "confirmGrant": "Allow this customer to buy on credit?",
             "confirmRevoke": "Revoke this customer's credit permission?",
-            "cancel": "Cancel"
+            "cancel": "Cancel",
+            "limitLabel": "Credit limit",
+            "noLimit": "No limit",
+            "used": "Used",
+            "limitHelp": "Leave empty for No limit",
+            "save": "Save",
+            "overdue": "Overdue receivable exists",
+            "limitSaved": "Credit limit saved"
         }
     },
     "transactions": {
@@ -539,6 +547,17 @@
             "days31to60": "31-60 Days",
             "days61to90": "61-90 Days",
             "over90": ">90 Days"
+        },
+        "credit": {
+            "limit": "Credit limit",
+            "usedPercent": "Used %",
+            "usedScope": "Used (across all outlets)",
+            "noLimit": "No limit",
+            "near": "Near limit (≥ 80%)",
+            "over": "Over limit",
+            "filterLabel": "Credit limit",
+            "filterAll": "All credit limits",
+            "usedAria": "Used {{percent}}% of the {{limit}} limit"
         }
     },
     "salesReturns": {
@@ -572,7 +591,6 @@
             "title": "Close blocked",
             "item": "Not handed over",
             "bill": "Unpaid",
-            "syncFirst": "Sync offline transactions first",
             "split": "Split payment not fully paid — {{amount}} still owed"
         },
         "forced": {
@@ -1182,10 +1200,14 @@
             "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
             "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
         },
-        "offlineKitchen": {
-            "notice": "The kitchen has not received this order. Tell the kitchen directly.",
-            "close": "Close",
-            "pending": "Offline orders not received by the kitchen: {{count}}"
+        "credit": {
+            "limit": "Limit",
+            "used": "Used",
+            "remaining": "Remaining",
+            "noLimit": "No limit",
+            "overdue": "Overdue receivable exists",
+            "loadError": "Could not load the credit limit",
+            "retry": "Try again"
         }
     },
     "outlets": {
@@ -1197,7 +1219,8 @@
     "dineMenu": {
         "payLater": {
             "button": "Order — Pay later",
-            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave."
+            "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave.",
+            "helperOnline": "Your order goes straight to the kitchen. Pay at the counter, or online from the order page, before you leave."
         }
     },
     "kitchenStations": {
@@ -1233,11 +1256,58 @@
             "gatewayError": "Online payment is having trouble — please pay at the counter",
             "tooMany": "Too many attempts. Try again in a moment.",
             "offline": "No connection. The payment was not created.",
-            "scanQris": "Scan the QRIS with your bank or e-wallet app"
+            "scanQris": "Scan the QRIS with your bank or e-wallet app",
+            "unpaid": "Not paid yet",
+            "payLaterAcceptedOnline": "Order received. Not paid yet: pay now or at the counter before you leave.",
+            "payLaterAcceptedCounter": "Order received. Not paid yet: please pay at the counter before you leave."
         },
         "menu": {
             "submitOnline": "Order",
             "submitOnlineHint": "You can pay online after your order is accepted"
         }
+    },
+    "modifiers": {
+        "title": "Modifier",
+        "add": "Add group",
+        "edit": "Edit group",
+        "empty": "No modifier groups yet",
+        "type": "Group type",
+        "required": "Required",
+        "optional": "Optional",
+        "name": "Group name",
+        "min": "Minimum choices",
+        "max": "Maximum choices",
+        "hintRequired": "Required group: at least 1, and not above the maximum.",
+        "hintOptional": "Optional group: the minimum may be 0.",
+        "range": "Choose {{min}}–{{max}}",
+        "optionCount": "Options: {{total}}",
+        "menuCount": "Menus: {{total}}",
+        "editLabel": "Edit group {{name}}",
+        "deleteLabel": "Delete group {{name}}",
+        "deleteTitle": "Delete group {{name}}?",
+        "deleteConfirm": "Menus using this group: {{menus}}. It is removed from them; past sales do not change.",
+        "options": "Options",
+        "optionNumber": "Option {{number}}",
+        "addOption": "Add option",
+        "removeOption": "Remove option",
+        "optionName": "Option name",
+        "price": "Extra price (Rp)",
+        "default": "Default option",
+        "recipe": "Recipe (optional)",
+        "ingredient": "Ingredient",
+        "chooseIngredient": "Choose an ingredient",
+        "qty": "Quantity",
+        "qtyUnit": "Quantity ({{unit}})",
+        "addIngredient": "Add ingredient",
+        "removeIngredient": "Remove ingredient {{number}}",
+        "saved": "Modifier group saved",
+        "failed": "The modifier group could not be saved",
+        "deleted": "Modifier group deleted",
+        "deleteFailed": "The modifier group could not be deleted",
+        "attach": "Attach a modifier group",
+        "chooseGroup": "Choose a group",
+        "moveUp": "Move {{name}} up",
+        "moveDown": "Move {{name}} down",
+        "detach": "Detach {{name}}"
     }
 }

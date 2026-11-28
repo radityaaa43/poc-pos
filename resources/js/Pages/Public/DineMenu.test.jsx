@@ -5,6 +5,8 @@ import { router } from "@inertiajs/react";
 import i18n from "@/i18n";
 import DineMenu from "./DineMenu";
 
+beforeAll(() => i18n.changeLanguage("id"));
+
 // The page has no layout, so it renders its own Toaster; without one the guest
 // never saw why an order was not sent (#119).
 vi.mock("@inertiajs/react", () => ({
@@ -80,13 +82,37 @@ describe("DineMenu order feedback", () => {
 describe("DineMenu pay later", () => {
     const bayarNanti = () => screen.getByText("Pesan — Bayar Belakangan");
     const helper = "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.";
+    const onlineHelper = "Pesanan langsung dibuat. Bayar di kasir atau online dari halaman pesanan sebelum Anda pergi.";
 
     it("offers only Bayar di Kasir when the outlet has pay later off", async () => {
         await orderOne();
 
         expect(screen.queryByText("Pesan — Bayar Belakangan")).toBeNull();
         expect(screen.queryByText(helper)).toBeNull();
+        expect(screen.queryByText(onlineHelper)).toBeNull();
         expect(pesan()).toBeTruthy();
+    });
+
+    // REQ-005 J3 (#328): only an outlet with a ready gateway offers paying online from the order page.
+    it("mentions paying online in the helper at a gateway outlet", async () => {
+        await orderOne({ payLaterEnabled: true, onlinePayment: true });
+
+        expect(screen.getByText(onlineHelper)).toBeTruthy();
+        expect(screen.queryByText(helper)).toBeNull();
+    });
+
+    it.each([
+        [false, "Your order goes straight to the kitchen. Pay at the counter before you leave."],
+        [true, "Your order goes straight to the kitchen. Pay at the counter, or online from the order page, before you leave."],
+    ])("speaks English to an English browser (gateway: %s)", async (onlinePayment, english) => {
+        await i18n.changeLanguage("en");
+        try {
+            await orderOne({ payLaterEnabled: true, onlinePayment });
+
+            expect(screen.getByText(english)).toBeTruthy();
+        } finally {
+            await i18n.changeLanguage("id");
+        }
     });
 
     it("offers a second button with the exact helper text when it is on", async () => {
@@ -127,8 +153,6 @@ describe("DineMenu pay later", () => {
 describe("DineMenu online payment (REQ-005)", () => {
     const hint = "Bisa bayar online setelah pesanan diterima";
 
-    beforeAll(() => i18n.changeLanguage("id"));
-
     it("keeps Bayar di Kasir and no hint at an outlet without a gateway", async () => {
         await orderOne();
 
@@ -149,12 +173,5 @@ describe("DineMenu online payment (REQ-005)", () => {
             expect.objectContaining({ payment_option: "pay_at_counter" }),
             expect.any(Object)
         );
-    });
-
-    it("leaves the pay-later button and its helper as they are", async () => {
-        await orderOne({ onlinePayment: true, payLaterEnabled: true });
-
-        expect(screen.getByText("Pesan — Bayar Belakangan")).toBeTruthy();
-        expect(screen.getByText("Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.")).toBeTruthy();
     });
 });

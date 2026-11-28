@@ -30,9 +30,16 @@ class E2eServiceProvider extends ServiceProvider
             ], 201);
         };
 
+        // Core API: a superseded guest charge is expired there (a successful expiry answers status_code 407).
+        $midtransExpire = fn () => Http::response(['status_code' => '407', 'transaction_status' => 'expire'], 200);
+
         Http::fake([
             'app.sandbox.midtrans.com/*' => $midtrans,
             'app.midtrans.com/*' => $midtrans,
+            'api.sandbox.midtrans.com/*' => $midtransExpire,
+            'api.midtrans.com/*' => $midtransExpire,
+            // Before the catch-all below: the first matching fake answers.
+            'api.xendit.co/invoices/*' => fn () => Http::response(['status' => 'EXPIRED'], 200),
             'api.xendit.co/*' => function (Request $request) {
                 $externalId = $request['external_id'] ?? 'e2e-order';
 

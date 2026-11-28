@@ -10,6 +10,8 @@ import {
     IconUsers,
 } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
+import CreditCells from "@/Components/Receivables/CreditCells";
 
 const formatCurrency = (value = 0) =>
     new Intl.NumberFormat("id-ID", {
@@ -43,10 +45,14 @@ const statusBadge = (value) => {
     }
 };
 
+const COLUMNS = "grid grid-cols-[1.2fr_1.4fr_1fr_1fr_1fr_1fr_1fr_1fr] gap-2";
+
 export default function ReceivablesIndex({ receivables, filters = {} }) {
     const { flash } = usePage().props;
     const [search, setSearch] = useState(filters.invoice || "");
     const [status, setStatus] = useState(filters.status || "");
+    const [credit, setCredit] = useState(filters.credit || "");
+    const { t } = useTranslation();
     const [activeTab, setActiveTab] = useState("list");
     const [agingData, setAgingData] = useState(null);
     const [loadingAging, setLoadingAging] = useState(false);
@@ -75,7 +81,7 @@ export default function ReceivablesIndex({ receivables, filters = {} }) {
         e.preventDefault();
         router.get(
             route("receivables.index"),
-            { invoice: search, status },
+            { invoice: search, status, credit },
             { preserveScroll: true, preserveState: true }
         );
     };
@@ -244,6 +250,7 @@ export default function ReceivablesIndex({ receivables, filters = {} }) {
                             <div className="relative w-full">
                                 <IconCalendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                                 <select
+                                    aria-label="Status"
                                     value={status}
                                     onChange={(e) => setStatus(e.target.value)}
                                     className="w-full h-11 pl-10 pr-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
@@ -255,6 +262,17 @@ export default function ReceivablesIndex({ receivables, filters = {} }) {
                                     <option value="overdue">Jatuh Tempo</option>
                                 </select>
                             </div>
+                            <select
+                                aria-label={t("receivables.credit.filterLabel")}
+                                value={credit}
+                                onChange={(e) => setCredit(e.target.value)}
+                                className="w-full h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
+                            >
+                                <option value="">{t("receivables.credit.filterAll")}</option>
+                                <option value="near">{t("receivables.credit.near")}</option>
+                                <option value="over">{t("receivables.credit.over")}</option>
+                                <option value="none">{t("receivables.credit.noLimit")}</option>
+                            </select>
                             <button
                                 type="submit"
                                 className="w-full sm:w-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold"
@@ -265,41 +283,48 @@ export default function ReceivablesIndex({ receivables, filters = {} }) {
 
                         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden">
                             <div className="w-full overflow-x-auto">
-                                <div className="min-w-[720px]">
-                                    <div className="grid grid-cols-12 px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
-                                        <div className="col-span-2">Invoice</div>
-                                        <div className="col-span-2">Pelanggan</div>
-                                        <div className="col-span-2 text-right">Total</div>
-                                        <div className="col-span-2 text-right">Sisa</div>
-                                        <div className="col-span-2 text-right">Jatuh Tempo</div>
-                                        <div className="col-span-2 text-center">Status</div>
+                                <div className="min-w-[960px]">
+                                    <div className={`${COLUMNS} px-4 py-3 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800`}>
+                                        <div>Invoice</div>
+                                        <div>Pelanggan</div>
+                                        <div className="text-right">Total</div>
+                                        <div className="text-right">Sisa</div>
+                                        <div className="text-right">{t("receivables.credit.limit")}</div>
+                                        {/* Usage counts every outlet, although the rows are limited to the viewer's. */}
+                                        <div className="text-right" title={t("receivables.credit.usedScope")}>
+                                            {t("receivables.credit.usedPercent")}
+                                            <span className="block text-[10px] font-normal normal-case">{t("receivables.credit.usedScope")}</span>
+                                        </div>
+                                        <div className="text-right">Jatuh Tempo</div>
+                                        <div className="text-center">Status</div>
                                     </div>
                                     {rows.length > 0 ? (
                                         rows.map((item) => (
                                             <Link
                                                 key={item.id}
                                                 href={route("receivables.show", item.id)}
-                                                className="grid grid-cols-12 gap-2 px-4 py-3 items-center border-b border-slate-100 dark:border-slate-800 hover:bg-primary-50/50 dark:hover:bg-slate-800/50 transition-colors"
+                                                className={`${COLUMNS} px-4 py-3 items-center border-b border-slate-100 dark:border-slate-800 hover:bg-primary-50/50 dark:hover:bg-slate-800/50 transition-colors`}
                                             >
-                                                <div className="col-span-2">
+                                                <div>
                                                     <p className="text-sm font-semibold text-slate-800 dark:text-white">{item.invoice}</p>
                                                     {item.transaction_id && (
                                                         <p className="text-[11px] text-slate-500">POS #{item.transaction_id}</p>
                                                     )}
                                                 </div>
-                                                <div className="col-span-2">
+                                                <div>
                                                     <p className="text-sm text-slate-700 dark:text-slate-200">{item.customer?.name || "Umum"}</p>
                                                 </div>
-                                                <div className="col-span-2 text-right text-sm font-semibold text-slate-900 dark:text-white">
+                                                <div className="text-right text-sm font-semibold text-slate-900 dark:text-white">
                                                     {formatCurrency(item.total)}
                                                 </div>
-                                                <div className="col-span-2 text-right text-sm font-semibold text-primary-600 dark:text-primary-400">
+                                                <div className="text-right text-sm font-semibold text-primary-600 dark:text-primary-400">
                                                     {formatCurrency(item.remaining)}
                                                 </div>
-                                                <div className="col-span-2 text-right text-sm text-slate-600 dark:text-slate-400">
+                                                <CreditCells credit={item.credit} />
+                                                <div className="text-right text-sm text-slate-600 dark:text-slate-400">
                                                     {formatDate(item.due_date)}
                                                 </div>
-                                                <div className="col-span-2 flex justify-center">
+                                                <div className="flex justify-center">
                                                     {statusBadge(item.status)}
                                                 </div>
                                             </Link>
