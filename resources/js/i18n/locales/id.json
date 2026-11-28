@@ -567,7 +567,18 @@
         "totalCash": "Total Tunai",
         "totalNonCash": "Total Non-Tunai",
         "totalRefund": "Total Refund",
-        "selectWarehouse": "Pilih Gudang"
+        "selectWarehouse": "Pilih Gudang",
+        "closeBlocked": {
+            "title": "Belum selesai",
+            "item": "Belum diserahkan",
+            "bill": "Belum lunas"
+        },
+        "forced": {
+            "submit": "Tutup paksa",
+            "note": "Catatan tutup paksa",
+            "warning": "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.",
+            "unpaidBooked": "Tagihan belum lunas dibukukan"
+        }
     },
     "stock": {
         "opname": {
@@ -1085,7 +1096,8 @@
             "accepted": "Diterima",
             "preparing": "Sedang dibuat",
             "ready": "Siap",
-            "cancelled": "Dibatalkan"
+            "cancelled": "Dibatalkan",
+            "not_collected": "Tidak diambil"
         },
         "print": {
             "open": "Pengaturan printer dapur",
