@@ -98,7 +98,12 @@ stateDiagram-v2
        (webhook, retry, double tap)
      - the same action from another channel     - what another outlet sees (shared customers,
        (POS, table QR, portal, API)               shop-wide lists)
-     - every new UI text, in Indonesian and English -->
+     - every new UI text, in Indonesian and English
+     - where each new field shows: staff screens, receipts, customer documents (A4 invoice,
+       public invoice, portal), kitchen, lists, reports, exports, audit log (personal data
+       never in the audit log, only that it changed)
+     - money instructions on screen (refund, hand back cash, cash-out): exact words, when each
+       shows, and that it never changes after the user acted on it -->
 
 ## Business rules
 
