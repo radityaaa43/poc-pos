@@ -465,6 +465,16 @@ class CreditApprovalTest extends TestCase
         $this->decide('deny', $request)->assertSessionHasNoErrors();
     }
 
+    public function test_approval_refuses_once_pay_later_is_switched_off(): void
+    {
+        $request = $this->requested();
+        Setting::setForOutlet('pay_later_enabled', '0', $this->outlet);
+
+        $this->decide('approve', $request)->assertSessionHasErrors(['reason' => __('messages.credit.pay_later_off')]);
+
+        $this->assertStillPending($request);
+    }
+
     public function test_approval_refuses_when_the_flag_was_revoked(): void
     {
         $request = $this->requested();

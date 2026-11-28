@@ -448,6 +448,7 @@ return [
         'already_denied' => 'Sudah ditolak',
         'shift_closed' => 'Shift kasir sudah ditutup.',
         'credit_revoked' => 'Pelanggan tidak lagi boleh piutang.',
+        'pay_later_off' => 'Bayar Belakangan sudah dinonaktifkan di outlet ini',
         'cart_gone' => 'Keranjang sudah tidak ada.',
         'total_changed' => 'Total berubah sejak diajukan. Tolak, lalu minta kasir mengajukan ulang.',
     ],

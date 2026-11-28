@@ -448,6 +448,7 @@ return [
         'already_denied' => 'Already denied',
         'shift_closed' => "The cashier's shift is already closed.",
         'credit_revoked' => 'The customer may no longer buy on credit.',
+        'pay_later_off' => 'Pay later has been switched off for this outlet',
         'cart_gone' => 'The cart is no longer there.',
         'total_changed' => 'The total changed since it was requested. Deny it and ask the cashier to request again.',
     ],
