@@ -415,6 +415,7 @@ return [
         'in_use_reservation' => 'Meja ini dipesan (reservasi #:reservation, :time). Tandai atau batalkan dulu.',
     ],
     'pos_table_order' => [
+        'sent' => 'Pesanan terkirim ke :table',
         'table_unavailable' => 'Meja ini tidak tersedia.',
         'pay_later_off' => 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.',
         'cart_empty' => 'Keranjang kosong. Tambahkan item dulu.',

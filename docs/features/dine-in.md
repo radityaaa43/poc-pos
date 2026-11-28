@@ -168,7 +168,7 @@ Dikontrol via `Setting` table:
 | POST | `/dashboard/dine-orders/{order}/pay` | permission:dine-orders-process, active_shift |
 | POST | `/dashboard/dine-orders/{order}/reject` | permission:dine-orders-process |
 | GET | `/dashboard/transactions/tables` | permission:transactions-access (JSON: the POS table list) |
-| POST | `/dashboard/transactions/table-orders` | permission:transactions-access, active_shift |
+| POST | `/dashboard/transactions/table-orders` | permission:transactions-access (the open shift is checked by the service, so a refusal is a validation error) |
 
 ### Publik
 

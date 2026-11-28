@@ -415,6 +415,7 @@ return [
         'in_use_reservation' => 'This table is reserved (reservation #:reservation, :time). Mark or cancel it first.',
     ],
     'pos_table_order' => [
+        'sent' => 'Order sent to :table',
         'table_unavailable' => 'This table is not available.',
         'pay_later_off' => 'Pay later is not available at this outlet. Choose pay at the counter.',
         'cart_empty' => 'The cart is empty. Add items first.',

@@ -1242,7 +1242,6 @@
             "cancel": "Cancel",
             "submit": "Send order",
             "sending": "Sending...",
-            "sent": "Order sent to {{table}}",
             "failed": "The order was not sent. Your cart is kept."
         }
     },

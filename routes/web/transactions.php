@@ -48,4 +48,5 @@ Route::post('/transactions/{transaction}/share-campaign', [CrmCampaignController
 
 // table orders taken on the POS (#426); the list is asked for on page load, before any shift is open
 Route::get('/transactions/tables', PosTableListController::class)->middleware('permission:transactions-access')->name('transactions.tables');
-Route::post('/transactions/table-orders', PosTableOrderController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.table-orders.store');
+// No active_shift: it refuses with a redirect that Inertia reads as success. The service requires the shift under lock.
+Route::post('/transactions/table-orders', PosTableOrderController::class)->middleware('permission:transactions-access')->name('transactions.table-orders.store');

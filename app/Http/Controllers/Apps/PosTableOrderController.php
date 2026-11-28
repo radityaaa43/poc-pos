@@ -20,13 +20,14 @@ class PosTableOrderController extends Controller
             'add_on_to_dine_order_id' => ['nullable', 'integer'],
         ]);
 
-        $tableOrders->place(
+        $order = $tableOrders->place(
             $request->user(),
             (int) $data['dine_table_id'],
             $data['payment_option'],
             $request->integer('add_on_to_dine_order_id') ?: null,
         );
 
-        return back();
+        // The dialog closes only on this confirmation; the POS page shows it.
+        return back()->with('success', __('messages.pos_table_order.sent', ['table' => $order->table->name]));
     }
 }

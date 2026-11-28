@@ -93,9 +93,11 @@ export default function TableOrderModal({ carts }) {
             { dine_table_id: table.id, payment_option: payment, add_on_to_dine_order_id: addOnId },
             {
                 preserveScroll: true,
-                onSuccess: () => {
-                    setShow(false);
-                    toast.success(t("pos.tableOrder.sent", { table: table.name }));
+                // Inertia also succeeds on a login redirect or an error page: only the server's confirmation counts.
+                // The POS page toasts that confirmation itself.
+                onSuccess: (page) => {
+                    if (page.props.flash?.success) setShow(false);
+                    else toast.error(t("pos.tableOrder.failed"));
                 },
                 onError: (errors) => toast.error(Object.values(errors)[0]),
                 onNetworkError: () => {

@@ -1242,7 +1242,6 @@
             "cancel": "Batal",
             "submit": "Kirim pesanan",
             "sending": "Mengirim...",
-            "sent": "Pesanan terkirim ke {{table}}",
             "failed": "Pesanan belum terkirim. Keranjang tetap ada."
         }
     },
