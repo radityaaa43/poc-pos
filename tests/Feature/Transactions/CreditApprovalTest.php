@@ -513,7 +513,7 @@ class CreditApprovalTest extends TestCase
 
     public function test_migration_runs_down_then_up(): void
     {
-        $migration = require database_path('migrations/2026_12_22_100001_create_credit_approval_requests_table.php');
+        $migration = require database_path('migrations/2026_12_26_100001_create_credit_approval_requests_table.php');
 
         $migration->down();
         $this->assertFalse(Schema::hasTable('credit_approval_requests'));
