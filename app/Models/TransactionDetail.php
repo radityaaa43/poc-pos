@@ -146,12 +146,7 @@ class TransactionDetail extends Model
         return $this->hasMany(TransactionDetailModifier::class)->orderBy('id');
     }
 
-    /**
-     * What a receipt prints under the item line: each option with its extra price, then the note. Read from the
-     * sale's own rows, never from the master (REQ-008 AC-12, AC-14).
-     *
-     * @return list<string>
-     */
+    /** Receipt lines under the item: options and note, read from the sale's rows, never the master (AC-14). */
     public function receiptExtras(): array
     {
         $lines = $this->modifiers->map(fn (TransactionDetailModifier $row) => '+ '.$row->option_name

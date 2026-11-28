@@ -6,10 +6,7 @@ import { useTranslation } from "react-i18next";
 const defaultOptionIds = (groups) =>
     groups.flatMap((group) => group.options.filter((option) => option.is_default && option.available).map((option) => option.id));
 
-/**
- * Adding a menu to the POS cart. A menu with modifier groups opens the options panel first (REQ-008 AC-06);
- * `panel` is that panel's props while it is open.
- */
+// A menu with modifier groups opens the options panel first (REQ-008 AC-06); `panel` holds its props meanwhile.
 export default function useAddToCart(modifierGroups = {}) {
     const { t } = useTranslation();
     const [addingProductId, setAddingProductId] = useState(null);

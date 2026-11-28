@@ -190,8 +190,8 @@ class CheckoutService
         // withTrashed: an option deleted since the check above still has the recipe this sale was priced with.
         $recipes = ModifierOption::withTrashed()->with('components')
             ->findMany(collect($selections)->pluck('options.*.id')->flatten()->all())->keyBy('id');
-        $this->componentStock->lock($carts
-            ->flatMap(fn (Cart $cart) => $cart->product->is_composite ? $cart->product->components->modelKeys() : [$cart->product_id])
+        $this->componentStock->lock($carts->pluck('product')
+            ->flatMap(fn (Product $product) => $product->is_composite ? $product->components->modelKeys() : [$product->id])
             ->merge($recipes->flatMap->components->pluck('id')), $warehouseId);
 
         foreach ($carts as $cart) {
@@ -256,7 +256,7 @@ class CheckoutService
 
             if ($product->is_composite) {
                 $product->load('components');
-                $this->componentStock->deduct($transaction, $product->components, 1, (int) $cart->qty, $warehouseId, "komponen komposit {$product->title}", $userId);
+                $this->componentStock->deduct($transaction, $product->components->whereInstanceOf(Product::class), 1, (int) $cart->qty, $warehouseId, "komponen komposit {$product->title}", $userId);
             } else {
                 $baseQty = (int) round($cart->qty * (float) ($cart->conversion_factor ?? 1));
 

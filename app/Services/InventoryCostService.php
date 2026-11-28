@@ -44,17 +44,13 @@ class InventoryCostService
     public function lineCost(Product $product, ?int $warehouseId, float $qty, float $factor = 1.0): int
     {
         if ($product->is_composite) {
-            return $this->recipeCost($product->components, $warehouseId, $qty);
+            return $this->recipeCost($product->components->whereInstanceOf(Product::class), $warehouseId, $qty);
         }
 
         return (int) round($this->unitCost($product, $warehouseId) * $qty * $factor);
     }
 
-    /**
-     * HPP of $qty portions of a recipe, whole rupiah.
-     *
-     * @param  iterable<Product>  $components  each with pivot->qty
-     */
+    /** @param  iterable<Product>  $components  each with pivot->qty; HPP of $qty portions, whole rupiah */
     public function recipeCost(iterable $components, ?int $warehouseId, float $qty): int
     {
         $components = collect($components);

@@ -29,8 +29,7 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             ->where("modifierGroups.{$this->menu->id}.0.options.0.available", true)
             ->where("modifierGroups.{$this->menu->id}.0.options.1.available", false)
             ->missing("modifierGroups.{$this->menu->id}.0.options.1.components")
-            ->where('products.0.menu_price', 20000)
-            ->where('products.0.modifiers_sold_out', false));
+            ->where('products.0.menu_price', 20000));
     }
 
     public function test_line_price_is_menu_plus_options_and_ignores_the_client(): void

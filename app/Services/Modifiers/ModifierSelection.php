@@ -18,15 +18,10 @@ use Illuminate\Validation\ValidationException;
  */
 class ModifierSelection
 {
-    /**
-     * @param  array<int, int|string>  $optionIds
-     * @return array{has_groups: bool, unit_total: int, options: list<array<string, mixed>>} options in display order
-     *
-     * @throws ValidationException naming the menu and the option, or the incomplete group
-     */
+    /** @return array{has_groups: bool, unit_total: int, options: list<array<string, mixed>>} options in display order */
     public static function resolve(Product $product, array $optionIds, ?Outlet $outlet, ?int $warehouseId): array
     {
-        $groups = ModifierCatalog::forOutlet($outlet, collect([$product->id]))->get($product->id, []);
+        $groups = ModifierCatalog::forOutlet($outlet, collect([$product->getKey()]))->get($product->id, []);
         $ids = collect($optionIds)->map(fn ($id) => (int) $id)->unique();
 
         // First, so a deleted or switched-off option is named instead of its group looking incomplete.
@@ -65,7 +60,7 @@ class ModifierSelection
         ];
     }
 
-    /** @param  list<array<string, mixed>>  $options  from resolve(); refuses one whose recipe cannot cover $qty portions */
+    /** Refuses an option whose recipe cannot cover $qty portions. */
     public static function assertStock(Product $product, array $options, int $qty, ?int $warehouseId): void
     {
         $stock = self::stockOf($options, $warehouseId);
@@ -77,31 +72,22 @@ class ModifierSelection
         }
     }
 
-    /**
-     * Every cart line that carries a selection, checked again with today's options, prices and stock.
-     *
-     * @param  Collection<int, Cart>  $carts
-     * @return array<int, array{has_groups: bool, unit_total: int, options: list<array<string, mixed>>}> by cart id
-     */
+    /** Every cart line with a selection, checked again with today's options, prices and stock; keyed by cart id. */
     public static function forCheckout(Collection $carts, ?Outlet $outlet, ?int $warehouseId): array
     {
         $selections = [];
 
         foreach ($carts->whereNotNull('modifier_option_ids') as $cart) {
-            $selection = self::resolve($cart->product, $cart->modifier_option_ids, $outlet, $warehouseId);
-            self::assertStock($cart->product, $selection['options'], (int) $cart->qty, $warehouseId);
+            $product = $cart->getRelationValue('product');
+            $selection = self::resolve($product, $cart->modifier_option_ids, $outlet, $warehouseId);
+            self::assertStock($product, $selection['options'], (int) $cart->qty, $warehouseId);
             $selections[$cart->id] = $selection;
         }
 
         return $selections;
     }
 
-    /** The sale line's own copy of its options, so later edits never change it (REQ-008 decision 11).
-     *
-     * @param  list<array<string, mixed>>  $options  from resolve()
-     * @param  Collection<int, ModifierOption>  $recipes  by option id, the ones the sale deducts
-     * @return list<array<string, mixed>>
-     */
+    /** The sale line's own copy of its options (REQ-008 decision 11). $recipes: by option id, as deducted. */
     public static function snapshot(array $options, Collection $recipes): array
     {
         return array_map(fn (array $option) => [
@@ -116,13 +102,7 @@ class ModifierSelection
         ], $options);
     }
 
-    /**
-     * What each cart line shows and adds to its price, in one query. A deleted option still previews at its last
-     * price, so the cart stays readable; checkout is what refuses it.
-     *
-     * @param  Collection<int, Cart>  $carts
-     * @return Collection<int, array<int, array{name: string, price_delta: int}>> by cart id
-     */
+    /** Option names and prices by cart id. A deleted option still previews, so the cart stays readable. */
     public static function preview(Collection $carts): Collection
     {
         $ids = $carts->pluck('modifier_option_ids')->flatten()->filter()->unique();
@@ -137,11 +117,7 @@ class ModifierSelection
             ->values()->all()]);
     }
 
-    /** The catalog as the POS panel draws it: an availability flag instead of the recipe.
-     *
-     * @param  Collection<int, int>  $productIds
-     * @return Collection<int, array<int, array<string, mixed>>> by product id
-     */
+    /** @param  Collection<int, int>  $productIds  returns the POS catalog by product id: availability, no recipe */
     public static function forPos(Collection $productIds, ?Outlet $outlet, ?int $warehouseId): Collection
     {
         $catalog = ModifierCatalog::forOutlet($outlet, $productIds);
@@ -164,10 +140,7 @@ class ModifierSelection
         );
     }
 
-    /**
-     * @param  array<int, array<string, mixed>>  $options  catalog options with `components`
-     * @return Collection<int, int> product id => stock in the warehouse (all stock without one)
-     */
+    /** Product id => stock of the options' ingredients in the warehouse (all stock without one). */
     private static function stockOf(array $options, ?int $warehouseId): Collection
     {
         $ids = collect($options)->flatMap(fn (array $option) => array_column($option['components'], 'product_id'))
@@ -182,7 +155,6 @@ class ModifierSelection
             : Product::whereKey($ids)->pluck('stock', 'id');
     }
 
-    /** @param  array<int, array{product_id: int, qty: float}>  $components */
     private static function covers(Collection $stock, array $components, int $qty): bool
     {
         return collect($components)->every(
@@ -190,7 +162,6 @@ class ModifierSelection
         );
     }
 
-    /** @param  array<string, mixed>  $replace */
     private static function refuse(string $key, Product $product, array $replace): never
     {
         throw ValidationException::withMessages([

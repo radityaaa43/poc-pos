@@ -40,7 +40,7 @@ di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir men
 - Checkout menyimpan opsi per baris (`transaction_detail_modifiers`: nama, harga, `components` =
   `[{product_id, qty_per_unit}]`) serta `note` dan `modifier_total`; struk membaca salinan ini. Bahan opsi diambil dalam
   transaksi yang sama dengan stok menu (`ComponentStockService`, kunci urut `product_id`).
-- Pembayaran kedaluwarsa mengembalikan bahan sesuai `components`, bukan resep sekarang; bahan terhapus dilewati.
+  Pembayaran kedaluwarsa mengembalikan bahan sesuai `components`, bukan resep sekarang; bahan terhapus dilewati.
 - Belum: retur penjualan **tidak** mengembalikan bahan opsi; baris beropsi atau bercatatan tidak bisa diantre offline;
   API mobile tidak memeriksa pilihan; layar dapur dan tiket belum menampilkannya (dirilis bersama #419).
 

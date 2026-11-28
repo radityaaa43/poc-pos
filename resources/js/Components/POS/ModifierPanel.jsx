@@ -6,10 +6,7 @@ const rupiah = (value) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
 // Exactly one: a radio swaps the choice. Anything else is checkboxes, locked once the maximum is ticked.
 const pickOne = (group) => group.min_select === 1 && group.max_select === 1;
 
-/**
- * The options panel of one menu (REQ-008 AC-06..AC-09). Presentational, so the QR menu can reuse it: texts come in
- * `labels`, `selected` is what starts ticked and `onAdd({ optionIds, note })` hands the choice back.
- */
+// Presentational (REQ-008 AC-06..AC-09), so the QR menu can reuse it: texts come in `labels`.
 export default function ModifierPanel({ title, basePrice, groups, selected, labels, onAdd, onClose, processing = false }) {
     const [ids, setIds] = useState(selected);
     const [note, setNote] = useState("");

@@ -50,9 +50,8 @@ class Modifiers
                 return ['code' => $outlet->code, 'name' => $outlet->name];
             },
 
-            // A menu --arg=title=<text> (20.000, stock 20) ready to sell: Size (Regular default, Large +5.000 using
-            // 2 milk), Topping (at most one: Jelly +2.000, Keju, Boba whose ingredient is out) and a required Gula
-            // whose default Normal is out, as is Less with --arg=sold_out=1. --arg=percent=<n> adds a menu promo.
+            // Menu --arg=title (20.000, stock 20): Size (Large +5.000 uses 2 milk), Topping max 1 (Boba is out), required
+            // Gula (default Normal is out; Less too with --arg=sold_out=1). --arg=percent=<n> adds a menu promo.
             'modifier-menu' => function (array $options): array {
                 $product = fn (string $title, int $stock, bool $raw = false) => tap(Product::create([
                     'category_id' => Category::where('name', 'E2E Kategori')->value('id'), 'title' => $title,

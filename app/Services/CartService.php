@@ -12,11 +12,7 @@ class CartService
 {
     public function __construct(private readonly UnitConversionService $unitConversion) {}
 
-    /**
-     * Adds a product to the cashier's active cart. A line merges only with the same unit, options and note.
-     *
-     * @param  array<string, mixed>  $data  validated: product_id, qty, unit_id, modifier_option_ids, note
-     */
+    /** Adds validated cart input to the active cart. A line merges only with the same unit, options and note. */
     public function add(int $cashierId, ?int $warehouseId, ?Outlet $outlet, array $data): void
     {
         $product = Product::find($data['product_id']);
@@ -37,8 +33,8 @@ class CartService
         // Composite: check component stock
         if ($product->is_composite) {
             $product->load('components');
-            foreach ($product->components as $component) {
-                $needed = (float) $component->pivot->qty * ($data['qty'] + $inCart);
+            foreach ($product->components->whereInstanceOf(Product::class) as $component) {
+                $needed = (float) $component->getRelationValue('pivot')?->qty * ($data['qty'] + $inCart);
                 $whProduct = $component->warehouses()->where('warehouse_id', $warehouseId)->first();
                 $avail = $whProduct?->pivot->stock ?? 0;
                 if ($avail < $needed) {
