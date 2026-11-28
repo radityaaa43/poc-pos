@@ -200,6 +200,7 @@ n/a — modifier tidak menambah status baru. Grup dan opsi hanya aktif/nonaktif 
 - **Permissions:** `modifiers-manage` untuk grup, opsi, pemasangan ke menu dan aktif per outlet. Memilih opsi saat menjual tidak butuh izin baru (`transactions-access` seperti sekarang).
 - **Settings:** aktif per outlet untuk opsi (default aktif). Tidak ada pengaturan lain.
 - **Keputusan saat build (Business/PM, 2026-11-28):** minimum grup tidak boleh lebih dari jumlah opsinya, dan menghapus opsi sampai di bawah minimum ditolak (#416 BR-4). Resep opsi boleh memakai produk apa pun yang stoknya dilacak dan bukan komposit, tidak hanya bahan baku (#435). Quantity break menghitung semua baris menu yang sama bersama, apa pun opsinya (#417 BR-5). Outlet dengan opsi aktif kurang dari minimum grup wajib: menu tidak bisa dipesan di outlet itu (#417). Satu unit dihitung sekali dalam buy X get Y (#446).
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** laporan per opsi menghitung penjualan lunas dan kredit saat terjual, seperti laporan penjualan; retur mengurangi periode penjualannya (#420 BR-5).
 
 ## Non-functional requirements
 

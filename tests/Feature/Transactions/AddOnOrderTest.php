@@ -264,6 +264,19 @@ class AddOnOrderTest extends TestCase
         }
     }
 
+    public function test_receipt_does_not_serialise_the_dine_order_so_its_guest_token_stays_hidden(): void
+    {
+        $sale = $this->existingSale($this->warehouse, 'unpaid');
+        $order = $this->dineOrderFor($sale, DineOrder::STATUS_ACCEPTED);
+
+        $response = $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))->assertOk();
+
+        $this->assertInertia(fn (Assert $page) => $page
+            ->where('canAddOn', true)
+            ->missing('transaction.dine_order'));
+        $this->assertStringNotContainsString($order->access_token, $response->getContent());
+    }
+
     public function test_add_on_to_a_cancelled_order_is_refused(): void
     {
         $rejected = $this->existingSale($this->warehouse, 'unpaid');
@@ -364,7 +377,7 @@ class AddOnOrderTest extends TestCase
 
     public function test_parent_transaction_migration_rolls_back(): void
     {
-        $migration = require database_path('migrations/2026_12_14_100001_add_add_on_links_to_transactions_and_dine_orders.php');
+        $migration = require database_path('migrations/2026_12_20_100001_add_add_on_links_to_transactions_and_dine_orders.php');
 
         $migration->down();
         $this->assertFalse(Schema::hasColumn('transactions', 'parent_transaction_id'));

@@ -140,6 +140,47 @@ describe("useBarcodeScanner", () => {
         expect(onScan).not.toHaveBeenCalled();
     });
 
+    // A focused control, as the POS leaves one after a click. False from fireEvent = the Enter's default was cancelled.
+    const focused = (tag, type) => {
+        const element = document.body.appendChild(document.createElement(tag));
+        element.type = type;
+        element.focus();
+        const onKey = vi.fn();
+        element.addEventListener("keydown", onKey);
+        const enter = () => {
+            let defaultAllowed;
+            act(() => void (defaultAllowed = fireEvent.keyDown(element, { key: "Enter" })));
+            return defaultAllowed;
+        };
+        return { enter, onKey };
+    };
+
+    it.each([
+        ["button", "button"],
+        ["input", "radio"],
+    ])("a scan's Enter does not press the focused %s (%s)", (tag, kind) => {
+        renderHook(() => useBarcodeScanner(onScan));
+        const control = focused(tag, kind);
+
+        type("1", "2", "3");
+
+        expect(control.enter()).toBe(false);
+        expect(control.onKey).not.toHaveBeenCalled();
+        expect(onScan).toHaveBeenCalledWith("123");
+    });
+
+    it("a hand Enter still reaches the focused button", () => {
+        renderHook(() => useBarcodeScanner(onScan));
+        const control = focused("button", "button");
+
+        type("1", "2", "3");
+        wait(60);
+
+        expect(control.enter()).toBe(true);
+        expect(control.onKey).toHaveBeenCalledTimes(1);
+        expect(onScan).not.toHaveBeenCalled();
+    });
+
     it("stops listening after unmount", () => {
         const { unmount } = renderHook(() => useBarcodeScanner(onScan));
 

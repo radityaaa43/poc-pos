@@ -684,6 +684,7 @@ class TransactionController extends Controller
         );
 
         $result = $this->checkoutService->execute($context);
+        $request->session()->flash('success', 'Transaksi berhasil!'); // saved: the POS toasts only this flash (#473)
 
         if ($result->needsDiscountApproval) {
             $result->transaction->update([
