@@ -157,9 +157,10 @@ class SalesReportPaidAfterCloseTest extends TestCase
         Permission::firstOrCreate(['name' => 'reports-access', 'guard_name' => 'web']);
         $mine = Outlet::first();
         $other = Outlet::create(['code' => 'OUT-2', 'name' => 'Outlet 2', 'is_active' => true]);
+        $otherWarehouse = $this->warehouseOf($other, 'WH-2');
         $this->sale(20000, true, lateAmount: 15000);
-        $this->sale(70000, true, 'paid', $this->warehouseOf($other, 'WH-2'), lateAmount: 60000);
-        $this->sale(70000, true, 'paid', $this->warehouseOf($other, 'WH-2'));
+        $this->sale(70000, true, 'paid', $otherWarehouse, lateAmount: 60000);
+        $this->sale(70000, true, 'paid', $otherWarehouse);
 
         $user = User::factory()->create();
         $user->markEmailAsVerified();
