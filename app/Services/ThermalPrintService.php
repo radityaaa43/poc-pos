@@ -28,6 +28,9 @@ class ThermalPrintService
         }
         $lines[] = $this->line($maxWidth);
         $lines[] = $this->left('No: '.($transaction->invoice ?? ''), $maxWidth);
+        if (filled($transaction->order_name)) {
+            $lines[] = $this->left(__('pdf/labels.receipt.order_name').': '.$transaction->order_name, $maxWidth);
+        }
         $lines[] = $this->left('Tgl: '.($transaction->created_at?->format('d/m/Y H:i') ?? ''), $maxWidth);
         $lines[] = $this->left('Kasir: '.($transaction->cashier?->name ?? '-'), $maxWidth);
         $lines[] = $this->left('Pelanggan: '.($transaction->customer?->name ?? 'Umum'), $maxWidth);

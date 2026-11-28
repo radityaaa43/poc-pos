@@ -542,6 +542,7 @@ class PosApiController extends Controller
             'due_date' => ['nullable', 'date'],
             'customer_npwp' => ['nullable', 'string', 'max:50'],
             'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
+            'order_name' => ['nullable', 'string', 'max:20'],
             'note' => ['nullable', 'string', 'max:1000'],
             'tenders' => ['nullable', 'array', 'max:2'],
             'tenders.*.method' => ['required', 'string'],
@@ -556,9 +557,7 @@ class PosApiController extends Controller
         $isPayLater = $paymentMethod === 'pay_later';
         $tenderInput = $validated['tenders'] ?? [];
         $useTenders = ! $isPayLater && $tenderInput !== [];
-        $paymentGateway = ! $isPayLater && $paymentMethod !== 'cash'
-            ? $paymentMethod
-            : null;
+        $paymentGateway = ! $isPayLater && $paymentMethod !== 'cash' ? $paymentMethod : null;
         $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
         $activeShift?->load('warehouse.outlet');
         $outlet = $activeShift?->warehouse?->outlet;
@@ -607,6 +606,7 @@ class PosApiController extends Controller
             isPayLater: $isPayLater,
             dueDate: $validated['due_date'] ?? null,
             orderType: $validated['order_type'] ?? null,
+            orderName: $validated['order_name'] ?? null,
             note: isset($validated['note']) ? trim($validated['note']) ?: null : null,
             customerNpwp: $validated['customer_npwp'] ?? null,
             isCashPayment: $isCashPayment,
@@ -711,10 +711,7 @@ class PosApiController extends Controller
             return $this->created($data, 'Transaksi berhasil — scan QR untuk membayar');
         }
 
-        return $this->created(
-            $resource,
-            'Transaksi berhasil'
-        );
+        return $this->created($resource, 'Transaksi berhasil');
     }
 
     /**
@@ -739,6 +736,7 @@ class PosApiController extends Controller
             'transactions.*.pay_later' => ['nullable', 'boolean'],
             'transactions.*.due_date' => ['nullable', 'date'],
             'transactions.*.order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
+            'transactions.*.order_name' => ['nullable', 'string', 'max:20'],
             'transactions.*.note' => ['nullable', 'string', 'max:1000'],
             'transactions.*.cart_ids' => ['nullable', 'array'],
             'transactions.*.cart_ids.*' => ['integer'],
@@ -885,6 +883,7 @@ class PosApiController extends Controller
                 'payment_method' => $isBankTransfer ? 'bank_transfer' : 'cash',
                 'bank_account_id' => $payload['bank_account_id'] ?? null,
                 'order_type' => $payload['order_type'] ?? null,
+                'order_name' => $payload['order_name'] ?? null,
                 'note' => $payload['note'] ?? null,
                 'client_uuid' => $uuid,
                 'sync_fingerprint' => $fingerprint,

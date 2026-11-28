@@ -9,7 +9,7 @@ class KitchenOrders
 {
     /** Relations fromItems() reads, with only the columns it needs (no prices). */
     public const RELATIONS = [
-        'transaction:id,invoice,order_type,payment_status,created_at',
+        'transaction:id,invoice,order_type,order_name,payment_status,created_at',
         'transaction.dineOrder:id,transaction_id,dine_table_id',
         'transaction.dineOrder.table:id,name',
         'product:id,title',
@@ -28,7 +28,9 @@ class KitchenOrders
 
             return [
                 'id' => $transaction->id,
-                'number' => $dineOrder ? $dineOrder->table?->name : $transaction->invoice,
+                // `??`, not `?:`: an empty name is stored as null, and "0" is a valid buzzer number.
+                'number' => $dineOrder ? $dineOrder->table?->name : ($transaction->order_name ?? $transaction->invoice),
+                'invoice' => $transaction->invoice,
                 'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
                 'unpaid' => $transaction->payment_status !== 'paid',
                 'since' => $first->accepted_at ?? $first->created_at,

@@ -618,9 +618,8 @@ class TransactionController extends Controller
         $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
         $activeShift?->load('warehouse.outlet');
         $outlet = $activeShift?->warehouse?->outlet;
-        $orderType = in_array($request->input('order_type'), ['in_store', 'takeaway', 'delivery'])
-            ? $request->input('order_type')
-            : null;
+        $orderType = in_array($request->input('order_type'), ['in_store', 'takeaway', 'delivery']) ? $request->input('order_type') : null;
+        $orderName = $request->validate(['order_name' => ['nullable', 'string', 'max:20']])['order_name'] ?? null;
         $note = trim((string) $request->input('note', '')) ?: null;
 
         $customer = $request->filled('customer_id') ? Customer::find($request->integer('customer_id')) : null;
@@ -683,6 +682,7 @@ class TransactionController extends Controller
             tenderInput: $tenderInput,
             outlet: $outlet,
             bankAccountId: $request->input('bank_account_id'),
+            orderName: $orderName,
         );
 
         $result = $this->checkoutService->execute($context);

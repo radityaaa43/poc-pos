@@ -32,6 +32,12 @@
             <span>No:</span>
             <span>{{ $transaction->invoice }}</span>
         </div>
+        @if(filled($transaction->order_name))
+        <div style="display:flex; justify-content:space-between;">
+            <span>{{ __('pdf/labels.receipt.order_name') }}:</span>
+            <span>{{ $transaction->order_name }}</span>
+        </div>
+        @endif
         <div style="display:flex; justify-content:space-between;">
             <span>Tgl:</span>
             <span>{{ \Carbon\Carbon::parse($transaction->created_at)->format('d/m/Y H:i') }}</span>

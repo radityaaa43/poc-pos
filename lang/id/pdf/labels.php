@@ -97,6 +97,7 @@ return [
         'points_redeemed' => 'Poin Ditukar',
         'voucher_used' => 'Voucher',
         'footer' => 'Barang yang sudah dibeli tidak dapat dikembalikan.',
+        'order_name' => 'Nama pesanan',
     ],
 
     /*
