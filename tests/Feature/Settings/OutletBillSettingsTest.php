@@ -91,6 +91,20 @@ class OutletBillSettingsTest extends TestCase
         $this->assertSame(0, $this->storedRows());
     }
 
+    // Rows written outside the form (a seeder, a manual fix) must not reach a bill as they are.
+    public function test_unreadable_stored_values_read_as_safe_ones(): void
+    {
+        $outlet = $this->outlet();
+        foreach (['service_charge_rate' => '250', 'tax_kind' => 'vat', 'pb1_rate' => '-3', 'cash_rounding_unit' => '250'] as $key => $value) {
+            Setting::setForOutlet($key, $value, $outlet);
+        }
+
+        $this->assertSame(
+            ['service_charge_rate' => 100.0, 'tax_kind' => 'ppn', 'pb1_rate' => 0.0, 'cash_rounding_unit' => 0],
+            $this->settings($outlet),
+        );
+    }
+
     public static function refusedValues(): array
     {
         return [

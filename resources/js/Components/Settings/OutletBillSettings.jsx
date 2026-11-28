@@ -15,7 +15,7 @@ export default function OutletBillSettings({ value, onChange, errors = {} }) {
     const errorId = (field) => (errors[field] ? `${id}-${field}-error` : undefined);
     const rate = (field, key, disabled = false) => (
         <div>
-            <Input type="number" step="any" inputMode="decimal" required disabled={disabled} label={t(`outlets.bill.${key}.label`)} value={value[field]} onChange={(event) => onChange(field, event.target.value)} errors={errors[field]} aria-describedby={`${id}-${field}-hint`} />
+            <Input type="number" step="any" inputMode="decimal" required disabled={disabled} label={t(`outlets.bill.${key}.label`)} value={value[field]} onChange={(event) => onChange(field, event.target.value)} errors={errors[field]} aria-describedby={`${id}-${field}-hint`} className="disabled:cursor-not-allowed disabled:opacity-60" />
             <p id={`${id}-${field}-hint`} className={hintClass}>{t(`outlets.bill.${key}.hint`)}</p>
         </div>
     );
@@ -43,7 +43,7 @@ export default function OutletBillSettings({ value, onChange, errors = {} }) {
                 {rate("pb1_rate", "pb1Rate", value.tax_kind !== "pb1")}
                 <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-rounding`} className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("outlets.bill.rounding.label")}</label>
-                    <select id={`${id}-rounding`} value={value.cash_rounding_unit} onChange={(event) => onChange("cash_rounding_unit", event.target.value)} aria-invalid={errors.cash_rounding_unit ? true : undefined} aria-describedby={errorId("cash_rounding_unit")} className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                    <select id={`${id}-rounding`} value={value.cash_rounding_unit} onChange={(event) => onChange("cash_rounding_unit", event.target.value)} aria-invalid={errors.cash_rounding_unit ? true : undefined} aria-describedby={errorId("cash_rounding_unit")} className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-10 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                         <option value={0}>{t("outlets.bill.rounding.none")}</option>
                         <option value={100}>100</option>
                         <option value={500}>500</option>
