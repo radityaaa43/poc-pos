@@ -18,8 +18,9 @@ test.describe('49-dine-modifiers', () => {
         const { table_name, token } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
         const note = uniq('tanpa sambal');
 
-        // A pay-later guest order carrying the chosen option and note; accepting sends it to the kitchen unpaid.
-        arrange('dine.order', { token, product_id, qty: 1, option: 'pay_later', modifier_option_ids: `${options.Large}`, note });
+        // A pay-later guest order carrying the chosen options (the paid Large plus the free Gula Less) and note;
+        // accepting sends it to the kitchen unpaid.
+        arrange('dine.order', { token, product_id, qty: 1, option: 'pay_later', modifier_option_ids: `${options.Large},${options.Less}`, note });
 
         // The print device prints only what reaches the kitchen after it was named.
         arrange('open-shift');
@@ -40,6 +41,7 @@ test.describe('49-dine-modifiers', () => {
 
         expect(ticket).toContain(`1 x ${title}`);
         expect(ticket).toContain('+ Large');
+        expect(ticket).toContain('+ Less');
         expect(ticket).toContain(`  ${note}`);
         // The menu sells for 20.000 and Large adds 5.000: a kitchen ticket never prints a price.
         expect(ticket).not.toMatch(/Rp|20\.000|25\.000|20000|25000/);
