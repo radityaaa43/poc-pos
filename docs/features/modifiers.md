@@ -34,12 +34,10 @@ grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `c
   diabaikan; penolakan menyebut menu dan opsi atau grupnya. Baris digabung hanya bila opsi dan catatan sama.
 - Diskon, voucher, pajak dan poin atas baris penuh; harga tetap, qty break (menghitung semua baris menu yang sama,
   satuan non-dasar tidak), bundle dan "gratis" beli X gratis Y hanya mengenai harga menu.
-- Checkout menyimpan opsi per baris (`transaction_detail_modifiers`: nama, harga, `components` =
-  `[{product_id, qty_per_unit}]`), `note`, `modifier_total`; struk membaca salinan ini. Bahan opsi diambil satu transaksi
-  dengan stok menu (`ComponentStockService`, kunci urut `product_id`).
-- Pembayaran kedaluwarsa dan pembatalan saat tutup shift mengembalikan bahan sesuai `components`; yang terhapus dilewati.
-- Belum: retur **tidak** mengembalikan bahan opsi; baris beropsi/bercatatan tak bisa diantre offline; baris tanpa
-  pilihan (API mobile, sinkron offline) hanya diperiksa BR-6; dapur dan tiket belum menampilkannya (#419).
+- Checkout menyimpan nama, harga dan resep opsi (`transaction_detail_modifiers`), `note` dan `modifier_total`; struk
+  membaca salinan ini. Bahan opsi diambil satu transaksi dengan stok menu (`ComponentStockService`, urut `product_id`).
+- Bahan opsi kembali saat pembayaran kedaluwarsa atau tutup shift, **belum** saat retur. Baris beropsi tak bisa
+  diantre offline; baris tanpa pilihan (API mobile, sinkron offline) hanya diperiksa BR-6.
 
 ## Deploy
 

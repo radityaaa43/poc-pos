@@ -8,6 +8,7 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Validation\ValidationException;
 
+/** Stock taken by composite and option recipes (REQ-008 BR-3). Call inside the sale's DB::transaction. */
 class ComponentStockService
 {
     public function __construct(private readonly StockMutationService $stockMutationService) {}

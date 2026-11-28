@@ -10,5 +10,6 @@ class TransactionDetailModifier extends Model
 
     protected $casts = ['price_delta' => 'integer', 'components' => 'array'];
 
+    // The recipe is internal: receipts and pages get names and prices only.
     protected $hidden = ['components'];
 }
