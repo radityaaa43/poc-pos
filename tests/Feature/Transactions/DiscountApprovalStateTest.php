@@ -3,14 +3,17 @@
 namespace Tests\Feature\Transactions;
 
 use App\Models\BankAccount;
+use App\Models\CashierShift;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\CashierShiftService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class DiscountApprovalStateTest extends TestCase
@@ -200,5 +203,72 @@ class DiscountApprovalStateTest extends TestCase
             ->assertSessionHas('error');
 
         $this->assertEquals('paid', $transaction->fresh()->payment_status);
+    }
+
+    // #567: approving a discount must never undo a payment that was already confirmed.
+    public function test_approving_a_confirmed_transfer_keeps_it_paid(): void
+    {
+        $transaction = $this->makeTransaction([
+            'payment_method' => 'bank_transfer',
+            'bank_account_id' => $this->makeBankAccount()->id,
+            'payment_status' => 'paid',
+        ]);
+
+        $this->from(route('dashboard.access'))
+            ->post(route('discount-approvals.approve', $transaction))
+            ->assertSessionHas('success');
+
+        $transaction->refresh();
+        $this->assertSame(['approved', 'paid'], [$transaction->discount_approval_status, $transaction->payment_status]);
+    }
+
+    public function test_the_api_approval_also_keeps_a_confirmed_payment_paid(): void
+    {
+        $transaction = $this->makeTransaction([
+            'payment_method' => 'bank_transfer',
+            'bank_account_id' => $this->makeBankAccount()->id,
+            'payment_status' => 'paid',
+        ]);
+
+        Sanctum::actingAs($this->admin, ['*']);
+        $this->postJson("/api/v1/discount-approvals/{$transaction->getRouteKey()}/approve")->assertOk();
+
+        $transaction->refresh();
+        $this->assertSame(['approved', 'paid'], [$transaction->discount_approval_status, $transaction->payment_status]);
+    }
+
+    public function test_a_shift_close_never_cancels_a_paid_transfer_after_the_discount_is_approved(): void
+    {
+        $shift = app(CashierShiftService::class)->openShift($this->admin, $this->admin, 100000, null, $this->warehouse->id);
+        // The API confirmed the transfer while its discount waited; no tender row was written.
+        $transaction = $this->makeTransaction([
+            'cashier_shift_id' => $shift->id,
+            'payment_method' => 'bank_transfer',
+            'bank_account_id' => $this->makeBankAccount()->id,
+            'payment_status' => 'paid',
+        ]);
+
+        $this->from(route('dashboard.access'))
+            ->post(route('discount-approvals.approve', $transaction))
+            ->assertSessionHas('success');
+        app(CashierShiftService::class)->closeShift($shift, $this->admin, 100000, null);
+
+        $transaction->refresh();
+        $this->assertSame('paid', $transaction->payment_status);
+        $this->assertFalse($transaction->wasRestocked());
+        $this->assertSame(CashierShift::STATUS_CLOSED, $shift->fresh()->status);
+    }
+
+    // TC-1 / TC-3: only a waiting sale takes its method's status; any other state is kept.
+    public function test_approving_a_failed_gateway_sale_keeps_it_failed(): void
+    {
+        $transaction = $this->makeTransaction(['payment_method' => 'qris', 'payment_status' => 'failed']);
+
+        $this->from(route('dashboard.access'))
+            ->post(route('discount-approvals.approve', $transaction))
+            ->assertSessionHas('success');
+
+        $transaction->refresh();
+        $this->assertSame(['approved', 'failed'], [$transaction->discount_approval_status, $transaction->payment_status]);
     }
 }
