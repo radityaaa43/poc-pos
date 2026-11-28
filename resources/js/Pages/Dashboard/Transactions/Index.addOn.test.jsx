@@ -11,7 +11,7 @@ import Index from "./Index";
 vi.mock("@inertiajs/react", () => {
     const page = { props: { auth: { user: { id: 1 }, super: true }, errors: {}, flash: {}, lowStockNotifications: [], activeCashierShift: { warehouse_id: 1 } } };
 
-    return { Head: () => null, router: { post: vi.fn(), get: vi.fn(), reload: vi.fn(), replace: vi.fn() }, usePage: () => page };
+    return { Head: () => null, router: { post: vi.fn(), get: vi.fn(), reload: vi.fn(), replace: vi.fn(), on: vi.fn(() => vi.fn()) }, usePage: () => page };
 });
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("axios", () => ({
