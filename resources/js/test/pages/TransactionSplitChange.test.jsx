@@ -55,6 +55,23 @@ describe("POS split payment change", () => {
         expect(changes()).toEqual([expect.stringMatching(/1\.000/)]);
     });
 
+    it("split sums the change over every cash tender", async () => {
+        render(<Index carts={carts} initialPricingPreview={{ items: [], summary: { grand_total: 20000 } }} paymentGateways={gateways} />);
+        await act(async () => {});
+        fireEvent.click(screen.getByRole("button", { name: "Split Pembayaran (2 metode)" }));
+        const methods = screen.getAllByRole("combobox").filter((select) => select.querySelector('option[value="cash"]'));
+        fireEvent.change(methods[0], { target: { value: "cash" } });
+        fireEvent.change(methods[1], { target: { value: "cash" } });
+        const [a, b] = screen.getAllByPlaceholderText("Nominal");
+        fireEvent.change(a, { target: { value: "10000" } });
+        fireEvent.change(b, { target: { value: "10000" } });
+        // The second cash tender is paid with a Rp 50.000 note.
+        const received = screen.getAllByPlaceholderText("Uang diterima (opsional)");
+        fireEvent.change(received[received.length - 1], { target: { value: "50000" } });
+
+        expect(changes()).toEqual([expect.stringMatching(/40\.000/)]);
+    });
+
     it("split exact cash shows no change", async () => {
         await split();
 

@@ -360,9 +360,16 @@ export default function Index({
         [activeSplitTenders]
     );
     const splitRemaining = payable - splitTotal;
-    // The change due: in split mode it is on the cash part only (#501).
-    const cashTender = activeSplitTenders.find((t) => t.method === "cash");
-    const change = Math.max(splitMode ? Number(cashTender?.cash_received || 0) - Number(cashTender?.amount || 0) : cash - payable, 0);
+    // The change due: in split mode it is summed over every cash tender (#501).
+    const change = splitMode
+        ? activeSplitTenders.reduce(
+              (sum, t) =>
+                  t.method === "cash"
+                      ? sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0)
+                      : sum,
+              0
+          )
+        : Math.max(cash - payable, 0);
     const showsChange = splitMode ? change > 0 : cash >= payable && payable > 0;
     const updateSplitTender = (index, patch) =>
         setSplitTenders((prev) =>
