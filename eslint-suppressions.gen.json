@@ -124,11 +124,6 @@
       "count": 1
     }
   },
-  "resources/js/Pages/Dashboard/Reports/Insights.jsx": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "resources/js/Pages/Dashboard/Reports/Sales.jsx": {
     "no-unused-vars": {
       "count": 1
