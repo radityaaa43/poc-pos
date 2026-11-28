@@ -288,7 +288,15 @@ class TransactionTenderService
             module: 'transactions',
             auditable: $bill,
             description: "Pembayaran invoice {$bill->invoice} melebihi sisa tagihan setelah retur; kelebihan Rp ".number_format($excess, 0, ',', '.').' perlu refund manual.',
-            meta: ['settled' => $settled, 'owed' => $owed, 'excess' => $excess, 'cash_excess' => $bill->cashExcess(), ...$meta],
+            // shift_open is decided now, under the shift's lock: the sale page picks the cash line by it (BR-6).
+            meta: [
+                'settled' => $settled,
+                'owed' => $owed,
+                'excess' => $excess,
+                'cash_excess' => $bill->cashExcess(),
+                'shift_open' => CashierShift::whereKey($bill->cashier_shift_id)->open()->exists(),
+                ...$meta,
+            ],
         );
 
         Log::warning('Payment beyond what the sale owed after returns', ['invoice' => $bill->invoice, 'excess' => $excess]);

@@ -38,7 +38,7 @@ export function LateRefundNotice({ transaction }) {
             )}
             {transaction.cash_excess > 0 && (
                 <span className="block">
-                    {t(transaction.shift_open ? "transactions.lateRefund.cashOpen" : "transactions.lateRefund.cashClosed", {
+                    {t(`transactions.lateRefund.${transaction.flagged_shift_open ? "cashOpen" : "cashClosed"}`, {
                         cash: formatAmount(transaction.cash_excess),
                     })}
                 </span>

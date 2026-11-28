@@ -278,16 +278,25 @@ class Transaction extends Model
     }
 
     /**
-     * For the refund notice of the sale page: the cash to hand back, and whether the sale's shift is still open. A closed
-     * recap is a stored snapshot, so cash handed back after the close is a cash out of the current shift.
+     * For the refund notice of the sale page, as the overpayment audit row kept it: the cash to hand back, and whether the
+     * sale's shift was open when the excess was flagged. That picks the instruction, and a later close does not change it
+     * (BR-6). A row without that fact gives no cash line.
      *
-     * @return array{cash_excess: int, shift_open: bool}
+     * @return array{cash_excess: int, flagged_shift_open: bool}
      */
     public function cashRefundNotice(): array
     {
-        $cash = $this->cashExcess();
+        $meta = $this->overpaid_amount > 0
+            ? AuditLog::where('event', 'payment.overpaid_after_return')
+                ->where('auditable_type', $this->getMorphClass())
+                ->where('auditable_id', $this->id)
+                ->latest('id')
+                ->first()?->meta
+            : null;
 
-        return ['cash_excess' => $cash, 'shift_open' => $cash > 0 && CashierShift::whereKey($this->cashier_shift_id)->open()->exists()];
+        return isset($meta['shift_open'])
+            ? ['cash_excess' => $meta['cash_excess'], 'flagged_shift_open' => $meta['shift_open']]
+            : ['cash_excess' => 0, 'flagged_shift_open' => false];
     }
 
     /**
