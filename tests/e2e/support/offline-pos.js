@@ -25,3 +25,25 @@ export async function fillCart(page, { title, customer }) {
     await page.getByRole('button', { name: 'Uang pas' }).click();
     await expect(page.getByRole('button', { name: 'Selesaikan Transaksi' })).toBeEnabled();
 }
+
+// A sale queued offline that the server then refuses: the shelf is emptied before the connection returns.
+// Resolves once the row is back in the queue as failed, with the server's reason.
+export async function queueRefusedSale({ asRole, arrange, uniq, role }) {
+    const title = uniq('Kopi');
+    const customer = uniq('Budi');
+    const { product_id } = arrange('product', { title, stock: 10 });
+    arrange('offline.customer', { name: customer });
+    arrange('offline.clear-cart');
+    const { shift_id } = arrange('open-shift', { cash: 100000 });
+    const page = await asRole(role);
+    await fillCart(page, { title, customer });
+    await page.context().setOffline(true);
+    await page.getByRole('button', { name: 'Selesaikan Transaksi' }).click();
+    await expect.poll(() => readQueue(page)).toHaveLength(1);
+    arrange('pos.set-stock', { product_id, stock: 0 });
+    await page.context().setOffline(false);
+    await expect.poll(async () => (await readQueue(page))[0]?.status).toBe('failed');
+    const [queued] = await readQueue(page);
+
+    return { page, title, product_id, shift_id, queued };
+}

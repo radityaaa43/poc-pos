@@ -20,6 +20,8 @@ class SalesReturn extends Model
         'return_type',
         'refund_amount',
         'credited_amount',
+        'service_refunded',
+        'tax_refunded',
         'total_return_amount',
         'notes',
         'completed_at',
@@ -32,6 +34,8 @@ class SalesReturn extends Model
         'cashier_shift_id' => 'integer',
         'refund_amount' => 'integer',
         'credited_amount' => 'integer',
+        'service_refunded' => 'integer',
+        'tax_refunded' => 'integer',
         'total_return_amount' => 'integer',
         'completed_at' => 'datetime',
     ];
