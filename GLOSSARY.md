@@ -77,6 +77,8 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
 | Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
 | Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
+| Opname variance by month | The REQ-011 before/after metric: for one outlet, the last 12 months of finalized stock opnames, one row per month with the opname count, the average absolute variance value and the average number of items off, split at the outlet's waste start month. A variance is valued at the unit cost stored when the opname was finalized; an opname finalized before that snapshot existed uses today's average cost and is labelled estimated | Ticket sales: the money, not the missing stock | `StockOpnameVarianceService::byMonth` |
+| Waste start month | The month of an outlet's first Tercatat or Dibatalkan waste record (`MIN(recorded_at)` over its warehouses); months before it are "before", from it on "after". Pending and rejected records never start it | Release date of waste tracking | `stock_wastes.recorded_at` |
 
 ## Retired terms
 
