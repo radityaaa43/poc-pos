@@ -38,6 +38,7 @@ class KitchenSpeedReportService
         // A read-only lookup, not KitchenStation::defaultId(), which creates the station: a report GET must not write.
         // An item without a station (the column is nullable) counts as the default station, as intake does.
         $defaultId = KitchenStation::where('is_default', true)->value('id');
+        /** @var Collection<int, KitchenItem> $items */
         $items = $this->forStation(clone $base, $stationId, $defaultId)->get($columns);
 
         $products = Product::whereIn('id', $items->pluck('product_id')->unique())
