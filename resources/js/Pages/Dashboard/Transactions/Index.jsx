@@ -734,7 +734,7 @@ export default function Index({
             );
             if (
                 cashTender &&
-                Number(cashTender.cash_received || 0) < Number(cashTender.amount)
+                Number(cashTender.cash_received || cashTender.amount) < Number(cashTender.amount)
             ) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
