@@ -41,6 +41,7 @@ const row = (over) => ({
 const tables = [{ id: 7, name: "Meja 1", area_name: "Teras" }, { id: 8, name: "Meja 2", area_name: null }];
 
 const page = (reservations = [row()]) => render(<Reservations reservations={reservations} tables={tables} date="2026-12-10" />);
+const card = (guest) => screen.getByText(guest).closest("li");
 
 beforeEach(async () => {
     vi.clearAllMocks();
@@ -56,7 +57,7 @@ describe("Reservations page", () => {
 
         expect(screen.getByRole("heading", { name: "Reservasi" })).toBeInTheDocument();
         expect(screen.getByRole("link", { name: "+62 812-0000-1111" })).toHaveAttribute("href", "tel:+6281200001111");
-        const line = screen.getByRole("row", { name: /Budi/ });
+        const line = card("Budi");
         expect(within(line).getByText("19:00")).toBeInTheDocument();
         expect(within(line).getByText("Meja 1 (Teras)")).toBeInTheDocument();
         expect(within(line).getByText("Dicatat")).toBeInTheDocument();
@@ -66,7 +67,7 @@ describe("Reservations page", () => {
     it("shows the date of an unmarked booking from an earlier day", () => {
         page([row({ date: "2026-12-08" })]);
 
-        expect(within(screen.getByRole("row", { name: /Budi/ })).getByText("8 Des 2026")).toBeInTheDocument();
+        expect(within(card("Budi")).getByText("8 Des 2026")).toBeInTheDocument();
     });
 
     it("offers the three marks and Ubah only on a booked row", () => {
@@ -76,7 +77,16 @@ describe("Reservations page", () => {
             expect(screen.getByRole("button", { name: `${action}: Budi` })).toBeInTheDocument();
             expect(screen.queryByRole("button", { name: `${action}: Sari` })).not.toBeInTheDocument();
         }
-        expect(within(screen.getByRole("row", { name: /Sari/ })).getByText("Datang")).toBeInTheDocument();
+        expect(within(card("Sari")).getByText("Datang")).toBeInTheDocument();
+    });
+
+    it("keeps the actions in the booking's own card, where they wrap instead of running off screen", () => {
+        page();
+
+        const actions = within(card("Budi")).getAllByRole("button");
+        expect(actions.map((button) => button.textContent)).toEqual(["Datang", "Tidak datang", "Batal", "Ubah"]);
+        expect(actions[0].parentElement).toHaveClass("flex-wrap");
+        expect(screen.queryByRole("table")).not.toBeInTheDocument();
     });
 
     it.each([["Datang", "arrived"], ["Tidak datang", "no_show"], ["Batal", "cancelled"]])(

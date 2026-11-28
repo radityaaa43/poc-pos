@@ -8,10 +8,8 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import Input from "@/Components/Dashboard/Input";
 import Modal from "@/Components/Dashboard/Modal";
 import Select from "@/Components/Dashboard/Select";
-import Table from "@/Components/Dashboard/Table";
 
 const MARKS = ["arrived", "no_show", "cancelled"];
-const COLUMNS = ["time", "guest", "phone", "partySize", "table", "note", "status", "actionsColumn"];
 const rowButton =
     "inline-flex items-center px-3 min-h-11 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors";
 
@@ -20,6 +18,15 @@ const emptyForm = (date) => ({
 });
 
 const tableLabel = (name, area) => (area ? `${name} (${area})` : name);
+
+function Detail({ label, children }) {
+    return (
+        <div className="flex min-w-0 items-center gap-1">
+            <dt className="shrink-0 text-slate-500 dark:text-slate-400">{label}:</dt>
+            <dd className="min-w-0 break-words">{children}</dd>
+        </div>
+    );
+}
 
 // Reachable only with dine-reservations-manage (the route middleware), so nothing here checks it again.
 export default function Index({ reservations = [], tables = [], date }) {
@@ -138,71 +145,72 @@ export default function Index({ reservations = [], tables = [], date }) {
                 </div>
             </div>
 
-            <Table.Card title={formatDate(date)}>
+            {/* A card per booking, not a table: eight columns clipped the actions even at 1280 px. */}
+            <h2 className="mb-2 font-semibold text-slate-700 dark:text-slate-200">{formatDate(date)}</h2>
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800">
                 {reservations.length > 0 ? (
-                    <Table>
-                        <Table.Thead>
-                            <tr>
-                                {COLUMNS.map((column) => (
-                                    <Table.Th key={column}>{t(`dineReservations.${column}`)}</Table.Th>
-                                ))}
-                            </tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            {reservations.map((reservation) => (
-                                <tr key={reservation.id}>
-                                    <Table.Td>
-                                        <span className="font-semibold">{reservation.time}</span>
+                    <ul className="divide-y divide-slate-200 dark:divide-slate-800">
+                        {reservations.map((reservation) => (
+                            <li key={reservation.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+                                <div className="min-w-0 flex-1 basis-64 text-sm text-slate-700 dark:text-slate-300">
+                                    <p className="flex flex-wrap items-baseline gap-x-3 text-base font-semibold text-slate-900 dark:text-white">
+                                        <span>{reservation.time}</span>
                                         {reservation.date !== date && (
-                                            <span className="block text-xs">{formatDate(reservation.date)}</span>
+                                            <span className="text-sm font-normal">{formatDate(reservation.date)}</span>
                                         )}
-                                    </Table.Td>
-                                    <Table.Td className="font-semibold">{reservation.guest_name}</Table.Td>
-                                    <Table.Td>
-                                        <a
-                                            href={`tel:${reservation.phone.replace(/[^0-9+]/g, "")}`}
-                                            className="inline-flex items-center min-h-11 underline text-primary-700 dark:text-primary-400"
+                                        <span className="min-w-0 break-words">{reservation.guest_name}</span>
+                                    </p>
+                                    <dl className="flex flex-wrap items-center gap-x-4">
+                                        <Detail label={t("dineReservations.status")}>
+                                            {t(`dineReservations.statuses.${reservation.status}`)}
+                                        </Detail>
+                                        <Detail label={t("dineReservations.phone")}>
+                                            <a
+                                                href={`tel:${reservation.phone.replace(/[^0-9+]/g, "")}`}
+                                                className="inline-flex items-center min-h-11 underline text-primary-700 dark:text-primary-400"
+                                            >
+                                                {reservation.phone}
+                                            </a>
+                                        </Detail>
+                                        <Detail label={t("dineReservations.partySize")}>{reservation.party_size}</Detail>
+                                        <Detail label={t("dineReservations.table")}>
+                                            {tableLabel(reservation.table_name, reservation.area_name)}
+                                        </Detail>
+                                        {reservation.note && (
+                                            <Detail label={t("dineReservations.note")}>{reservation.note}</Detail>
+                                        )}
+                                    </dl>
+                                </div>
+                                {reservation.status === "booked" && (
+                                    <div className="flex flex-wrap gap-2">
+                                        {MARKS.map((status) => (
+                                            <button
+                                                key={status}
+                                                type="button"
+                                                onClick={() => mark(reservation, status)}
+                                                aria-label={`${t(`dineReservations.actions.${status}`)}: ${reservation.guest_name}`}
+                                                className={rowButton}
+                                            >
+                                                {t(`dineReservations.actions.${status}`)}
+                                            </button>
+                                        ))}
+                                        <button
+                                            type="button"
+                                            onClick={() => openForm(reservation)}
+                                            aria-label={`${t("dineReservations.edit")}: ${reservation.guest_name}`}
+                                            className={rowButton}
                                         >
-                                            {reservation.phone}
-                                        </a>
-                                    </Table.Td>
-                                    <Table.Td>{reservation.party_size}</Table.Td>
-                                    <Table.Td>{tableLabel(reservation.table_name, reservation.area_name)}</Table.Td>
-                                    <Table.Td className="!whitespace-normal min-w-40">{reservation.note}</Table.Td>
-                                    <Table.Td>{t(`dineReservations.statuses.${reservation.status}`)}</Table.Td>
-                                    <Table.Td>
-                                        {reservation.status === "booked" && (
-                                            <div className="flex gap-2">
-                                                {MARKS.map((status) => (
-                                                    <button
-                                                        key={status}
-                                                        type="button"
-                                                        onClick={() => mark(reservation, status)}
-                                                        aria-label={`${t(`dineReservations.actions.${status}`)}: ${reservation.guest_name}`}
-                                                        className={rowButton}
-                                                    >
-                                                        {t(`dineReservations.actions.${status}`)}
-                                                    </button>
-                                                ))}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openForm(reservation)}
-                                                    aria-label={`${t("dineReservations.edit")}: ${reservation.guest_name}`}
-                                                    className={rowButton}
-                                                >
-                                                    {t("dineReservations.edit")}
-                                                </button>
-                                            </div>
-                                        )}
-                                    </Table.Td>
-                                </tr>
-                            ))}
-                        </Table.Tbody>
-                    </Table>
+                                            {t("dineReservations.edit")}
+                                        </button>
+                                    </div>
+                                )}
+                            </li>
+                        ))}
+                    </ul>
                 ) : (
                     <p className="p-8 text-center text-slate-500 dark:text-slate-400">{t("dineReservations.empty")}</p>
                 )}
-            </Table.Card>
+            </div>
 
             <Modal
                 show={modalOpen}

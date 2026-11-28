@@ -1327,7 +1327,6 @@
         "editTitle": "Ubah reservasi",
         "date": "Tanggal",
         "time": "Jam",
-        "guest": "Tamu",
         "guestName": "Nama tamu",
         "phone": "Nomor HP",
         "partySize": "Jumlah tamu",
@@ -1335,7 +1334,6 @@
         "chooseTable": "Pilih meja",
         "note": "Catatan",
         "status": "Status",
-        "actionsColumn": "Aksi",
         "empty": "Belum ada reservasi pada tanggal ini",
         "statuses": {
             "booked": "Dicatat",

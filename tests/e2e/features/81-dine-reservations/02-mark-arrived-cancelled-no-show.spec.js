@@ -2,8 +2,9 @@ import { test, expect } from '../../support/fixtures.js';
 import { role } from '../../support/inventory.js';
 
 const URL = '/dashboard/dine-reservations';
-const row = (page, name) => page.getByRole('row').filter({ hasText: name });
-const status = (page, name, text) => row(page, name).getByRole('cell', { name: text, exact: true });
+const row = (page, name) => page.getByRole('listitem').filter({ hasText: name });
+// Only the values: a booked card also has a button called "Datang".
+const status = (page, name, text) => row(page, name).locator('dd').getByText(text, { exact: true });
 
 async function mark(page, name, action) {
     await page.getByRole('button', { name: `${action}: ${name}`, exact: true }).click();

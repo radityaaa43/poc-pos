@@ -1327,7 +1327,6 @@
         "editTitle": "Edit reservation",
         "date": "Date",
         "time": "Time",
-        "guest": "Guest",
         "guestName": "Guest name",
         "phone": "Phone number",
         "partySize": "Guests",
@@ -1335,7 +1334,6 @@
         "chooseTable": "Choose a table",
         "note": "Note",
         "status": "Status",
-        "actionsColumn": "Actions",
         "empty": "No reservations on this date",
         "statuses": {
             "booked": "Booked",

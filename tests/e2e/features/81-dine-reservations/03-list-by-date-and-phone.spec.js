@@ -11,7 +11,7 @@ test.describe('81-dine-reservations: list per date', () => {
         const { date } = arrange('dine.reservation', { table_id: table.table_id, name: later, days: 40, phone: '0813 7777 8888' });
 
         const page = await asRole(role('manager'));
-        const row = (name) => page.getByRole('row').filter({ hasText: name });
+        const row = (name) => page.getByRole('listitem').filter({ hasText: name });
 
         await page.goto('/dashboard/dine-reservations');
         await expect(row(today)).toContainText('Dicatat');

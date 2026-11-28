@@ -9,7 +9,7 @@ test.describe('81-dine-reservations: record a reservation and refuse a clash', (
         const second = uniq('Sari');
         const page = await asRole(role('manager'));
         const dialog = page.getByRole('dialog');
-        const row = (name) => page.getByRole('row').filter({ hasText: name });
+        const row = (name) => page.getByRole('listitem').filter({ hasText: name });
         const time = dialog.getByLabel('Jam', { exact: true });
         const save = () => dialog.getByRole('button', { name: 'Simpan' }).click();
 
