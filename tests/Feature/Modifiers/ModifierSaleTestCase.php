@@ -17,7 +17,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
-// An open shift and one menu, as built at the end of setUp().
 abstract class ModifierSaleTestCase extends TestCase
 {
     use RefreshDatabase;

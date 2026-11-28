@@ -20,7 +20,6 @@ use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
 use Mockery;
 
-// REQ-008 AC-06..AC-10, AC-12..AC-14, BR-2, BR-3: choosing options on the POS and checking them out.
 class PosModifierCheckoutTest extends ModifierSaleTestCase
 {
     public function test_pos_page_offers_the_groups_with_availability_and_no_recipe(): void
