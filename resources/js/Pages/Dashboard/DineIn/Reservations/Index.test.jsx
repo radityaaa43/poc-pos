@@ -39,8 +39,10 @@ const row = (over) => ({
     status: "booked", date: "2026-12-10", time: "19:00", table_name: "Meja 1", area_name: "Teras", ...over,
 });
 const tables = [{ id: 7, name: "Meja 1", area_name: "Teras" }, { id: 8, name: "Meja 2", area_name: null }];
+const summary = { month: "2026-12", open: 1, arrived: 2, cancelled: 3, no_show: 1, no_show_percent: 33.3 };
 
-const page = (reservations = [row()]) => render(<Reservations reservations={reservations} tables={tables} date="2026-12-10" />);
+const page = (reservations = [row()], summaryProp = null) =>
+    render(<Reservations reservations={reservations} tables={tables} date="2026-12-10" summary={summaryProp} />);
 const card = (guest) => screen.getByText(guest).closest("li");
 
 beforeEach(async () => {
@@ -194,5 +196,36 @@ describe("Reservations page", () => {
         await i18n.changeLanguage("en");
         page([]);
         expect(screen.getByText("No reservations on this date")).toBeInTheDocument();
+    });
+
+    // The value next to a term of the month card.
+    const stat = (card, label) => within(card).getByText(label, { exact: true }).nextElementSibling;
+
+    it("summarises the month in Indonesian with the no-show rate", () => {
+        page([], summary);
+
+        const card = screen.getByRole("region", { name: "Ringkasan Desember 2026" });
+        expect(stat(card, "Datang")).toHaveTextContent("2");
+        expect(stat(card, "Batal")).toHaveTextContent("3");
+        expect(stat(card, "Tidak datang")).toHaveTextContent("1");
+        expect(stat(card, "Belum ditandai")).toHaveTextContent("1");
+        expect(stat(card, "Tingkat tidak datang")).toHaveTextContent("33,3%");
+    });
+
+    it("shows the month summary in English", async () => {
+        await i18n.changeLanguage("en");
+        page([], summary);
+
+        const card = screen.getByRole("region", { name: "December 2026 summary" });
+        expect(stat(card, "Not marked")).toHaveTextContent("1");
+        expect(stat(card, "No-show rate")).toHaveTextContent("33.3%");
+    });
+
+    it("shows a dash instead of a rate while nobody arrived or stayed away", () => {
+        page([], { ...summary, arrived: 0, no_show: 0, no_show_percent: null });
+
+        const rate = stat(screen.getByRole("region", { name: "Ringkasan Desember 2026" }), "Tingkat tidak datang");
+        expect(rate).toHaveTextContent("—");
+        expect(rate).toHaveAttribute("title", "Belum ada tamu datang atau tidak datang bulan ini");
     });
 });

@@ -1430,7 +1430,13 @@
         "markConfirm": "A mark cannot be changed afterwards.",
         "saved": "Reservation saved",
         "marked": "Reservation status changed",
-        "failed": "The reservation could not be saved"
+        "failed": "The reservation could not be saved",
+        "summary": {
+            "title": "{{month}} summary",
+            "open": "Not marked",
+            "noShowRate": "No-show rate",
+            "noShowRateNone": "No guest has arrived or not shown up this month"
+        }
     },
     "waste": {
         "title": "Waste",

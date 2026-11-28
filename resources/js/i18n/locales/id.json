@@ -1430,7 +1430,13 @@
         "markConfirm": "Tanda ini tidak bisa diubah lagi.",
         "saved": "Reservasi disimpan",
         "marked": "Status reservasi diubah",
-        "failed": "Reservasi tidak bisa disimpan"
+        "failed": "Reservasi tidak bisa disimpan",
+        "summary": {
+            "title": "Ringkasan {{month}}",
+            "open": "Belum ditandai",
+            "noShowRate": "Tingkat tidak datang",
+            "noShowRateNone": "Belum ada tamu datang atau tidak datang bulan ini"
+        }
     },
     "waste": {
         "title": "Waste",

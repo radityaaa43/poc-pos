@@ -75,6 +75,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
 | Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
 | Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
+| Tingkat tidak datang (no-show rate) | The share of a month's reservations that end Tidak datang, per outlet: Tidak datang / (Datang + Tidak datang), one decimal. Batal and still-open reservations are counted but not divided by; "—" when the base is 0. The month is the booking day (`reserved_at`) | Datang / Tidak datang: the two statuses it is made of | `DineReservationService::monthSummary`, `docs/features/dine-in.md` |
 
 ## Retired terms
 

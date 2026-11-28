@@ -38,6 +38,8 @@ class DineReservationController extends Controller
 
         return Inertia::render('Dashboard/DineIn/Reservations/Index', [
             'date' => $date,
+            // The month of the shown date; recomputed on every load, so a mark updates it at once.
+            'summary' => $this->reservations->monthSummary($outlet, $day),
             // The only payload that carries the phone number: this page is behind dine-reservations-manage.
             'reservations' => $rows->map(fn (DineReservation $reservation) => [
                 ...$reservation->only(['id', 'guest_name', 'phone', 'party_size', 'dine_table_id', 'note', 'status']),
