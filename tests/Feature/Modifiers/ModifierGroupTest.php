@@ -195,6 +195,14 @@ class ModifierGroupTest extends TestCase
         $this->assertCount(4, DB::getQueryLog(), 'products, groups, options, components');
         $this->assertFalse($catalog->has($plain->id));
         $this->assertSame([['product_id' => $milk->id, 'qty' => 50.0]], $catalog[$menu->id][0]['options'][1]['components']);
+
+        // A save without the key (a form opened before the switch existed) keeps the switches; an empty list clears them.
+        $save = fn (array $extra) => $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => $group->options()->get()
+            ->map(fn ($option) => $this->option($option->name, ['id' => $option->id, 'is_default' => $option->is_default] + $extra))->all()]))->assertSessionHasNoErrors();
+        $save([]);
+        $this->assertSame(['Regular'], $names($b));
+        $save(['disabled_outlet_ids' => []]);
+        $this->assertSame(['Regular', 'Large'], $names($b));
     }
 
     public function test_deleting_keeps_products_sellable(): void
