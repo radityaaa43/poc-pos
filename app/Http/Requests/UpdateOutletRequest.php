@@ -26,6 +26,7 @@ class UpdateOutletRequest extends FormRequest
             'is_active' => ['boolean'],
             'is_sales_enabled' => ['boolean'],
             'pay_later_enabled' => ['boolean'],
+            'waste_approval_limit' => ['nullable', 'integer', 'min:0', 'max:1000000000000'],
             'service_charge_rate' => ['nullable', 'numeric', 'between:0,100', 'decimal:0,2'],
             'tax_kind' => ['nullable', Rule::in(BillSettingsService::TAX_KINDS)],
             'pb1_rate' => ['nullable', 'numeric', 'between:0,100', 'decimal:0,2'],

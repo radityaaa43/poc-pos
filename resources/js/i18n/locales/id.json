@@ -1244,6 +1244,10 @@
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
         },
+        "wasteLimit": {
+            "label": "Batas persetujuan waste (Rp)",
+            "hint": "Waste di atas nilai ini menunggu persetujuan"
+        },
         "bill": {
             "title": "Tagihan",
             "appliesToNew": "Berlaku untuk tagihan berikutnya; tagihan yang sudah dibuat tidak berubah.",

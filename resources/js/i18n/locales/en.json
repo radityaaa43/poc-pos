@@ -1244,6 +1244,10 @@
             "label": "Bayar Belakangan",
             "hint": "Let the POS of this outlet sell now and collect payment later."
         },
+        "wasteLimit": {
+            "label": "Waste approval limit (Rp)",
+            "hint": "Waste above this value waits for approval"
+        },
         "bill": {
             "title": "Bill",
             "appliesToNew": "Applies to new bills only; bills already made do not change.",

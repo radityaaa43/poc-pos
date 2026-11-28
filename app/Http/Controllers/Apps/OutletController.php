@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\AuditLogService;
 use App\Services\BillSettingsService;
 use App\Services\OutletAccessService;
+use App\Services\StockWasteService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +35,7 @@ class OutletController extends Controller
             ->each(function (Model $model) {
                 /** @var Outlet $model accessibleOutlets() returns an untyped Eloquent collection of outlets */
                 $model->setAttribute('pay_later_enabled', Setting::getBoolForOutlet('pay_later_enabled', $model));
+                $model->setAttribute('waste_approval_limit', app(StockWasteService::class)->approvalLimit($model));
                 $model->setAttribute('bill_settings', $this->billSettings->get($model));
             });
 
@@ -101,6 +103,7 @@ class OutletController extends Controller
             'is_sales_enabled' => $isSalesEnabled,
         ]);
         $this->updatePayLater($outlet, $data);
+        $this->updateWasteLimit($outlet, $data);
         $this->billSettings->update($outlet, $data);
 
         return back()->with('success', 'Outlet berhasil diperbarui.');
@@ -109,6 +112,35 @@ class OutletController extends Controller
     /**
      * Shared with the API twin. Absent field = unchanged; audited only when the value flips.
      */
+    /** Shared with the API twin. Absent or empty field = unchanged; audited only when the value changes (REQ-011 AC-12). */
+    protected function updateWasteLimit(Outlet $outlet, array $data): void
+    {
+        if (! array_key_exists('waste_approval_limit', $data) || $data['waste_approval_limit'] === null) {
+            return;
+        }
+
+        $new = (int) $data['waste_approval_limit'];
+
+        DB::transaction(function () use ($outlet, $new): void {
+            $old = (int) Setting::getForOutlet(StockWasteService::LIMIT_KEY, $outlet, StockWasteService::DEFAULT_LIMIT);
+
+            if ($new === $old) {
+                return;
+            }
+
+            Setting::setForOutlet(StockWasteService::LIMIT_KEY, (string) $new, $outlet);
+
+            $this->auditLogService->log(
+                event: 'outlet.waste_limit_updated',
+                module: 'outlets',
+                auditable: $outlet,
+                description: 'Outlet waste approval limit changed',
+                before: ['waste_approval_limit' => $old],
+                after: ['waste_approval_limit' => $new],
+            );
+        });
+    }
+
     protected function updatePayLater(Outlet $outlet, array $data): void
     {
         if (! array_key_exists('pay_later_enabled', $data)) {
