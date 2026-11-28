@@ -183,9 +183,11 @@ class CashierShiftService
         $nonCashSalesTotal += (int) (clone $splitTenders)->where('method', '!=', TransactionTender::METHOD_CASH)->sum('amount');
 
         // A booked bill is already a shortfall (BR-16): like a split, only the non-cash part it did receive counts here.
+        // A split bill's tenders are counted above already, so they are not added twice.
         $nonCashSalesTotal += (int) (clone $paidTenders)
             ->where('method', '!=', TransactionTender::METHOD_CASH)
             ->whereIn('transaction_id', $bookedBillIds)
+            ->whereHas('transaction', fn ($sale) => $sale->where('payment_method', '!=', 'split'))
             ->where(fn ($tenders) => $tenders->whereNull('cashier_shift_id')->orWhere('cashier_shift_id', $shift->id))
             ->sum('amount');
 

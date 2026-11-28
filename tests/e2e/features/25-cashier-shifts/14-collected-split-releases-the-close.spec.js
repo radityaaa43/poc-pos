@@ -15,7 +15,7 @@ describeShiftClose(() => {
         // Collect the rest from the POS Belum Lunas row, in cash.
         await page.goto('/dashboard/transactions');
         await page.getByRole('button', { name: /Belum Lunas/ }).click();
-        await page.getByRole('link', { name: 'Bayar sisa' }).click();
+        await page.getByRole('listitem').filter({ hasText: split.invoice }).getByRole('link', { name: 'Bayar sisa' }).click();
         await page.getByRole('button', { name: 'Bayar dengan cara lain' }).click();
         await page.getByLabel('Metode pembayaran').selectOption('cash');
         await page.getByLabel('Uang diterima').fill('15000');

@@ -106,8 +106,9 @@ class SplitRestCollectionTest extends TestCase
         $audit = AuditLog::where('event', 'transaction.split_rest_collected')->sole();
         $this->assertSame(15000, $audit->meta['owed']);
         $this->assertSame('cash', $audit->meta['method']);
-        $this->assertSame($sale->invoice.'-qris', $audit->meta['replaced'][1]['order_id']);
-        $this->assertSame('failed', $audit->meta['replaced'][1]['status']);
+        $replaced = collect($audit->meta['replaced'])->keyBy('method');
+        $this->assertSame($sale->invoice.'-qris', $replaced['qris']['order_id']);
+        $this->assertSame('failed', $replaced['qris']['status']);
 
         // BR-3: the paid sale no longer holds the close.
         $this->assertCount(0, app(ShiftCloseBlockerService::class)->blockersFor($this->shift)['splits']);
@@ -411,7 +412,7 @@ class SplitRestCollectionTest extends TestCase
         ]);
 
         $this->actingAs($this->cashier)
-            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 15000])
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
             ->assertSessionHasErrors('payment');
 
         $this->assertSame(0, $sale->fresh()->payment_attempt);
@@ -538,7 +539,8 @@ class SplitRestCollectionTest extends TestCase
 
         $this->actingAs($this->other) // attached to the outlet, but no shift is open
             ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 15000])
-            ->assertSessionHasErrors(['shift' => 'Shift kasir belum dibuka.']);
+            ->assertRedirect(route('transactions.index'))
+            ->assertSessionHas('error', 'Shift kasir belum dibuka.');
 
         $this->assertSame('failed', $sale->fresh()->payment_status);
         $this->assertSame(0, $sale->fresh()->payment_attempt);
