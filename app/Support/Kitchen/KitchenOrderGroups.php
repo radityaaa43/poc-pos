@@ -39,7 +39,7 @@ class KitchenOrderGroups
                     'since' => $sales->min('since'),
                     'items' => $sales->sortBy(fn (array $sale) => $sale['id'] === $rootId ? 0 : 1)
                         ->flatMap(fn (array $sale) => $sale['id'] === $rootId ? $sale['items'] : $sale['items']->map(
-                            fn (array $item) => $item + ['add_on' => ['id' => $sale['id'], 'since' => $sale['since'], 'unpaid' => $sale['unpaid']]]
+                            fn (array $item) => $item + ['add_on' => ['id' => $sale['id'], 'since' => $sale['since'], 'unpaid' => $sale['unpaid'], 'type' => $sale['type']]]
                         ))
                         ->values(),
                 ]);

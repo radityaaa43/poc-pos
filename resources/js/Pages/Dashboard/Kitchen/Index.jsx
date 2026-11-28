@@ -41,7 +41,7 @@ function groupSales(order) {
         if (!item.add_on) continue;
         if (!addOns.has(item.add_on.id)) {
             addOns.set(item.add_on.id, {
-                id: item.add_on.id, number: order.number, type: order.type,
+                id: item.add_on.id, number: order.number, type: item.add_on.type ?? order.type,
                 unpaid: item.add_on.unpaid, since: item.add_on.since, kind: "addon", items: [],
             });
         }
@@ -55,8 +55,8 @@ function groupSales(order) {
             items: order.items.filter((item) => !item.add_on),
         },
         ...addOns.values(),
-        // An add-on-only card has no original line left: a ticket for the empty original would print blank (#314).
-    ].filter((sale) => sale.items.length > 0);
+        // Drop a sale with no live line: an empty original, or only-cancelled lines, would print blank (#314).
+    ].filter((sale) => sale.items.some((item) => item.status !== "cancelled"));
 }
 
 // The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
@@ -64,6 +64,11 @@ function groupSales(order) {
 function PrintAction({ order, notPrinted, reprintable, printDevice }) {
     const { t } = useTranslation();
     if (!notPrinted && !reprintable) return null;
+
+    // One card may hold several sales: match the running/failed job against any of them (#314).
+    const sales = groupSales(order);
+    const busy = sales.some((sale) => printDevice.reprinting?.includes(sale.id));
+    const failed = sales.some((sale) => printDevice.reprintFailed === sale.id);
 
     return (
         <div className="border-t border-slate-100 p-4 dark:border-slate-800">
@@ -74,9 +79,8 @@ function PrintAction({ order, notPrinted, reprintable, printDevice }) {
             ) : (
                 <button
                     type="button"
-                    disabled={printDevice.headFailed || printDevice.reprinting?.includes(order.id)}
+                    disabled={printDevice.headFailed || busy}
                     onClick={() => {
-                        const sales = groupSales(order);
                         // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per sale (#314).
                         if (sales.length === 1 && sales[0].id === order.id) {
                             printDevice.reprint(order);
@@ -89,7 +93,7 @@ function PrintAction({ order, notPrinted, reprintable, printDevice }) {
                     {t("kitchen.print.reprintButton")}
                 </button>
             )}
-            {printDevice.reprintFailed === order.id && (
+            {failed && (
                 <p role="status" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
                     {t("kitchen.print.reprintFailed")}
                 </p>

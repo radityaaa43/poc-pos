@@ -965,6 +965,16 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(hook.reprint).toHaveBeenCalledWith(expect.objectContaining({ id: 11, kind: "addon" }));
         });
 
+        it("shows the reprint error when an add-on's reprint fails on a grouped card (#314)", () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[1].items, { id: 99, title: "Es Jeruk", qty: 1, status: "ready", add_on }];
+            use({ printedIds: [1, 2, 3, 99], reprintFailed: 11 });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            // The failure is stored under the add-on's sale id; the card must still show it.
+            expect(screen.getByText("Gagal mencetak ulang")).toBeInTheDocument();
+        });
+
         it.each([
             ["auto-print on", {}, true],
             ["auto-print off", { autoPrint: false }, true],
