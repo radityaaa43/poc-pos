@@ -1,11 +1,13 @@
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { router } from "@inertiajs/react";
 import i18n from "@/i18n";
 import CustomerCreditPanel from "./CustomerCreditPanel";
 
 let online = true;
 vi.mock("@/Context/OnlineStatusContext", () => ({ useOnlineStatus: () => online }));
+vi.mock("@inertiajs/react", () => ({ router: { on: vi.fn(() => () => {}) } }));
 
 const budi = { id: 5, may_buy_on_credit: true };
 const sari = { id: 6, may_buy_on_credit: true };
@@ -109,5 +111,20 @@ describe("CustomerCreditPanel", () => {
         expect(await screen.findByText("Remaining")).toBeInTheDocument();
         expect(figure("Limit")).toHaveTextContent("Rp 500.000");
         await act(() => i18n.changeLanguage("id"));
+    });
+
+    it("reads the figures again after a credit refusal, not after other errors", async () => {
+        render(<CustomerCreditPanel customer={budi} />);
+        await screen.findByText("Sisa");
+        const [event, listener] = router.on.mock.lastCall;
+        expect(event).toBe("error");
+
+        act(() => listener({ detail: { errors: { note: "Catatan wajib" } } }));
+        expect(fetch).toHaveBeenCalledTimes(1);
+
+        fetch.mockResolvedValue(ok(summary({ used: 450000, remaining: 50000 })));
+        act(() => listener({ detail: { errors: { credit: "Melebihi batas piutang" } } }));
+        expect(await screen.findByText(/Rp\s*50\.000/)).toBeInTheDocument();
+        expect(fetch).toHaveBeenCalledTimes(2);
     });
 });

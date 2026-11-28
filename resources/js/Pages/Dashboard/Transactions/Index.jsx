@@ -18,6 +18,7 @@ import HeldTransactions, {
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
+import useCreditException from "@/Components/POS/CreditExceptionDialog";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
@@ -107,6 +108,7 @@ export default function Index({
         defaultPaymentGateway ?? "cash"
     );
     const [payLater, setPayLater] = useState(false);
+    const creditException = useCreditException(() => setPayLater(false));
     const [dueDate, setDueDate] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [mobileView, setMobileView] = useState("products"); // 'products' | 'cart'
@@ -789,8 +791,7 @@ export default function Index({
             return;
         }
 
-        router.post(
-            route("transactions.store"),
+        creditException.submit(
             {
                 customer_id: selectedCustomer?.id ?? null,
                 discount,
@@ -815,13 +816,7 @@ export default function Index({
                                   : null,
                       }))
                     : null,
-                payment_gateway: splitMode
-                    ? null
-                    : payLater
-                      ? null
-                      : isCashPayment
-                        ? null
-                        : paymentMethod,
+                payment_gateway: splitMode || payLater || isCashPayment ? null : paymentMethod,
                 bank_account_id: isBankTransfer
                     ? selectedBankAccount?.id
                     : null,
@@ -831,7 +826,7 @@ export default function Index({
                 note: orderNote || null,
             },
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
                     setDiscountInput("");
                     setRedeemPointsInput("");
                     setCashInput("");
@@ -846,12 +841,12 @@ export default function Index({
                     setOrderType("in_store");
                     setOrderNote("");
                     setIsSubmitting(false);
-                    toast.success("Transaksi berhasil!");
+                    if (!page?.props?.flash?.success) toast.success("Transaksi berhasil!");
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The credit rules, the pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The pay-later gate and the guest note rule answer with their own message; a credit refusal opens its dialog.
+                    if (!errors?.credit) toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -2002,6 +1997,8 @@ export default function Index({
                     </div>
                 </div>
             </div>
+
+            {creditException.dialog}
 
             {/* Numpad Modal */}
             <NumpadModal
