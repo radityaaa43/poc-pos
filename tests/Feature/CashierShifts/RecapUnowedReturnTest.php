@@ -187,6 +187,55 @@ class RecapUnowedReturnTest extends TestCase
         $this->assertRecap(cash: 0, nonCash: 30000, expectedCash: 100000);
     }
 
+    /**
+     * A return on an unpaid, taxed dine bill: the recap counts the bill less the returned items plus their share of the
+     * service charge and tax (REQ-010 AC-10), not the items alone.
+     */
+    public function test_a_taxed_dine_bill_return_takes_off_the_service_and_tax_share(): void
+    {
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $bill = $this->bill($order);
+        // The accepted bill carries 5 % service and 10 % PB1: 25.000 + 1.250 + 2.625 = 28.875.
+        $bill->update(['service_charge' => 1250, 'tax_kind' => 'pb1', 'tax_rate' => 10, 'tax_total' => 2625, 'grand_total' => 28875]);
+
+        // Returning the 5.000 Air while the bill is unpaid refunds nothing; it takes off 5.000 + 250 + 525.
+        $return = $this->returnFromBill($bill, $this->plain);
+        $this->assertSame(5775, (int) $return->total_return_amount);
+        $this->assertSame(250, (int) $return->service_refunded);
+        $this->assertSame(525, (int) $return->tax_refunded);
+        $this->assertSame(0, (int) $return->refund_amount);
+
+        // The guest pays after the return; the recap counts the 28.875 asked less the 5.775 the return took off.
+        $this->guestPays($order)->assertOk()->assertJsonPath('payment.amount', 23100);
+        $this->notify('midtrans', $bill->invoice.'-r1', 'paid', 23100)->assertOk();
+        $this->assertSame('paid', $this->bill($order)->payment_status);
+
+        $this->assertRecap(cash: 0, nonCash: 23100, expectedCash: 100000);
+    }
+
+    /** A whole return of a discounted taxed bill never takes off more than the bill added: the share is capped too. */
+    public function test_a_full_return_of_a_discounted_taxed_bill_is_capped_at_the_bill(): void
+    {
+        $shift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+        // Discounted to 20.000, though its lines and their 1.000 + 2.100 share come to 23.100.
+        $bill = Transaction::create([
+            'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
+            'invoice' => 'TRX-TAXED-DISC', 'cash' => 20000, 'change' => 0, 'discount' => 0,
+            'service_charge' => 1000, 'tax_kind' => 'pb1', 'tax_rate' => 10, 'tax_total' => 2100, 'grand_total' => 20000,
+            'is_pay_later' => true, 'payment_method' => 'cash', 'payment_status' => 'paid',
+        ]);
+        $bill->details()->create(['product_id' => $this->plain->id, 'qty' => 2, 'price' => 20000]);
+        SalesReturn::create([
+            'code' => 'SR-TAXED-DISC', 'transaction_id' => $bill->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
+            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0,
+            'service_refunded' => 1000, 'tax_refunded' => 2100, 'total_return_amount' => 23100, 'completed_at' => now(),
+        ]);
+
+        // 23.100 of returns on a 20.000 bill comes off as 20.000, never more: the drawer is not short.
+        $this->assertRecap(cash: 0, nonCash: 0, expectedCash: 100000);
+    }
+
     public function test_a_retried_transfer_never_takes_off_more_than_it_added(): void
     {
         $shift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);

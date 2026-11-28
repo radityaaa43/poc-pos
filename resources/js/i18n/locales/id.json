@@ -293,6 +293,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "wasteReport": "Laporan Waste",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -351,6 +352,7 @@
             "reports": "Laporan",
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
+            "wasteReport": "Laporan Waste",
             "operations": "Operasional",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
@@ -577,7 +579,10 @@
         "exchangeItem": "Tukar Barang",
         "cashRefund": "Refund Tunai",
         "storeCredit": "Saldo Toko",
-        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok"
+        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok",
+        "serviceRefund": "Service charge dikembalikan",
+        "taxRefund": "Pajak dikembalikan",
+        "roundingNotRefunded": "Pembulatan tunai tidak dikembalikan."
     },
     "cashierShifts": {
         "title": "Shift Kasir",
@@ -1241,6 +1246,28 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "offlineQueue": {
+            "button": "Transaksi offline tertunda ({{count}})",
+            "retryNow": "Coba sinkron sekarang",
+            "remove": "Hapus",
+            "confirm": "Hapus transaksi offline ini dari perangkat? Penghapusan dicatat di audit log.",
+            "confirmFailed": "Transaksi ini belum tercatat di server. Catat ulang secara online dulu, lalu hapus dari sini.",
+            "conflict": "Transaksi ini sudah tercatat di server.",
+            "onlineOnly": "Hapus hanya bisa saat online.",
+            "changed": "Status berubah, coba lagi.",
+            "empty": "Tidak ada transaksi offline yang tertunda.",
+            "product": "Produk #{{id}}",
+            "loadError": "Gagal membaca antrean di perangkat ini.",
+            "retryError": "Gagal menyinkronkan. Coba lagi.",
+            "removeError": "Gagal menghapus. Transaksi tetap tersimpan di perangkat.",
+            "status": {
+                "pending": "Menunggu dikirim",
+                "syncing": "Sedang dikirim",
+                "failed": "Gagal",
+                "conflict": "Konflik",
+                "discarding": "Sedang dihapus"
+            }
         }
     },
     "outlets": {
@@ -1455,5 +1482,32 @@
             "not_collected": "Tidak diambil",
             "other": "Lainnya"
         }
+    },
+    "profitReport": {
+        "waste": {
+            "cost": "Biaya waste",
+            "costDescription": "Tidak termasuk HPP penjualan",
+            "afterWaste": "Profit setelah waste",
+            "afterWasteDescription": "Setelah dikurangi waste",
+            "hiddenNote": "Biaya waste tidak ditampilkan saat filter faktur, kasir atau pelanggan aktif",
+            "link": "Lihat laporan waste"
+        }
+    },
+    "wasteReport": {
+        "title": "Laporan Waste",
+        "outlet": "Outlet",
+        "startDate": "Tanggal Mulai",
+        "endDate": "Tanggal Akhir",
+        "apply": "Terapkan",
+        "total": "Total biaya waste",
+        "items": "Waste per Item",
+        "item": "Item",
+        "qty": "Jumlah",
+        "value": "Nilai",
+        "menuTag": "Menu",
+        "reasons": "Waste per Alasan",
+        "reason": "Alasan",
+        "records": "Jumlah catatan",
+        "empty": "Tidak ada waste pada periode ini"
     }
 }

@@ -600,7 +600,8 @@ class V1AdminApiTest extends TestCase
     {
         $this->getJson('/api/v1/reports/profits')
             ->assertOk()
-            ->assertJsonStructure(['data' => ['transactions', 'summary', 'filters', 'cashiers', 'customers', 'warehouses']]);
+            ->assertJsonStructure(['data' => ['transactions', 'summary', 'filters', 'cashiers', 'customers', 'warehouses']])
+            ->assertJsonStructure(['data' => ['summary' => ['profit_total', 'waste_cost_total', 'profit_after_waste']]]);
     }
 
     public function test_insights_report(): void

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Head, router } from "@inertiajs/react";
+import { useTranslation } from "react-i18next";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import InputSelect from "@/Components/Dashboard/InputSelect";
 import Pagination from "@/Components/Dashboard/Pagination";
@@ -12,6 +13,7 @@ import {
     IconFilter,
     IconX,
     IconSearch,
+    IconTrash,
 } from "@tabler/icons-react";
 
 // Summary Card with gradient
@@ -61,6 +63,7 @@ const ProfitReport = ({
     cashiers,
     customers,
 }) => {
+    const { t } = useTranslation();
     const [showFilters, setShowFilters] = useState(false);
     const [filterData, setFilterData] = useState({
         ...defaultFilters,
@@ -122,6 +125,8 @@ const ProfitReport = ({
         margin: summary?.margin ?? 0,
         best_invoice: summary?.best_invoice ?? "-",
         best_profit: summary?.best_profit ?? 0,
+        waste_cost_total: summary?.waste_cost_total ?? null,
+        profit_after_waste: summary?.profit_after_waste ?? null,
     };
 
     const summaryCards = [
@@ -154,6 +159,26 @@ const ProfitReport = ({
             gradient: "from-accent-500 to-accent-700",
         },
     ];
+
+    // Waste is its own line, never inside the sales profit above; null means a filter hides it (BR-1).
+    if (stats.waste_cost_total !== null) {
+        summaryCards.push(
+            {
+                title: t("profitReport.waste.cost"),
+                value: formatCurrency(stats.waste_cost_total),
+                description: t("profitReport.waste.costDescription"),
+                icon: <IconTrash />,
+                gradient: "from-danger-500 to-danger-700",
+            },
+            {
+                title: t("profitReport.waste.afterWaste"),
+                value: formatCurrency(stats.profit_after_waste),
+                description: t("profitReport.waste.afterWasteDescription"),
+                icon: <IconCoin />,
+                gradient: "from-success-500 to-success-700",
+            }
+        );
+    }
 
     return (
         <>
@@ -196,6 +221,23 @@ const ProfitReport = ({
                         <SummaryCard key={card.title} {...card} />
                     ))}
                 </div>
+
+                {stats.waste_cost_total === null && hasActiveFilters && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                        {t("profitReport.waste.hiddenNote")}
+                    </p>
+                )}
+
+                <a
+                    href={route("reports.waste.index", {
+                        start_date: filterData.start_date,
+                        end_date: filterData.end_date,
+                    })}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                >
+                    <IconTrash size={18} />
+                    {t("profitReport.waste.link")}
+                </a>
 
                 {/* Filters */}
                 {showFilters && (

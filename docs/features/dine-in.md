@@ -271,7 +271,7 @@ satu metode per tagihan:
   kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
   (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
   Another exception: a gateway tender with no reference after 120 s belongs to a request that died before storing its charge.
-  The POS "Belum Lunas" row then offers **Bayar** again and paying replaces it (Riwayat Transaksi still shows "Lihat QR").
+  The POS "Belum Lunas" row and Transactions History then offer **Bayar** again, with the same flow, and paying replaces it.
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
@@ -377,7 +377,7 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
   never expired. A Midtrans page with no method picked is unknown to the Core API (404): the job then cancels the Snap session
   by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
-- **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
+- **Paid after the shift closed**: a payment of any method that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the money (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas), a gateway sale unpaid at close,
   an unpaid pay-later sale without a receivable or the unreceived part of a split sale; see `cashier-shifts.md`).
