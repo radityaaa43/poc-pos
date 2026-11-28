@@ -6,10 +6,13 @@ use App\Models\DineOrderItem;
 use App\Models\KitchenItem;
 use App\Models\KitchenStation;
 use App\Models\Transaction;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class KitchenIntakeService
 {
+    private const RECOVERY_WINDOW_MINUTES = 30;
+
     /**
      * Put the paid sale's lines that need preparation into the kitchen, once.
      * Safe to call repeatedly (and concurrently): the unique key on transaction_detail_id guards it.
@@ -42,6 +45,51 @@ class KitchenIntakeService
         if ($transaction->is_pay_later) {
             $this->record($transaction);
         }
+    }
+
+    /** Takes in a sale found by missedSales(): a pay-later one in whatever payment state, any other only once paid. */
+    public function recover(Transaction $sale): void
+    {
+        $sale->is_pay_later ? $this->intakePayLater($sale) : $this->intake($sale);
+    }
+
+    /**
+     * The recent sales with something to make that have no kitchen item yet: paid Pay now sales, then pay-later ones.
+     * The window is short: intake failures are transient, and it avoids phantom orders after products are re-flagged.
+     *
+     * @return array<int, Builder<Transaction>>
+     */
+    public function missedSales(): array
+    {
+        $since = now()->subMinutes(self::RECOVERY_WINDOW_MINUTES);
+        // "Fully returned" = every line has its whole qty in completed returns (the rule the sales list uses for can_create_sales_return).
+        $missed = fn () => Transaction::query()
+            ->whereNotNull('warehouse_id')
+            ->whereDoesntHave('kitchenItems')
+            ->whereHas('details', fn ($detail) => $detail->goesToKitchen())
+            ->whereHas('details', fn ($detail) => $detail->whereRaw(
+                'transaction_details.qty > coalesce((select sum(sri.qty_return) from sales_return_items sri'
+                .' join sales_returns sr on sr.id = sri.sales_return_id'
+                .' where sri.transaction_detail_id = transaction_details.id and sr.status = ?), 0)',
+                ['completed'],
+            ));
+
+        return [
+            // Cancelled sales are not paid, so the status filter drops them. A pay-later sale is left to the second query:
+            // it reached (or should have reached) the kitchen at checkout and the paid hook skips it.
+            $missed()
+                ->where('payment_status', 'paid')
+                ->where('is_pay_later', false)
+                ->where('created_at', '>=', now()->subHours(48)) // indexed prefilter; gateway sales can be paid long after they are created, so 48 h still covers them
+                ->where('updated_at', '>=', $since),
+            // Pay later (a POS credit sale, or a QR bill accepted as pay later): its intake belongs to its creation, not to its
+            // payment, so the window runs on created_at and the payment status is ignored (unpaid, a payment attempt in flight,
+            // failed, expired or paid): the food is owed in every state, and a bill paid after the window must not be left out.
+            // A cancelled bill is fully returned (skipped above); a rejected order has no transaction.
+            $missed()
+                ->where('is_pay_later', true)
+                ->where('created_at', '>=', $since),
+        ];
     }
 
     private function record(Transaction $transaction): void

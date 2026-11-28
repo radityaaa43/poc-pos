@@ -186,7 +186,8 @@ class CashierShiftTest extends TestCase
             'shipping_cost' => 0,
             'grand_total' => 50000,
             'payment_method' => 'bank_transfer',
-            'payment_status' => 'pending',
+            // Confirmed: a transfer still waiting at close is cancelled (REQ-003 AC-20, ShiftCloseHoldTest).
+            'payment_status' => 'paid',
         ]);
 
         SalesReturn::create([
