@@ -218,7 +218,7 @@ describe("OfflineQueuePanel: remove", () => {
 
         await user.click(await screen.findByRole("button", { name: "Hapus" }));
 
-        const warning = screen.getByText(NOT_YET);
+        const warning = await screen.findByText(NOT_YET);
         const confirm = screen.getByText(CONFIRM);
         expect(warning.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         // The row's content is shown with the question.
@@ -365,6 +365,7 @@ describe("OfflineQueuePanel: remove", () => {
         const onChange = vi.fn();
         const { user } = await open({ onChange });
         await user.click(await screen.findByRole("button", { name: "Hapus" }));
+        await screen.findByText(CONFIRM);
         // A flush took the row while the question was open.
         await updatePendingTransaction(id, { status: "syncing", last_attempt_at: new Date().toISOString() });
 
