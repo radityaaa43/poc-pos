@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::table('transaction_details', function (Blueprint $table) {
             $table->string('note', 100)->nullable();
             // Extra price of the chosen options per unit, at sale time.
-            $table->unsignedInteger('modifier_total')->default(0);
+            $table->unsignedBigInteger('modifier_total')->default(0);
         });
     }
 

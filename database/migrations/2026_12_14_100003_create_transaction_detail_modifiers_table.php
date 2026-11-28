@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('modifier_option_id')->nullable()->constrained()->nullOnDelete();
             $table->string('group_name', 100);
             $table->string('option_name', 100);
-            $table->unsignedInteger('price_delta')->default(0);
+            $table->unsignedBigInteger('price_delta')->default(0);
             // [{product_id, qty_per_unit}] as deducted: what a restock gives back, whatever the recipe says later.
             $table->json('components');
             $table->timestamps();

@@ -13,7 +13,7 @@ return new class extends Migration
             // Sorted option ids; null on a line of a menu that had no modifier groups when it was added.
             $table->json('modifier_option_ids')->nullable();
             // Extra price of those options per unit; `price` already includes it.
-            $table->unsignedInteger('modifier_total')->default(0);
+            $table->unsignedBigInteger('modifier_total')->default(0);
             $table->string('note', 100)->nullable();
             $table->string('line_key', 40)->default('');
         });
