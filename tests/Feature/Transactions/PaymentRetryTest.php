@@ -244,6 +244,50 @@ class PaymentRetryTest extends TestCase
         $this->assertSame('paid', $sale->fresh()->payment_status);
     }
 
+    public function test_a_gateway_retry_of_a_force_closed_sale_is_marked_when_the_webhook_pays(): void
+    {
+        Http::fake([
+            'https://app.sandbox.midtrans.com/*' => Http::response([
+                'token' => 'snap', 'redirect_url' => 'https://pay.midtrans.test/new', 'qr_string' => 'QR',
+            ], 200),
+        ]);
+        $sale = $this->makeSale('midtrans', ['is_pay_later' => true]);
+        $closed = app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0, 'Tutup paksa', forceClose: true);
+        $recap = $closed->only(['expected_cash', 'cash_sales_total', 'non_cash_sales_total', 'transactions_count']);
+        $next = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'qris'])
+            ->assertSessionHasNoErrors();
+        $sale->refresh();
+        // A gateway retry is pending: it is marked when the webhook books the money.
+        $this->assertSame(['pending', $next->id, null], [$sale->payment_status, $sale->cashier_shift_id, $sale->paid_after_close_at]);
+
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-r1', 'settlement'))->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertNotNull($sale->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closed->id, 'webhook'], [$log->meta['shift_id'], $log->meta['source']]);
+        // TC-8: the closed recap is a snapshot, unchanged; the money is in the shift that took it.
+        $this->assertSame($recap, CashierShift::findOrFail($closed->id)->only(array_keys($recap)));
+        $this->assertSame(20000, (int) app(CashierShiftService::class)->calculateSummary($next)['non_cash_sales_total']);
+    }
+
+    public function test_a_retry_in_the_same_open_shift_is_not_marked(): void
+    {
+        $sale = $this->makeSale('midtrans', ['is_pay_later' => true]);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+        $this->assertNull($sale->fresh()->paid_after_close_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
+    }
+
     public function test_retry_with_xendit_charges_under_the_attempt_order_id(): void
     {
         Http::fake(['https://api.xendit.co/*' => Http::response([
