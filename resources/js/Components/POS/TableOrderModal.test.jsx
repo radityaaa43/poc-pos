@@ -152,7 +152,7 @@ describe("TableOrderModal", () => {
     it("offers a retry when the list fails online", async () => {
         axios.get.mockRejectedValue(new Error("500"));
         await open();
-        expect(screen.getByRole("alert")).toHaveTextContent("Daftar meja gagal dimuat.");
+        expect(await screen.findByRole("alert")).toHaveTextContent("Daftar meja gagal dimuat.");
 
         answer();
         await userEvent.click(screen.getByRole("button", { name: "Coba lagi" }));

@@ -13,6 +13,8 @@ import ProductGrid from "@/Components/POS/ProductGrid";
 import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
+import EmptyCart from "@/Components/POS/EmptyCart";
+import TableOrderModal from "@/Components/POS/TableOrderModal";
 import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
@@ -1232,20 +1234,13 @@ export default function Index({
                                     ))}
                                 </div>
                             ) : (
-                                <div className="py-6 text-center">
-                                    <IconShoppingCart
-                                        size={32}
-                                        className="mx-auto text-slate-300 dark:text-slate-600 mb-2"
-                                    />
-                                    <p className="text-sm text-slate-400">
-                                        Keranjang kosong
-                                    </p>
-                                </div>
+                                <EmptyCart />
                             )}
                         </div>
 
                         {/* Payment Details - Scrollable */}
                         <div data-tour="pos-payment" className="p-3 space-y-4">
+                            <TableOrderModal carts={carts} />
                             <PayLaterOption
                                 enabled={payLaterEnabled}
                                 payLater={payLater}
