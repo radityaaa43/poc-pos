@@ -147,6 +147,18 @@ class StockWasteApprovalTest extends TestCase
         $this->assertSame(1000, $this->beans->fresh()->stock);
     }
 
+    public function test_approve_is_refused_when_stock_is_no_longer_enough(): void
+    {
+        $waste = $this->record(limit: 0);
+        // The shelf emptied since the record: 5 left, the record needs 10.
+        $this->beans->warehouses()->updateExistingPivot($this->warehouse->id, ['stock' => 5]);
+
+        $this->actingAs($this->approver)->post(route('stock-waste.approve', $waste))->assertSessionHasErrors('stock');
+
+        $this->assertSame(StockWaste::STATUS_PENDING, $waste->fresh()->status);
+        $this->assertSame(5, $this->pivotStock());
+    }
+
     public function test_the_actions_need_the_approve_permission(): void
     {
         $waste = $this->record(limit: 0);
