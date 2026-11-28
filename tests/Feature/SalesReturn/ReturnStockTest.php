@@ -96,6 +96,77 @@ class ReturnStockTest extends TestCase
         }
     }
 
+    /** Milk is also sold on its own line, so one ingredient is restocked by two lines of the same return. */
+    #[DataProvider('channels')]
+    public function test_returned_recipe_menu_restocks_components(string $channel): void
+    {
+        [$menu, $beans, $milk] = $this->recipeMenu();
+        $sale = $this->sale([[$menu, 3], [$milk, 5]]);
+        $return = $this->draft($sale, [2, 1]);
+
+        $this->logLocks();
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->assertCompleted($this->complete($return, $channel), $channel);
+        $queries = collect(DB::getQueryLog())->pluck('query')->map(fn (string $sql) => strtolower($sql));
+        DB::disableQueryLog();
+
+        // 2 menus x 20 beans and x 150 milk, plus 1 milk of its own line.
+        $this->assertSame(540, $beans->fresh()->stock);
+        $this->assertSame(140, $this->warehouseStock($beans));
+        $this->assertSame(2301, $milk->fresh()->stock);
+        $this->assertSame(1101, $this->warehouseStock($milk));
+        $this->assertSame(0, $menu->fresh()->stock, 'a recipe menu holds no stock of its own');
+        $this->assertSame(0, $this->warehouseStock($menu));
+
+        // A component records its warehouse stock, as its sale did; the plain line records the total, as before.
+        $mutations = StockMutation::where('reference_type', 'sales_return')->orderBy('id')->get()
+            ->map(fn (StockMutation $m) => [$m->product_id, $m->warehouse_id, $m->mutation_type, $m->qty, $m->stock_before, $m->stock_after])
+            ->all();
+        $this->assertEquals([
+            [$beans->id, $this->warehouse->id, 'in', 40, 100, 140],
+            [$milk->id, $this->warehouse->id, 'in', 300, 800, 1100],
+            [$milk->id, $this->warehouse->id, 'in', 1, 2300, 2301],
+        ], $mutations);
+
+        // Checkout's lock order: the sale, then warehouse rows by product id, then products, then the first write.
+        $position = fn (string $pattern) => $queries->search(fn (string $sql) => preg_match($pattern, $sql) === 1);
+        $order = [
+            $position('/^select \* from [`"]transactions[`"] where [`"]transactions[`"]\.[`"]id[`"] = \?.*for update/'),
+            $position('/^select \* from [`"]product_warehouse[`"] where .*order by [`"]product_id[`"] asc.*for update/'),
+            $position('/^select \* from [`"]products[`"] where .*order by [`"]id[`"] asc.*for update/'),
+            $position('/^update [`"](product_warehouse|products)[`"]/'),
+        ];
+        $this->assertNotContains(false, $order);
+        $this->assertSame(collect($order)->sort()->values()->all(), $order);
+    }
+
+    #[DataProvider('channels')]
+    public function test_unticked_restock_changes_nothing(string $channel): void
+    {
+        [$menu, $beans, $milk] = $this->recipeMenu();
+        $return = $this->draft($this->sale([[$menu, 3]]), [2], restock: false);
+
+        $this->assertCompleted($this->complete($return, $channel), $channel);
+
+        foreach ([[$menu, 0, 0], [$beans, 500, 100], [$milk, 2000, 800]] as [$product, $total, $inWarehouse]) {
+            $this->assertSame($total, $product->fresh()->stock);
+            $this->assertSame($inWarehouse, $this->warehouseStock($product));
+        }
+        $this->assertSame(0, StockMutation::where('reference_type', 'sales_return')->count());
+    }
+
+    /** @return array{Product, Product, Product} a recipe menu and its components: 20 beans and 150 milk each */
+    private function recipeMenu(): array
+    {
+        $menu = $this->product(stock: 0, composite: true);
+        $beans = $this->product(stock: 500, warehouseStock: 100);
+        $milk = $this->product(stock: 2000, warehouseStock: 800);
+        $menu->components()->attach([$beans->id => ['qty' => 20], $milk->id => ['qty' => 150]]);
+
+        return [$menu, $beans, $milk];
+    }
+
     /** SQLite drops the lock clause: write it as a comment, so the query log shows which reads lock. */
     private function logLocks(): void
     {
