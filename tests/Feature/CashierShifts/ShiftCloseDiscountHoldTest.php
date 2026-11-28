@@ -203,7 +203,8 @@ class ShiftCloseDiscountHoldTest extends TestCase
             'discount' => 5000,
             'cash' => 15000,
             'payment_method' => 'cash',
-        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'synced');
+            // A synced sale whose discount waits for approval reports that status; the queue drops it either way.
+        ]]])->assertOk()->assertJsonPath('data.results.0.status', 'pending_approval');
 
         $sale = Transaction::latest('id')->firstOrFail();
         $this->assertSame(
