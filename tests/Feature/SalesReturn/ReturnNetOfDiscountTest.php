@@ -45,6 +45,7 @@ class ReturnNetOfDiscountTest extends TestCase
             'cashier-shifts-access',
             'cashier-shifts-open',
             'cashier-shifts-close',
+            'discounts-approve',
         ] as $permission) {
             Permission::firstOrCreate(['name' => $permission, 'guard_name' => 'web']);
         }
@@ -235,6 +236,32 @@ class ReturnNetOfDiscountTest extends TestCase
         );
     }
 
+    public function test_denied_discount_sale(): void
+    {
+        $user = $this->user();
+        $user->givePermissionTo('discounts-approve');
+        $this->openShiftFor($user);
+        $customer = $this->member(points: 9);
+        // A 10.000 manual discount awaiting approval: the bill stored 90.000 and the 9 points it earned.
+        [$sale, $details] = $this->makeSale($user, [['price' => 100000, 'qty' => 1]], [
+            'discount' => 10000, 'grand_total' => 90000, 'customer_id' => $customer->id,
+            'loyalty_points_earned' => 9,
+        ]);
+        $sale->update(['discount_approval_status' => 'pending']);
+
+        $this->actingAs($user)->post(route('discount-approvals.deny', $sale))->assertSessionHas('success');
+
+        // The denial restores the bill, so it earns the tenth point and a later full return takes back all ten.
+        $this->assertSame(10, (int) $sale->fresh()->loyalty_points_earned);
+        $this->assertSame(10, (int) $customer->fresh()->loyalty_points);
+
+        $return = $this->complete($user, $this->draft($user, $sale->fresh(), [$this->item($details[0], 1)]));
+
+        $this->assertSame(100000, (int) $return->total_return_amount);
+        $this->assertSame(0, (int) $return->discount_deducted);
+        $this->assertSame(10, $return->points_reversed);
+    }
+
     public function test_take_back_stops_at_zero_and_records_the_shortfall(): void
     {
         $user = $this->user();
@@ -403,6 +430,8 @@ class ReturnNetOfDiscountTest extends TestCase
             'tax_rate' => 0,
             'grand_total' => $case['bill']['grand_total'],
             'shipping_cost' => $case['bill']['shipping_cost'],
+            'loyalty_points_redeemed' => $case['bill']['points_redeemed'],
+            'loyalty_points_earned' => $case['bill']['points_earned'],
         ];
     }
 

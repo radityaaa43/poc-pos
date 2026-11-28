@@ -545,6 +545,9 @@ class LoyaltyService
             'loyalty_total_spent' => (int) $customer->loyalty_total_spent + $difference,
         ])->save();
 
+        // The sale's earned column follows, so a later return takes these points back in proportion (#545 BR-4).
+        $sale->forceFill(['loyalty_points_earned' => (int) $sale->loyalty_points_earned + $points])->save();
+
         if ($points > 0) {
             $this->recordHistory($customer->fresh(), $sale, LoyaltyPointHistory::TYPE_EARN, $points, $difference, 'Diskon ditolak pada transaksi '.$sale->invoice);
         }

@@ -14,10 +14,10 @@ use Illuminate\Support\Collection;
 class ReturnBillShareService
 {
     /**
-     * The sale's figures a return shares out, plus the item value and the full total its completed returns already
-     * gave back (excluding $exceptReturnId), and what the sale actually took.
+     * The sale's figures a return shares out, plus the item value its completed returns already gave back (excluding
+     * $exceptReturnId).
      *
-     * @return array{base:int, net_base:int, service_charge:int, refundable_tax:int, points_redeemed:int, points_earned:int, returned_value:int, returned_total:int, paid:int}
+     * @return array{base:int, net_base:int, service_charge:int, refundable_tax:int, points_redeemed:int, points_earned:int, returned_value:int}
      */
     public function billShare(Transaction $sale, ?int $exceptReturnId = null, bool $lock = false): array
     {
@@ -48,9 +48,6 @@ class ReturnBillShareService
                     - (int) $return->tax_refunded
                     + (int) $return->discount_deducted
             ))),
-            'returned_total' => (int) $completed->sum(fn (SalesReturn $return) => (int) $return->total_return_amount),
-            // What the sale actually took: shipping and its tax are never refunded.
-            'paid' => max(0, (int) $sale->grand_total - (int) $sale->shipping_cost - $this->shippingTax($sale)),
         ];
     }
 
