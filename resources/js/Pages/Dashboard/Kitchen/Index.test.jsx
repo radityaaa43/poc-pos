@@ -886,6 +886,16 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
         });
 
+        it("marks the grouped card for an add-on's own unprinted ticket (#251)", () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[0].items, { id: 99, title: "Es Jeruk", qty: 1, status: "accepted", add_on }];
+            use({ unprinted: [entry(11)] });
+            render(<Index orders={[{ ...orders[0], items }]} outlet={outlet} />);
+
+            expect(screen.getByText("Belum tercetak")).toBeInTheDocument();
+            expect(screen.getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+        });
+
         it("says Not printed in English", async () => {
             await i18n.changeLanguage("en");
             use({ unprinted: [entry(7)] });
@@ -925,6 +935,44 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
 
             expect(hook.reprint).toHaveBeenCalledTimes(1);
             expect(hook.reprint).toHaveBeenCalledWith(orders[1]);
+        });
+
+        it("reprints one ticket per sale on a grouped add-on card (#314)", async () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[1].items, { id: 99, title: "Es Jeruk", qty: 1, status: "ready", add_on }];
+            const hook = use({ printedIds: [1, 2, 3, 99] });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            await user().click(reprintIn(cards()[0]));
+
+            expect(hook.reprint).toHaveBeenCalledTimes(2);
+            expect(hook.reprint.mock.calls.map(([sale]) => [sale.id, sale.kind])).toEqual([
+                [orders[1].id, "order"],
+                [11, "addon"],
+            ]);
+        });
+
+        it("reprints only the add-on when the original has no line left (#314)", async () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [{ id: 99, title: "Es Jeruk", qty: 1, status: "ready", add_on }];
+            const hook = use({ printedIds: [99] });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            await user().click(reprintIn(cards()[0]));
+
+            // No blank ticket for the empty original: only the add-on's sale is reprinted.
+            expect(hook.reprint).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).toHaveBeenCalledWith(expect.objectContaining({ id: 11, kind: "addon" }));
+        });
+
+        it("shows the reprint error when an add-on's reprint fails on a grouped card (#314)", () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[1].items, { id: 99, title: "Es Jeruk", qty: 1, status: "ready", add_on }];
+            use({ printedIds: [1, 2, 3, 99], reprintFailed: 11 });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            // The failure is stored under the add-on's sale id; the card must still show it.
+            expect(screen.getByText("Gagal mencetak ulang")).toBeInTheDocument();
         });
 
         it.each([
@@ -1006,5 +1054,28 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(within(cards()[0]).queryByText("Gagal mencetak ulang")).not.toBeInTheDocument();
             expect(screen.queryByRole("alert")).not.toBeInTheDocument();
         });
+    });
+});
+
+describe("add-on orders (#251)", () => {
+    it("shows an add-on's items under one Tambahan heading inside the original order, with its own unpaid mark", () => {
+        const add_on = { id: 11, since: minutesAgo(1), unpaid: true };
+        const items = [
+            { id: 3, title: "Mie Ayam", qty: 1, status: "accepted" },
+            { id: 4, title: "Es Jeruk", qty: 1, status: "ready", add_on },
+            { id: 5, title: "Kopi", qty: 1, status: "accepted", add_on },
+        ];
+
+        render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+        expect(screen.getAllByRole("article")).toHaveLength(1);
+        const [mie, part, jeruk, kopi] = screen.getAllByRole("listitem");
+        expect(mie).toHaveTextContent("Mie Ayam");
+        expect(within(part).getByRole("heading", { name: "Tambahan" })).toBeInTheDocument();
+        expect(part).toHaveTextContent("Belum lunas");
+        expect(part).toHaveTextContent("1 menit");
+        expect(jeruk).toHaveTextContent("Es Jeruk");
+        expect(kopi).toHaveTextContent("Kopi");
+        expect(screen.getAllByText("Belum lunas")).toHaveLength(1);
     });
 });

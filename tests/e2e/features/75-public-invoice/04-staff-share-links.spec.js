@@ -13,7 +13,7 @@ test('the WhatsApp share link on the history page carries a working public invoi
     await page.getByRole('button', { name: 'Filter' }).click();
     await page.getByPlaceholder('TRX-...').fill(sale.invoice);
     await page.keyboard.press('Enter');
-    const share = page.getByRole('link', { name: 'Bagikan ke WhatsApp' }).first();
+    const share = page.locator('tr', { hasText: sale.invoice }).getByRole('link', { name: 'Bagikan ke WhatsApp' });
     await expect(share).toBeVisible();
 
     const text = new URL(await share.getAttribute('href')).searchParams.get('text');
@@ -34,7 +34,7 @@ test('the history page offers a WhatsApp share link for the invoice', async ({ a
     await page.getByPlaceholder('TRX-...').fill(sale.invoice);
     await page.keyboard.press('Enter');
 
-    const share = page.getByRole('link', { name: 'Bagikan ke WhatsApp' }).first();
+    const share = page.locator('tr', { hasText: sale.invoice }).getByRole('link', { name: 'Bagikan ke WhatsApp' });
     await expect(share).toBeVisible();
     expect(new URL(await share.getAttribute('href')).searchParams.get('text')).toContain(`Invoice ${sale.invoice}`);
 });

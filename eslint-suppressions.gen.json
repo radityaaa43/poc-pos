@@ -169,7 +169,7 @@
   },
   "resources/js/Pages/Dashboard/Transactions/Index.jsx": {
     "no-unused-vars": {
-      "count": 9
+      "count": 7
     }
   },
   "resources/js/Pages/Dashboard/Transactions/Print.jsx": {
