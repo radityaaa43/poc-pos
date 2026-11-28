@@ -757,7 +757,7 @@ describe("Kitchen/Index hand over", () => {
     });
 });
 
-describe("Kitchen/Index: printer status, Belum tercetak and reprint (REQ-004 K2)", () => {
+describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => {
     const secondsAgo = (s) => new Date(NOW.getTime() - s * 1000).toISOString();
     const device = { id: 5, name: "Dapur 1" };
     const printer = (over = {}) => ({
@@ -897,7 +897,7 @@ describe("Kitchen/Index: printer status, Belum tercetak and reprint (REQ-004 K2)
         });
     });
 
-    describe("one button per card", () => {
+    describe("card button", () => {
         const user = () => userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
         const reprintIn = (card) => within(card).queryByRole("button", { name: "Cetak ulang" });
 
@@ -927,19 +927,16 @@ describe("Kitchen/Index: printer status, Belum tercetak and reprint (REQ-004 K2)
             expect(hook.reprint).toHaveBeenCalledWith(orders[1]);
         });
 
-        it.each([true, false])("offers Cetak ulang only for an order this device printed (auto-print %s)", (autoPrint) => {
-            use({ autoPrint, printedIds: [1, 3] }); // order 7 has an item this device never printed
+        it.each([
+            ["auto-print on", {}, true],
+            ["auto-print off", { autoPrint: false }, true],
+            ["a tab that is not the printing one", { otherTab: true }, false],
+        ])("offers Cetak ulang only for an order this device printed, where it can print (%s)", (_case, over, offered) => {
+            use({ ...over, printedIds: [1, 3] }); // order 7 has an item this device never printed
             render(<Index orders={orders} outlet={outlet} />);
 
             expect(reprintIn(cards()[0])).not.toBeInTheDocument();
-            expect(reprintIn(cards()[1])).toBeInTheDocument();
-        });
-
-        it("offers no Cetak ulang in a tab that is not the printing one", () => {
-            use({ printedIds: [1, 3], otherTab: true });
-            render(<Index orders={orders} outlet={outlet} />);
-
-            expect(reprintIn(cards()[1])).not.toBeInTheDocument();
+            expect(Boolean(reprintIn(cards()[1]))).toBe(offered);
         });
 
         it("ignores a cancelled line, and offers nothing for an order that is all cancelled", () => {

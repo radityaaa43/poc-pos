@@ -7,8 +7,8 @@ const BUTTON =
 const DANGER = "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-400";
 const WARNING = "bg-warning-100 text-warning-700 dark:bg-warning-900/50 dark:text-warning-400";
 
-// Status -> translation key of its wording and its colour. `unsupported` has no entry on purpose: it is
-// shown in the settings panel only, so a display that never prints stays quiet.
+// Status -> translation key of its wording. `unsupported` has no entry on purpose: it is shown in the
+// settings panel only, so a display that never prints stays quiet.
 const BANNERS = {
     driver_locked: ["kitchen.print.driverLocked", DANGER],
     not_connected: ["kitchen.print.kitchenNotConnected", DANGER],

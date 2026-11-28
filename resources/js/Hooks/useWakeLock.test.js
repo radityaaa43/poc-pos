@@ -146,20 +146,15 @@ describe("useWakeLock", () => {
         expect(sentinel.release).toHaveBeenCalled();
     });
 
-    it("reports refused when the browser says no", async () => {
-        request.mockRejectedValue(new DOMException("denied", "NotAllowedError"));
+    it.each([
+        ["refused", "the browser says no", () => request.mockRejectedValue(new DOMException("denied", "NotAllowedError"))],
+        ["unsupported", "there is no Wake Lock API", () => delete navigator.wakeLock],
+    ])("reports %s when %s", async (state, _why, arrange) => {
+        arrange();
         const { result } = renderHook(() => useWakeLock(true));
         await settle();
 
-        expect(result.current).toBe("refused");
-    });
-
-    it("reports unsupported without the Wake Lock API", async () => {
-        delete navigator.wakeLock;
-        const { result } = renderHook(() => useWakeLock(true));
-        await settle();
-
-        expect(result.current).toBe("unsupported");
+        expect(result.current).toBe(state);
     });
 
     it("stops listening to visibility changes on unmount", async () => {

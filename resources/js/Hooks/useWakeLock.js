@@ -41,13 +41,11 @@ export function useWakeLock(enabled) {
                 requesting = false;
             }
         };
-        const onVisibility = () => acquire();
-
-        document.addEventListener("visibilitychange", onVisibility);
+        document.addEventListener("visibilitychange", acquire);
         acquire();
         return () => {
             cancelled = true;
-            document.removeEventListener("visibilitychange", onVisibility);
+            document.removeEventListener("visibilitychange", acquire);
             sentinel?.release();
         };
     }, [enabled]);

@@ -38,9 +38,9 @@ const ENDED = [401, 404, 419];
 // A record call that gives no answer must fail, or every later poll would wait behind it.
 const RECORD = { timeout: 10000 };
 
-// The sends outside the polling queue: stopped queues still finishing (auto-print switched off, the session ended
-// or the page left) and reprints made while nothing polls. A polling queue waits for them, so each ticket is
-// recorded before it is listed again and only one queue ever sends. Module level: it has to outlive the page.
+// Sends still finishing in stopped queues (auto-print off, page left) or made as reprints only. A new queue waits
+// for them, so each ticket is recorded before it is listed again and only one queue ever sends. Module level: it
+// has to outlive the page component.
 let leaving = Promise.resolve();
 
 // The server takes at most 200 ids per record call (the two Store*PrintsRequest rules).
@@ -81,7 +81,6 @@ async function print(ticket, extraLabels) {
     }
 }
 
-// A reprint ticket is built from the card: same items, minus the cancelled ones, marked reprint.
 const reprintTicket = (order, key) => ({
     key,
     number: order.number,
@@ -272,8 +271,7 @@ export function useKitchenPrintDevice(outlet) {
         });
 
         let fetchedAt = Date.now();
-        // Runs every second and reads the live queue, so a backlog that prints at once on waking still warns. It
-        // does not wait for the poll, so a request that never answers warns too.
+        // Every second, apart from the poll: a backlog printed at once on waking still warns, and so does a hung poll.
         const clock = () => {
             const at = Date.now();
             setNow(at);
@@ -291,8 +289,7 @@ export function useKitchenPrintDevice(outlet) {
                 lastError: failed ? (queue.jobs[0]?.lastError ?? null) : null,
             });
         };
-        // A reprint is a one-shot tap: when the queue stops, the reprints still waiting in it are dropped (the button
-        // re-enables with the failure shown), not printed minutes later when the printer recovers.
+        // Reprints still waiting when the queue stops are dropped as failed, never printed minutes later.
         const dropReprints = () => {
             for (const job of queue.jobs) {
                 if (job.manual && queue.remove(job.key)) {
@@ -475,8 +472,7 @@ export function useKitchenPrintDevice(outlet) {
                 queueRef.current.queue.enqueue(job);
                 return queueRef.current.run();
             }
-            // Auto-print off: nothing is polling, so a queue of its own keeps one send at a time. It takes its turn in
-            // `leaving`: after a stopped queue's send, before the next polling queue's.
+            // Nothing is polling: a queue of its own, taking its turn in `leaving` like a stopped queue.
             if (!reprintQueueRef.current) reprintQueueRef.current = createPrintQueue({ send: sendManual });
             reprintQueueRef.current.enqueue(job);
             leaving = leaving.then(() => reprintQueueRef.current.drain());

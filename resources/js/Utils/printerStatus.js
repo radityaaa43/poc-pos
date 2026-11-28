@@ -44,8 +44,7 @@ export function unprintedFromJobs(jobs) {
 
 // One status at a time, highest priority first. `unsupported` is for the settings panel only (the page
 // shows no banner for it). Everything but unsupported and a driver lock needs auto-print on, so a display
-// that never prints stays quiet. `staleAt` is when the stale condition last held and `unfetched` says the
-// tickets have not been fetched for too long (the hook keeps both).
+// that never prints stays quiet.
 export function derivePrinterStatus({ supported, autoPrint, errorCode, disconnected, unprinted, wakeLock, now, staleAt, unfetched }) {
     if (!supported) return "unsupported";
     if (errorCode === "driver_locked") return "driver_locked";

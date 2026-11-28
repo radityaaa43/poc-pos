@@ -18,14 +18,13 @@ export function createPrintQueue({ send }) {
             } catch (error) {
                 console.warn(`Print job ${jobs[0].key} failed`, error);
                 console.warn("kitchen print failed", jobs[0].key, error?.code);
-                // A manual job (a reprint) is a one-shot: dropped, so a forgotten tap cannot retry minutes later
-                // and block the real tickets behind it. Its send already saw the error.
+                // A reprint is one-shot (its send saw the error): a forgotten tap must not retry ahead of real tickets.
                 if (jobs[0].manual) {
                     jobs.shift();
                     continue;
                 }
                 status = "failed";
-                jobs[0] ={ ...jobs[0], lastError: { code: error?.code, message: error?.message } };
+                jobs[0] = { ...jobs[0], lastError: { code: error?.code, message: error?.message } };
                 release();
                 return;
             }
