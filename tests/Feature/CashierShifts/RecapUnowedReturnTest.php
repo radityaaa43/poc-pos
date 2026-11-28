@@ -183,6 +183,42 @@ class RecapUnowedReturnTest extends TestCase
         $this->assertRecap(cash: 0, nonCash: 30000, expectedCash: 100000);
     }
 
+    /** A forced close books an unpaid bill as a shortfall and leaves it out of the recap: nothing of it comes off again. */
+    public function test_a_forced_close_does_not_take_a_booked_bills_return_off_twice(): void
+    {
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '123', 'account_name' => 'Toko', 'is_active' => true, 'sort_order' => 0]);
+        // a dine bill: 5000 returned, then the owed 20000 asked by a counter transfer that is still waiting
+        $order = $this->acceptedOrder();
+        $this->returnFromBill($this->bill($order), $this->plain);
+        $this->payAtCounter($order, [['method' => 'bank_transfer', 'amount' => 20000, 'bank_account_id' => $account->id]]);
+        $shift = CashierShift::findOrFail($this->bill($order)->cashier_shift_id);
+        $sale = [
+            'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
+            'cash' => 0, 'change' => 0, 'discount' => 0,
+        ];
+        // a guest pay-later bill without tenders, one of its two units returned
+        $payLater = Transaction::create([
+            ...$sale, 'invoice' => 'TRX-LATER', 'grand_total' => 10000,
+            'is_pay_later' => true, 'payment_method' => 'pay_later', 'payment_status' => 'unpaid',
+        ]);
+        $detail = $payLater->details()->create(['product_id' => $this->plain->id, 'qty' => 2, 'price' => 10000]);
+        $return = SalesReturn::create([
+            'code' => 'SR-LATER', 'transaction_id' => $payLater->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
+            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 5000, 'completed_at' => now(),
+        ]);
+        $return->items()->create([
+            'transaction_detail_id' => $detail->id, 'product_id' => $this->plain->id, 'qty_sold' => 2, 'qty_returned_before' => 0,
+            'qty_return' => 1, 'unit_price' => 5000, 'subtotal' => 5000, 'return_reason' => 'Batal', 'restock_to_inventory' => false,
+        ]);
+        // and a sale that did take its money
+        Transaction::create([...$sale, 'invoice' => 'TRX-OTHER', 'grand_total' => 30000, 'payment_method' => 'bank_transfer', 'payment_status' => 'paid']);
+
+        $closed = $this->closeShiftOf($this->bill($order));
+
+        $this->assertSame(25000, (int) $closed->unpaid_bills_total); // 20000 + 5000 booked as the shortfall
+        $this->assertSame(30000, (int) $closed->non_cash_sales_total);
+    }
+
     /** The screens follow the recap: a counter transfer was asked in full, whatever is returned afterwards. */
     public function test_a_counter_transfer_is_still_asked_in_full_after_a_later_return(): void
     {

@@ -1,5 +1,5 @@
 import { test, expect as baseExpect } from '../../support/fixtures.js';
-import { signIn } from '../../support/platform.js';
+import { confirmPassword, signIn } from '../../support/platform.js';
 import { guestStartsPaying, midtransNotification } from '../../support/dine-bill.js';
 
 // Pages are slow when several agents share one machine, and these steps chain pages: wait longer than the 15 s default.
@@ -18,16 +18,30 @@ test.describe('80-dine-online-payment', () => {
     test.describe.configure({ timeout: 180_000 }); // several pages and a 10 s poll per step
     test.use({ actionTimeout: 30_000 });
 
-    test('paid after the shift closed: the closed recap is unchanged, the sale is flagged in History and has its own line in the sales report', { tag: ['@REQ-005-AC-08'] }, async ({ arrange, page, request }) => {
+    test('paid after the shift closed: the closed recap is unchanged, the sale is flagged in History and has its own line in the sales report', { tag: ['@REQ-005-AC-08', '@REQ-003-AC-12', '@REQ-003-AC-13'] }, async ({ arrange, browser, page, request }) => {
         const bill = await guestStartsPaying(page, arrange, { staff: '1' });
         await signIn(page, bill.cashier_email);
 
-        // The cashier closes her shift in the app while the guest's charge is pending: the snapshot holds no online money.
+        // The guest's charge is pending, so the bill is unpaid and holds the close: the cashier is refused (REQ-003 AC-12).
         await page.goto(`/dashboard/cashier-shifts/${bill.shift_id}`);
+        await expect(page.getByRole('region', { name: 'Belum selesai' }).getByRole('listitem').filter({ hasText: bill.invoice })).toContainText('Belum lunas');
         await page.getByRole('spinbutton').fill('100000');
         await page.getByRole('button', { name: 'Finalisasi Closing' }).click();
-        await expect(page.getByText('Shift Closed', { exact: true })).toBeVisible();
-        await expect(nonCash(page)).toHaveText(/Rp\s*0$/);
+        await expect(page.getByRole('alert').filter({ hasText: 'Shift tidak bisa ditutup: masih ada item belum diserahkan atau tagihan belum lunas.' })).toBeVisible();
+        await expect(page.getByText('Shift Aktif', { exact: true })).toBeVisible();
+        // A manager of that outlet force closes it in the app with a note (AC-13): the snapshot holds no online money.
+        const { email } = arrange('shiftclose.manager', { shift_id: bill.shift_id });
+        const context = await browser.newContext({ locale: 'id-ID', serviceWorkers: 'block' });
+        const manager = await context.newPage();
+        await signIn(manager, email);
+        await confirmPassword(manager);
+        await manager.goto(`/dashboard/cashier-shifts/${bill.shift_id}`);
+        await manager.getByRole('spinbutton').fill('100000');
+        await manager.getByLabel('Catatan tutup paksa').fill('Tamu masih membayar online');
+        await manager.getByRole('button', { name: 'Tutup paksa' }).click();
+        await expect(manager.getByText('Force Closed', { exact: true })).toBeVisible();
+        await expect(nonCash(manager)).toHaveText(/Rp\s*0$/);
+        await context.close();
 
         expect(await settle(request, bill)).toBe(200);
         const state = arrange('dine.order-state', { access_token: bill.access_token });
@@ -37,7 +51,7 @@ test.describe('80-dine-online-payment', () => {
 
         // The closed shift reads the same after the payment.
         await page.goto(`/dashboard/cashier-shifts/${bill.shift_id}`);
-        await expect(page.getByText('Shift Closed', { exact: true })).toBeVisible();
+        await expect(page.getByText('Force Closed', { exact: true })).toBeVisible();
         await expect(nonCash(page)).toHaveText(/Rp\s*0$/);
 
         // History: the badge on the row, and the chip lists the flagged sales.

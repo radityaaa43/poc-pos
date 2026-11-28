@@ -612,7 +612,7 @@ class PaymentWebhookLockTest extends TestCase
     public function test_a_force_closed_shift_counts_as_closed(): void
     {
         [, $bill] = $this->guestBill('midtrans');
-        $this->closeShiftOf($bill, force: true);
+        $this->closeShiftOf($bill);
 
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid')->assertOk();
 

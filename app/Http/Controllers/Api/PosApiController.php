@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Exceptions\ShiftCloseBlockedException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\CartResource;
 use App\Http\Resources\CashierShiftResource;
@@ -131,6 +132,8 @@ class PosApiController extends Controller
                 actualCash: (int) $validated['closing_cash'],
                 closeNotes: $validated['notes'] ?? null,
             );
+        } catch (ShiftCloseBlockedException $e) {
+            return $this->error($e->getMessage(), 422, [...$e->errors(), 'blockers' => $e->blockers]);
         } catch (\Throwable $e) {
             return $this->error($e->getMessage(), 422);
         }

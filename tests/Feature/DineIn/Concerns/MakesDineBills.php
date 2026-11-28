@@ -163,10 +163,10 @@ trait MakesDineBills
         return $return->fresh();
     }
 
-    /** The cashier closes the shift the bill belongs to; the stored recap is taken now. */
-    private function closeShiftOf(Transaction $bill, bool $force = false): CashierShift
+    /** Closes the bill's shift and takes its recap: by force with a note, as an unpaid bill holds a plain close (REQ-003 AC-12, 13). */
+    private function closeShiftOf(Transaction $bill): CashierShift
     {
-        return app(CashierShiftService::class)->closeShift(CashierShift::findOrFail($bill->cashier_shift_id), $this->cashier, 100000, forceClose: $force);
+        return app(CashierShiftService::class)->closeShift(CashierShift::findOrFail($bill->cashier_shift_id), $this->cashier, 100000, 'Tutup paksa', forceClose: true);
     }
 
     /** @return array<string, array<int, string>> the gateways the suites run against (a data provider) */

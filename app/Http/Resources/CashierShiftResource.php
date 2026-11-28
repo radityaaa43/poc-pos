@@ -21,6 +21,7 @@ class CashierShiftResource extends JsonResource
             'closing_cash' => $this->closing_cash !== null ? (float) $this->closing_cash : null,
             'expected_cash' => $this->expected_cash !== null ? (float) $this->expected_cash : null,
             'cash_difference' => $this->cash_difference !== null ? (float) $this->cash_difference : null,
+            'unpaid_bills_total' => (float) $this->resource->unpaid_bills_total,
             'status' => $this->status,
             'opened_at' => optional($this->opened_at)->toISOString(),
             'closed_at' => optional($this->closed_at)->toISOString(),

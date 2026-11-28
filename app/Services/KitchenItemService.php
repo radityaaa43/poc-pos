@@ -10,6 +10,7 @@ use App\Models\SalesReturnItem;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -96,6 +97,20 @@ class KitchenItemService
 
             $this->syncDineOrder($transaction);
         });
+    }
+
+    /**
+     * A forced shift close over food not handed over: the items become Tidak diambil (REQ-003 AC-13). Call it inside the
+     * close's DB::transaction with open items already locked.
+     *
+     * @param  Collection<int, KitchenItem>  $items
+     */
+    public function markNotCollected(Collection $items): void
+    {
+        $items->each(fn (KitchenItem $item) => $item->update(['status' => KitchenItem::STATUS_NOT_COLLECTED]));
+
+        Transaction::findMany($items->pluck('transaction_id')->unique())
+            ->each(fn (Transaction $transaction) => $this->syncDineOrder($transaction));
     }
 
     /**
@@ -217,7 +232,8 @@ class KitchenItemService
         $items = $all->where('status', '!=', KitchenItem::STATUS_CANCELLED); // a cancelled item no longer holds the order back
 
         // BR-11: nothing left to make. Every item cancelled cancels the order; a served one means it was fulfilled, so it completes as usual.
-        if ($all->isNotEmpty() && $items->every(fn (KitchenItem $item) => $item->status === KitchenItem::STATUS_SERVED)
+        // A Tidak diambil item is as finished as a served one: it must not hold its order open.
+        if ($all->isNotEmpty() && $items->every(fn (KitchenItem $item) => in_array($item->status, [KitchenItem::STATUS_SERVED, KitchenItem::STATUS_NOT_COLLECTED], true))
             && in_array($order->status, [DineOrder::STATUS_ACCEPTED, DineOrder::STATUS_PREPARING, DineOrder::STATUS_READY], true)) {
             if ($items->isEmpty() && $this->allLinesReturned($transaction, $including)) {
                 $order->update(['status' => DineOrder::STATUS_CANCELLED]);

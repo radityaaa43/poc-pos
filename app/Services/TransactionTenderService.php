@@ -3,10 +3,13 @@
 namespace App\Services;
 
 use App\Models\BankAccount;
+use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class TransactionTenderService
@@ -200,18 +203,58 @@ class TransactionTenderService
     }
 
     /**
-     * Mark the transfer tender paid and return the sale's new status: a split sale with another
-     * pending tender (a gateway) stays pending.
+     * Mark the transfer tender paid, then store and return the sale's new status: a split sale with another pending
+     * tender (a gateway) stays pending. Under the sale's row lock, because a shift close or the expiry command may have
+     * cancelled it since the page was read.
      */
     public function confirmTransfer(Transaction $transaction): string
     {
-        $transaction->tenders()
-            ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
-            ->update(['payment_status' => TransactionTender::STATUS_PAID]);
+        return DB::transaction(function () use ($transaction) {
+            // The dine order first, as in a shift close: marking the bill paid may complete it.
+            DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->first();
+            $status = Transaction::whereKey($transaction->id)->lockForUpdate()->value('payment_status');
 
-        $tenders = $transaction->tenders()->get();
+            if (! in_array($status, ['pending', 'pending_approval'], true)) {
+                throw ValidationException::withMessages(['payment' => 'Status transaksi tidak dapat dikonfirmasi saat ini.']);
+            }
 
-        return $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
+            $transaction->tenders()
+                ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
+                ->update(['payment_status' => TransactionTender::STATUS_PAID]);
+
+            $tenders = $transaction->tenders()->get();
+            $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
+
+            $this->flagIfBookedAtClose($transaction, $newStatus);
+            $transaction->update(['payment_status' => $newStatus]);
+
+            return $newStatus;
+        });
+    }
+
+    /**
+     * A bill a forced close booked as a shortfall is in no recap of that shift (REQ-003 BR-16): paid by a later
+     * confirmation it stays on the shift, so it is marked "Dibayar setelah shift ditutup", as a gateway payment is.
+     */
+    private function flagIfBookedAtClose(Transaction $transaction, string $newStatus): void
+    {
+        $shift = CashierShift::find($transaction->cashier_shift_id);
+
+        if ($newStatus !== 'paid' || ! $shift || $shift->isOpen() || $shift->unpaid_bills_total === 0
+            || (! $transaction->is_pay_later && ! $transaction->dineOrder()->exists())
+            || $transaction->receivable()->exists()) {
+            return;
+        }
+
+        $transaction->paid_after_close_at = now();
+
+        app(AuditLogService::class)->log(
+            event: 'payment.paid_after_close',
+            module: 'transactions',
+            auditable: $transaction,
+            description: "Pembayaran invoice {$transaction->invoice} dikonfirmasi setelah shift ditutup.",
+            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice],
+        );
     }
 
     public function resolveQrisGateway(?Outlet $outlet = null): ?string

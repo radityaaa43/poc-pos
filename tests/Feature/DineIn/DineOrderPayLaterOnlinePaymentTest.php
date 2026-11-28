@@ -411,7 +411,7 @@ class DineOrderPayLaterOnlinePaymentTest extends TestCase
         $order = $this->payLaterOrder();
         $bill = $this->bill($order);
         // Closed while the bill was never charged: its method is open_bill, which the recap leaves out.
-        $closed = $this->closeShiftOf($bill, force: true);
+        $closed = $this->closeShiftOf($bill);
         $this->guestPays($order)->assertOk();
 
         $this->notify($gateway, "{$bill->invoice}-r1", 'paid')->assertOk();
