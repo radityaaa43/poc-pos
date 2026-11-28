@@ -5,6 +5,7 @@ namespace App\Testing\E2e\Scenarios;
 use App\Models\AuditLog;
 use App\Models\Outlet;
 use App\Models\Setting;
+use App\Models\Transaction;
 use App\Services\BillSettingsService;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Support\Arr;
@@ -42,6 +43,11 @@ class BillSettings
 
                 return ['values' => app(BillSettingsService::class)->get($target)];
             },
+
+            // What a synced sale stored: --arg=uuid=<its client_uuid>.
+            'billsettings.sale' => fn (array $options): array => Transaction::where('client_uuid', $options['uuid'])
+                ->sole()
+                ->only(['order_type', 'service_charge', 'tax_total', 'grand_total']),
 
             'billsettings.state' => function (array $options) use ($outlet): array {
                 $target = $outlet($options);
