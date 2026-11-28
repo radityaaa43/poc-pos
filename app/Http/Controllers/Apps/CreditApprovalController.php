@@ -28,6 +28,12 @@ class CreditApprovalController extends Controller
 
     private function reason(Request $request): string
     {
-        return $request->validate(['reason' => ['required', 'string', 'min:3', 'max:500']])['reason'];
+        // Own messages: the app ships no Indonesian validation lines.
+        $required = __('messages.credit.reason_required');
+
+        return $request->validate(
+            ['reason' => ['required', 'string', 'min:3', 'max:500']],
+            ['reason.required' => $required, 'reason.min' => $required],
+        )['reason'];
     }
 }

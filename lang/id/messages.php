@@ -441,6 +441,7 @@ return [
         'credit_limit_exceeded' => 'Melebihi batas piutang — sisa :remaining',
         'credit_overdue' => 'Lunasi piutang yang lewat jatuh tempo dulu',
         'awaiting' => 'Menunggu persetujuan kredit',
+        'reason_required' => 'Alasan wajib diisi, minimal 3 karakter.',
         'approved' => 'Disetujui',
         'denied' => 'Ditolak',
         'already_approved' => 'Sudah disetujui',

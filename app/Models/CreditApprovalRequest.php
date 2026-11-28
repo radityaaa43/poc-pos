@@ -49,7 +49,10 @@ class CreditApprovalRequest extends Model
     public static function assertHoldIsFree(?string $holdId): void
     {
         if ($holdId && static::where('hold_id', $holdId)->where('status', self::PENDING)->exists()) {
-            throw ValidationException::withMessages(['hold' => __('messages.credit.awaiting')]);
+            // The API answers in Indonesian, like the credit refusal.
+            $locale = request()->is('api/*') ? 'id' : null;
+
+            throw ValidationException::withMessages(['hold' => __('messages.credit.awaiting', [], $locale)]);
         }
     }
 }

@@ -373,6 +373,8 @@ class CreditApprovalTest extends TestCase
         }
 
         $this->assertStillPending($request);
+        $this->decide('approve', $request, reason: '')
+            ->assertSessionHasErrors(['reason' => __('messages.credit.reason_required')]);
     }
 
     public function test_user_without_permission_cannot_approve_or_deny(): void

@@ -441,6 +441,7 @@ return [
         'credit_limit_exceeded' => 'Over the credit limit — :remaining left',
         'credit_overdue' => 'Settle the overdue receivable first',
         'awaiting' => 'Awaiting credit approval',
+        'reason_required' => 'A reason of at least 3 characters is required.',
         'approved' => 'Approved',
         'denied' => 'Denied',
         'already_approved' => 'Already approved',
