@@ -1316,6 +1316,7 @@
         "qtyUnit": "Quantity ({{unit}})",
         "addIngredient": "Add ingredient",
         "removeIngredient": "Remove ingredient {{number}}",
+        "activeAt": "Offered at outlets",
         "saved": "Modifier group saved",
         "failed": "The modifier group could not be saved",
         "deleted": "Modifier group deleted",

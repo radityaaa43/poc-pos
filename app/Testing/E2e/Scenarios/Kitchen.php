@@ -165,6 +165,7 @@ class Kitchen
             // Moves item --arg=index (default 0) of the sale --arg=invoice to --arg=status=accepted|preparing|ready|served
             // (default preparing), and sets the sold quantity of its line to --arg=qty when given (the sale line, its
             // price and the kitchen item together), so a step can start a half-made item or return part of a line.
+            // --arg=accepted_ago=<seconds> dates the item's arrival in the kitchen that far back.
             'kitchen.set-item' => function (array $options): array {
                 $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
                 $item = KitchenItem::where('transaction_id', $transaction->id)->orderBy('id')->skip((int) ($options['index'] ?? 0))->firstOrFail();
@@ -176,6 +177,9 @@ class Kitchen
                     'ready_at' => in_array($status, [KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED], true) ? $now : null,
                     'served_at' => $status === KitchenItem::STATUS_SERVED ? $now : null,
                 ]);
+                if (isset($options['accepted_ago'])) {
+                    $item->accepted_at = $now->copy()->subSeconds((int) $options['accepted_ago']);
+                }
                 if (isset($options['qty'])) {
                     $qty = (int) $options['qty'];
                     $detail = TransactionDetail::findOrFail($item->transaction_detail_id);

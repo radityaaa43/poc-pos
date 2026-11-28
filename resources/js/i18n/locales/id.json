@@ -1316,6 +1316,7 @@
         "qtyUnit": "Jumlah ({{unit}})",
         "addIngredient": "Tambah bahan",
         "removeIngredient": "Hapus bahan {{number}}",
+        "activeAt": "Aktif di outlet",
         "saved": "Grup modifier disimpan",
         "failed": "Grup modifier tidak bisa disimpan",
         "deleted": "Grup modifier dihapus",

@@ -8,21 +8,22 @@ penjualan, stok opsi, QR menu, dapur dan laporan menyusul. Menu tanpa grup terju
   minimum > jumlah opsi.
 - **Opsi** (1–50): nama unik dalam grup, tambahan harga bulat >= 0 (sama di semua outlet), default (maksimal satu;
   grup wajib tepat satu), resep opsional (produk ber-stok, bukan resep; bulat >= 1 dalam satuan stok).
+- **Per outlet**: saklar per opsi; hanya yang dimatikan disimpan, jadi outlet baru otomatis aktif.
 - **Pasang ke menu**: bagian Modifier di form produk, diurutkan dengan tombol naik/turun. Bahan baku tidak bisa, dan
   produk yang dijadikan bahan baku kehilangan pasangannya. Tanpa `modifiers-manage` bagian ini tersembunyi dan request
   berisi `modifier_group_ids` ditolak (403).
 - Bahan pada opsi yang masih ada tidak bisa dihapus atau dijadikan komposit; pesannya menyebut opsi dan grupnya.
 - **Hapus**: grup dan opsi di-soft-delete, grup dilepas dari menu, penjualan lama tidak berubah. Resep opsi terhapus
   disimpan untuk retur; bahan yang kemudian dihapus keluar dari resep itu.
-- **Audit** (modul `modifiers`): `modifier_group.created/.updated/.deleted` dengan nilai lama dan baru (juga opsi dan
-  resep); pemasangan ke menu ada di `product.created` / `product.updated` (`modifier_group_ids`).
+- **Audit** (modul `modifiers`): `modifier_group.created/.updated/.deleted` dengan nilai lama dan baru (juga opsi, resep,
+  outlet mati); pemasangan ke menu ada di `product.created` / `product.updated` (`modifier_group_ids`).
 
 ## Kontrak untuk penjualan
 
 `ModifierCatalog::forOutlet(?Outlet, $productIds)` satu-satunya jalur baca POS, checkout, cache offline dan QR menu
 (empat query). Grup urut sesuai menu, opsi sesuai grup: `product_id => [{id, name, is_required, min_select,
-max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]`. Opsi terhapus tidak ada;
-semua opsi lain dikembalikan, `$outlet` baru menyaring lewat saklar per outlet (#440). Stok tidak diperiksa.
+max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]`. Opsi terhapus atau mati
+di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir menu bila wajib). Stok tidak diperiksa.
 `components` internal: jangan ke tamu.
 
 ## Deploy
