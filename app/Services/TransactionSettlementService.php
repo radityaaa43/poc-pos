@@ -91,17 +91,8 @@ class TransactionSettlementService
             }
 
             $owed = $transaction->remainingTotal();
-            $claim = $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
 
-            // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A transfer or
-            // gateway claim is still pending, so its confirmation or webhook marks it.
-            $this->tenderService->flagPaidAfterClose(
-                $transaction, CashierShift::find($claim['before']['cashier_shift_id']), $transaction->payment_status,
-                $owed, $claim['before']['payment_method'],
-            );
-            $transaction->save();
-
-            return $claim;
+            return $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
         });
 
         return $this->charge($claim);
@@ -152,6 +143,14 @@ class TransactionSettlementService
                 ? ['payment_attempt' => $transaction->payment_attempt + 1, 'payment_failure_reason' => null]
                 : []),
         ]);
+
+        // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A cash claim is paid
+        // at once; a gateway or transfer claim is still pending, so its webhook or confirmation marks it (#469).
+        $this->tenderService->flagPaidAfterClose(
+            $transaction, CashierShift::find($before['cashier_shift_id']), $transaction->payment_status,
+            $expectedTotal ?? (int) $transaction->grand_total, $before['payment_method'], ['source' => 'till'],
+        );
+        $transaction->save();
 
         return [
             'transaction' => $transaction,

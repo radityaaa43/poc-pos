@@ -79,8 +79,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   is booked as the payment only when the sale is not paid, no pending or paid tender holds it and the amount is what is still owed (audit
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
-  (filter "Perlu refund"); the refund itself is manual. History also marks a gateway sale that was paid after its shift closed
-  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
+  (filter "Perlu refund"); the refund itself is manual. History also marks a sale of any method that was paid after its shift closed — a gateway sale, a dine-in bill paid at the till, or a
+  pay-later sale retried in cash — with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
   QRIS, Midtrans or Xendit sale (the web POS writes no tender rows for it), or a credit sale charged through the customer portal (a receivable;
   its late payment settles the receivable, and the amount it must match is what the receivable still owes, so a partly paid one can be booked). A gateway payment on a credit sale the cashier already paid in full through the receivable is flagged (a second payment), and so is any part of a gateway payment beyond the receivable's balance: the balance is booked, the rest is flagged "Bayar ganda — refund manual" (audit `payment.late_superseded`, `excess`). A settlement that arrives later is booked when the sale is not paid, no pending or paid tender holds
   it, nothing was restocked and the amount equals the remaining total; otherwise it is flagged "Bayar ganda — refund manual" (audit
