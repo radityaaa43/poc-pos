@@ -107,6 +107,17 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   shift recap counts by) is shown as *Sisa tagihan* on the print page, Riwayat (rows and the transfer confirmation), the
   public invoice page, thermal receipts, the PDF invoice and receipts and the shipping label. Confirming a transfer takes
   no amount: it only marks the sale paid. The mobile API still returns `grand_total` only.
+- **Paid more than owed after a return** (#444): when a waiting gateway charge or bank transfer makes a sale paid for more
+  than `Transaction::owedAfterReturns()` (total less the completed returns that refunded nothing), the sale is paid, the
+  excess goes to `overpaid_amount`, "Bayar ganda — refund manual" is set, the sale page names the amount and one audit
+  entry `payment.overpaid_after_return` is written. What was paid is the sum of the paid tenders; without tenders the
+  gateway notification's amount (none in it: nothing is flagged), or for a transfer what it asked: the total at checkout,
+  the amount of the last retry (kept in the `transaction.payment_retried` audit entry; a retry made before this change
+  kept none and is not flagged). A credit sale is left to its receivable. The refund itself is manual.
+  The cash part of an excess (`Transaction::cashExcess()`: a split's excess beyond its **paid** non-cash tenders, kept
+  as `meta.cash_excess`) gets its own line on the sale page, picked by `meta.shift_open`, the sale's shift when the
+  excess was flagged: flagged with the shift open, hand it back from the drawer without recording a cash out (the line
+  stays after that shift closes); flagged after the close, hand it back and record it as a cash out in the current shift.
 - Web POS only; the mobile API does not retry.
 
 ## Add-on orders

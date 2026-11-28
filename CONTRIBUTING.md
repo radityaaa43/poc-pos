@@ -59,7 +59,7 @@ upstream Git Flow (`development`, `release/*`) is not used here (ADR 0001). Rele
 ## Ownership
 
 Every area of the product has an Owner and backups. The Owner decides scope questions in their
-module, through Business / PM. The Verifier verifies and merges PRs in every module, and the Tech Lead also reviews the high-risk ones. When the
+module, through Business / PM. The Tech Lead pre-reviews developer PRs against their plan, and the Verifier does the technical and business review and merges PRs in every module. When the
 Owner is away, ask the Backup.
 
 | Label | Module | Scope | Paths | Owner | Backup |
@@ -74,7 +74,8 @@ Owner is away, ask the Backup.
 
 - **Every issue gets exactly one `module:*` label** at triage: the module whose behavior its
   Done-when changes. Work that spans modules takes the main one and names the others in Background.
-- **Ask the Verifier for review**: by moving the card to Technical review while every session shares
+- **Ask for review**: wake the Tech Lead for the pre-review, which moves the card to Technical review
+  (`docs/agents/handoff.md` → 2b); the Verifier then reviews. While every session shares
   one GitHub login (its checklist as a PR comment is the approval), otherwise `gh pr edit <n> --add-reviewer
   <handle>`. A change that also
   touches another module's code mentions that module's Owner in the PR.
@@ -116,8 +117,14 @@ stays the exception.
 The repository is public on GitHub Free and `main` is protected by the ruleset
 "governance: default branch": changes only through a pull request, no force-push, no deletion, and
 these checks must pass: **PR checklist**, **Standards approval**, **PR size**, **File length**,
-**Backend**, **Frontend** and **E2E**. No approving review is required, so the maintainer can merge their own PR once the
+**Backend**, **Frontend**, **E2E** and **Verifier**. No approving review is required, so the maintainer can merge their own PR once the
 checks are green.
+
+**Verifier** is a commit status, not a workflow (ruleset 27731300). The `verifier` session posts it with
+`dev-tools/verifier-status.py` only after a `VERIFIED` checklist comment that names the PR's head
+commit ([`docs/agents/handoff.md` → 3](docs/agents/handoff.md#3-review-pre-review-then-verification)).
+A backup merger (`tech-lead`, only when the verifier is unreachable) posts the same status the same
+way after the same checklist. A push after the status needs a new checklist and a new status.
 
 *Migration order*, *Glossary terms* and *Script and hook tests* are not required checks because they
 only run when migrations, the glossary or governance scripts change; a required check that never runs
