@@ -113,6 +113,9 @@ class CashierShiftService
      * sale to the paying shift while a transfer or gateway charge still waits, so the sale's own shift is open when the
      * money arrives: the booking is what says it is paid after a close (#396 TC-8). Never a dine-in bill (a till payment
      * after a close is not marked, REQ-005) or a credit sale. A plain read: call it after the caller's row locks.
+     *
+     * shortcut: the link is the invoice list of the forced close's audit entry, so a bill booked before #242 has none and
+     * gets no mark; store the booking shift's id on the sale if that matters.
      */
     public static function forcedCloseThatBooked(Transaction $sale): ?CashierShift
     {
