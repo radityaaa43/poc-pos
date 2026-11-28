@@ -184,6 +184,30 @@ class DiscountDenialTest extends TestCase
         $this->assertSame([23310.0, 5277.0, 'partial'], [$receivable->total, $receivable->remaining, $receivable->status]);
     }
 
+    public function test_denial_recomputes_loyalty_points_and_total_spent(): void
+    {
+        Setting::set('loyalty_earn_rate_amount', '1000');
+        $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62812', 'address' => 'Jl. Satu']);
+        $customer->forceFill([
+            'is_loyalty_member' => true, 'loyalty_points' => 0, 'loyalty_total_spent' => 0,
+        ])->save();
+
+        $sale = $this->sell(self::PPN_WITH_SERVICE, ['customer_id' => $customer->id]);
+        $oldTotal = (int) $sale->grand_total;
+        $before = $customer->fresh();
+
+        $this->deny($sale);
+
+        $diff = (int) $sale->fresh()->grand_total - $oldTotal;
+        $after = $customer->fresh();
+
+        // Points and total spent follow the recomputed total: the difference's worth is added.
+        $this->assertGreaterThan(0, $diff);
+        $this->assertSame((int) $before->loyalty_total_spent + $diff, (int) $after->loyalty_total_spent);
+        $this->assertSame(intdiv($diff, 1000), (int) $after->loyalty_points - (int) $before->loyalty_points);
+        $this->assertDatabaseHas('loyalty_point_histories', ['customer_id' => $customer->id, 'transaction_id' => $sale->id]);
+    }
+
     public function test_the_api_denial_recomputes_and_keeps_the_notes(): void
     {
         $sale = $this->sell(self::PPN_WITH_SERVICE);

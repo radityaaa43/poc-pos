@@ -460,6 +460,35 @@ class LoyaltyService
             });
     }
 
+    /**
+     * A denied discount raises the bill back to its full total (#484): add the difference's points and total spent
+     * so loyalty follows the recomputed total (REQ-010 BR-7, #508). Redeemed points are untouched.
+     */
+    public function awardAfterDenial(Transaction $sale, int $difference): void
+    {
+        if ($difference <= 0 || ! $sale->customer_id) {
+            return;
+        }
+
+        $customer = Customer::whereKey($sale->customer_id)->lockForUpdate()->first();
+        if (! $customer) {
+            return;
+        }
+
+        $points = $this->calculateEarnPoints($customer, $difference, $this->settings());
+
+        $customer->forceFill([
+            'loyalty_points' => max(0, (int) $customer->loyalty_points) + $points,
+            'loyalty_total_spent' => (int) $customer->loyalty_total_spent + $difference,
+        ])->save();
+
+        if ($points > 0) {
+            $this->recordHistory($customer->fresh(), $sale, LoyaltyPointHistory::TYPE_EARN, $points, $difference, 'Diskon ditolak pada transaksi '.$sale->invoice);
+        }
+
+        $this->syncTier($customer->fresh());
+    }
+
     private function calculateEarnPoints(?Customer $customer, int $eligibleSpend, array $settings): int
     {
         if (! $customer?->is_loyalty_member || ! $settings['enable_earn']) {
