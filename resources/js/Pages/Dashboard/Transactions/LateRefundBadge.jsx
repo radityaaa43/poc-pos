@@ -1,6 +1,9 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+const formatPrice = (value = 0) =>
+    Number(value || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
+
 // A paid callback of a superseded payment attempt arrived after the retry was paid: the money needs a manual refund.
 export default function LateRefundBadge({ transaction }) {
     const { t } = useTranslation();
@@ -26,6 +29,11 @@ export function LateRefundNotice({ transaction }) {
     return (
         <p role="status" className="mt-3 text-sm font-medium text-danger-700 dark:text-danger-400">
             {t("transactions.lateRefund.notice")}
+            {transaction.overpaid_amount > 0 && (
+                <span className="block">
+                    {t("transactions.lateRefund.overpaid", { amount: formatPrice(transaction.overpaid_amount) })}
+                </span>
+            )}
         </p>
     );
 }

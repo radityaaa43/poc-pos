@@ -27,5 +27,16 @@ describe("LateRefundBadge", () => {
         expect(screen.getByRole("status")).toHaveTextContent(
             "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual"
         );
+        expect(screen.getByRole("status")).not.toHaveTextContent("Kelebihan bayar");
+    });
+
+    it("adds the excess to refund when a payment exceeded what a returned bill owed", () => {
+        render(
+            <LateRefundNotice
+                transaction={{ late_superseded_payment_at: "2026-11-28T10:00:00Z", overpaid_amount: 5000 }}
+            />
+        );
+
+        expect(screen.getByRole("status")).toHaveTextContent(/Kelebihan bayar Rp\s*5\.000 setelah retur — refund manual\./);
     });
 });
