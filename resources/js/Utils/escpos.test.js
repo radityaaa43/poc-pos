@@ -447,6 +447,36 @@ describe("buildKitchenTicketBytes", () => {
         expect(text).not.toMatch(/Rp|25000|25\.000|total/i);
     });
 
+    // REQ-004 AC-03: an add-on order's own ticket.
+    it.each([
+        ["58mm", "TAMBAHAN"],
+        ["80mm", "TAMBAHAN"],
+        ["58mm", "ADD-ON"],
+        ["80mm", "ADD-ON"],
+    ])("marks an add-on ticket in double size under the number on %s with %s, without a price", (paper, addon) => {
+        const add = ticket({ kind: "addon", items: [{ title: "Es Teh", qty: 1, note: null, price: 25000 }] });
+        const text = textOf(add, paper, { ...labels, addon });
+
+        expect(text.startsWith(`\x1b@\x1d!\x11Meja 5\n${addon}\n\x1d!\x00`)).toBe(true);
+        expect(text).toContain("1 x Es Teh");
+        expect(text).not.toMatch(/Rp|25000|25\.000|total/i);
+    });
+
+    it("keeps BELUM LUNAS on an unpaid add-on", () => {
+        const text = textOf(ticket({ kind: "addon", unpaid: true }), "80mm", { ...labels, addon: "TAMBAHAN" });
+
+        expect(text).toContain("TAMBAHAN");
+        expect(text).toContain("BELUM LUNAS");
+    });
+
+    it("prints no add-on marker on an order or a cancellation ticket", () => {
+        const all = { ...labels, addon: "TAMBAHAN", cancelled: "DIBATALKAN" };
+
+        for (const kind of ["order", "cancel", undefined]) {
+            expect(textOf(ticket({ kind }), "80mm", all)).not.toContain("TAMBAHAN");
+        }
+    });
+
     it.each([
         ["58mm", 32],
         ["80mm", 48],

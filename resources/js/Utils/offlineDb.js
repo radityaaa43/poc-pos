@@ -10,13 +10,15 @@ const DB_VERSION = 2;
  *   data,                     // canonical offline transaction payload
  *   client_uuid,              // stable UUID for idempotency
  *   scope_key,                // user + active warehouse isolation key
- *   status,                   // pending | syncing | synced | duplicate | conflict | failed
+ *   status,                   // pending | syncing | synced | duplicate | conflict | failed | discarding
  *   attempts,                 // flush attempts so far
  *   last_error,               // server reason on last failure
  *   last_attempt_at,          // ISO timestamp of last sync attempt
  *   synced_at,                // ISO timestamp of confirmed sync
  *   created_at,               // ISO timestamp queued
  *   needs_kitchen,            // POS sale with a line the kitchen has to make
+ *   product_titles,           // { product_id: title } at queue time, for the stuck-sales panel
+ *   discard_from,             // status a discarding row had before its removal began
  * }
  *
  * v1 records (no metadata) are normalized lazily on read/write so an
@@ -98,25 +100,46 @@ export async function queueTransaction(transactionData, scopeKey = null, meta = 
     );
 }
 
+// A sync that never answered (the page closed mid-flush) counts as failed, so the row is sent again.
+function expireStaleSync(row) {
+    const lastAttempt = Date.parse(row.last_attempt_at || "");
+
+    return row.status === "syncing" &&
+        Number.isFinite(lastAttempt) &&
+        lastAttempt < Date.now() - 5 * 60 * 1000
+        ? { ...row, status: "failed", last_error: "Sync sebelumnya terhenti." }
+        : row;
+}
+
 export async function getPendingTransactions(scopeKey = null) {
     const db = await dbPromise;
     const rows = await db.getAll("pending_transactions");
-    const staleSyncCutoff = Date.now() - 5 * 60 * 1000;
 
     return rows
         .map(normalizeQueueRecord)
-        .map((row) => {
-            const lastAttempt = Date.parse(row.last_attempt_at || "");
-
-            return row.status === "syncing" &&
-                Number.isFinite(lastAttempt) &&
-                lastAttempt < staleSyncCutoff
-                ? { ...row, status: "failed", last_error: "Sync sebelumnya terhenti." }
-                : row;
-        })
+        .map(expireStaleSync)
         // Null scope is a legacy v1 row. Keep it visible so an upgrade cannot
         // strand a sale; all newly queued rows are strictly scoped.
         .filter((row) => row.scope_key === null || row.scope_key === scopeKey);
+}
+
+/**
+ * Changes a row only while its status is one of `from`, reading and writing in one IndexedDB transaction so the
+ * flush and a removal can't both take the same row. Resolves with the row as it was, or null when not taken.
+ */
+export async function claimPendingTransaction(id, from, changes) {
+    const db = await dbPromise;
+    const tx = db.transaction("pending_transactions", "readwrite");
+    const current = await tx.store.get(id);
+    const row = current && expireStaleSync(normalizeQueueRecord(current));
+    const taken = Boolean(row) && from.includes(row.status);
+
+    if (taken) {
+        await tx.store.put({ ...row, ...changes(row) });
+    }
+
+    await tx.done;
+    return taken ? row : null;
 }
 
 export async function getPendingCount(scopeKey = null) {
@@ -152,9 +175,9 @@ export async function pruneExpiredPendingTransactions(maxAgeDays = 30) {
     while (cursor) {
         const row = normalizeQueueRecord(cursor.value);
         const createdAt = Date.parse(row.created_at);
-        const terminal = ["failed", "conflict"].includes(row.status);
-
-        if (terminal && Number.isFinite(createdAt) && createdAt < cutoff) {
+        // Never a failed row: that sale is missing from the books until the cashier retries or removes it
+        // (audited). A conflict row's sale is already on the server.
+        if (row.status === "conflict" && Number.isFinite(createdAt) && createdAt < cutoff) {
             await cursor.delete();
         }
 

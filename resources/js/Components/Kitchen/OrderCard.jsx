@@ -47,8 +47,34 @@ export default function OrderCard({
                 </div>
             </header>
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                {order.items.map((item) => (
-                    <li key={item.id} className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 px-4 py-2">
+                {order.items.map((item, index) => {
+                    const addOn = item.add_on;
+                    // An add-on's lines sit under a Tambahan label with their own age and unpaid mark (#314).
+                    const startsAddOn = addOn && addOn.id !== order.items[index - 1]?.add_on?.id;
+
+                    return (
+                        <React.Fragment key={item.id}>
+                            {startsAddOn && (
+                                <li className="flex min-h-[36px] flex-wrap items-center justify-between gap-3 bg-slate-50 px-4 py-2 dark:bg-slate-800/50">
+                                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-700 dark:text-slate-200">
+                                        {t("addOn.label")}
+                                    </h3>
+                                    <span className="flex flex-wrap items-center gap-2">
+                                        {addOn.unpaid && (
+                                            <span className="rounded-full bg-danger-100 px-2 py-0.5 text-xs font-medium text-danger-700 dark:bg-danger-900/50 dark:text-danger-400">
+                                                {t("kitchen.unpaid")}
+                                            </span>
+                                        )}
+                                        <span className="inline-flex items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
+                                            <IconClock size={14} aria-hidden="true" />
+                                            {t("kitchen.minutes", {
+                                                count: Math.max(0, Math.floor((now - Date.parse(addOn.since)) / 60000)),
+                                            })}
+                                        </span>
+                                    </span>
+                                </li>
+                            )}
+                            <li key={item.id} className="flex min-h-[44px] flex-wrap items-center justify-between gap-3 px-4 py-2">
                         <div>
                             <p className={`font-medium ${item.status === "cancelled" ? "text-slate-500 line-through dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
                                 {item.qty} × {item.title}
@@ -78,7 +104,9 @@ export default function OrderCard({
                         {canHandOver && item.status === "ready" &&
                             stepButton(`hand-over-${item.id}`, "kitchen.items.hand-over", item.id, t("kitchen.actions.handOver"), "bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500")}
                     </li>
-                ))}
+                        </React.Fragment>
+                    );
+                })}
             </ul>
             {/* empty:hidden drops the footer when no button applies */}
             <footer className="flex flex-col gap-3 border-t border-slate-100 p-4 empty:hidden dark:border-slate-800">

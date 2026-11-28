@@ -3,7 +3,9 @@
 namespace Tests\Feature\DineIn;
 
 use App\Exceptions\PaymentGatewayException;
+use App\Models\AuditLog;
 use App\Models\BankAccount;
+use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
@@ -143,6 +145,44 @@ class DineOrderPaymentTest extends TestCase
         $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
         $this->actingAs($this->admin)->get(route('dine-orders.index'))
             ->assertInertia(fn (Assert $page) => $page->has('orders', 1));
+    }
+
+    public function test_a_till_payment_after_the_owning_shift_was_force_closed_is_marked(): void
+    {
+        // TC-13: the order is pay_at_counter, so nothing marks it through a pay-later guard; the guard covers every bill
+        // in the forced-close list.
+        $order = $this->acceptedOrder();
+        $bill = $order->transaction;
+        $closed = app(CashierShiftService::class)->closeShift(CashierShift::findOrFail($bill->cashier_shift_id), $this->cashier, 100000, 'Tutup paksa', forceClose: true);
+        $recap = $closed->only(['expected_cash', 'cash_sales_total', 'non_cash_sales_total', 'transactions_count']);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+
+        $this->actingAs($this->cashier)
+            ->post(route('dine-orders.pay', $order), $this->cashTender())
+            ->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closed->id, 'till'], [$log->meta['shift_id'], $log->meta['source']]);
+        // BR-3: the closed recap is a snapshot and does not move.
+        $this->assertSame($recap, CashierShift::findOrFail($closed->id)->only(array_keys($recap)));
+    }
+
+    public function test_a_till_payment_in_the_same_open_shift_is_not_marked(): void
+    {
+        $order = $this->acceptedOrder();
+        $bill = $order->transaction;
+
+        $this->actingAs($this->cashier)
+            ->post(route('dine-orders.pay', $order), $this->cashTender())
+            ->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNull($bill->paid_after_close_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
     }
 
     public function test_paid_then_served_completes_and_leaves_the_queue(): void

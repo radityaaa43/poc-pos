@@ -60,6 +60,8 @@ class KitchenTicketService
 
         return KitchenOrders::fromItems($items)->map(fn (array $order) => [
             'key' => 't'.$order['id'],
+            'kind' => $order['root_id'] === $order['id'] ? 'order' : 'addon',
+            'root_id' => $order['root_id'],
             'number' => $order['number'],
             'type' => $order['type'],
             'unpaid' => $order['unpaid'],

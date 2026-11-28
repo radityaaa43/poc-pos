@@ -32,6 +32,7 @@ Saat ini audit log digunakan pada beberapa aksi penting seperti:
 - cashier shift open / close / force close
 - sales return create / update / complete
 - konfirmasi pembayaran transaksi
+- offline sale removed from a device queue (`offline_sale.discarded`, see `docs/features/offline-mode.md`)
 - dan modul admin lain yang memanggil `AuditLogService`
 
 ## Integrasi Data
