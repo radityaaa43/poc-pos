@@ -55,7 +55,8 @@ function groupSales(order) {
             items: order.items.filter((item) => !item.add_on),
         },
         ...addOns.values(),
-    ];
+        // An add-on-only card has no original line left: a ticket for the empty original would print blank (#314).
+    ].filter((sale) => sale.items.length > 0);
 }
 
 // The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
@@ -76,8 +77,8 @@ function PrintAction({ order, notPrinted, reprintable, printDevice }) {
                     disabled={printDevice.headFailed || printDevice.reprinting?.includes(order.id)}
                     onClick={() => {
                         const sales = groupSales(order);
-                        // A plain order is one ticket, unchanged; a grouped card reprints one ticket per sale (#314).
-                        if (sales.length === 1) {
+                        // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per sale (#314).
+                        if (sales.length === 1 && sales[0].id === order.id) {
                             printDevice.reprint(order);
                         } else {
                             sales.forEach((sale) => printDevice.reprint(sale));

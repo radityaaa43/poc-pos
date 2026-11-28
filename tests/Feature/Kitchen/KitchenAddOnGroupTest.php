@@ -211,7 +211,8 @@ class KitchenAddOnGroupTest extends TestCase
         $response = $this->actingAs($this->staff)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk();
 
         $this->assertSame(['t'.$root->id, 't'.$addOn->id], $response->json('tickets.*.key'));
-        $this->assertSame(['INV-ROOT', 'INV-ADD'], $response->json('tickets.*.number'));
+        // The add-on's own invoice is INV-ADD, but its ticket names the original the kitchen knows (#314 BR-1).
+        $this->assertSame(['INV-ROOT', 'INV-ROOT'], $response->json('tickets.*.number'));
     }
 
     private function display()

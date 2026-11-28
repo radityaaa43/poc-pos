@@ -952,6 +952,19 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             ]);
         });
 
+        it("reprints only the add-on when the original has no line left (#314)", async () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [{ id: 99, title: "Es Jeruk", qty: 1, status: "ready", add_on }];
+            const hook = use({ printedIds: [99] });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            await user().click(reprintIn(cards()[0]));
+
+            // No blank ticket for the empty original: only the add-on's sale is reprinted.
+            expect(hook.reprint).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).toHaveBeenCalledWith(expect.objectContaining({ id: 11, kind: "addon" }));
+        });
+
         it.each([
             ["auto-print on", {}, true],
             ["auto-print off", { autoPrint: false }, true],
