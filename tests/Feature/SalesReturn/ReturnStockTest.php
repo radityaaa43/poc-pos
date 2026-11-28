@@ -211,6 +211,77 @@ class ReturnStockTest extends TestCase
         $this->assertDatabaseCount('sales_returns', 0);
     }
 
+    // The web routes ask for these permissions; a token that may only read returns must not write, refund or restock.
+    #[DataProvider('guardedReturnRoutes')]
+    public function test_api_return_writes_need_their_own_ability(string $method, string $route, string $ability): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+        $draft = $this->draft($sale, [1]);
+        $url = match ($route) {
+            'api.sales-returns.create' => route($route, $sale),
+            'api.sales-returns.store' => route($route),
+            default => route($route, $draft),
+        };
+        $payload = ['transaction_id' => $sale->id] + $this->returnPayload($sale, [1]);
+
+        Sanctum::actingAs($this->cashier, ['sales-returns-access']);
+        $this->json($method, $url, $payload)->assertForbidden();
+        $this->assertSame('draft', $draft->fresh()->status);
+
+        Sanctum::actingAs($this->cashier, [$ability]);
+        $this->assertNotSame(403, $this->json($method, $url, $payload)->status());
+    }
+
+    /** @return array<string, array{string, string, string}> */
+    public static function guardedReturnRoutes(): array
+    {
+        return [
+            'create form' => ['GET', 'api.sales-returns.create', 'sales-returns-create'],
+            'store' => ['POST', 'api.sales-returns.store', 'sales-returns-create'],
+            'update' => ['PUT', 'api.sales-returns.update', 'sales-returns-create'],
+            'complete' => ['POST', 'api.sales-returns.complete', 'sales-returns-complete'],
+        ];
+    }
+
+    // A draft saved before duplicate lines were refused: its copies together may not return more than was sold.
+    #[DataProvider('channels')]
+    public function test_a_draft_listing_a_line_twice_cannot_return_more_than_sold(string $channel): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+        $draft = $this->draft($sale, [2]);
+        $draft->items()->sole()->replicate()->save();
+
+        $this->complete($draft, $channel);
+
+        $this->assertSame('draft', $draft->fresh()->status);
+        $this->assertDatabaseCount('stock_mutations', 0);
+    }
+
+    // The draft is completed while an edit is being prepared: the edit may not rewrite the completed return.
+    #[DataProvider('channels')]
+    public function test_an_edit_cannot_rewrite_a_return_completed_meanwhile(string $channel): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+        $draft = $this->draft($sale, [1]);
+        $done = false;
+        DB::listen(function ($query) use (&$done, $draft) {
+            if (! $done && str_contains(strtolower($query->sql), 'sum(qty_return)')) {
+                $done = true;
+                DB::table('sales_returns')->where('id', $draft->id)->update(['status' => 'completed']);
+            }
+        });
+
+        if ($channel === 'web') {
+            $this->actingAs($this->cashier)->patch(route('sales-returns.update', $draft), $this->returnPayload($sale, [2]));
+        } else {
+            Sanctum::actingAs($this->cashier, ['*']);
+            $this->putJson(route('api.sales-returns.update', $draft), $this->returnPayload($sale, [2]));
+        }
+
+        $this->assertTrue($done);
+        $this->assertSame(1, (int) $draft->items()->sum('qty_return'));
+    }
+
     private function apiDraft(array $payload): TestResponse
     {
         Sanctum::actingAs($this->cashier, ['*']);
