@@ -240,7 +240,7 @@ class TransactionTenderService
 
             // A plain read after the sale's lock: a close that held the sale has committed and is seen; one still waiting
             // for it counts this payment in its recap.
-            $this->flagPaidAfterClose($transaction, CashierShift::find($transaction->cashier_shift_id), $newStatus, $owed);
+            $this->flagPaidAfterClose($transaction, CashierShift::find($transaction->cashier_shift_id), $newStatus, $owed, null, ['source' => 'transfer']);
             $transaction->update(['payment_status' => $newStatus]);
 
             if ($newStatus === 'paid') {
@@ -319,9 +319,10 @@ class TransactionTenderService
         string $newStatus,
         int $owed,
         ?string $methodBefore = null,
-    ): void {
+        array $meta = [],
+    ): ?CashierShift {
         if ($newStatus !== 'paid') {
-            return;
+            return null;
         }
 
         if (! $shift || $shift->isOpen()) {
@@ -329,7 +330,7 @@ class TransactionTenderService
         }
 
         if (! $shift) {
-            return;
+            return null;
         }
 
         $booked = $shift->unpaid_bills_total > 0
@@ -337,7 +338,7 @@ class TransactionTenderService
             && ! $transaction->receivable()->exists();
 
         if (! $booked && CashierShiftService::countedInClosedRecap($transaction, $methodBefore)) {
-            return;
+            return null;
         }
 
         $transaction->paid_after_close_at = now();
@@ -347,8 +348,10 @@ class TransactionTenderService
             module: 'transactions',
             auditable: $transaction,
             description: "Invoice {$transaction->invoice} dibayar setelah shift ditutup; rekap shift tidak berubah.",
-            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice, 'amount' => $owed],
+            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice, 'amount' => $owed, ...$meta],
         );
+
+        return $shift;
     }
 
     public function resolveQrisGateway(?Outlet $outlet = null): ?string

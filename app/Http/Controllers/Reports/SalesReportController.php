@@ -66,7 +66,7 @@ class SalesReportController extends Controller
             ')
             ->first();
 
-        // Gateway sales paid after their shift closed: a breakdown inside the totals above, by the sale's own date.
+        // Sales paid after their shift closed, whatever the method: a breakdown inside the totals above, by the sale's own date.
         $paidAfterClose = (clone $aggregateQuery)
             ->where('payment_status', 'paid')
             ->whereNotNull('paid_after_close_at')

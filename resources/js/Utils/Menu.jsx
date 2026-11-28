@@ -345,6 +345,13 @@ export default function Menu() {
                     icon: <IconStopwatch size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["reports-access"]),
                 },
+                {
+                    title: t("sidebar.items.wasteReport"),
+                    href: route("reports.waste.index"),
+                    active: url.startsWith("/dashboard/reports/waste"),
+                    icon: <IconTrash size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["profits-access"]),
+                },
             ],
         },
         {

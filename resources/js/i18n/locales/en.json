@@ -293,6 +293,7 @@
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Kitchen Speed Report",
+            "wasteReport": "Waste Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
             "permissions": "Permissions",
@@ -351,6 +352,7 @@
             "reports": "Reports",
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
+            "wasteReport": "Waste Report",
             "operations": "Operations",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
@@ -1163,7 +1165,8 @@
             "wakeLockOff": "The screen may sleep — keep the device awake",
             "reprint": "REPRINT",
             "reprintButton": "Reprint",
-            "reprintFailed": "Reprint failed"
+            "reprintFailed": "Reprint failed",
+            "addon": "ADD-ON"
         },
         "actions": {
             "start": "Start",
@@ -1239,6 +1242,28 @@
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
         },
+        "offlineQueue": {
+            "button": "Pending offline sales ({{count}})",
+            "retryNow": "Retry now",
+            "remove": "Remove",
+            "confirm": "Remove this offline sale from the device? The removal is recorded in the audit log.",
+            "confirmFailed": "This sale is not recorded on the server yet. Ring it up again online first, then remove it here.",
+            "conflict": "This sale is already recorded on the server.",
+            "onlineOnly": "Removing works only while online.",
+            "changed": "The status changed, try again.",
+            "empty": "No pending offline sales.",
+            "product": "Product #{{id}}",
+            "loadError": "Could not read the queue on this device.",
+            "retryError": "Could not sync. Try again.",
+            "removeError": "Could not remove it. The sale is still on this device.",
+            "status": {
+                "pending": "Waiting to send",
+                "syncing": "Sending",
+                "failed": "Failed",
+                "conflict": "Conflict",
+                "discarding": "Being removed"
+            }
+        },
         "modifiers": {
             "required": "Required",
             "optional": "Optional",
@@ -1308,6 +1333,7 @@
     },
     "addOn": {
         "add": "Add to order",
+        "label": "Add-on",
         "banner": "Add-on order for {{invoice}}",
         "receipt": "Add-on to {{invoice}}",
         "completed": "The previous order is finished. This starts a new order.",
@@ -1465,5 +1491,32 @@
             "not_collected": "Not collected",
             "other": "Other"
         }
+    },
+    "profitReport": {
+        "waste": {
+            "cost": "Waste Cost",
+            "costDescription": "Not included in sales HPP",
+            "afterWaste": "Profit After Waste",
+            "afterWasteDescription": "Profit minus waste cost",
+            "hiddenNote": "Waste cost is hidden while an invoice, cashier or customer filter is active",
+            "link": "View waste report"
+        }
+    },
+    "wasteReport": {
+        "title": "Waste Report",
+        "outlet": "Outlet",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "apply": "Apply",
+        "total": "Total waste cost",
+        "items": "Waste per Item",
+        "item": "Item",
+        "qty": "Quantity",
+        "value": "Value",
+        "menuTag": "Menu",
+        "reasons": "Waste per Reason",
+        "reason": "Reason",
+        "records": "Records",
+        "empty": "No waste in this period"
     }
 }

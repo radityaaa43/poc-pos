@@ -34,11 +34,41 @@ const readSaved = () => {
     }
 };
 
+// The sales in one card: the original and each add-on, each its own printed ticket (#314).
+function groupSales(order) {
+    const addOns = new Map();
+    for (const item of order.items) {
+        if (!item.add_on) continue;
+        if (!addOns.has(item.add_on.id)) {
+            addOns.set(item.add_on.id, {
+                id: item.add_on.id, number: order.number, type: item.add_on.type ?? order.type,
+                unpaid: item.add_on.unpaid, since: item.add_on.since, kind: "addon", items: [],
+            });
+        }
+        addOns.get(item.add_on.id).items.push(item);
+    }
+
+    return [
+        {
+            id: order.id, number: order.number, type: order.type,
+            unpaid: order.unpaid, since: order.since, kind: "order",
+            items: order.items.filter((item) => !item.add_on),
+        },
+        ...addOns.values(),
+        // Drop a sale with no live line: an empty original, or only-cancelled lines, would print blank (#314).
+    ].filter((sale) => sale.items.some((item) => item.status !== "cancelled"));
+}
+
 // The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
 // prints a CETAK ULANG copy of one that did. `order` is the whole order, whatever the station filter shows.
 function PrintAction({ order, notPrinted, reprintable, printDevice }) {
     const { t } = useTranslation();
     if (!notPrinted && !reprintable) return null;
+
+    // One card may hold several sales: match the running/failed job against any of them (#314).
+    const sales = groupSales(order);
+    const busy = sales.some((sale) => printDevice.reprinting?.includes(sale.id));
+    const failed = sales.some((sale) => printDevice.reprintFailed === sale.id);
 
     return (
         <div className="border-t border-slate-100 p-4 dark:border-slate-800">
@@ -49,14 +79,21 @@ function PrintAction({ order, notPrinted, reprintable, printDevice }) {
             ) : (
                 <button
                     type="button"
-                    disabled={printDevice.headFailed || printDevice.reprinting?.includes(order.id)}
-                    onClick={() => printDevice.reprint(order)}
+                    disabled={printDevice.headFailed || busy}
+                    onClick={() => {
+                        // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per sale (#314).
+                        if (sales.length === 1 && sales[0].id === order.id) {
+                            printDevice.reprint(order);
+                        } else {
+                            sales.forEach((sale) => printDevice.reprint(sale));
+                        }
+                    }}
                     className={PRINT_BUTTON}
                 >
                     {t("kitchen.print.reprintButton")}
                 </button>
             )}
-            {printDevice.reprintFailed === order.id && (
+            {failed && (
                 <p role="status" className="mt-2 text-sm text-danger-700 dark:text-danger-400">
                     {t("kitchen.print.reprintFailed")}
                 </p>
@@ -164,7 +201,9 @@ export default function Index({ orders, outlet, stations = [] }) {
     // The print UI only exists on a display with a print device, and the warnings only while it auto-prints.
     const hasPrinter = Boolean(outlet && printDevice.device);
     const queuedEntry = (order) =>
-        printDevice.autoPrint ? printDevice.unprinted?.find((entry) => entry.key === `t${order.id}`) : undefined;
+        printDevice.autoPrint
+            ? printDevice.unprinted?.find((entry) => groupSales(order).some((sale) => entry.key === `t${sale.id}`))
+            : undefined;
     const notPrinted = (order) => isNotPrinted(queuedEntry(order), now);
     // Cetak ulang is only for an order whose ticket this device printed (REQ-004 decision 12).
     const printed = new Set(printDevice.printedIds);

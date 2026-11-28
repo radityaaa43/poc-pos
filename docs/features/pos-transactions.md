@@ -50,6 +50,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - `transactions.store`
 - `transactions.print`
 - `transactions.public`
+- `transactions.sync`, `transactions.offline-discard` (antrean offline: `docs/features/offline-mode.md`)
 
 ## Permission
 
@@ -63,7 +64,7 @@ Operasi transaksional tertentu juga mewajibkan middleware `active_shift`.
 2. jika shift aktif, kasir dapat cari produk dan membangun cart
 3. cart dapat di-hold lalu di-resume
 4. checkout membuat transaksi, detail, profit, dan pengurangan stok
-5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi
+5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi. Pelanggan yang punya batas piutang ditolak bila melewati batas atau punya piutang lewat jatuh tempo; kasir menerima pembayaran sekarang (`receivables.md` → Batas Piutang)
 6. tagihan Bayar Belakangan tanpa piutang (tamu atau pelanggan tanpa flag) muncul di bagian **Belum Lunas** POS dengan label (catatan atau nama pelanggan), jumlah, dan umur. Kasir dengan `transactions-access` dan shift aktif di outlet tagihan melunasinya penuh dengan metode apa pun (`POST /dashboard/transactions/{transaction}/settle`); setelah retur sebagian jumlahnya sisa total, tagihan yang diretur penuh tidak tampil, dan bila dua kasir melunasi bersamaan yang pertama menang. Pelunasan dihitung di shift yang menerimanya dan tidak membuat item dapur kedua. A gateway method is charged after the payment commits, exactly as for a dine-in bill (`dine-in.md`, "Pembayaran tagihan belum lunas"): a failed charge leaves the bill payable, and one left without an answer for 120 s can be paid again
 7. user diarahkan ke dokumen print / invoice
 
@@ -80,8 +81,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   is booked as the payment only when the sale is not paid, no pending or paid tender holds it and the amount is what is still owed (audit
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
-  (filter "Perlu refund"); the refund itself is manual. History also marks a gateway sale that was paid after its shift closed
-  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
+  (filter "Perlu refund"); the refund itself is manual. History also marks a sale of any method that was paid after its shift closed — a gateway sale, a dine-in bill paid at the till, or a
+  pay-later sale retried in cash — with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
   QRIS, Midtrans or Xendit sale (the web POS writes no tender rows for it), or a credit sale charged through the customer portal (a receivable;
   its late payment settles the receivable, and the amount it must match is what the receivable still owes, so a partly paid one can be booked). A gateway payment on a credit sale the cashier already paid in full through the receivable is flagged (a second payment), and so is any part of a gateway payment beyond the receivable's balance: the balance is booked, the rest is flagged "Bayar ganda — refund manual" (audit `payment.late_superseded`, `excess`). A settlement that arrives later is booked when the sale is not paid, no pending or paid tender holds
   it, nothing was restocked and the amount equals the remaining total; otherwise it is flagged "Bayar ganda — refund manual" (audit
