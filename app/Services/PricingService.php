@@ -509,6 +509,8 @@ class PricingService
                 'base_total' => (int) $item['base_unit_price'] * $take,
             ];
             $required -= $take;
+            // Taken units are gone for the next match: a unit is never both "buy" and "get", nor two bundle items.
+            $remainingQuantities[$cartId] = $availableQty - $take;
         }
 
         return $required === 0 ? $matches : null;

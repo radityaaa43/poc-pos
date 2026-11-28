@@ -47,7 +47,7 @@ test.describe('POS checkout: pay later (nota barang) to a customer', () => {
         // The receipt is an unpaid note with its due date; nothing was collected.
         await expect(page.getByText('Piutang', { exact: true }).first()).toBeVisible();
         await expect(page.getByText('Belum Lunas', { exact: true })).toBeVisible();
-        await expect(page.getByText('Jatuh tempo: 2026-12-31')).toBeVisible();
+        await expect(page.getByText('Jatuh tempo: 31/12/2026')).toBeVisible();
         await expect(page.getByText(customer.name)).toBeVisible();
 
         // The history flags it as a receivable instead of paid.

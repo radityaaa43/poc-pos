@@ -30,8 +30,10 @@ class TransactionPaymentRetryService
     public function isRetryable(Transaction $transaction): bool
     {
         // A dine-in bill is paid through its open bill (dine-orders.pay), which already settles failed bills.
+        // A credit sale is collected through its receivable: a retry would charge it a second time.
         return in_array($transaction->payment_status, self::RETRYABLE_STATUSES, true)
             && ! $transaction->dineOrder()->exists()
+            && ! $transaction->receivable()->exists()
             && ! $transaction->wasRestocked();
     }
 
@@ -59,6 +61,10 @@ class TransactionPaymentRetryService
                 throw ValidationException::withMessages(['payment' => 'Bayar lewat daftar Belum Lunas di POS']);
             }
 
+            if ($sale->receivable()->exists()) {
+                throw ValidationException::withMessages(['payment' => 'Penjualan kredit dibayar lewat piutang']);
+            }
+
             if ($sale->wasRestocked()) {
                 throw ValidationException::withMessages([
                     'payment' => 'Penjualan ini sudah dibatalkan otomatis dan stoknya dikembalikan — buat penjualan baru.',
@@ -79,9 +85,9 @@ class TransactionPaymentRetryService
                 throw ValidationException::withMessages(['payment' => 'Buka shift di outlet penjualan ini']);
             }
 
-            $total = $sale->amountDue(); // failed or expired: what is still owed (a credit sale: its total)
+            $total = $sale->amountDue(); // failed or expired: what is still owed
 
-            if (! $sale->receivable()->exists() && (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1)) {
+            if (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1) {
                 throw ValidationException::withMessages(['payment' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);
             }
 
