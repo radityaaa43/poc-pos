@@ -33,8 +33,9 @@ class CheckoutService
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
-        // attempts: a backstop for the deadlocks left (loyalty upgrading the sale's shared customer lock on a paid sale,
-        // a store-credit return of the same customer). The closure only writes to the database, so the victim runs again.
+        // attempts: a backstop for the deadlocks still left (a store-credit return of the same customer takes stock before
+        // the customer; #494 gives every checkout and approval one order, but not that return). The closure only writes
+        // to the database, so the victim runs again.
         return DB::transaction(function () use ($ctx) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,

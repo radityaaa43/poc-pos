@@ -103,12 +103,16 @@ class CheckoutLockOrderTest extends TestCase
         $customerAt = array_search('customer', $order, true);
         $this->assertNotFalse($customerAt, 'the customer row is read');
         $stockAt = array_search('stock', $order, true);
-        if ($stockAt !== false) {
-            $this->assertLessThan($stockAt, $customerAt, 'the customer is locked before the first stock row');
-        }
+        $this->assertNotFalse($stockAt, 'a stock row is locked in the same transaction');
+        $this->assertLessThan($stockAt, $customerAt, 'the customer is locked before the first stock row');
         if (DB::getDriverName() === 'mysql') {
-            $locked = collect($inside)->first(fn (array $s) => $s[0] === 'customer' && str_contains($s[2], 'for update'));
-            $this->assertNotNull($locked, 'the customer select takes for update');
+            $locked = false;
+            foreach ($inside as $i => [$step, , $sql]) {
+                if ($step === 'customer' && $i < $stockAt && str_contains($sql, 'for update')) {
+                    $locked = true;
+                }
+            }
+            $this->assertTrue($locked, 'a customer select before the stock lock takes for update');
         }
     }
 
