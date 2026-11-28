@@ -3,11 +3,11 @@
 namespace App\Services;
 
 use App\Exceptions\CreditRefusedException;
-use App\Models\Setting;
 use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\CreditApprovalRequest;
 use App\Models\CustomerVoucher;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Support\Checkout\CheckoutContext;
@@ -86,12 +86,12 @@ class CreditApprovalService
             $this->ensure($locked->status === CreditApprovalRequest::PENDING, 'already_denied');
             $this->ensure($shift?->id === $locked->cashier_shift_id, 'shift_closed');
             $this->ensure((bool) $customer->may_buy_on_credit, 'credit_revoked');
-            // BR-12: the outlet's setting today wins over the request. A plain read, so only after the locks above.
-            $this->ensure(Setting::getBoolForOutlet('pay_later_enabled', $shift->warehouse?->outlet), 'pay_later_off');
 
             $held = Cart::where('cashier_id', $locked->cashier_id)->forHold($locked->hold_id);
             $cartIds = (clone $held)->pluck('id')->all();
             $this->ensure($cartIds !== [], 'cart_gone');
+            // BR-12: the outlet's setting today wins over the request. A plain read, so only after the locks above.
+            $this->ensure(Setting::getBoolForOutlet('pay_later_enabled', $shift->warehouse?->outlet), 'pay_later_off');
             $held->update(['hold_id' => null, 'hold_label' => null, 'held_at' => null]);
 
             $payload = $locked->payload;
