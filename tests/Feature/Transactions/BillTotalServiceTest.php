@@ -95,6 +95,7 @@ class BillTotalServiceTest extends TestCase
         $expected = $case['expected'];
         $expected['tax_rate'] = $expected['tax_rate'] === null ? null : (float) $expected['tax_rate'];
         $expected['bill_basis']['effective_rate'] = (float) $expected['bill_basis']['effective_rate'];
+        $expected['service_charge_rate'] = (float) $expected['service_charge_rate'];
         ksort($expected);
         ksort($bill);
 

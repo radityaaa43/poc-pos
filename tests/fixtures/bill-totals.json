@@ -13,7 +13,7 @@
             "shipping": 12000,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "tax_kind": "ppn", "tax_total": 9398, "tax_rate": 10, "tax_base": 92250, "grand_total": 101648,
+                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "ppn", "tax_total": 9398, "tax_rate": 10, "tax_base": 92250, "grand_total": 101648,
                 "bill_basis": { "after_discount": 80250, "shipping": 12000, "line_tax_total": 8198, "shipping_tax": 1200, "effective_rate": 10 }
             }
         },
@@ -25,7 +25,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "tax_kind": "ppn", "tax_total": 2310, "tax_rate": 11, "tax_base": 21000, "grand_total": 23310,
+                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 2310, "tax_rate": 11, "tax_base": 21000, "grand_total": 23310,
                 "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
             }
         },
@@ -37,7 +37,7 @@
             "shipping": 0,
             "dine_in": false,
             "expected": {
-                "service_charge": 0, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 22200,
+                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 22200,
                 "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
             }
         },
@@ -53,7 +53,7 @@
             "shipping": 12000,
             "dine_in": true,
             "expected": {
-                "service_charge": 4013, "tax_kind": "ppn", "tax_total": 9799, "tax_rate": 10, "tax_base": 96263, "grand_total": 106062,
+                "service_charge": 4013, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 9799, "tax_rate": 10, "tax_base": 96263, "grand_total": 106062,
                 "bill_basis": { "after_discount": 80250, "shipping": 12000, "line_tax_total": 8198, "shipping_tax": 1200, "effective_rate": 10 }
             }
         },
@@ -65,7 +65,7 @@
             "shipping": 5000,
             "dine_in": true,
             "expected": {
-                "service_charge": 2363, "tax_kind": "ppn", "tax_total": 0, "tax_rate": null, "tax_base": 0, "grand_total": 54613,
+                "service_charge": 2363, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 0, "tax_rate": null, "tax_base": 0, "grand_total": 54613,
                 "bill_basis": { "after_discount": 47250, "shipping": 5000, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         },
@@ -77,7 +77,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 2200,
+                "service_charge": 0, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 2200,
                 "bill_basis": { "after_discount": 0, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
             }
         },
@@ -89,7 +89,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "tax_kind": "pb1", "tax_total": 2100, "tax_rate": 10, "tax_base": 21000, "grand_total": 23100,
+                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 2100, "tax_rate": 10, "tax_base": 21000, "grand_total": 23100,
                 "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         },
@@ -101,7 +101,7 @@
             "shipping": 10000,
             "dine_in": false,
             "expected": {
-                "service_charge": 0, "tax_kind": "pb1", "tax_total": 2000, "tax_rate": 10, "tax_base": 20000, "grand_total": 32000,
+                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "pb1", "tax_total": 2000, "tax_rate": 10, "tax_base": 20000, "grand_total": 32000,
                 "bill_basis": { "after_discount": 20000, "shipping": 10000, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         },
@@ -113,7 +113,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "tax_kind": "pb1", "tax_total": 0, "tax_rate": null, "tax_base": 21000, "grand_total": 21000,
+                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 0, "tax_rate": null, "tax_base": 21000, "grand_total": 21000,
                 "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         },
@@ -125,7 +125,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "tax_kind": "pb1", "tax_total": 0, "tax_rate": 10, "tax_base": 0, "grand_total": 0,
+                "service_charge": 0, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 0, "tax_rate": 10, "tax_base": 0, "grand_total": 0,
                 "bill_basis": { "after_discount": 0, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         },
@@ -137,7 +137,7 @@
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 503, "tax_kind": "pb1", "tax_total": 1545, "tax_rate": 7.5, "tax_base": 20603, "grand_total": 22148,
+                "service_charge": 503, "service_charge_rate": 2.5, "tax_kind": "pb1", "tax_total": 1545, "tax_rate": 7.5, "tax_base": 20603, "grand_total": 22148,
                 "bill_basis": { "after_discount": 20100, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
             }
         }

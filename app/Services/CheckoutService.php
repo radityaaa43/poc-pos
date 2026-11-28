@@ -116,6 +116,7 @@ class CheckoutService
                 'tax_rate' => data_get($checkoutPreview, 'summary.tax_rate'),
                 'tax_total' => data_get($checkoutPreview, 'summary.tax_total', 0),
                 'service_charge' => data_get($checkoutPreview, 'summary.service_charge'),
+                'service_charge_rate' => data_get($checkoutPreview, 'summary.service_charge_rate'),
                 'tax_kind' => data_get($checkoutPreview, 'summary.tax_kind'),
                 'tax_base' => data_get($checkoutPreview, 'summary.tax_base'),
                 'customer_npwp' => $ctx->customerNpwp,

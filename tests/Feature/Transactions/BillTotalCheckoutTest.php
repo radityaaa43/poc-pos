@@ -129,6 +129,19 @@ class BillTotalCheckoutTest extends TestCase
         $this->assertSame($summary['grand_total'], $sale->grand_total);
         $this->assertSame(11.0, (float) $sale->tax_rate);
         $this->assertSame(26690, (int) $sale->change);
+        // The rate it was computed with: the amount alone cannot give it back once a discount covers the bill.
+        $this->assertSame('5.00', $sale->service_charge_rate);
+    }
+
+    public function test_a_sale_that_is_not_dine_in_stores_a_zero_rate(): void
+    {
+        $this->charge();
+        $this->openShift();
+        $this->fillCart();
+
+        $this->sell(['order_type' => 'takeaway'])->assertSessionHasNoErrors();
+
+        $this->assertSame('0.00', Transaction::sole()->service_charge_rate);
     }
 
     public function test_default_outlet_sale_stores_ppn_and_no_service_charge(): void

@@ -59,7 +59,7 @@ Example, dine-in with a 5 % service charge: 2 x Rp 10,000 of a product with 11 %
 | PPN | 1,000 | 2,200 + 110 = 2,310 | 23,310 |
 | PB1 10 % | 1,000 | 10 % x 21,000 = 2,100 | 23,100 |
 
-A sale stores `service_charge`, `tax_kind`, `tax_rate` (the PB1 rate, or the effective PPN rate), `tax_total`, `tax_base` (what the tax was computed on) and `grand_total`. Older sales keep `0` / `null`, read as PPN, and are never recomputed. Every receipt, the invoice, the public page and the sales export take the service charge out of the subtotal and name the tax from `tax_kind`. Loyalty points keep their base (total minus shipping), so the service charge counts like the tax.
+A sale stores `service_charge`, the `service_charge_rate` it was computed with (0 when not dine-in), `tax_kind`, `tax_rate` (the PB1 rate, or the effective PPN rate), `tax_total`, `tax_base` (what the tax was computed on) and `grand_total`. Older sales keep `0` / `null`, read as PPN, and are never recomputed. Every receipt, the invoice, the public page and the sales export take the service charge out of the subtotal and name the tax from `tax_kind`. Loyalty points keep their base (total minus shipping), so the service charge counts like the tax.
 
 ## Database
 

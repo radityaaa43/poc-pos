@@ -81,6 +81,7 @@ class BillTotalService
 
         return [
             'service_charge' => $service,
+            'service_charge_rate' => $dineIn ? $settings['service_charge_rate'] : 0.0,
             'tax_kind' => $settings['tax_kind'],
             'tax_total' => $taxTotal,
             'tax_rate' => $rate ?: null,
