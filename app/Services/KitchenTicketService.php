@@ -96,10 +96,12 @@ class KitchenTicketService
 
             return $groups->map(function (Collection $stationItems, $stationId) use ($order, $defaultId, $defaultName) {
                 // In a split shop every station's key carries the station, so a partial order never renames its ticket
-                // between polls (#345).
+                // between polls (#345). Dapur's group is titled by name whatever its items' station was (a deleted
+                // station falls into it, and its old name must not show).
                 $key = 't'.$order['id'].'-s'.$stationId;
-                $title = $stationItems->first()['station']
-                    ?? ((int) $stationId === (int) $defaultId ? $defaultName : null);
+                $title = (int) $stationId === (int) $defaultId
+                    ? $defaultName
+                    : $stationItems->first()['station'];
 
                 return $this->ticket($order, $key, $stationItems, $title);
             })->values();
