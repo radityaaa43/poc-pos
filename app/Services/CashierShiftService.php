@@ -369,7 +369,7 @@ class CashierShiftService
         };
         $lockKitchen($saleIds);
         // A late arrival's rows are locked too, or a kitchen tap on it could be overwritten with "not collected".
-        $locked = Transaction::where('cashier_shift_id', $shift->id)->orderByDesc('id')->lockForUpdate()->pluck('id'); // add-on before original
+        $locked = Transaction::where('cashier_shift_id', $shift->id)->lockForUpdate()->pluck('id');
         $late = $locked->diff($saleIds);
         if ($late->isNotEmpty()) {
             $lockKitchen($late);

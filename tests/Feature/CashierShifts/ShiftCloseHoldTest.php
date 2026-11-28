@@ -394,7 +394,6 @@ class ShiftCloseHoldTest extends TestCase
                 $this->assertStringContainsString('for update', $queries[$start + $step]);
             }
         }
-        $this->assertMatchesRegularExpression('/order by [`"]id[`"] desc/', $queries[$start + 3]); // newest sale first (#251)
     }
 
     // The bill is created under the shift lock, so it cannot land on a shift that a close has just passed.

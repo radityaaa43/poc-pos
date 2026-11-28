@@ -178,7 +178,7 @@ class CheckoutService
                 paymentStatus: $paymentStatus,
                 tenderBankAccountId: $tenderBankAccountId,
             );
-        });
+        }, 3); // retried on a deadlock: an add-on holds sales of a shift that another cashier may be closing
     }
 
     private function processCartItems(
