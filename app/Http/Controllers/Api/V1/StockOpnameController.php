@@ -264,6 +264,9 @@ class StockOpnameController extends AppsStockOpnameController
         $stockOpname->refresh();
         $stockOpname->load('items.product');
 
+        // Same snapshot as the web finalize: the variance report reads this, never today's price (#571 TC-12).
+        $unitCosts = $this->stockOpnameVarianceService->snapshotUnitCosts($stockOpname);
+
         $this->auditLogService->log(
             event: 'stock.opname.finalized',
             module: 'stock',
@@ -280,6 +283,7 @@ class StockOpnameController extends AppsStockOpnameController
                     'stock_before' => (int) $item->system_stock,
                     'stock_after' => $item->physical_stock !== null ? (int) $item->physical_stock : null,
                     'difference' => $item->difference !== null ? (int) $item->difference : null,
+                    'unit_cost' => $unitCosts[$item->product_id] ?? null,
                     'reason' => $item->adjustment_reason,
                     'reference' => $stockOpname->code,
                 ])->values()->all(),

@@ -187,6 +187,11 @@ class V1InventoryApiTest extends TestCase
             'reference_type' => 'stock_opname',
             'reference_id' => $opnameId,
         ]);
+
+        // The API finalize snapshots the unit cost too, so the variance report never revalues this opname (#571 TC-12).
+        $meta = \App\Models\AuditLog::where('event', 'stock.opname.finalized')->latest('id')->firstOrFail()->meta;
+        $row = collect($meta['items'])->firstWhere('product_id', $this->product->id);
+        $this->assertSame((int) $this->product->buy_price, (int) $row['unit_cost']);
     }
 
     public function test_stock_opname_item_requires_reason_when_difference_exists(): void
