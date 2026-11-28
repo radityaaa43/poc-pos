@@ -1014,7 +1014,7 @@ export default function Index({
                         />
                     </div>
 
-                    <OfflineQueuePanel scopeKey={offlineScopeKey} count={pendingSyncCount} onRetry={flushPendingTransactions} onChange={refreshPendingCount} />
+                    <OfflineQueuePanel scopeKey={offlineScopeKey} count={pendingSyncCount} products={products} onRetry={flushPendingTransactions} onChange={refreshPendingCount} />
 
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 

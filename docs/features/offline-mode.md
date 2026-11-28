@@ -26,10 +26,11 @@ While this device holds a sale of the signed-in cashier that has not synced, the
 
 - **Coba sinkron sekarang** runs the same sync as the automatic one, which keeps running as before.
 - **Hapus** works only online and asks for confirmation. A `failed` sale is not on the server: the confirmation says to ring it up again online first. The device marks the row `discarding`, posts its content to `POST /dashboard/transactions/offline-queue/discard` (`permission:transactions-access`, 30 per minute), and deletes the row only after the server answers 201. On any other answer the row returns to its previous status and stays.
-- **Audit entry**: event `offline_sale.discarded`, module `transactions`, with who and when; `meta` holds `client_uuid`, `queue_status`, `reason`, `attempts`, `queued_at`, `sale` (`grand_total`, `payment_method`, `customer_id`, `items` as product id, unit id and quantity), `server_invoice` and `cashier_shift_id` (the cashier's open shift at removal). When the server already has a sale with that `client_uuid`, the entry is linked to it. Removing never changes server data.
+- **Audit entry**: event `offline_sale.discarded`, module `transactions`, with who and when; `meta` holds `client_uuid`, `queue_status`, `reason`, `attempts`, `queued_at`, `sale` (the whole queued sale: `items` as product id, unit id and quantity; `grand_total`, `discount`, `redeem_points`, `customer_voucher_id`, `shipping_cost`, `cash`, `payment_method`, `bank_account_id`, `order_type`, `note` (first 1000 characters), `customer_id`, and `pay_later` / `due_date` on old entries; not the server cart ids; the queue holds no per-line price), `server_invoice` and `cashier_shift_id` (the cashier's open shift at removal). When the server already has a sale with that `client_uuid`, the entry is linked to it. Removing never changes server data.
 - A page closed between the audit call and the delete leaves the row `discarding`; removing it again writes a second entry.
 - Rollback: before reverting this feature, remove any `discarding` row with the panel; older code counts such a row but never sends it.
-- Unchanged: `failed` and `conflict` rows older than 30 days are still pruned from the device without an audit entry.
+- 30-day clean-up (when the POS opens): only `conflict` rows older than 30 days are deleted, without an audit entry, because the server already has that sale. A `failed` row is never cleaned up.
+- A line is named by the product title stored on the queue row when the sale was queued, else by the POS product list, else `Produk #<id>`.
 
 ## Batasan
 

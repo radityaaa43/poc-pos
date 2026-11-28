@@ -39,7 +39,7 @@ class OfflineSaleDiscardTest extends TestCase
         $shift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $warehouse->id);
 
         $payload = $this->payload();
-        $payload['sale']['note'] = 'not part of the contract';
+        $payload['sale']['cart_ids'] = [8]; // not part of the contract
         $payload['sale']['items'][0]['price'] = 1;
         $payload['server_invoice'] = 'TRX-FORGED';
 
@@ -106,6 +106,16 @@ class OfflineSaleDiscardTest extends TestCase
             'sale.items.0.product_id' => ['sale.items.0.product_id', null],
             'sale.items.0.unit_id' => ['sale.items.0.unit_id', 'pcs'],
             'sale.items.0.qty' => ['sale.items.0.qty', 0],
+            'sale.customer_voucher_id' => ['sale.customer_voucher_id', 'seven'],
+            'sale.discount' => ['sale.discount', 'much'],
+            'sale.redeem_points' => ['sale.redeem_points', 1.0E+20],
+            'sale.shipping_cost' => ['sale.shipping_cost', 'far'],
+            'sale.cash' => ['sale.cash', str_repeat('9', 400)],
+            'sale.bank_account_id' => ['sale.bank_account_id', 'BCA'],
+            'sale.order_type' => ['sale.order_type', str_repeat('x', 31)],
+            'sale.note' => ['sale.note', str_repeat('x', 1001)],
+            'sale.pay_later' => ['sale.pay_later', 'maybe'],
+            'sale.due_date' => ['sale.due_date', str_repeat('1', 31)],
         ];
 
         foreach ($cases as $field => [$path, $value]) {
@@ -146,6 +156,16 @@ class OfflineSaleDiscardTest extends TestCase
                 'grand_total' => 25000,
                 'payment_method' => 'cash',
                 'customer_id' => null,
+                'customer_voucher_id' => 7,
+                'discount' => 1000,
+                'redeem_points' => 5,
+                'shipping_cost' => 5000,
+                'cash' => 30000,
+                'bank_account_id' => null,
+                'order_type' => 'delivery',
+                'note' => 'Antar sore',
+                'pay_later' => false,
+                'due_date' => null,
                 'items' => [['product_id' => 12, 'unit_id' => 1, 'qty' => 2]],
             ],
         ];

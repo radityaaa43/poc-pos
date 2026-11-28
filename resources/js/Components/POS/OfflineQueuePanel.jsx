@@ -1,14 +1,31 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useTranslation } from "react-i18next";
 import { IconCloudUpload } from "@tabler/icons-react";
 import Modal from "@/Components/Dashboard/Modal";
 import { useOnlineStatus } from "@/Context/OnlineStatusContext";
-import { getCachedProducts, getPendingTransactions } from "@/Utils/offlineDb";
+import { getPendingTransactions } from "@/Utils/offlineDb";
 import { beginDiscard, finishDiscard, QUEUE_EVENT, restore } from "@/Utils/offlineQueue";
 
 const REMOVABLE = ["failed", "conflict", "discarding"];
 const PAYMENT_KEYS = { cash: "cash", bank_transfer: "bankTransfer" };
+// The whole queued sale, so a removed one can be rung up again exactly (BR-8). Only the server cart ids and the
+// gateway field, always null offline, stay behind.
+const SALE_FIELDS = [
+    "grand_total",
+    "payment_method",
+    "customer_id",
+    "customer_voucher_id",
+    "discount",
+    "redeem_points",
+    "shipping_cost",
+    "cash",
+    "bank_account_id",
+    "pay_later",
+    "due_date",
+    "order_type",
+    "note",
+];
 
 const formatPrice = (value = 0) =>
     Number(value || 0).toLocaleString("id-ID", {
@@ -22,7 +39,7 @@ const originStatus = (row) => (row.status === "discarding" ? row.discard_from : 
 
 // The audit entry keeps exactly this; the bounds match DiscardOfflineSaleRequest.
 function auditPayload(row) {
-    const { grand_total, payment_method, customer_id, items } = row.data;
+    const { items, note } = row.data;
 
     return {
         client_uuid: row.client_uuid,
@@ -31,9 +48,8 @@ function auditPayload(row) {
         attempts: row.attempts,
         queued_at: row.created_at,
         sale: {
-            grand_total,
-            payment_method,
-            customer_id,
+            ...Object.fromEntries(SALE_FIELDS.map((field) => [field, row.data[field]])),
+            note: note?.slice(0, 1000) ?? null,
             items: items.map(({ product_id, unit_id, qty }) => ({ product_id, unit_id, qty })),
         },
     };
@@ -55,7 +71,10 @@ function SaleSummary({ row, names }) {
             </div>
             {items.map((item, index) => (
                 <p key={index}>
-                    {item.qty} × {names[item.product_id] ?? t("pos.offlineQueue.product", { id: item.product_id })}
+                    {item.qty} ×{" "}
+                    {row.product_titles?.[item.product_id] ??
+                        names[item.product_id] ??
+                        t("pos.offlineQueue.product", { id: item.product_id })}
                 </p>
             ))}
             <p className="font-semibold text-slate-900 dark:text-white">
@@ -70,12 +89,12 @@ function SaleSummary({ row, names }) {
 }
 
 /** The queued sales of this cashier that the server does not have as queued: see why, send again, or remove. */
-export default function OfflineQueuePanel({ scopeKey, count, onRetry, onChange }) {
+export default function OfflineQueuePanel({ scopeKey, count, products = [], onRetry, onChange }) {
     const { t } = useTranslation();
     const isOnline = useOnlineStatus();
     const [open, setOpen] = useState(false);
     const [rows, setRows] = useState(null); // null while the queue is being read
-    const [names, setNames] = useState({});
+    const names = useMemo(() => Object.fromEntries(products.map((product) => [product.id, product.title])), [products]);
     const [confirming, setConfirming] = useState(null);
     const [busy, setBusy] = useState(false);
     const [retrying, setRetrying] = useState(false);
@@ -83,11 +102,7 @@ export default function OfflineQueuePanel({ scopeKey, count, onRetry, onChange }
 
     const load = useCallback(async () => {
         try {
-            const [queued, products] = await Promise.all([
-                getPendingTransactions(scopeKey),
-                getCachedProducts().catch(() => []), // names only: the list shows ids without them
-            ]);
-            setNames(Object.fromEntries(products.map((product) => [product.id, product.title])));
+            const queued = await getPendingTransactions(scopeKey);
             setRows(
                 queued
                     .filter((row) => !["synced", "duplicate"].includes(row.status))

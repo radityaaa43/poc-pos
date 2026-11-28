@@ -45,5 +45,5 @@ export async function queueRefusedSale({ asRole, arrange, uniq, role }) {
     await expect.poll(async () => (await readQueue(page))[0]?.status).toBe('failed');
     const [queued] = await readQueue(page);
 
-    return { page, product_id, shift_id, queued };
+    return { page, title, product_id, shift_id, queued };
 }

@@ -17,6 +17,7 @@ const DB_VERSION = 2;
  *   synced_at,                // ISO timestamp of confirmed sync
  *   created_at,               // ISO timestamp queued
  *   needs_kitchen,            // POS sale with a line the kitchen has to make
+ *   product_titles,           // { product_id: title } at queue time, for the stuck-sales panel
  *   discard_from,             // status a discarding row had before its removal began
  * }
  *
@@ -174,9 +175,9 @@ export async function pruneExpiredPendingTransactions(maxAgeDays = 30) {
     while (cursor) {
         const row = normalizeQueueRecord(cursor.value);
         const createdAt = Date.parse(row.created_at);
-        const terminal = ["failed", "conflict"].includes(row.status);
-
-        if (terminal && Number.isFinite(createdAt) && createdAt < cutoff) {
+        // Never a failed row: that sale is missing from the books until the cashier retries or removes it
+        // (audited). A conflict row's sale is already on the server.
+        if (row.status === "conflict" && Number.isFinite(createdAt) && createdAt < cutoff) {
             await cursor.delete();
         }
 

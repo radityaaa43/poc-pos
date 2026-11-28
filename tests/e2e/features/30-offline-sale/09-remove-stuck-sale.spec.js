@@ -56,6 +56,11 @@ test.describe('offline sale: remove', () => {
         const row = manager.getByRole('table').getByRole('row').filter({ hasText: 'offline_sale.discarded' }).first();
         await expect(row).toBeVisible();
         await row.getByRole('link', { name: 'Detail' }).click();
-        await expect(manager.getByRole('heading', { name: 'Meta' }).locator('xpath=..')).toContainText(queued.client_uuid);
+        const meta = manager.getByRole('heading', { name: 'Meta' }).locator('xpath=..');
+        await expect(meta).toContainText(queued.client_uuid);
+        // The whole queued sale, so it can be rung up again.
+        await expect(meta).toContainText(/grand_total\W*10000/);
+        await expect(meta).toContainText(/cash\W*10000/);
+        await expect(meta).toContainText(/order_type\W*in_store/);
     });
 });

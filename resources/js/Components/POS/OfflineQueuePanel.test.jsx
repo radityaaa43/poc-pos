@@ -4,7 +4,6 @@ import userEvent from "@testing-library/user-event";
 import axios from "axios";
 import i18n from "@/i18n";
 import {
-    cacheProducts,
     clearPendingTransactions,
     getPendingTransactions,
     getUnsyncedCount,
@@ -32,12 +31,21 @@ const CONFIRM = "Hapus transaksi offline ini dari perangkat? Penghapusan dicatat
 const ON_SERVER = "Transaksi ini sudah tercatat di server.";
 const AUDITED = { status: 201, data: { data: { audit_id: 1 } } };
 
+// The shape the POS queues (Transactions/Index.jsx).
 const sale = (uuid, extra = {}) => ({
     client_uuid: uuid,
     customer_id: 3,
+    discount: 1000,
+    redeem_points: 5,
+    customer_voucher_id: "7",
+    shipping_cost: 5000,
     grand_total: 25000,
     cash: 30000,
     payment_method: "cash",
+    payment_gateway: null,
+    bank_account_id: null,
+    order_type: "delivery",
+    note: "Antar sore",
     cart_ids: [8],
     items: [{ product_id: 12, unit_id: 1, qty: 2 }],
     ...extra,
@@ -76,7 +84,6 @@ describe("OfflineQueuePanel: list", () => {
     });
 
     it("lists every unsynced row with its reason", async () => {
-        await cacheProducts([{ id: 12, title: "Kopi Susu" }]);
         await queue("u-pending");
         await queue("u-syncing", { status: "syncing", last_attempt_at: new Date().toISOString() });
         await failedRow();
@@ -84,7 +91,7 @@ describe("OfflineQueuePanel: list", () => {
         await queue("u-synced", { status: "synced" });
         await queue("u-duplicate", { status: "duplicate" });
 
-        await open({ count: 4 });
+        await open({ count: 4, products: [{ id: 12, title: "Kopi Susu" }] });
 
         const items = await screen.findAllByRole("listitem");
         expect(items).toHaveLength(4);
@@ -110,12 +117,34 @@ describe("OfflineQueuePanel: list", () => {
         expect(screen.getByRole("button", { name: "Coba sinkron sekarang" })).toBeDisabled();
     });
 
-    it("falls back to product id", async () => {
-        await queue("u-1", {}, { items: [{ product_id: 999, unit_id: null, qty: 1 }] });
+    it("names a line by the title stored with the queued sale, then the product list", async () => {
+        const items = [
+            { product_id: 12, unit_id: 1, qty: 2 },
+            { product_id: 13, unit_id: 1, qty: 1 },
+        ];
+        // Sold out since: the POS list no longer has product 12.
+        await queue("u-1", { product_titles: { 12: "Kopi Tercatat" } }, { items });
 
-        await open();
+        await open({ products: [{ id: 13, title: "Teh Manis" }] });
+
+        expect(await screen.findByText("2 × Kopi Tercatat")).toBeInTheDocument();
+        expect(screen.getByText("1 × Teh Manis")).toBeInTheDocument();
+    });
+
+    it("falls back to product id", async () => {
+        const items = [
+            { product_id: 12, unit_id: 1, qty: 2 },
+            { product_id: 999, unit_id: null, qty: 1 },
+        ];
+        await queue("u-1", { status: "failed" }, { items });
+
+        const { user } = await open({ products: [{ id: 12, title: "Kopi Susu" }] });
 
         expect(await screen.findByText("1 × Produk #999")).toBeInTheDocument();
+        expect(screen.getByText("2 × Kopi Susu")).toBeInTheDocument();
+        // The confirmation names the products too.
+        await user.click(screen.getByRole("button", { name: "Hapus" }));
+        expect(screen.getByText("2 × Kopi Susu")).toBeInTheDocument();
     });
 
     it("says when nothing is pending", async () => {
@@ -191,7 +220,7 @@ describe("OfflineQueuePanel: remove", () => {
         const confirm = screen.getByText(CONFIRM);
         expect(warning.compareDocumentPosition(confirm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         // The row's content is shown with the question.
-        expect(screen.getByText(/^2 × /)).toBeInTheDocument();
+        expect(screen.getByText("2 × Produk #12")).toBeInTheDocument();
         expect(screen.queryByText(ON_SERVER)).not.toBeInTheDocument();
         expect(axios.post).not.toHaveBeenCalled();
     });
@@ -220,6 +249,7 @@ describe("OfflineQueuePanel: remove", () => {
 
     it("removes only after the server answered", async () => {
         const id = await failedRow("u-1", { last_error: "x".repeat(600) });
+        await updatePendingTransaction(id, { data: sale("u-1", { note: "n".repeat(1100) }) });
         let answer;
         axios.post.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
         const onChange = vi.fn();
@@ -238,10 +268,27 @@ describe("OfflineQueuePanel: remove", () => {
                 reason: "x".repeat(500),
                 attempts: 2,
                 queued_at: row.created_at,
-                sale: { grand_total: 25000, payment_method: "cash", customer_id: 3, items: [{ product_id: 12, unit_id: 1, qty: 2 }] },
+                // The whole queued sale, minus the server cart ids and the gateway offline sales never have.
+                sale: {
+                    grand_total: 25000,
+                    payment_method: "cash",
+                    customer_id: 3,
+                    customer_voucher_id: "7",
+                    discount: 1000,
+                    redeem_points: 5,
+                    shipping_cost: 5000,
+                    cash: 30000,
+                    bank_account_id: null,
+                    order_type: "delivery",
+                    note: "n".repeat(1000),
+                    items: [{ product_id: 12, unit_id: 1, qty: 2 }],
+                },
             },
             { headers: { Accept: "application/json" } }
         );
+
+        // The matcher above ignores undefined keys: pin that these never leave the device.
+        expect(Object.keys(axios.post.mock.calls[0][1].sale)).not.toContain("cart_ids");
 
         await act(async () => answer(AUDITED));
 
