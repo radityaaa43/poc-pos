@@ -8,6 +8,7 @@ use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
+use App\Models\KitchenItem;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -22,6 +23,7 @@ use Database\Seeders\UserSeeder;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 // #251 (REQ-003 AC-21, BR-10, BR-11): a table-QR order joins only the order whose status page it was made from.
@@ -96,27 +98,16 @@ class AddOnQrTest extends TestCase
         $this->assertSame(0, Transaction::where('parent_transaction_id', $first->transaction_id)->count());
     }
 
-    public function test_qr_add_on_with_other_table_token_is_rejected(): void
+    public function test_qr_add_on_with_another_tables_token_or_to_an_unaccepted_order_is_rejected(): void
     {
-        $original = $this->accept($this->order());
+        $original = $this->order();
+        $this->assertSubmitRefused($this->table, $original->access_token, 'Pesanan asal belum diterima — tunggu konfirmasi staf');
+        $this->accept($original);
         $other = $this->tableNamed('Meja 8');
 
         foreach ([$original->access_token, 'bukan-token', (string) $original->id] as $reference) {
-            $this->postJson(route('dine-order.store', $other->token), $this->payload($reference))
-                ->assertStatus(422)
-                ->assertJsonValidationErrors(['add_on_to' => 'Pesanan asal tidak ditemukan di meja ini']);
+            $this->assertSubmitRefused($other, $reference, 'Pesanan asal tidak ditemukan di meja ini');
         }
-
-        $this->assertSame(1, DineOrder::count());
-    }
-
-    public function test_qr_add_on_to_an_order_not_yet_accepted_is_rejected(): void
-    {
-        $original = $this->order();
-
-        $this->postJson(route('dine-order.store', $this->table->token), $this->payload($original->access_token))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['add_on_to' => 'Pesanan asal belum diterima — tunggu konfirmasi staf']);
 
         $this->assertSame(1, DineOrder::count());
     }
@@ -143,9 +134,7 @@ class AddOnQrTest extends TestCase
             $this->assertNull($addOn->fresh()->transaction_id, $case);
             $this->assertSame($sales, Transaction::count(), $case);
             $this->assertSame($stock, (int) $this->nasi->fresh()->stock, $case);
-            $this->postJson(route('dine-order.store', $this->table->token), $this->payload($original->access_token))
-                ->assertStatus(422)
-                ->assertJsonValidationErrors(['add_on_to' => self::CANCELLED]);
+            $this->assertSubmitRefused($this->table, $original->access_token, self::CANCELLED);
         }
     }
 
@@ -182,7 +171,20 @@ class AddOnQrTest extends TestCase
         $late = $this->order(from: $original);
         $this->complete($original);
 
+        // So its status page still offers "Tambah pesanan", on load and on the poll.
+        $this->assertStatusPageOffersAddOn($original, true);
         $this->assertSame($original->transaction_id, $this->accept($late)->transaction->parent_transaction_id);
+
+        KitchenItem::query()->update(['status' => KitchenItem::STATUS_SERVED]);
+        Transaction::query()->update(['payment_status' => 'paid']);
+        $this->assertStatusPageOffersAddOn($original, false);
+    }
+
+    private function assertStatusPageOffersAddOn(DineOrder $order, bool $offered): void
+    {
+        $this->get(route('dine-order.status', $order->access_token))
+            ->assertInertia(fn (Assert $page) => $page->where('order.add_on_open', $offered));
+        $this->getJson(route('dine-order.status-check', $order->access_token))->assertJsonPath('order.add_on_open', $offered);
     }
 
     // The POS checkout and pay() take the shift first; accept the other way round would deadlock with them.
@@ -204,10 +206,7 @@ class AddOnQrTest extends TestCase
         )->assertSessionHasNoErrors());
     }
 
-    /**
-     * The first reads of the app's own transaction (level 1 is the test's), by table; on MySQL each of them locks.
-     * SQLite ignores FOR UPDATE, so locally only their order is proven.
-     */
+    /** The first reads of the app's own transaction (level 1 is the test's), by table; on MySQL (CI) each of them locks. */
     private function assertLeadingReads(array $tables, Closure $act): void
     {
         $sql = [];
@@ -226,6 +225,13 @@ class AddOnQrTest extends TestCase
                 $this->assertStringContainsString('for update', $read);
             }
         }
+    }
+
+    private function assertSubmitRefused(DiningTable $table, string $reference, string $message): void
+    {
+        $this->postJson(route('dine-order.store', $table->token), $this->payload($reference))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['add_on_to' => $message]);
     }
 
     private function tableNamed(string $name): DiningTable

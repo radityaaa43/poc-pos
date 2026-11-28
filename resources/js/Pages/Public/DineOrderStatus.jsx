@@ -11,7 +11,7 @@ const PROGRESS_STEPS = ["Diterima", "Menunggu Pembayaran", "Sedang dibuat", "Sia
 // Statuses that can still change, so the page keeps polling.
 const ACTIVE = ["submitted", "accepted", "preparing", "ready", "served"];
 
-// Accepted and not finished: an add-on can be made from the order (#251).
+// Accepted and not finished: an add-on can be made from the order (#251). A completed one: see add_on_open (BR-13).
 const CAN_ADD_ON = ["accepted", "preparing", "ready", "served"];
 
 const STATUS_CONFIG = {
@@ -159,7 +159,7 @@ export default function DineOrderStatus({ order, table, storeName, payment: page
                         )}
 
                         <div className="mt-4 flex flex-col gap-2">
-                            {CAN_ADD_ON.includes(currentOrder.status) && (
+                            {(CAN_ADD_ON.includes(currentOrder.status) || currentOrder.add_on_open) && (
                                 <a
                                     href={route("dine.menu", { token: table.token, add_on_to: currentOrder.access_token })}
                                     className="flex min-h-[44px] items-center justify-center rounded-xl bg-primary-500 px-4 font-semibold text-white hover:bg-primary-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"

@@ -164,6 +164,7 @@ class DineOrderController extends Controller
 
         $storeName = Setting::getForOutlet('store_name', $order->table?->area?->outlet, 'Restoran');
         $order->setAttribute('is_paid', $order->isPaid());
+        $order->setAttribute('add_on_open', $this->addOnOrder->wouldLink($order));
         $order->makeHidden('transaction');
 
         return Inertia::render('Public/DineOrderStatus', [
@@ -194,6 +195,7 @@ class DineOrderController extends Controller
 
         // the kitchen waits for payment, so the guest needs to know whether the bill is paid yet
         $order->setAttribute('is_paid', $order->isPaid());
+        $order->setAttribute('add_on_open', $this->addOnOrder->wouldLink($order));
 
         // No QR here: the page already holds it, and the poll stays light.
         $payment = $this->onlinePayment->state($order, withQr: false);

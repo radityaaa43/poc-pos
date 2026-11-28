@@ -17,9 +17,10 @@ const label = (order) => {
 beforeAll(() => i18n.changeLanguage("id"));
 
 describe("DineOrderStatus", () => {
-    it.each(["accepted", "preparing", "ready", "served"])("offers Tambah pesanan while the order is %s", (status) => {
+    // A completed order only while the server would still link an add-on to it (BR-13).
+    it.each([["accepted"], ["preparing"], ["ready"], ["served"], ["completed", true]])("offers Tambah pesanan while the order is %s", (status, add_on_open) => {
         const route = vi.spyOn(globalThis, "route");
-        render(<DineOrderStatus order={{ ...base, status }} table={table} storeName="Toko" />);
+        render(<DineOrderStatus order={{ ...base, status, add_on_open }} table={table} storeName="Toko" />);
 
         expect(screen.getByRole("link", { name: "Tambah pesanan" })).toBeInTheDocument();
         expect(route).toHaveBeenCalledWith("dine.menu", { token: "t", add_on_to: "tok" });

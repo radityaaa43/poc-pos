@@ -8,10 +8,7 @@ use App\Models\DiningTable;
 use App\Models\Transaction;
 use Illuminate\Validation\ValidationException;
 
-/**
- * Add-on orders (#251, REQ-003 AC-21): the one place for their rules. An add-on is its own sale, linked to the root of
- * the order it was made from. Nothing here writes to that order.
- */
+/** Add-on orders (#251, REQ-003 AC-21): their rules. An add-on is its own sale, linked to the root order, never written. */
 class AddOnOrderService
 {
     /** BR-11, the same words on the POS and the table QR. */
@@ -20,9 +17,8 @@ class AddOnOrderService
     public function __construct(private readonly AuditLogService $auditLogService) {}
 
     /**
-     * POS: the root sale id a new sale links to, or null when the order is finished and a new one starts (BR-6).
-     * Call it inside the checkout's DB::transaction, before its first plain read, with $original looked up outside it;
-     * $lock is false outside one.
+     * POS: the root sale id a new sale links to, or null when the order is finished and a new one starts (BR-6). With $lock,
+     * call it in the checkout's DB::transaction before any plain read, with $original looked up outside it.
      *
      * @throws ValidationException an unknown order, another outlet's order, or a cancelled one (BR-11)
      */
@@ -61,8 +57,7 @@ class AddOnOrderService
     }
 
     /**
-     * QR submit: the order whose status page the guest ordered from. The token is guest input, so it must name an
-     * accepted order of this table (BR-10) that was not cancelled (BR-11).
+     * QR submit: the order ordered from. The token is guest input: an accepted, not cancelled order of this table (BR-10, BR-11).
      *
      * @throws ValidationException
      */
@@ -81,7 +76,7 @@ class AddOnOrderService
 
     /**
      * QR accept: the root sale id, or null for a new order: nothing referenced, or the whole order is finished (BR-13).
-     * A table is never enough to link two orders (BR-10). Call it inside the accept's DB::transaction.
+     * A table is never enough to link two orders (BR-10). With $lock, as resolveForPos.
      *
      * @throws ValidationException a cancelled original (BR-11, BR-12)
      */
@@ -95,6 +90,16 @@ class AddOnOrderService
 
         // A completed original is not enough to start afresh: an add-on of it may still be open (BR-13).
         return $sale ? $this->linkTo($this->root($sale, $lock), $sale) : null;
+    }
+
+    /** A completed order's status page offers "Tambah pesanan" while an add-on from it would link (BR-13). No lock. */
+    public function wouldLink(DineOrder $order): bool
+    {
+        try {
+            return $order->status === DineOrder::STATUS_COMPLETED && $this->resolveForDine($order, false) !== null;
+        } catch (ValidationException) {
+            return false;
+        }
     }
 
     /** The receipt's "Tambah pesanan": hidden once the sale, or the order it belongs to, is cancelled (BR-12). */
