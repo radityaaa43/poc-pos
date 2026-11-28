@@ -40,7 +40,8 @@ export default function OutletBillSettings({ value, onChange, errors = {} }) {
                     </div>
                     {errorFor("tax_kind")}
                 </fieldset>
-                {rate("pb1_rate", "pb1Rate", value.tax_kind !== "pb1")}
+                {/* A refused rate stays editable: the form sends it whatever the tax kind is. */}
+                {rate("pb1_rate", "pb1Rate", value.tax_kind !== "pb1" && !errors.pb1_rate)}
                 <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-rounding`} className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("outlets.bill.rounding.label")}</label>
                     <select id={`${id}-rounding`} value={value.cash_rounding_unit} onChange={(event) => onChange("cash_rounding_unit", event.target.value)} aria-invalid={errors.cash_rounding_unit ? true : undefined} aria-describedby={errorId("cash_rounding_unit")} className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-4 pr-10 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">

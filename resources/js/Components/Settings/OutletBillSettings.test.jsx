@@ -79,6 +79,12 @@ describe("OutletBillSettings", () => {
         );
     });
 
+    it("keeps a refused PB1 rate editable after the tax kind is switched away", () => {
+        render(<Form initial={{ tax_kind: "ppn" }} errors={{ pb1_rate: "Tarif PB1 salah." }} />);
+
+        expect(number("Tarif PB1 (%)")).toBeEnabled();
+    });
+
     it("renders in English", async () => {
         await i18n.changeLanguage("en");
         render(<Form />);
