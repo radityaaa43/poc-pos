@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Cart;
+use App\Models\DiscountApprovalLog;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
@@ -151,8 +152,10 @@ class CheckoutService
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
                 // The customer is locked since the start, so two cashiers cannot both fit under one limit (REQ-007 BR-3).
-                // A refusal rolls the whole sale back.
-                $this->customerCredit->guard($ctx->customer->id, $grandTotal);
+                // A refusal rolls the whole sale back. An approved exception waives the rules for this one sale.
+                if (! $ctx->creditApproved) {
+                    $this->customerCredit->guard($ctx->customer->id, $grandTotal);
+                }
 
                 Receivable::create([
                     'customer_id' => $ctx->customer->id,
@@ -179,6 +182,22 @@ class CheckoutService
                 tenderBankAccountId: $tenderBankAccountId,
             );
         }, attempts: 3);
+    }
+
+    /** A sale whose manual discount is over the threshold waits for a discount approver before it counts as owed or paid. */
+    public function requestDiscountApproval(CheckoutResult $result, int $cashierId): void
+    {
+        $result->transaction->update([
+            'discount_approval_status' => 'pending',
+            'payment_status' => 'pending_approval',
+        ]);
+
+        DiscountApprovalLog::create([
+            'transaction_id' => $result->transaction->id,
+            'cashier_id' => $cashierId,
+            'requested_discount' => $result->appliedManualDiscount,
+            'status' => 'pending',
+        ]);
     }
 
     private function processCartItems(

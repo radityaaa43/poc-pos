@@ -9,7 +9,6 @@ use App\Models\Cart;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerVoucher;
-use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
@@ -21,6 +20,7 @@ use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
 use App\Services\CheckoutService;
+use App\Services\CreditApprovalService;
 use App\Services\LoyaltyService;
 use App\Services\OpenBillListService;
 use App\Services\OutletAccessService;
@@ -31,8 +31,10 @@ use App\Services\TransactionPaymentRetryService;
 use App\Services\TransactionTenderService;
 use App\Services\UnitConversionService;
 use App\Support\Checkout\CheckoutContext;
+use App\Support\Checkout\CheckoutResult;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -79,24 +81,8 @@ class TransactionController extends Controller
             $this->pricingService->previewCart($carts, null, null, $outlet)
         );
 
-        // Get held carts grouped by hold_id
-        $heldCarts = Cart::with('product:id,title,sell_price,image')
-            ->where('cashier_id', $userId)
-            ->held()
-            ->get()
-            ->groupBy('hold_id')
-            ->map(function ($items, $holdId) {
-                $first = $items->first();
-
-                return [
-                    'hold_id' => $holdId,
-                    'label' => $first->hold_label,
-                    'held_at' => $first->held_at?->toISOString(),
-                    'items_count' => $items->sum('qty'),
-                    'total' => $items->sum('price'),
-                ];
-            })
-            ->values();
+        $heldCarts = Cart::heldList(Cart::with('product:id,title,sell_price,image', 'creditRequest')
+            ->where('cashier_id', $userId)->held()->get());
 
         // get all customers
         $customers = Customer::latest()->get();
@@ -608,7 +594,7 @@ class TransactionController extends Controller
      * @param  mixed  $request
      * @return void
      */
-    public function store(Request $request, PaymentGatewayManager $paymentGatewayManager)
+    public function store(Request $request, PaymentGatewayManager $paymentGatewayManager, CreditApprovalService $creditApprovals)
     {
         $isPayLater = $request->boolean('pay_later');
         $paymentGateway = $isPayLater ? null : $request->input('payment_gateway');
@@ -685,24 +671,10 @@ class TransactionController extends Controller
             bankAccountId: $request->input('bank_account_id'),
         );
 
-        $result = $this->checkoutService->execute($context);
-
-        if ($result->needsDiscountApproval) {
-            $result->transaction->update([
-                'discount_approval_status' => 'pending',
-                'payment_status' => 'pending_approval',
-            ]);
-
-            DiscountApprovalLog::create([
-                'transaction_id' => $result->transaction->id,
-                'cashier_id' => $request->user()->id,
-                'requested_discount' => $result->appliedManualDiscount,
-                'status' => 'pending',
-            ]);
-
-            return redirect()
-                ->route('transactions.print', $result->transaction->invoice)
-                ->with('info', 'Transaksi menunggu approval supervisor.');
+        // "Minta pengecualian" posts the refused sale again with credit_exception: it is then held for an approver.
+        $result = $creditApprovals->checkout($context, $request->boolean('credit_exception'));
+        if (! $result || $result->needsDiscountApproval) {
+            return $this->awaitApproval($result, $request->user()->id);
         }
 
         if ($useTenders) {
@@ -753,6 +725,20 @@ class TransactionController extends Controller
         }
 
         return to_route('transactions.print', $result->transaction->invoice);
+    }
+
+    /** No result: the refused credit sale is held. Otherwise the sale's discount waits for its approver. */
+    private function awaitApproval(?CheckoutResult $result, int $cashierId): RedirectResponse
+    {
+        if (! $result) {
+            return back()->with('success', __('messages.credit.awaiting'));
+        }
+
+        $this->checkoutService->requestDiscountApproval($result, $cashierId);
+
+        return redirect()
+            ->route('transactions.print', $result->transaction->invoice)
+            ->with('info', 'Transaksi menunggu approval supervisor.');
     }
 
     public function print(Request $request, $invoice)

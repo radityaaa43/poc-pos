@@ -30,6 +30,8 @@ class CheckoutContext
         public readonly ?string $clientUuid = null,
         public readonly ?string $syncFingerprint = null,
         public readonly ?array $onlyCartIds = null,
+        // An approver's one-off exception: this sale skips the credit rules. Set by the server only, never from input.
+        public readonly bool $creditApproved = false,
     ) {}
 
     public function isSplit(): bool

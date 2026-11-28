@@ -7,6 +7,7 @@ use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\Transaction;
 use App\Services\AuditLogService;
+use App\Services\CreditApprovalService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,8 +19,10 @@ class DiscountApprovalController extends Controller
         protected readonly OutletAccessService $outletAccessService
     ) {}
 
-    public function pending()
+    /** The approval queue: discounts and credit exceptions, each only for the viewer who may decide it (null: hidden). */
+    public function pending(CreditApprovalService $creditApprovals)
     {
+        $user = request()->user();
         $warehouseIds = $this->outletAccessService->warehousesFor(request()->user())->pluck('id');
         $includeLegacy = Outlet::active()->count() <= 1;
 
@@ -48,7 +51,8 @@ class DiscountApprovalController extends Controller
             ]);
 
         return Inertia::render('Dashboard/DiscountApprovals', [
-            'pendingTransactions' => $pending,
+            'pendingTransactions' => $user->can('discounts-approve') ? $pending : null,
+            'creditRequests' => $user->can('customers-credit-approve') ? $creditApprovals->pendingFor($user) : null,
         ]);
     }
 
