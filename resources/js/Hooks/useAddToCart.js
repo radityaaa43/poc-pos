@@ -2,6 +2,7 @@ import { useState } from "react";
 import { router } from "@inertiajs/react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { withAddOn } from "@/Components/POS/AddOnBanner";
 
 const defaultOptionIds = (groups) =>
     groups.flatMap((group) => group.options.filter((option) => option.is_default && option.available).map((option) => option.id));
@@ -16,7 +17,7 @@ export default function useAddToCart(modifierGroups = {}) {
 
         router.post(
             route("transactions.addToCart"),
-            { product_id: product.id, qty: 1, unit_id: unit ? unit.unit_id : undefined, ...choice },
+            withAddOn({ product_id: product.id, qty: 1, unit_id: unit ? unit.unit_id : undefined, ...choice }),
             {
                 preserveScroll: true,
                 onSuccess: () => {

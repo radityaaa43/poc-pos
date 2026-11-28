@@ -40,7 +40,9 @@ class DineMenuController extends Controller
                     $query->orWhereHas('warehouses', fn ($warehouse) => $warehouse->where('outlet_id', $outlet->id)->where('stock', '>', 0));
                 }
             })
-            ->with('category')
+            ->with(['category', 'components.warehouses' => fn ($warehouses) => $outlet
+                ? $warehouses->where('outlet_id', $outlet->id)->where('warehouses.is_active', true)
+                : $warehouses])
             ->get();
 
         // ponytail: previewProducts() returns arrays keyed by product id (pricing fields only) — merge the effective price back onto model-shaped payloads the menu page expects (id/title/image/category_id/sell_price)
@@ -51,7 +53,7 @@ class DineMenuController extends Controller
         $catalog = ModifierSelection::forPos($products->pluck('id'), $outlet, $this->outletAccessService->outletWarehouseId($outlet));
         $modifierGroups = $catalog->flatten(1)->unique('id')->keyBy('id');
 
-        $products = $products->map(function (Product $product) use ($previews, $catalog) {
+        $products = $products->map(function (Product $product) use ($previews, $catalog, $outlet) {
             $preview = $previews->get($product->id);
 
             return [
@@ -61,6 +63,8 @@ class DineMenuController extends Controller
                 'category_id' => $product->category_id,
                 'sell_price' => (int) ($preview['effective_unit_price'] ?? $product->sell_price),
                 'modifier_group_ids' => collect($catalog->get($product->id, []))->pluck('id')->sort()->values()->all(),
+                // A recipe menu short of ingredients stays on the menu, shown Habis, not hidden (REQ-001 AC-04).
+                'sold_out' => $product->is_composite && $product->stockAtOutlet($outlet) < 1,
             ];
         })->values();
 

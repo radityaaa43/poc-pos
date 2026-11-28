@@ -30,8 +30,10 @@ satuan supplier dan HPP rata-rata per gudang adalah item terpisah (belum dibuat)
 - **AC-03:** Given resep dan produk biasa, when kasir membuka daftar produk POS, then resep tampil
   dengan stok = jumlah porsi yang bisa dibuat dari bahan yang tersedia, produk biasa tampil dengan
   stoknya, dan bahan baku tidak tampil.
-- **AC-04:** Given salah satu bahan resep kurang dari jumlah untuk satu porsi, when daftar produk
-  POS dibaca, then resep itu tidak tampil.
+- **AC-04:** Given salah satu bahan resep kurang dari jumlah untuk satu porsi di gudang itu, when
+  daftar produk POS atau menu QR meja dibaca, then resep itu tetap tampil dengan tanda **Habis** /
+  **Sold out** dan tidak bisa ditambahkan; server tetap menolaknya. (Direvisi 2026-11-28, #512;
+  sebelumnya resep itu tidak tampil.)
 - **AC-05:** Given produk bahan baku, when ditambahkan ke keranjang atau saat checkout
   keranjang yang sudah berisi bahan baku, then ditolak, di POS web maupun API POS.
 - **AC-06:** Given resep di keranjang, when jumlahnya diubah, then keranjang memperbarui jumlah dan
@@ -49,7 +51,8 @@ satuan supplier dan HPP rata-rata per gudang adalah item terpisah (belum dibuat)
 ## Open questions
 
 - Resep yang dijual dari gudang tanpa stok bahan: saat ini tidak tampil (AC-04); belum ada
-  pesan khusus ke kasir.
+  pesan khusus ke kasir. — **Answered** (Business/PM, 2026-11-28): menu tampil **Habis** dan tidak
+  bisa ditambahkan, sama seperti opsi REQ-008 (#512).
 
 ## Delivered by
 

@@ -60,7 +60,8 @@ export default function Index({ orders }) {
             {},
             {
                 onSuccess: () => toast.success("Pesanan diterima."),
-                onError: () => toast.error("Gagal menerima pesanan."),
+                // An add-on to a cancelled order (#251) and an order already processed (#438) are refused with their own message.
+                onError: (errors) => toast.error(errors?.add_on_to ?? errors?.order ?? "Gagal menerima pesanan."),
             }
         );
     };
@@ -87,7 +88,7 @@ export default function Index({ orders }) {
             { reason },
             {
                 onSuccess: () => toast.success("Pesanan ditolak."),
-                onError: () => toast.error("Gagal menolak pesanan."),
+                onError: (errors) => toast.error(errors?.order ?? "Gagal menolak pesanan."),
             }
         );
     };

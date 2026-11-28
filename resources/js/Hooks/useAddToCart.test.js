@@ -63,6 +63,16 @@ describe("useAddToCart", () => {
         expect(router.post).not.toHaveBeenCalled();
         expect(result.current.panel).toBeNull();
     });
+
+    it("forwards the pinned add-on order so the new line joins it", () => {
+        window.history.replaceState({}, "", "/app/transactions?add_on_to=42");
+        const { result } = renderHook(() => useAddToCart(groups));
+
+        act(() => result.current.addToCart({ id: 8, title: "Air" }));
+
+        expect(router.post.mock.calls[0][1]).toMatchObject({ product_id: 8, add_on_to: "42" });
+        window.history.replaceState({}, "", "/");
+    });
 });
 
 describe("modifierLines", () => {

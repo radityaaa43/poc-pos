@@ -31,6 +31,10 @@ One screen for the kitchen: every paid order that still has something to prepare
 - [BR-1] A dine-in order whose items are all unflagged never reaches the kitchen: it is served when paid and completes at once (Pay now here; the Pay-later half lands in ticket #279). A mixed order waits only for its flagged items.
 - Routes: `kitchen.items.start`, `kitchen.items.ready`, `kitchen.orders.all-ready`, `kitchen.items.hand-over`, `kitchen.orders.hand-over-all` (service: `app/Services/KitchenItemService.php`).
 
+## Add-on orders
+
+An add-on order (#251, REQ-003 AC-21; see `docs/features/pos-transactions.md` and `docs/features/dine-in.md`) is a sale of its own: it reaches the display by the payment rule of any sale and shows as its own card, under its own invoice number or the table name.
+
 ## Cancelled items
 
 An item whose sale line was returned (a completed sales return, #241) shows **Dibatalkan**, struck through and without buttons, for 2 minutes after the return (`KitchenItem::onDisplay()`, measured on `updated_at`), then leaves the queue on a later poll. A partial return only lowers the quantity shown. A start or ready tap on a cancelled item answers "Sudah dibatalkan".

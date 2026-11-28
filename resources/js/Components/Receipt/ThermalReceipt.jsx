@@ -1,6 +1,36 @@
 import React from "react";
 import LineModifiers from "@/Components/Modifiers/LineModifiers";
 
+import { useTranslation } from "react-i18next";
+import { billSubtotal, taxLabel } from "@/Utils/billTotals";
+
+const paymentLabels = {
+    cash: "TUNAI",
+    bank_transfer: "TRANSFER BANK",
+    midtrans: "MIDTRANS",
+    xendit: "XENDIT",
+    qris: "QRIS",
+    split: "SPLIT PEMBAYARAN",
+    open_bill: "BELUM DIBAYAR",
+};
+
+/** The payments of a split sale; the cash one also shows what was received and the change. */
+function TenderRows({ tenders, formatPrice }) {
+    return tenders.flatMap((tender) => {
+        const rows = [[paymentLabels[tender.method] || tender.method, tender.amount]];
+        if (tender.method === "cash" && tender.cash_received != null) {
+            rows.push(["Diterima", tender.cash_received], ["Kembali", tender.change]);
+        }
+
+        return rows.map(([label, value]) => (
+            <div key={`${tender.id}-${label}`} className="flex justify-between">
+                <span>{label}</span>
+                <span>{formatPrice(value)}</span>
+            </div>
+        ));
+    });
+}
+
 /**
  * ThermalReceipt - Receipt template optimized for thermal printers (58mm/80mm)
  *
@@ -19,6 +49,7 @@ export default function ThermalReceipt({
     storeEmail = "",
     storeWebsite = "",
 }) {
+    const { t } = useTranslation();
     const formatPrice = (price = 0) => {
         return "Rp " + Number(price || 0).toLocaleString("id-ID");
     };
@@ -44,29 +75,13 @@ export default function ThermalReceipt({
     );
 
     // Calculate totals
-    const subtotal =
-        (transaction?.grand_total || 0) +
-        (transaction?.discount || 0) -
-        (transaction?.shipping_cost || 0) -
-        (transaction?.tax_total || 0) +
-        promoDiscount +
-        loyaltyDiscount +
-        voucherDiscount;
+    const subtotal = billSubtotal(transaction, { promo: promoDiscount, loyalty: loyaltyDiscount, voucher: voucherDiscount });
     const discount = transaction?.discount || 0;
     const total = transaction?.grand_total || 0;
     const shipping = transaction?.shipping_cost || 0;
     const cash = transaction?.cash || 0;
     const change = transaction?.change || 0;
 
-    const paymentLabels = {
-        cash: "TUNAI",
-        bank_transfer: "TRANSFER BANK",
-        midtrans: "MIDTRANS",
-        xendit: "XENDIT",
-        qris: "QRIS",
-        split: "SPLIT PEMBAYARAN",
-        open_bill: "BELUM DIBAYAR",
-    };
     const paymentMethod =
         paymentLabels[transaction?.payment_method?.toLowerCase()] || "TUNAI";
 
@@ -208,9 +223,15 @@ export default function ThermalReceipt({
                         <span>{formatPrice(shipping)}</span>
                     </div>
                 )}
+                {Number(transaction?.service_charge || 0) > 0 && (
+                    <div className="flex justify-between">
+                        <span>{t("pos.bill.serviceCharge")}</span>
+                        <span>{formatPrice(transaction.service_charge)}</span>
+                    </div>
+                )}
                 {Number(transaction?.tax_total || 0) > 0 && (
                     <div className="flex justify-between">
-                        <span>PPN {Number(transaction?.tax_rate || 11).toFixed(0)}%</span>
+                        <span>{taxLabel(transaction, t, { withPpnRate: true })}</span>
                         <span>{formatPrice(transaction?.tax_total)}</span>
                     </div>
                 )}
@@ -231,12 +252,7 @@ export default function ThermalReceipt({
             {/* Payment Info */}
             <div className="my-1">
                 {transaction?.tenders?.length > 0 ? (
-                    transaction.tenders.map((tender) => (
-                        <div key={tender.id} className="flex justify-between">
-                            <span>{paymentLabels[tender.method] || tender.method}</span>
-                            <span>{formatPrice(tender.amount)}</span>
-                        </div>
-                    ))
+                    <TenderRows tenders={transaction.tenders} formatPrice={formatPrice} />
                 ) : (
                     <>
                         <div className="flex justify-between">
@@ -293,6 +309,7 @@ export function ThermalReceipt58mm({
     storeEmail = "",
     storeWebsite = "",
 }) {
+    const { t } = useTranslation();
     const formatPrice = (price = 0) => {
         return "Rp" + Number(price || 0).toLocaleString("id-ID");
     };
@@ -387,13 +404,7 @@ export function ThermalReceipt58mm({
                 <span>Subtotal</span>
                 <span>
                     {formatPrice(
-                        (transaction?.grand_total || 0) +
-                            (transaction?.discount || 0) -
-                            (transaction?.shipping_cost || 0) -
-                            (transaction?.tax_total || 0) +
-                            promoDiscount +
-                            loyaltyDiscount +
-                            voucherDiscount
+                        billSubtotal(transaction, { promo: promoDiscount, loyalty: loyaltyDiscount, voucher: voucherDiscount })
                     )}
                 </span>
             </div>
@@ -427,9 +438,15 @@ export function ThermalReceipt58mm({
                     <span>{formatPrice(transaction?.shipping_cost)}</span>
                 </div>
             )}
+            {Number(transaction?.service_charge || 0) > 0 && (
+                <div className="flex justify-between">
+                    <span>{t("pos.bill.serviceCharge")}</span>
+                    <span>{formatPrice(transaction.service_charge)}</span>
+                </div>
+            )}
             {Number(transaction?.tax_total || 0) > 0 && (
                 <div className="flex justify-between">
-                    <span>PPN</span>
+                    <span>{taxLabel(transaction, t)}</span>
                     <span>{formatPrice(transaction?.tax_total)}</span>
                 </div>
             )}
@@ -444,12 +461,7 @@ export function ThermalReceipt58mm({
                 </div>
             )}
             {transaction?.tenders?.length > 0 ? (
-                transaction.tenders.map((tender) => (
-                    <div key={tender.id} className="flex justify-between">
-                        <span>{paymentLabels[tender.method] || tender.method}</span>
-                        <span>{formatPrice(tender.amount)}</span>
-                    </div>
-                ))
+                <TenderRows tenders={transaction.tenders} formatPrice={formatPrice} />
             ) : (
                 <>
                     <div className="flex justify-between">

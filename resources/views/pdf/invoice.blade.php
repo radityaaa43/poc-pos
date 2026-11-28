@@ -275,7 +275,7 @@
         $loyaltyDiscount = $transaction->loyalty_discount_total ?? 0;
         $shipping = $transaction->shipping_cost ?? 0;
         $grandTotal = $transaction->grand_total ?? 0;
-        $subtotal = $grandTotal + $discount - $shipping + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
+        $subtotal = $grandTotal + $discount - $shipping - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0) + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
     @endphp
 
     <table style="width:100%; margin-top:8px;">
@@ -323,9 +323,17 @@
                             + {{ number_format($shipping, 0, ',', '.') }}
                         </td>
                     </tr>
+                    @if ($transaction->service_charge > 0)
+                        <tr>
+                            <td style="color:#475569;">{{ __('pdf/labels.receipt.service_charge') }}</td>
+                            <td class="right" style="font-weight:600;">
+                                + {{ number_format($transaction->service_charge, 0, ',', '.') }}
+                            </td>
+                        </tr>
+                    @endif
                     @if (($transaction->tax_total ?? 0) > 0)
                         <tr>
-                            <td style="color:#475569;">PPN {{ number_format($transaction->tax_rate ?? 11, 0) }}%</td>
+                            <td style="color:#475569;">{{ $transaction->pb1Label() ?? 'PPN '.number_format($transaction->tax_rate ?? 11, 0).'%' }}</td>
                             <td class="right" style="font-weight:600;">
                                 + {{ number_format($transaction->tax_total, 0, ',', '.') }}
                             </td>

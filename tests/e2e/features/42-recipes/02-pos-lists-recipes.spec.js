@@ -20,7 +20,7 @@ test.describe('42-recipes', () => {
         await expect(page.getByRole('heading', { name: bean })).toHaveCount(0);
     });
 
-    test('a recipe missing one portion of an ingredient is not listed', { tag: ['@REQ-001-AC-04'] }, async ({ asRole, arrange, uniq }) => {
+    test('a recipe missing one portion is listed as Habis and cannot be added', { tag: ['@REQ-001-AC-04'] }, async ({ asRole, arrange, uniq }) => {
         const prefix = uniq('Hbs');
         // 10 g of beans is less than the 18 g one portion needs.
         const { recipe, regular } = arrange('inventory.recipe', { prefix, beans: 10, regular: 4 });
@@ -30,7 +30,11 @@ test.describe('42-recipes', () => {
         await page.goto('/dashboard/transactions');
         await posSearch(page, prefix);
 
+        // Shown, greyed with Habis, instead of vanishing (REQ-001 AC-04).
+        const recipeCard = card(page, recipe);
+        await expect(recipeCard).toBeVisible();
+        await expect(recipeCard).toContainText('Habis');
+        await expect(recipeCard.getByRole('button').first()).toBeDisabled();
         await expect(card(page, regular)).toBeVisible();
-        await expect(page.getByRole('heading', { name: recipe })).toHaveCount(0);
     });
 });

@@ -2,14 +2,17 @@
 
 namespace App\Services;
 
+use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
+use App\Models\Receivable;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class TransactionTenderService
@@ -204,19 +207,29 @@ class TransactionTenderService
 
     /**
      * Mark the transfer tender paid, then store and return the sale's new status: a split sale with another pending
-     * tender (a gateway) stays pending. Under the sale's row lock, because a shift close or the expiry command may have
-     * cancelled it since the page was read.
+     * tender (a gateway) stays pending. Under the sale's row lock, because a shift close, the expiry command or a return
+     * may have changed it since the page was read. Locks in the webhook's order
+     * (PaymentWebhookController::applyNotification): shift (shared), dine order (marking the bill paid may complete it),
+     * receivable, sale.
      */
     public function confirmTransfer(Transaction $transaction): string
     {
         return DB::transaction(function () use ($transaction) {
-            // The dine order first, as in a shift close: marking the bill paid may complete it.
+            CashierShift::whereKey($transaction->cashier_shift_id)->sharedLock()->value('id');
             DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->first();
-            $status = Transaction::whereKey($transaction->id)->lockForUpdate()->value('payment_status');
+            Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->value('id'); // no row is fine
+            $bill = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
 
-            if (! in_array($status, ['pending', 'pending_approval'], true)) {
+            // A sale that moved to another shift meanwhile is refused too: that shift is not the one locked.
+            if (! in_array($bill->payment_status, ['pending', 'pending_approval'], true)
+                || $bill->cashier_shift_id !== $transaction->cashier_shift_id) {
                 throw ValidationException::withMessages(['payment' => 'Status transaksi tidak dapat dikonfirmasi saat ini.']);
             }
+
+            // What this confirmation collects, read before it does: what the sale was asked (a return recorded while it
+            // waited changes nothing, #405) less the parts already received.
+            $owed = max(0, $transaction->amountDue()
+                - (int) $transaction->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
 
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
@@ -225,24 +238,105 @@ class TransactionTenderService
             $tenders = $transaction->tenders()->get();
             $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
 
-            $this->flagIfBookedAtClose($transaction, $newStatus);
+            // A plain read after the sale's lock: a close that held the sale has committed and is seen; one still waiting
+            // for it counts this payment in its recap.
+            $this->flagPaidAfterClose($transaction, CashierShift::find($transaction->cashier_shift_id), $newStatus, $owed);
             $transaction->update(['payment_status' => $newStatus]);
+
+            if ($newStatus === 'paid') {
+                // Without tenders, the transfer asked the grand total at checkout, or what a retry asked then.
+                $asked = $bill->payment_attempt
+                    ? AuditLog::where('event', 'transaction.payment_retried')
+                        ->where('auditable_type', $bill->getMorphClass())
+                        ->where('auditable_id', $bill->id)
+                        ->latest('id')
+                        ->first()?->meta['amount'] ?? null
+                    : (int) $bill->grand_total;
+
+                $this->flagOverpayment($bill, $asked, ['source' => 'transfer']);
+            }
 
             return $newStatus;
         });
     }
 
     /**
+     * Money taken beyond what a sale owes after its returns (#444): kept in overpaid_amount, which the shift recap leaves
+     * out, and marked "Bayar ganda — refund manual". A credit sale is left to its receivable. Call it with the sale
+     * locked, from the payment that has just made it paid: a repeat of that payment is refused or ignored before this.
+     *
+     * @param  ?int  $untendered  what a sale without tenders was paid; null when unknown, then nothing is flagged
+     * @param  array<string, string>  $meta  the source (gateway or transfer) and the gateway order id
+     */
+    public function flagOverpayment(Transaction $bill, ?int $untendered, array $meta): void
+    {
+        if ($bill->receivable()->exists()) {
+            return;
+        }
+
+        $tenders = $bill->tenders()->get();
+        $settled = $tenders->isEmpty()
+            ? $untendered
+            : (int) $tenders->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount');
+        $owed = $bill->owedAfterReturns();
+
+        if ($settled === null || $settled <= $owed) {
+            return;
+        }
+
+        $excess = $settled - $owed;
+        $bill->update([
+            'overpaid_amount' => $bill->overpaid_amount + $excess,
+            'late_superseded_payment_at' => $bill->late_superseded_payment_at ?? now(),
+        ]);
+
+        app(AuditLogService::class)->log(
+            event: 'payment.overpaid_after_return',
+            module: 'transactions',
+            auditable: $bill,
+            description: "Pembayaran invoice {$bill->invoice} melebihi sisa tagihan setelah retur; kelebihan Rp ".number_format($excess, 0, ',', '.').' perlu refund manual.',
+            // shift_open is decided now, under the shift's lock: the sale page picks the cash line by it (BR-6).
+            meta: [
+                'settled' => $settled,
+                'owed' => $owed,
+                'excess' => $excess,
+                'cash_excess' => $bill->cashExcess(),
+                'shift_open' => CashierShift::whereKey($bill->cashier_shift_id)->open()->exists(),
+                ...$meta,
+            ],
+        );
+
+        Log::warning('Payment beyond what the sale owed after returns', ['invoice' => $bill->invoice, 'excess' => $excess]);
+    }
+
+    /**
      * A bill a forced close booked as a shortfall is in no recap of that shift (REQ-003 BR-16): paid by a later
      * confirmation it stays on the shift, so it is marked "Dibayar setelah shift ditutup", as a gateway payment is.
      */
-    private function flagIfBookedAtClose(Transaction $transaction, string $newStatus): void
-    {
-        $shift = CashierShift::find($transaction->cashier_shift_id);
+    public function flagPaidAfterClose(
+        Transaction $transaction,
+        ?CashierShift $shift,
+        string $newStatus,
+        int $owed,
+        ?string $methodBefore = null,
+    ): void {
+        if ($newStatus !== 'paid') {
+            return;
+        }
 
-        if ($newStatus !== 'paid' || ! $shift || $shift->isOpen() || $shift->unpaid_bills_total === 0
-            || (! $transaction->is_pay_later && ! $transaction->dineOrder()->exists())
-            || $transaction->receivable()->exists()) {
+        if (! $shift || $shift->isOpen()) {
+            $shift = CashierShiftService::forcedCloseThatBooked($transaction);
+        }
+
+        if (! $shift) {
+            return;
+        }
+
+        $booked = $shift->unpaid_bills_total > 0
+            && ($transaction->is_pay_later || $transaction->dineOrder()->exists())
+            && ! $transaction->receivable()->exists();
+
+        if (! $booked && CashierShiftService::countedInClosedRecap($transaction, $methodBefore)) {
             return;
         }
 
@@ -252,8 +346,8 @@ class TransactionTenderService
             event: 'payment.paid_after_close',
             module: 'transactions',
             auditable: $transaction,
-            description: "Pembayaran invoice {$transaction->invoice} dikonfirmasi setelah shift ditutup.",
-            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice],
+            description: "Invoice {$transaction->invoice} dibayar setelah shift ditutup; rekap shift tidak berubah.",
+            meta: ['shift_id' => $shift->id, 'invoice' => $transaction->invoice, 'amount' => $owed],
         );
     }
 

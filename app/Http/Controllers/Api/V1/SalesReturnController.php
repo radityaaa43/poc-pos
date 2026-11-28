@@ -7,11 +7,11 @@ use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Http\Traits\ApiResponder;
 use App\Models\CustomerCredit;
-use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Services\KitchenItemService;
+use App\Services\SalesReturnRestockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -90,13 +90,13 @@ class SalesReturnController extends AppsSalesReturnController
 
     /**
      * POST /api/v1/sales-returns
-     * Create a draft sales return.
+     * Create a draft sales return for the sale in `transaction_id`.
      */
-    public function createReturn(StoreSalesReturnRequest $request, Transaction $transaction): JsonResponse
+    public function createReturn(StoreSalesReturnRequest $request): JsonResponse
     {
         $this->ensureSalesReturnTablesExist();
 
-        $transaction = $this->resolveAccessibleTransaction($request, $transaction->id);
+        $transaction = $this->resolveAccessibleTransaction($request, (int) $request->validated('transaction_id'));
         $payload = $this->prepareDraftPayload($transaction, $request->validated());
 
         $salesReturn = DB::transaction(function () use ($request, $transaction, $payload) {
@@ -145,6 +145,9 @@ class SalesReturnController extends AppsSalesReturnController
         $payload = $this->prepareDraftPayload($salesReturn->transaction, $request->validated(), $salesReturn->id);
 
         DB::transaction(function () use ($salesReturn, $payload) {
+            // A completion may have committed since the draft was read: lock it and check again before rewriting it.
+            $this->ensureDraft(SalesReturn::whereKey($salesReturn->id)->lockForUpdate()->firstOrFail());
+
             $salesReturn->update([
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
@@ -225,7 +228,11 @@ class SalesReturnController extends AppsSalesReturnController
             $returnedQtyMap = $this->getCompletedReturnedQtyMap(
                 $salesReturn->transaction_id,
                 excludeSalesReturnId: $salesReturn->id,
+                locking: true,
             );
+
+            // Summed per sale line: a draft saved with a line twice may not return more than was sold.
+            $requested = collect($salesReturn->getRelationValue('items'))->groupBy('transaction_detail_id')->map->sum('qty_return');
 
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
@@ -239,7 +246,7 @@ class SalesReturnController extends AppsSalesReturnController
                 $returnedBefore = (int) ($returnedQtyMap[$detail->id] ?? 0);
                 $remainingQty = (int) $detail->qty - $returnedBefore;
 
-                if ($item->qty_return > $remainingQty) {
+                if ($requested[$detail->id] > $remainingQty) {
                     throw ValidationException::withMessages([
                         'sales_return' => 'Ada item retur yang melebihi sisa qty yang bisa diretur.',
                     ]);
@@ -248,34 +255,6 @@ class SalesReturnController extends AppsSalesReturnController
 
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
-                $baseQty = (int) round((int) $item->qty_return * (float) ($detail->conversion_factor ?? 1));
-
-                if ($item->restock_to_inventory && $item->product) {
-                    $product = $item->product()->lockForUpdate()->first();
-
-                    if ($product) {
-                        $stockBefore = (int) $product->stock;
-                        $stockAfter = $stockBefore + $baseQty;
-
-                        $product->update(['stock' => $stockAfter]);
-
-                        if ($transactionWarehouseId = $salesReturn->transaction->warehouse_id) {
-                            ProductWarehouse::where([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $transactionWarehouseId,
-                            ])->increment('stock', $baseQty);
-                        }
-
-                        $this->stockMutationService->recordSalesReturnRestock(
-                            product: $product,
-                            salesReturn: $salesReturn,
-                            stockBefore: $stockBefore,
-                            stockAfter: $stockAfter,
-                            reason: $item->return_reason,
-                            userId: $request->user()?->id,
-                        );
-                    }
-                }
 
                 $margin = $detail->returnMargin((int) $item->qty_return);
 
@@ -284,6 +263,8 @@ class SalesReturnController extends AppsSalesReturnController
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
@@ -330,7 +311,7 @@ class SalesReturnController extends AppsSalesReturnController
                     'notes' => 'Saldo toko dari retur penjualan '.$salesReturn->code,
                 ]);
             }
-        });
+        }, 3); // retried on a deadlock: the restock locks stock by product id, a checkout in cart order
 
         $salesReturn->refresh();
         $salesReturn->load('items.product');

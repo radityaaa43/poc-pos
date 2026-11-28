@@ -8,6 +8,7 @@ use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
+use App\Models\DineReservation;
 use App\Models\DiningTable;
 use App\Models\ModifierOption;
 use App\Models\Outlet;
@@ -60,6 +61,23 @@ class DineIn
                 ];
             },
 
+            // A reservation in the E2E outlet, bypassing the clash check: --arg=table_id=<id> --arg=name=<guest>,
+            // --arg=days=<offset from today> --arg=time=<H:i> --arg=phone=<number>.
+            'dine.reservation' => function (array $options): array {
+                $at = now()->addDays((int) ($options['days'] ?? 0))->setTimeFromTimeString($options['time'] ?? '12:00');
+                $reservation = DineReservation::create([
+                    'outlet_id' => Outlet::where('code', E2eSeeder::OUTLET_CODE)->firstOrFail()->id,
+                    'dine_table_id' => $options['table_id'],
+                    'guest_name' => $options['name'],
+                    'phone' => $options['phone'] ?? '0812 0000 0000',
+                    'party_size' => 2,
+                    'reserved_at' => $at,
+                    'status' => 'booked',
+                ]);
+
+                return ['reservation_id' => $reservation->id, 'date' => $at->format('Y-m-d')];
+            },
+
             // A submitted guest order: --arg=token=<table token> --arg=product_id=<id> --arg=qty=<n> --arg=notes=<text>
             // and --arg=option=pay_later (default pay_at_counter), which skips the outlet setting the menu button needs.
             // --arg=modifier_option_ids=1,2 and --arg=note=<text> put a chosen option and note on the line (REQ-008 T4).
@@ -94,7 +112,8 @@ class DineIn
             // a warehouse, a table, a cashier with an open shift there, one product (10000, stock 20) and a submitted
             // order of --arg=qty (default 2). --arg=accepted=1 (default) accepts it through the real service, 0 leaves it submitted.
             // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen;
-            // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only).
+            // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only), and
+            // --arg=returns=1 lets her record and complete sales returns too.
             // --arg=pay_later=1 makes it a Bayar Belakangan order: accepting puts it in the kitchen while unpaid.
             // Returns access_token, table_token (the table's menu), invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
             'dine.bill' => function (array $options): array {
@@ -136,6 +155,9 @@ class DineIn
                         $cashier->update(['completed_tours' => TourController::TOURS]); // else a tour overlay blocks clicks
                         $cashier->syncPermissions(['dashboard-access', 'transactions-access', 'dine-orders-process', 'cashier-shifts-access', 'cashier-shifts-close', 'reports-access']);
                         $cashier->outlets()->sync([$outlet->id => ['is_default' => true]]);
+                    }
+                    if (($options['returns'] ?? '0') === '1') {
+                        $cashier->givePermissionTo(['sales-returns-access', 'sales-returns-create', 'sales-returns-complete']);
                     }
 
                     $product = Product::create([
@@ -225,6 +247,7 @@ class DineIn
                     'payment_reference' => $transaction?->payment_reference,
                     'late_superseded_payment_at' => $transaction?->late_superseded_payment_at?->toIso8601String(),
                     'paid_after_close_at' => $transaction?->paid_after_close_at?->toIso8601String(),
+                    'overpaid_amount' => $transaction?->overpaid_amount,
                     'shift_id' => $transaction?->cashier_shift_id,
                     // How many audit entries of each event the bill has (a step checks "once", not "some").
                     'audit' => $transaction

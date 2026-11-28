@@ -6,7 +6,6 @@ use App\Models\Customer;
 use App\Models\CustomerVoucher;
 use App\Models\LoyaltyPointHistory;
 use App\Models\Outlet;
-use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Carbon\CarbonInterface;
@@ -203,45 +202,19 @@ class LoyaltyService
 
         $afterLoyalty = max(0, $afterVoucher - $pointsDiscount);
         $manualDiscountApplied = min($manualDiscountRequested, $afterLoyalty);
-        $baseGrandTotal = max(0, $afterLoyalty - $manualDiscountApplied + $shippingCost);
 
-        // Calculate tax
-        $taxService = app(TaxService::class);
-        $defaultTaxRate = $taxService->getDefaultRate($outlet);
-        $items = data_get($pricingPreview, 'items', []);
-        $productIds = collect($items)->pluck('product_id')->filter()->unique()->values();
-        $productTaxes = Product::whereIn('id', $productIds)->pluck('tax_rate', 'id');
-        $productTaxTypes = Product::whereIn('id', $productIds)->pluck('tax_type', 'id');
-
-        $effectiveRate = 0;
-        $taxTotal = 0;
-        $taxableItems = [];
-
-        foreach ($items as $item) {
-            $pid = $item['product_id'] ?? null;
-            $lineTotal = (int) ($item['line_total'] ?? 0);
-            if ($pid && $lineTotal > 0) {
-                $rate = (float) ($productTaxes[$pid] ?? $defaultTaxRate);
-                $type = $productTaxTypes[$pid] ?? 'exclusive';
-                $taxResult = $taxService->calculateLineItem($lineTotal, $type, $rate);
-                $taxTotal += $taxResult['tax_amount'];
-                if ($rate > 0) {
-                    $effectiveRate = $rate;
-                }
-                $taxableItems[] = ['product_id' => $pid, 'line_total' => $lineTotal, 'tax_amount' => $taxResult['tax_amount']];
-            }
-        }
-
-        // Also tax shipping if needed (simple: apply effective tax rate)
-        if ($shippingCost > 0 && $effectiveRate > 0) {
-            $shippingTax = (int) round($shippingCost * $effectiveRate / 100);
-            $taxTotal += $shippingTax;
-        }
-
-        $grandTotal = $baseGrandTotal + $taxTotal;
+        $billTotals = app(BillTotalService::class);
+        $bill = $billTotals->compute(
+            $outlet,
+            $billTotals->taxLines(data_get($pricingPreview, 'items', []), $outlet),
+            $afterLoyalty - $manualDiscountApplied,
+            $shippingCost,
+            // Only a dine-in sale carries the service charge; an API client without an order type is not one.
+            ($options['order_type'] ?? null) === 'in_store',
+        );
         $pointsEarnedPreview = $this->calculateEarnPoints(
             $customer,
-            max(0, $grandTotal - $shippingCost),
+            max(0, $bill['grand_total'] - $shippingCost),
             $settings
         );
 
@@ -258,9 +231,8 @@ class LoyaltyService
                 'loyalty_discount_total' => $pointsDiscount,
                 'manual_discount_total' => $manualDiscountApplied,
                 'shipping_cost' => $shippingCost,
-                'tax_total' => $taxTotal,
-                'tax_rate' => $effectiveRate ?: null,
-                'grand_total' => $grandTotal,
+                // service_charge, tax_kind, tax_total, tax_rate, tax_base, grand_total and bill_basis
+                ...$bill,
                 'available_loyalty_points' => $availablePoints,
                 'requested_redeem_points' => $requestedRedeemPoints,
                 'applied_redeem_points' => $appliedRedeemPoints,

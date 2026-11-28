@@ -450,6 +450,7 @@ class KitchenReturnTest extends TestCase
         $receivableLock = $first('/^select \* from [`"]receivables[`"] where [`"]receivables[`"]\.[`"]id[`"] =/');
         $this->assertLessThan($receivableLock, $dineLock);
         $this->assertLessThan($marker - 1, $receivableLock);
+        $this->assertLessThan($first('/^update [`"]product(s|_warehouse)[`"]/'), $marker); // the sale before any stock row (#251)
         $this->assertMatchesRegularExpression('/^select \* from [`"]transactions[`"]/', $queries[$marker - 1]);
         if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
             $this->assertStringContainsString('for update', $queries[$dineLock]);

@@ -10,13 +10,13 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
-import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
     HoldButton,
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
+import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import ModifierPanel from "@/Components/POS/ModifierPanel";
@@ -24,6 +24,9 @@ import LineModifiers from "@/Components/Modifiers/LineModifiers";
 import useAddToCart from "@/Hooks/useAddToCart";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
+import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
+import OrderTypeLock from "@/Components/POS/OrderTypeLock";
+import usePosShortcuts from "@/Hooks/usePosShortcuts";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -169,7 +172,7 @@ export default function Index({
                 if (product.stock > 0) {
                     if (handleAddToCart(product)) toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
-                    toast.error(`${product.title} stok habis`);
+                    toast.error(`${product.title} ${i18n.t("common.soldOut")}`);
                 }
             } else {
                 toast.error(`Produk tidak ditemukan: ${barcode}`);
@@ -208,10 +211,6 @@ export default function Index({
     );
     const loyaltyDiscount = useMemo(
         () => Number(pricingPreview?.summary?.loyalty_discount_total ?? 0),
-        [pricingPreview]
-    );
-    const taxTotal = useMemo(
-        () => Number(pricingPreview?.summary?.tax_total ?? 0),
         [pricingPreview]
     );
     const subtotal = useMemo(
@@ -279,6 +278,7 @@ export default function Index({
                 shipping_cost: shipping,
                 redeem_points: Number(redeemPointsInput || 0),
                 customer_voucher_id: selectedVoucherId || null,
+                order_type: orderType,
             })
             .then((response) => {
                 if (!cancelled) {
@@ -306,6 +306,7 @@ export default function Index({
         shipping,
         redeemPointsInput,
         selectedVoucherId,
+        orderType,
     ]);
 
     useEffect(() => {
@@ -363,6 +364,10 @@ export default function Index({
         [activeSplitTenders]
     );
     const splitRemaining = payable - splitTotal;
+    // The change due: in split mode it is summed over every cash tender (#501).
+    const cashTenders = activeSplitTenders.filter((t) => t.method === "cash");
+    const change = splitMode ? cashTenders.reduce((sum, t) => sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0), 0) : Math.max(cash - payable, 0);
+    const showsChange = splitMode ? change > 0 : cash >= payable && payable > 0;
     const updateSplitTender = (index, patch) =>
         setSplitTenders((prev) =>
             prev.map((tender, i) =>
@@ -375,12 +380,12 @@ export default function Index({
     };
 
     const handleOpenShift = () => {
-        router.post(route("cashier-shifts.store"), {
+        router.post(route("cashier-shifts.store"), withAddOn({
             opening_cash: Number(openingCashInput || 0),
             notes: shiftNotesInput,
             warehouse_id: shiftWarehouseId || undefined,
             redirect_to: "transactions",
-        });
+        }));
     };
 
     // Handle update cart quantity
@@ -587,50 +592,45 @@ export default function Index({
     }, [flushPendingTransactions]);
 
     // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // Don't trigger if user is typing in an input
-            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
-                return;
+    usePosShortcuts((e) => {
+        // Don't trigger if user is typing in an input
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+            return;
 
-            switch (e.key) {
-                case "/":
-                case "F5":
-                    e.preventDefault();
-                    // Focus search input
-                    if (searchInputRef.current) {
-                        searchInputRef.current.focus();
-                    }
-                    break;
-                case "F1":
-                    e.preventDefault();
-                    setNumpadOpen(true);
-                    break;
-                case "F2":
-                    e.preventDefault();
-                    if (carts.length > 0) handleSubmitTransaction();
-                    break;
-                case "F3":
-                    e.preventDefault();
-                    setMobileView(
-                        mobileView === "products" ? "cart" : "products"
-                    );
-                    break;
-                case "F4":
-                    e.preventDefault();
-                    setShowShortcuts(!showShortcuts);
-                    break;
-                case "Escape":
-                    setNumpadOpen(false);
-                    setShowShortcuts(false);
-                    setSearchQuery("");
-                    break;
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [carts, selectedCustomer, mobileView, showShortcuts]);
+        switch (e.key) {
+            case "/":
+            case "F5":
+                e.preventDefault();
+                // Focus search input
+                if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+                break;
+            case "F1":
+                e.preventDefault();
+                setNumpadOpen(true);
+                break;
+            case "F2":
+                e.preventDefault();
+                if (carts.length > 0 && !isSubmitting && !isLoadingPricing) handleSubmitTransaction();
+                break;
+            case "F3":
+                e.preventDefault();
+                setMobileView(
+                    mobileView === "products" ? "cart" : "products"
+                );
+                break;
+            case "F4":
+                e.preventDefault();
+                setShowShortcuts(!showShortcuts);
+                break;
+            case "Escape":
+                setNumpadOpen(false);
+                setShowShortcuts(false);
+                setSearchQuery("");
+                break;
+        }
+    });
 
     // Handle remove from cart
     const handleRemoveFromCart = (cartId) => {
@@ -704,13 +704,8 @@ export default function Index({
                 toast.error("Pilih rekening bank tujuan untuk tender transfer");
                 return;
             }
-            const cashTender = activeSplitTenders.find(
-                (t) => t.method === "cash"
-            );
-            if (
-                cashTender &&
-                Number(cashTender.cash_received || 0) < Number(cashTender.amount)
-            ) {
+            // Any cash tender paid with less than its amount is refused; blank falls back to the amount (#497, #501).
+            if (cashTenders.some((t) => Number(t.cash_received || t.amount) < Number(t.amount))) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
             }
@@ -719,12 +714,11 @@ export default function Index({
         setIsSubmitting(true);
 
         // The offline queue carries no options or notes: queuing such a line would sell it without them.
-        if (!navigator.onLine && (splitMode || payLater || carts.some((item) => item.line_key))) {
-            toast.error(
-                splitMode
-                    ? "Split pembayaran tidak tersedia saat offline"
-                    : i18n.t(payLater ? "pos.payLater.offline" : "pos.modifiers.offline")
-            );
+        const refusal = !navigator.onLine &&
+            (offlineRefusal(splitMode, payLater) ||
+                (carts.some((item) => item.line_key) ? i18n.t("pos.modifiers.offline") : null));
+        if (refusal) {
+            toast.error(refusal);
             setIsSubmitting(false);
             return;
         }
@@ -767,7 +761,7 @@ export default function Index({
 
         router.post(
             route("transactions.store"),
-            {
+            withAddOn({
                 customer_id: selectedCustomer?.id ?? null,
                 discount,
                 redeem_points: Number(redeemPointsInput || 0),
@@ -791,13 +785,8 @@ export default function Index({
                                   : null,
                       }))
                     : null,
-                payment_gateway: splitMode
-                    ? null
-                    : payLater
-                      ? null
-                      : isCashPayment
-                        ? null
-                        : paymentMethod,
+                payment_gateway:
+                    splitMode || payLater || isCashPayment ? null : paymentMethod,
                 bank_account_id: isBankTransfer
                     ? selectedBankAccount?.id
                     : null,
@@ -805,9 +794,12 @@ export default function Index({
                 due_date: dueDate,
                 order_type: orderType,
                 note: orderNote || null,
-            },
+            }),
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    setIsSubmitting(false);
+                    // Only a saved sale flashes success. A refusal also lands here, and keeps the form (#473).
+                    if (!page.props.flash?.success) return;
                     setDiscountInput("");
                     setRedeemPointsInput("");
                     setCashInput("");
@@ -821,13 +813,12 @@ export default function Index({
                     setDueDate("");
                     setOrderType("in_store");
                     setOrderNote("");
-                    setIsSubmitting(false);
-                    toast.success("Transaksi berhasil!");
+                    toast.success(page.props.flash.success);
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.modifiers || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.modifiers || errors?.add_on_to || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1038,6 +1029,7 @@ export default function Index({
                         />
                     </div>
 
+                    <AddOnBanner />
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 
                     {/* Held Transactions & Alerts */}
@@ -1247,7 +1239,7 @@ export default function Index({
                                     Detail Pesanan
                                 </p>
 
-                                <div>
+                                <OrderTypeLock>
                                     <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
                                         Tipe Pesanan
                                     </label>
@@ -1271,7 +1263,7 @@ export default function Index({
                                             </button>
                                         ))}
                                     </div>
-                                </div>
+                                </OrderTypeLock>
 
                                 {isDelivery && (
                                     <div>
@@ -1709,7 +1701,7 @@ export default function Index({
                                     </div>
 
                                     <div className={`flex items-center justify-between rounded-xl p-3 ${
-                                        cash >= payable && payable > 0
+                                        showsChange
                                             ? "bg-success-100/70 dark:bg-success-950/30"
                                             : "bg-white/70 dark:bg-slate-900/50"
                                     }`}>
@@ -1717,11 +1709,11 @@ export default function Index({
                                             Kembalian
                                         </span>
                                         <span className={`text-lg font-bold ${
-                                            cash >= payable && payable > 0
+                                            showsChange
                                                 ? "text-success-600 dark:text-success-400"
                                                 : "text-slate-400"
                                         }`}>
-                                            {formatPrice(Math.max(cash - payable, 0))}
+                                            {formatPrice(change)}
                                         </span>
                                     </div>
                                 </div>
@@ -1872,48 +1864,14 @@ export default function Index({
                                 </div>
                             </div>
                         )}
-                        {voucherDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Voucher</span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(voucherDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {loyaltyDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">
-                                    Redeem Poin
-                                </span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(loyaltyDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {discount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Diskon Manual</span>
-                                <span className="text-danger-500">
-                                    -{formatPrice(discount)}
-                                </span>
-                            </div>
-                        )}
-                        {shipping > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Ongkir</span>
-                                <span className="font-medium">
-                                    +{formatPrice(shipping)}
-                                </span>
-                            </div>
-                        )}
-                        {taxTotal > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">PPN</span>
-                                <span className="font-medium">
-                                    +{formatPrice(taxTotal)}
-                                </span>
-                            </div>
-                        )}
+                        <CheckoutSummaryRows
+                            voucher={voucherDiscount}
+                            loyalty={loyaltyDiscount}
+                            discount={discount}
+                            shipping={shipping}
+                            bill={pricingPreview?.summary ?? {}}
+                            format={formatPrice}
+                        />
                         <div className="flex justify-between items-center mb-3">
                             <span className="font-semibold text-slate-800 dark:text-white">
                                 Total
@@ -1923,19 +1881,16 @@ export default function Index({
                             </span>
                         </div>
 
-                        {paymentMethod === "cash" &&
-                            !payLater &&
-                            cash >= payable &&
-                            payable > 0 && (
-                                <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
-                                    <span className="text-sm text-success-700 dark:text-success-400">
-                                        Kembalian
-                                    </span>
-                                    <span className="font-bold text-success-600">
-                                        {formatPrice(cash - payable)}
-                                    </span>
-                                </div>
-                            )}
+                        {(splitMode || paymentMethod === "cash") && !payLater && showsChange && (
+                            <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
+                                <span className="text-sm text-success-700 dark:text-success-400">
+                                    Kembalian
+                                </span>
+                                <span className="font-bold text-success-600">
+                                    {formatPrice(change)}
+                                </span>
+                            </div>
+                        )}
 
                         {/* Submit Button - Always visible */}
                         <button

@@ -54,7 +54,7 @@ class TransactionSettlementService
             $transaction = Transaction::with('warehouse')->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
 
             // No plain read before the bill lock: on MySQL it would fix the snapshot, and the tender checks would then
-            // miss a claim committed while this request waited.
+            // miss a claim, and the after-close mark a shift close, committed while this request waited.
             $shift->load('warehouse.outlet');
             $outlet = $shift->warehouse?->outlet;
 
@@ -90,7 +90,18 @@ class TransactionSettlementService
                 ]);
             }
 
-            return $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $transaction->remainingTotal());
+            $owed = $transaction->remainingTotal();
+            $claim = $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
+
+            // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A transfer or
+            // gateway claim is still pending, so its confirmation or webhook marks it.
+            $this->tenderService->flagPaidAfterClose(
+                $transaction, CashierShift::find($claim['before']['cashier_shift_id']), $transaction->payment_status,
+                $owed, $claim['before']['payment_method'],
+            );
+            $transaction->save();
+
+            return $claim;
         });
 
         return $this->charge($claim);
