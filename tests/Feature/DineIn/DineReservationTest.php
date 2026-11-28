@@ -608,7 +608,7 @@ class DineReservationTest extends TestCase
         $response = $this->actingAs($this->staff)->get(route('dine-reservations.index'))->assertOk();
         $summary = $response->viewData('page')['props']['summary'];
 
-        $this->assertSame(['month', 'open', 'arrived', 'cancelled', 'no_show', 'no_show_percent'], array_keys($summary));
+        $this->assertSame(['month', 'made', 'open', 'arrived', 'cancelled', 'no_show', 'no_show_percent'], array_keys($summary));
         $this->assertStringNotContainsString('Tamu Rahasia', json_encode($summary));
         $this->assertStringNotContainsString('812-0000-1111', json_encode($summary));
     }
