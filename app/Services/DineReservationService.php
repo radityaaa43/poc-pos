@@ -6,6 +6,7 @@ use App\Models\DineReservation;
 use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use Closure;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,38 @@ class DineReservationService
     public function __construct(
         protected readonly AuditLogService $auditLogService,
     ) {}
+
+    /**
+     * One outlet's reservations for the calendar month of $day, cut by reserved_at (the day booked), and the
+     * no-show rate: Tidak datang / (Datang + Tidak datang), null while neither happened (Batal and open never count).
+     *
+     * @return array{month: string, open: int, arrived: int, cancelled: int, no_show: int, no_show_percent: float|null}
+     */
+    public function monthSummary(Outlet $outlet, CarbonInterface $day): array
+    {
+        $start = $day->copy()->startOfMonth();
+        $counts = DineReservation::where('outlet_id', $outlet->id)
+            ->where('reserved_at', '>=', $start)
+            ->where('reserved_at', '<', $start->copy()->addMonth())
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+        // The raw count comes back as a string on MySQL.
+        $arrived = (int) ($counts['arrived'] ?? 0);
+        $noShow = (int) ($counts['no_show'] ?? 0);
+        $held = $arrived + $noShow;
+
+        return [
+            'month' => $start->format('Y-m'),
+            // BR-4: every reservation made that month, whatever its status.
+            'made' => (int) $counts->sum(),
+            'open' => (int) ($counts['booked'] ?? 0),
+            'arrived' => $arrived,
+            'cancelled' => (int) ($counts['cancelled'] ?? 0),
+            'no_show' => $noShow,
+            'no_show_percent' => $held ? round(100 * $noShow / $held, 1) : null,
+        ];
+    }
 
     /** @param array<string, mixed> $data validated by DineReservationRequest */
     public function create(Outlet $outlet, array $data, User $by): DineReservation

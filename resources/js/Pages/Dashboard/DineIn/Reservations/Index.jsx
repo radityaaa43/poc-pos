@@ -28,8 +28,19 @@ function Detail({ label, children }) {
     );
 }
 
+function Stat({ label, value, title }) {
+    return (
+        <div>
+            <dt className="text-sm text-slate-500 dark:text-slate-400">{label}</dt>
+            <dd className="text-xl font-semibold text-slate-900 dark:text-white" title={title}>
+                {value}
+            </dd>
+        </div>
+    );
+}
+
 // Reachable only with dine-reservations-manage (the route middleware), so nothing here checks it again.
-export default function Index({ reservations = [], tables = [], date }) {
+export default function Index({ reservations = [], tables = [], date, summary = null }) {
     const { t, i18n } = useTranslation();
     const [day, setDay] = useState(date);
     const [modalOpen, setModalOpen] = useState(false);
@@ -122,6 +133,12 @@ export default function Index({ reservations = [], tables = [], date }) {
         />
     );
 
+    // The server sends Y-m; the time part keeps the browser from reading it as UTC.
+    const monthLabel =
+        summary &&
+        new Date(`${summary.month}-01T00:00:00`).toLocaleDateString(i18n.language, { month: "long", year: "numeric" });
+    const percent = summary?.no_show_percent;
+
     return (
         <>
             <Head title={t("dineReservations.title")} />
@@ -148,6 +165,36 @@ export default function Index({ reservations = [], tables = [], date }) {
                     </button>
                 </div>
             </div>
+
+            {summary && (
+                <section
+                    aria-labelledby="reservation-summary"
+                    className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+                >
+                    <h2 id="reservation-summary" className="mb-3 font-semibold text-slate-700 dark:text-slate-200">
+                        {t("dineReservations.summary.title", { month: monthLabel })}
+                    </h2>
+                    {/* BR-4: every reservation made that month, above the per-status counts. */}
+                    <dl className="mb-3">
+                        <Stat label={t("dineReservations.summary.made")} value={summary.made} />
+                    </dl>
+                    <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                        <Stat label={t("dineReservations.statuses.arrived")} value={summary.arrived} />
+                        <Stat label={t("dineReservations.statuses.cancelled")} value={summary.cancelled} />
+                        <Stat label={t("dineReservations.statuses.no_show")} value={summary.no_show} />
+                        <Stat label={t("dineReservations.summary.open")} value={summary.open} />
+                        <Stat
+                            label={t("dineReservations.summary.noShowRate")}
+                            value={
+                                percent === null
+                                    ? "—"
+                                    : `${percent.toLocaleString(i18n.language, { maximumFractionDigits: 1 })}%`
+                            }
+                            title={percent === null ? t("dineReservations.summary.noShowRateNone") : undefined}
+                        />
+                    </dl>
+                </section>
+            )}
 
             {/* A card per booking, not a table: eight columns clipped the actions even at 1280 px. */}
             <h2 className="mb-2 font-semibold text-slate-700 dark:text-slate-200">{formatDate(date)}</h2>

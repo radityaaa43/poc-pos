@@ -524,6 +524,101 @@ class DineReservationTest extends TestCase
         }
     }
 
+    public function test_the_month_summary_is_empty_without_reservations(): void
+    {
+        $this->assertSame(
+            ['month' => '2026-12', 'made' => 0, 'open' => 0, 'arrived' => 0, 'cancelled' => 0, 'no_show' => 0, 'no_show_percent' => null],
+            $this->monthSummary()
+        );
+    }
+
+    public function test_the_no_show_percent_needs_an_arrived_or_no_show_reservation(): void
+    {
+        $this->reservation(['status' => 'cancelled']);
+        $this->reservation(['guest_name' => 'Sari', 'reserved_at' => '2026-12-11 12:00:00']);
+
+        $summary = $this->monthSummary();
+
+        $this->assertSame([2, 0, 1, 1], [$summary['made'], $summary['arrived'], $summary['cancelled'], $summary['open']]);
+        $this->assertNull($summary['no_show_percent']);
+    }
+
+    public function test_the_no_show_percent_is_no_show_over_arrived_plus_no_show(): void
+    {
+        $this->reservation(['status' => 'no_show']);
+        $this->reservation(['guest_name' => 'Sari', 'status' => 'arrived', 'reserved_at' => '2026-12-11 12:00:00']);
+        $this->reservation(['guest_name' => 'Tono', 'status' => 'arrived', 'reserved_at' => '2026-12-12 12:00:00']);
+        $this->reservation(['guest_name' => 'Umar', 'status' => 'cancelled', 'reserved_at' => '2026-12-13 12:00:00']);
+
+        $summary = $this->monthSummary();
+
+        $this->assertSame([0, 2, 1, 1], [$summary['open'], $summary['arrived'], $summary['cancelled'], $summary['no_show']]);
+        $this->assertSame(33.3, $summary['no_show_percent']);
+    }
+
+    public function test_the_month_is_cut_by_reserved_at_at_midnight(): void
+    {
+        $this->reservation(['guest_name' => 'November', 'status' => 'arrived', 'reserved_at' => '2026-11-30 23:59:59']);
+        $this->reservation(['guest_name' => 'Desember', 'reserved_at' => '2026-12-01 00:00:00']);
+
+        $november = $this->monthSummary('2026-11-15');
+        $december = $this->monthSummary('2026-12-01');
+
+        $this->assertSame([1, 0], [$november['arrived'], $november['open']]);
+        $this->assertSame([0, 1], [$december['arrived'], $december['open']]);
+    }
+
+    public function test_the_month_summary_is_per_outlet(): void
+    {
+        $outletB = $this->outletNamed('OUT-B');
+        $this->reservation(['status' => 'arrived']);
+        $this->reservation(['outlet_id' => $outletB->id, 'dine_table_id' => $this->tableAt($outletB, 'Meja B')->id, 'status' => 'no_show', 'guest_name' => 'Lain']);
+        // A table shared by outlets: the booking is still OUT-B's.
+        $this->reservation(['outlet_id' => $outletB->id, 'dine_table_id' => $this->tableAt(null, 'Teras')->id, 'status' => 'no_show', 'guest_name' => 'Rahasia', 'reserved_at' => '2026-12-11 12:00:00']);
+
+        $summary = $this->monthSummary();
+
+        $this->assertSame([1, 0, 0, 0], [$summary['arrived'], $summary['no_show'], $summary['cancelled'], $summary['open']]);
+    }
+
+    public function test_a_reservation_of_a_deleted_table_still_counts(): void
+    {
+        $reservation = $this->reservation(['status' => 'no_show']);
+        $this->table->delete();
+
+        $this->assertNull($reservation->fresh()->dine_table_id);
+        $this->assertSame(1, $this->monthSummary()['no_show']);
+    }
+
+    public function test_the_summary_follows_the_month_of_the_shown_date(): void
+    {
+        $this->reservation(['guest_name' => 'Desember']);
+        $this->reservation(['guest_name' => 'Januari', 'reserved_at' => '2027-01-05 12:00:00']);
+
+        $this->actingAs($this->staff)->get(route('dine-reservations.index', ['date' => '2026-12-11']))
+            ->assertInertia(fn (Assert $page) => $page->where('summary.month', '2026-12')->where('summary.open', 1));
+        $this->get(route('dine-reservations.index', ['date' => '2027-01-02']))
+            ->assertInertia(fn (Assert $page) => $page->where('summary.month', '2027-01')->where('summary.open', 1));
+    }
+
+    public function test_the_summary_holds_counts_only(): void
+    {
+        $this->reservation(['guest_name' => 'Tamu Rahasia']);
+
+        $response = $this->actingAs($this->staff)->get(route('dine-reservations.index'))->assertOk();
+        $summary = $response->viewData('page')['props']['summary'];
+
+        $this->assertSame(['month', 'made', 'open', 'arrived', 'cancelled', 'no_show', 'no_show_percent'], array_keys($summary));
+        $this->assertStringNotContainsString('Tamu Rahasia', json_encode($summary));
+        $this->assertStringNotContainsString('812-0000-1111', json_encode($summary));
+    }
+
+    /** The month summary of the shown page date, straight from the service. */
+    private function monthSummary(string $date = '2026-12-10'): array
+    {
+        return app(DineReservationService::class)->monthSummary($this->outlet, Carbon::parse($date));
+    }
+
     /** The row of $table must be locked by key before $then runs: that order is what queues two writers. */
     private function assertLockedBefore(callable $act, string $table, string $then): void
     {
