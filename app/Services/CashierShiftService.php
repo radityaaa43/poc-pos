@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\ShiftCloseBlockedException;
+use App\Models\AuditLog;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
@@ -105,6 +106,28 @@ class CashierShiftService
 
         return ! in_array($method, [Transaction::METHOD_OPEN_BILL, 'split'], true)
             && ! in_array($method, TransactionTenderService::GATEWAY_METHODS, true);
+    }
+
+    /**
+     * The shift whose forced close booked this pay-later sale as a shortfall, if one did. A payment at the till moves the
+     * sale to the paying shift while a transfer or gateway charge still waits, so the sale's own shift is open when the
+     * money arrives: the booking is what says it is paid after a close (#396 TC-8). Never a dine-in bill (a till payment
+     * after a close is not marked, REQ-005) or a credit sale. A plain read: call it after the caller's row locks.
+     */
+    public static function forcedCloseThatBooked(Transaction $sale): ?CashierShift
+    {
+        if (! $sale->is_pay_later || $sale->dineOrder()->exists() || $sale->receivable()->exists()) {
+            return null;
+        }
+
+        $shiftId = AuditLog::query()
+            ->where('module', 'cashier_shifts')
+            ->where('event', 'cashier_shift.hold_overridden')
+            ->whereJsonContains('meta->unpaid_bills', $sale->invoice)
+            ->latest('id')
+            ->value('auditable_id');
+
+        return $shiftId ? CashierShift::find($shiftId) : null;
     }
 
     /** @param  array<int, int>  $bookedBillIds  unpaid bills a forced close books as a shortfall (see closeShift) */

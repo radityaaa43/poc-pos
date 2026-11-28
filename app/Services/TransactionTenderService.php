@@ -242,8 +242,9 @@ class TransactionTenderService
     /**
      * Money the closed recap of `$shift`, the shift that owned the sale, lacks and that arrives by a later confirmation or
      * settlement is marked "Dibayar setelah shift ditutup", as a gateway payment is: a split's unreceived part, a pay-later
-     * sale without a receivable (#396), or a bill a forced close booked as a shortfall (REQ-003 BR-16). Sets the mark on
-     * `$transaction`; the caller saves it.
+     * sale without a receivable (#396), or a bill a forced close booked as a shortfall (REQ-003 BR-16). When `$shift` is
+     * open, a booked pay-later sale is still owed to the close that booked it. Sets the mark on `$transaction`; the
+     * caller saves it.
      *
      * @param  string|null  $methodBefore  see CashierShiftService::countedInClosedRecap
      */
@@ -254,7 +255,15 @@ class TransactionTenderService
         int $owed,
         ?string $methodBefore = null,
     ): void {
-        if ($newStatus !== 'paid' || ! $shift || $shift->isOpen()) {
+        if ($newStatus !== 'paid') {
+            return;
+        }
+
+        if (! $shift || $shift->isOpen()) {
+            $shift = CashierShiftService::forcedCloseThatBooked($transaction);
+        }
+
+        if (! $shift) {
             return;
         }
 

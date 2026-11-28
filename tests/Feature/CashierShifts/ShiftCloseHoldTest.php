@@ -675,6 +675,61 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
     }
 
+    /** @return array<string, array<int, string>> */
+    public static function waitingTillMethods(): array
+    {
+        return ['bank transfer, confirmed' => ['bank_transfer'], 'Midtrans, webhook' => ['midtrans']];
+    }
+
+    // The settlement moves the bill to the paying shift while it is still pending: that shift is open when the money arrives.
+    #[DataProvider('waitingTillMethods')]
+    public function test_a_booked_pay_later_sale_settled_without_cash_is_flagged_when_the_money_arrives(string $method): void
+    {
+        $bill = $this->guestPayLater($this->shift);
+        $this->forceClose($this->shift, $this->cashier);
+        $next = $this->openShiftFor($this->cashier);
+
+        $this->settleAndReceive($bill, $method);
+
+        $bill->refresh();
+        $this->assertSame(['paid', $next->id], [$bill->payment_status, $bill->cashier_shift_id]);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
+        $this->assertEquals([$this->shift->id, 10000], [$meta['shift_id'], $meta['amount']]);
+        $this->assertSame(0, $this->shift->fresh()->non_cash_sales_total);
+        $this->assertSame(10000, app(CashierShiftService::class)->calculateSummary($next)['non_cash_sales_total']);
+    }
+
+    #[DataProvider('waitingTillMethods')]
+    public function test_a_pay_later_sale_settled_without_cash_while_its_shift_is_open_is_not_flagged(string $method): void
+    {
+        $bill = $this->guestPayLater($this->shift);
+
+        $this->settleAndReceive($bill, $method);
+
+        $this->assertSame('paid', $bill->fresh()->payment_status);
+        $this->assertNull($bill->fresh()->paid_after_close_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.paid_after_close')->count());
+    }
+
+    /** Settled at the till by transfer or Midtrans, then confirmed or settled by the webhook: unmarked until then. */
+    private function settleAndReceive(Transaction $bill, string $method): void
+    {
+        $this->useGateway('midtrans');
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+
+        app(TransactionSettlementService::class)->settle($bill, $this->cashier, [
+            ['method' => $method, 'amount' => 10000, 'bank_account_id' => $account->id],
+        ]);
+        $this->assertSame(['pending', null], [$bill->fresh()->payment_status, $bill->fresh()->paid_after_close_at]);
+
+        if ($method === 'bank_transfer') {
+            app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
+        } else {
+            $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', 10000)->assertOk();
+        }
+    }
+
     private function settleInCash(Transaction $bill): void
     {
         app(TransactionSettlementService::class)->settle($bill, $this->cashier, [

@@ -93,8 +93,8 @@ class TransactionSettlementService
             $owed = $transaction->remainingTotal();
             $claim = $this->claim($transaction, $cashier, $shift, $outlet, $tenderInput, $owed);
 
-            // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A gateway claim
-            // is still pending, so the webhook decides that one.
+            // The claim moved the bill to the paying shift: mark a payment its old shift's recap lacks. A transfer or
+            // gateway claim is still pending, so its confirmation or webhook marks it.
             $this->tenderService->flagPaidAfterClose(
                 $transaction, CashierShift::find($claim['before']['cashier_shift_id']), $transaction->payment_status,
                 $owed, $claim['before']['payment_method'],
