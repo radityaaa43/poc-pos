@@ -20,12 +20,19 @@ class CustomerCreditService
     }
 
     /**
-     * For a credit decision. Call inside the caller's DB::transaction: the customer row lock lets one
-     * checkout per customer through at a time (a new receivable has no row of its own to lock yet).
+     * The per-customer mutex of credit checkouts (a new receivable has no row of its own to lock yet). Call inside the
+     * caller's DB::transaction before its first plain SELECT: MySQL REPEATABLE READ fixes the snapshot there, and only a
+     * snapshot taken under this lock sees every receivable committed by the checkout that held it before.
      */
+    public function lock(int $customerId): Customer
+    {
+        return Customer::whereKey($customerId)->lockForUpdate()->firstOrFail();
+    }
+
+    /** For a credit decision, under {@see lock()}. */
     public function lockedStanding(int $customerId): CreditStanding
     {
-        return $this->read(Customer::whereKey($customerId)->lockForUpdate()->firstOrFail(), locked: true);
+        return $this->read($this->lock($customerId));
     }
 
     /**
@@ -53,17 +60,15 @@ class CustomerCreditService
         }
     }
 
-    private function read(Customer $customer, bool $locked = false): CreditStanding
+    private function read(Customer $customer): CreditStanding
     {
-        // The locked path needs a locking read: a plain one sees the transaction's first snapshot (MySQL
-        // REPEATABLE READ) and would miss a receivable committed while we waited for the customer row.
+        // A plain read on purpose: a locking one takes gap locks that deadlock credit sales of different customers.
         $row = Receivable::query()->outstanding()
             ->where('customer_id', $customer->id)
             ->selectRaw(
                 'COALESCE(SUM(total - paid), 0) as used, COALESCE(SUM(CASE WHEN due_date < ? THEN 1 ELSE 0 END), 0) as overdue_count',
                 [today()->toDateString()]
             )
-            ->when($locked, fn ($query) => $query->sharedLock())
             ->toBase()
             ->first();
 

@@ -172,7 +172,7 @@ Logika domain yang dipakai lebih dari satu tempat ada di sini dan di-inject lewa
 | | `ReorderService` | Produk di bawah reorder point → draft PO |
 | Purchasing | `PurchaseOrderService`, `GoodsReceivingService`, `SupplierReturnService` | Rantai PO → penerimaan barang → hutang → retur |
 | Finance | `ReceivableService`, `PayableAgingService` | Aging piutang/hutang, statement |
-| | `CustomerCreditService` | Batas piutang pelanggan vs pemakaian di semua outlet; `lockedStanding()` mengunci baris pelanggan untuk keputusan kredit; `guard()` menolak bayar belakangan yang melewati batas atau saat ada piutang lewat jatuh tempo (`CreditRefusedException`) |
+| | `CustomerCreditService` | Batas piutang pelanggan vs pemakaian di semua outlet; `lock()` mengunci baris pelanggan (checkout kredit memanggilnya tepat setelah lock shift, sebelum baca biasa) dan `lockedStanding()` memutuskan di bawah lock itu; `guard()` menolak bayar belakangan yang melewati batas atau saat ada piutang lewat jatuh tempo (`CreditRefusedException`) |
 | CRM | `CustomerSegmentationService`, `CrmAutomationService` | Segmen otomatis/manual, campaign, reminder, share invoice |
 | Dine-in | `DineOrderService` | Accept (potong stok, lock row) / reject pesanan meja |
 | Integrasi | `Payments/PaymentGatewayManager` (+ `MidtransGateway`, `XenditGateway`), `WhatsAppService`, `ThermalPrintService` | Dispatch gateway & QRIS, HTTP ke WA service, teks ESC/POS |

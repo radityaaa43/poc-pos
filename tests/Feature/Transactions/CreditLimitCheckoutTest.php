@@ -255,6 +255,8 @@ class CreditLimitCheckoutTest extends TestCase
         DB::listen(function ($query) use (&$steps) {
             // Anchored at the start: the request also runs summary subqueries that mention these tables.
             $patterns = [
+                'lock' => '/^select \* from [`"]customers[`"] where/i',
+                'carts' => '/^select \* from [`"]carts[`"]/i',
                 'usage' => '/^select coalesce\(sum\(total - paid\)/i',
                 'create' => '/^insert into [`"]receivables[`"]/i',
             ];
@@ -267,11 +269,17 @@ class CreditLimitCheckoutTest extends TestCase
 
         $this->assertSold($budi, 10000);
 
-        $this->assertSame(['usage', 'create'], array_column($steps, 0));
-        $this->assertSame([$outer + 1, $outer + 1], array_column($steps, 1));
-        // SQLite renders no lock clause: only the MySQL job can show it (BR-3).
+        $inside = array_values(array_filter($steps, fn (array $step) => $step[1] === $outer + 1));
+        $order = array_column($inside, 0);
+
+        // The customer is locked before the transaction's first plain read (the cart), or the sum below is stale (BR-3).
+        $this->assertSame(['lock', 'carts'], array_slice($order, 0, 2));
+        $this->assertLessThan(array_search('create', $order, true), array_search('usage', $order, true));
+        // SQLite renders no lock clause: only the MySQL job can show them.
         if (DB::getDriverName() === 'mysql') {
-            $this->assertStringContainsString('lock in share mode', $steps[0][2]);
+            $this->assertStringContainsString('for update', $inside[0][2]);
+            // No locking read on receivables: its gap locks would deadlock credit sales of different customers.
+            $this->assertStringNotContainsString('lock in share mode', $inside[array_search('usage', $order, true)][2]);
         }
     }
 }

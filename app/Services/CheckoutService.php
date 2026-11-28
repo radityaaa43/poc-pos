@@ -33,14 +33,18 @@ class CheckoutService
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
-        // attempts: MySQL can deadlock two sales to one customer (the sale's foreign key shares the customer row before
-        // loyalty and the credit check lock it) and two credit sales on one gap of the receivables index. The closure
-        // only writes to the database, so the victim simply runs again.
+        // attempts: a backstop for the deadlocks left (loyalty upgrading the sale's shared customer lock on a paid sale,
+        // a store-credit return of the same customer). The closure only writes to the database, so the victim runs again.
         return DB::transaction(function () use ($ctx) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,
                 lockForUpdate: true,
             );
+
+            // The credit mutex comes before the first plain read, so guard() below reads current receivables.
+            if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
+                $this->customerCredit->lock($ctx->customer->id);
+            }
 
             $carts = Cart::with('product')
                 ->where('cashier_id', $ctx->userId)
@@ -146,8 +150,8 @@ class CheckoutService
 
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
-                // Locks the customer until commit, so two cashiers cannot both fit under one limit (REQ-007 BR-3).
-                // A refusal rolls the whole sale back. After the stock locks, as the loyalty update above is.
+                // The customer is locked since the start, so two cashiers cannot both fit under one limit (REQ-007 BR-3).
+                // A refusal rolls the whole sale back.
                 $this->customerCredit->guard($ctx->customer->id, $grandTotal);
 
                 Receivable::create([
