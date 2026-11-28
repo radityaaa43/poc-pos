@@ -96,6 +96,8 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
     const [rows, setRows] = useState(null); // null while the queue is being read
     const names = useMemo(() => Object.fromEntries(products.map((product) => [product.id, product.title])), [products]);
     const [confirming, setConfirming] = useState(null);
+    // Leaving the confirmation unmounts the focused button: this says which list button takes the focus.
+    const [returnTo, setReturnTo] = useState(null); // a row id, or "close"
     const [busy, setBusy] = useState(false);
     const [retrying, setRetrying] = useState(false);
     const [error, setError] = useState(null); // key under pos.offlineQueue
@@ -124,6 +126,7 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
     const close = () => {
         setOpen(false);
         setConfirming(null);
+        setReturnTo(null);
         setError(null);
     };
 
@@ -164,9 +167,11 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
             if (unaudited) await restore(unaudited.id, unaudited.status).catch(() => {});
             setError("removeError");
         }
+        // Read first, so the list comes back already current and the focused button stays.
+        await load();
+        setReturnTo("close");
         setConfirming(null);
         setBusy(false);
-        await load();
         onChange?.();
     };
 
@@ -215,7 +220,16 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
                             )}
                             <p className="text-sm text-slate-700 dark:text-slate-300">{t("pos.offlineQueue.confirm")}</p>
                             <div className="flex justify-end gap-2">
-                                <button type="button" autoFocus onClick={() => setConfirming(null)} disabled={busy} className={secondary}>
+                                <button
+                                    type="button"
+                                    autoFocus
+                                    onClick={() => {
+                                        setReturnTo(confirming.id);
+                                        setConfirming(null);
+                                    }}
+                                    disabled={busy}
+                                    className={secondary}
+                                >
                                     {t("common.buttons.cancel")}
                                 </button>
                                 <button type="button" onClick={remove} disabled={busy || !isOnline} className={danger}>
@@ -241,6 +255,7 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
                                                 <div className="flex justify-end">
                                                     <button
                                                         type="button"
+                                                        autoFocus={returnTo === row.id}
                                                         onClick={() => {
                                                             setError(null);
                                                             setConfirming(row);
@@ -257,7 +272,7 @@ export default function OfflineQueuePanel({ scopeKey, count, products = [], onRe
                                 </ul>
                             )}
                             <div className="flex flex-wrap justify-end gap-2">
-                                <button type="button" onClick={close} className={secondary}>
+                                <button type="button" autoFocus={returnTo === "close"} onClick={close} className={secondary}>
                                     {t("common.buttons.close")}
                                 </button>
                                 <button type="button" onClick={retry} disabled={!isOnline || flushing || !rows?.length} className={secondary}>

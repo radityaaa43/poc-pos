@@ -247,6 +247,23 @@ describe("OfflineQueuePanel: remove", () => {
         expect(axios.post).not.toHaveBeenCalled();
     });
 
+    // Switching views unmounts the focused button: focus must stay inside the dialog.
+    it("gives the focus back to the row's Hapus after Batal, and to Tutup after a removal", async () => {
+        axios.post.mockResolvedValue(AUDITED);
+        await failedRow();
+        await queue("u-conflict", { status: "conflict" });
+        const { user } = await open({ count: 2 });
+        const second = async () => (await screen.findAllByRole("button", { name: "Hapus" }))[1];
+
+        await user.click(await second());
+        await user.click(screen.getByRole("button", { name: "Batal" }));
+        expect(await second()).toHaveFocus();
+
+        await user.click(await second());
+        await user.click(screen.getByRole("button", { name: "Hapus" }));
+        await waitFor(() => expect(screen.getByRole("button", { name: "Tutup" })).toHaveFocus());
+    });
+
     it("removes only after the server answered", async () => {
         const id = await failedRow("u-1", { last_error: "x".repeat(600) });
         await updatePendingTransaction(id, { data: sale("u-1", { note: "n".repeat(1100) }) });
