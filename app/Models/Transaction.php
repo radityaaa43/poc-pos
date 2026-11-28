@@ -65,6 +65,7 @@ class Transaction extends Model
         'late_superseded_payment_at',
         'paid_after_close_at',
         'overpaid_amount',
+        'transfer_received_amount',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -112,6 +113,7 @@ class Transaction extends Model
         'late_superseded_payment_at' => 'datetime',
         'paid_after_close_at' => 'datetime',
         'overpaid_amount' => 'integer',
+        'transfer_received_amount' => 'integer',
     ];
 
     /** @return HasMany<TransactionDetail, $this> */
@@ -277,6 +279,15 @@ class Transaction extends Model
     {
         return max(0, (int) $this->grand_total
             - (int) $this->salesReturns()->nothingRefunded()->sum('total_return_amount'));
+    }
+
+    /**
+     * What a no-tender transfer settles: the amount the cashier recorded as received on confirm, else the inferred
+     * amount (the retry's ask, then grand_total). One rule for the overpayment flag and the shift recap (#507).
+     */
+    public function transferSettledAmount(int $inferred): int
+    {
+        return (int) ($this->transfer_received_amount ?? $inferred);
     }
 
     /**

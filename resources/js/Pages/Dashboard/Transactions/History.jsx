@@ -110,6 +110,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
         transaction: null,
     });
     const [isConfirming, setIsConfirming] = useState(false);
+    const [receivedAmount, setReceivedAmount] = useState("");
 
     useEffect(() => {
         setFilterData({
@@ -434,12 +435,13 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                       "pending" &&
                                                   canConfirmPayment ? (
                                                     <button
-                                                        onClick={() =>
+                                                        onClick={() => {
                                                             setConfirmModal({
                                                                 open: true,
                                                                 transaction,
-                                                            })
-                                                        }
+                                                            });
+                                                            setReceivedAmount(String(transaction.amount_due ?? transaction.grand_total ?? ""));
+                                                        }}
                                                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-400 rounded-full hover:bg-warning-200 dark:hover:bg-warning-900/50 transition-colors"
                                                     >
                                                         Pending - Konfirmasi
@@ -567,12 +569,13 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                       "pending" &&
                                                   canConfirmPayment ? (
                                                     <button
-                                                        onClick={() =>
+                                                        onClick={() => {
                                                             setConfirmModal({
                                                                 open: true,
                                                                 transaction,
-                                                            })
-                                                        }
+                                                            });
+                                                            setReceivedAmount(String(transaction.amount_due ?? transaction.grand_total ?? ""));
+                                                        }}
                                                         className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium bg-warning-100 dark:bg-warning-900/30 text-warning-700 dark:text-warning-400 rounded-full"
                                                     >
                                                         Pending
@@ -793,6 +796,22 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                 </div>
                             </div>
 
+                            {/* Amount received: what the bank shows, prefilled with the amount due (#507). */}
+                            <div>
+                                <label htmlFor="received_amount" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">
+                                    Jumlah diterima
+                                </label>
+                                <input
+                                    id="received_amount"
+                                    type="number"
+                                    min="0"
+                                    inputMode="numeric"
+                                    value={receivedAmount}
+                                    onChange={(e) => setReceivedAmount(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 px-4 py-2 text-slate-900 dark:text-white"
+                                />
+                            </div>
+
                             {/* Confirmation Message */}
                             <div className="flex items-start gap-3 p-4 bg-warning-50 dark:bg-warning-900/20 rounded-xl border border-warning-200 dark:border-warning-800">
                                 <IconAlertCircle
@@ -829,7 +848,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                             "transactions.confirm-payment",
                                             confirmModal.transaction.id
                                         ),
-                                        {},
+                                        { received_amount: receivedAmount === "" ? undefined : Number(receivedAmount) },
                                         {
                                             onSuccess: () => {
                                                 setConfirmModal({
