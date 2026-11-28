@@ -1440,6 +1440,19 @@
         "unitCost": "HPP satuan",
         "value": "Nilai",
         "notTaken": "Stok belum dipotong.",
+        "awaitingOther": "Menunggu persetujuan orang lain",
+        "actions": {
+            "approve": "Setujui",
+            "reject": "Tolak",
+            "cancel": "Batalkan waste",
+            "confirmApprove": "Potong stok untuk waste ini sekarang?"
+        },
+        "reasonModal": {
+            "reject": "Tolak waste",
+            "cancel": "Batalkan waste",
+            "reason": "Alasan",
+            "confirm": "Simpan"
+        },
         "takenAt": "Stok dipotong {{date}}",
         "statuses": {
             "pending": "Menunggu persetujuan",

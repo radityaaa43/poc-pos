@@ -1440,6 +1440,19 @@
         "unitCost": "Unit cost",
         "value": "Value",
         "notTaken": "The stock has not been taken.",
+        "awaitingOther": "Waiting for another approver",
+        "actions": {
+            "approve": "Approve",
+            "reject": "Reject",
+            "cancel": "Cancel waste",
+            "confirmApprove": "Take the stock for this waste now?"
+        },
+        "reasonModal": {
+            "reject": "Reject waste",
+            "cancel": "Cancel waste",
+            "reason": "Reason",
+            "confirm": "Save"
+        },
         "takenAt": "Stock taken {{date}}",
         "statuses": {
             "pending": "Pending approval",

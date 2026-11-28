@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
 import { IconPlus } from "@tabler/icons-react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
+import Modal from "@/Components/Dashboard/Modal";
 import Pagination from "@/Components/Dashboard/Pagination";
 import Select from "@/Components/Dashboard/Select";
 import { SkeletonTable } from "@/Components/Dashboard/Skeleton";
@@ -24,6 +25,7 @@ export default function Index({ wastes, filters, warehouses }) {
     const { flash } = usePage().props;
     const { can } = useAuthorization();
     const [loading, setLoading] = useState(false);
+    const [reason, setReason] = useState({ open: false, id: null, action: null, text: "", error: "" });
     const date = new Intl.DateTimeFormat(i18n.language === "en" ? "en-GB" : "id-ID", { dateStyle: "medium", timeStyle: "short" });
 
     useEffect(() => {
@@ -44,6 +46,22 @@ export default function Index({ wastes, filters, warehouses }) {
             <IconPlus size={18} /> {t("waste.create")}
         </Link>
     );
+
+    // Approving takes the stock, so confirm first; reject and cancel ask for a reason in the modal.
+    const approve = (id) => {
+        if (!window.confirm(t("waste.actions.confirmApprove"))) return;
+        router.post(route("stock-waste.approve", id), {}, { preserveScroll: true });
+    };
+    const openReason = (id, action) => setReason({ open: true, id, action, text: "", error: "" });
+    const closeReason = () => setReason({ open: false, id: null, action: null, text: "", error: "" });
+    const submitReason = () => {
+        if (!reason.text.trim()) return;
+        router.post(route(`stock-waste.${reason.action}`, reason.id), { reason: reason.text }, {
+            preserveScroll: true,
+            onError: () => setReason((current) => ({ ...current, error: t("waste.reasonModal.reason") })),
+            onFinish: () => closeReason(),
+        });
+    };
 
     return (
         <>
@@ -128,12 +146,55 @@ export default function Index({ wastes, filters, warehouses }) {
                                     )}
                                     {waste.note && <p>{t("waste.note")}: {waste.note}</p>}
                                     {waste.recorded_at && <p>{t("waste.takenAt", { date: date.format(new Date(waste.recorded_at)) })}</p>}
+                                    {Boolean(waste.awaiting_other) && (
+                                        <p className="font-medium text-warning-700 dark:text-warning-400">{t("waste.awaitingOther")}</p>
+                                    )}
+                                    {(waste.can_approve || waste.can_reject || waste.can_cancel) && (
+                                        <div className="flex flex-wrap gap-2">
+                                            {waste.can_approve && (
+                                                <button type="button" onClick={() => approve(waste.id)} className="rounded-lg bg-success-500 px-3 py-2 text-sm font-medium text-white hover:bg-success-600">
+                                                    {t("waste.actions.approve")}
+                                                </button>
+                                            )}
+                                            {waste.can_reject && (
+                                                <button type="button" onClick={() => openReason(waste.id, "reject")} className="rounded-lg border border-danger-300 px-3 py-2 text-sm font-medium text-danger-700 hover:bg-danger-50 dark:border-danger-700 dark:text-danger-400">
+                                                    {t("waste.actions.reject")}
+                                                </button>
+                                            )}
+                                            {waste.can_cancel && (
+                                                <button type="button" onClick={() => openReason(waste.id, "cancel")} className="rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200">
+                                                    {t("waste.actions.cancel")}
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </details>
                         </li>
                     ))}
                 </ul>
             )}
+            <Modal show={reason.open} onClose={closeReason} title={t(`waste.reasonModal.${reason.action}`)}>
+                <label htmlFor="waste_reason" className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t("waste.reasonModal.reason")}
+                </label>
+                <textarea
+                    id="waste_reason"
+                    value={reason.text}
+                    maxLength={500}
+                    onChange={(e) => setReason((current) => ({ ...current, text: e.target.value }))}
+                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                />
+                {reason.error && <p role="alert" className="mt-1 text-sm text-danger-700 dark:text-danger-400">{reason.error}</p>}
+                <div className="mt-4 flex justify-end gap-2">
+                    <button type="button" onClick={closeReason} className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 dark:border-slate-600 dark:text-slate-200">
+                        {t("common.buttons.cancel")}
+                    </button>
+                    <button type="button" onClick={submitReason} disabled={!reason.text.trim()} className="rounded-lg bg-primary-500 px-4 py-2 text-sm font-medium text-white hover:bg-primary-600 disabled:opacity-50">
+                        {t("waste.reasonModal.confirm")}
+                    </button>
+                </div>
+            </Modal>
             <Pagination links={wastes.links} />
         </>
     );
