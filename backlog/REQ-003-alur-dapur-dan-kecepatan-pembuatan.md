@@ -230,6 +230,7 @@ Keputusan pemilik (2026-11-25, sesi analisis REQ-003):
   bisa dibayar tidak termasuk batal (koreksi 2026-11-28, #251 BR-12 dan BR-13).
 - **Keputusan saat build (Business/PM, 2026-11-28):** catatan tutup paksa wajib hanya bila menimpa hold (#242 BR-5). AC-27 untuk dine-in: tagihan dine-in milik shift yang menerimanya sampai ada pembayaran, lalu milik shift yang menerima pembayaran (#242 BR-19). Penjualan Bayar Belakangan yang belum dibayar tanpa piutang tidak dihitung sebagai penjualan non-tunai (#396 BR-7).
 - **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** pesanan tambahan dikelompokkan di kartu dapur pesanan asal lewat #314 (bagian layar dapur AC-21 dipindah dari #251). Tolak punya pengaman yang sama dengan Terima: pesanan yang sudah diterima atau terjual tidak bisa ditolak (#438 BR-1). Penjualan offline yang gagal sync tidak pernah dihapus otomatis; audit penghapusan menyimpan item, qty dan total penjualan (#400 BR-8, BR-9). Tanda Dibayar setelah shift ditutup dipasang di semua jalur pembayaran (#469).
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan 2):** retur menu resep mengembalikan stok bahan-bahannya, bukan stok menu, dan dua retur bersamaan tidak boleh melebihi jumlah terjual (#486). Struk 58 mm untuk split tender tidak boleh error (#482).
 
 ## Kebutuhan non-fungsional
 
