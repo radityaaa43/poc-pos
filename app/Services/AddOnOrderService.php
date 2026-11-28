@@ -100,7 +100,7 @@ class AddOnOrderService
         );
     }
 
-    /** Locks the sale referred to, then its root: an add-on before its original, as the kitchen's group taps do. */
+    /** Locks the sale referred to, then its root: an add-on always before its original. */
     private function root(Transaction $sale, bool $lock): Transaction
     {
         if ($lock) {

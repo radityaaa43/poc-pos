@@ -10,7 +10,6 @@ use App\Models\SalesReturnItem;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
-use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -99,29 +98,6 @@ class KitchenItemService
                 ]));
 
             $this->syncDineOrder($transaction);
-        });
-    }
-
-    /** @param  array<int, int>|null  $stationIds  The card's Semua siap over the original order and its add-ons (#251). */
-    public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
-    {
-        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds));
-    }
-
-    /** @param  array<int, int>|null  $stationIds  Serahkan semua over the group (#251): each sale syncs its own dine order. */
-    public function handOverOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
-    {
-        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds));
-    }
-
-    /** @param  Closure(Transaction): void  $tap  run over the sale and its add-ons, newest first: an add-on's bill is locked before its original's */
-    private function tapOrderGroup(Transaction $root, Closure $tap): void
-    {
-        // Read before the transaction: a plain read inside it would fix MySQL's snapshot before the rows are locked.
-        $sales = Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
-        DB::transaction(function () use ($sales, $tap) {
-            $this->lockKitchenRows($sales->modelKeys());
-            $sales->each($tap);
         });
     }
 

@@ -6,7 +6,7 @@ const manager = roles.find((role) => role.key === 'manager');
 test.describe('32-kitchen-display', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('a guest orders again with Tambah pesanan: both accepted orders share one card on the display', { tag: ['@REQ-003-AC-21'] }, async ({ page, asRole, arrange, uniq }) => {
+    test('a guest orders again with Tambah pesanan: the accepted add-on is linked and shows on its own card', { tag: ['@REQ-003-AC-21'] }, async ({ page, asRole, arrange, uniq }) => {
         const { table_name, token } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
         const [first, second] = [uniq('Soto'), uniq('Wedang')].map((title) => {
             const { product_id } = arrange('product', { title, stock: 5 });
@@ -34,14 +34,17 @@ test.describe('32-kitchen-display', () => {
         const addOnToken = new URL(page.url()).pathname.split('/').pop();
         await accept();
         // Pay at the counter: each sale reaches the kitchen once it is paid.
-        for (const [access_token, product_id] of [[original.access_token, first.product_id], [addOnToken, second.product_id]]) {
-            arrange('kitchen.set-status', { invoice: arrange('dine.order-state', { access_token, product_id }).invoice, status: 'paid' });
-        }
+        const [originalInvoice, addOnInvoice] = [[original.access_token, first.product_id], [addOnToken, second.product_id]].map(([access_token, product_id]) => {
+            const { invoice } = arrange('dine.order-state', { access_token, product_id });
+            arrange('kitchen.set-status', { invoice, status: 'paid' });
+            return invoice;
+        });
+        await staff.goto(`/dashboard/transactions/${addOnInvoice}/print`);
+        await expect(staff.getByText(`Tambahan untuk ${originalInvoice}`)).toBeVisible({ timeout: 45_000 });
         await staff.goto('/dashboard/kitchen');
-        const card = staff.locator('article', { hasText: table_name });
-        await expect(card).toHaveCount(1);
-        await expect(card).toContainText(first.title);
-        await expect(card.getByRole('heading', { name: 'Tambahan' })).toBeVisible();
-        await expect(card).toContainText(second.title);
+        const cards = staff.locator('article', { hasText: table_name });
+        await expect(cards).toHaveCount(2);
+        await expect(cards.filter({ hasText: first.title })).not.toContainText(second.title);
+        await expect(cards.filter({ hasText: second.title })).toHaveCount(1);
     });
 });
