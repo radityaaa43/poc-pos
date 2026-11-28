@@ -28,15 +28,22 @@ class CheckoutService
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
         private readonly KitchenIntakeService $kitchenIntake,
+        private readonly AddOnOrderService $addOnOrderService,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
-        return DB::transaction(function () use ($ctx) {
+        // Looked up outside the transaction: its first plain read fixes MySQL's snapshot, and that must follow the locks.
+        $original = $ctx->addOnTo ? Transaction::where('invoice', $ctx->addOnTo)->first() : null;
+
+        return DB::transaction(function () use ($ctx, $original) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,
                 lockForUpdate: true,
             );
+
+            // Under a lock on the original, which is only read (BR-5), so a cancellation that committed meanwhile is seen.
+            $parentId = $ctx->addOnTo ? $this->addOnOrderService->resolveForPos($original, $activeShift) : null;
 
             $carts = Cart::with('product')
                 ->where('cashier_id', $ctx->userId)
@@ -93,6 +100,7 @@ class CheckoutService
             $transaction = Transaction::create([
                 'cashier_id' => $ctx->userId,
                 'cashier_shift_id' => $activeShift->id,
+                'parent_transaction_id' => $parentId,
                 'warehouse_id' => $activeShift->warehouse_id,
                 'customer_id' => $ctx->customer?->id,
                 'invoice' => 'TRX-'.strtoupper(Str::random(10)),
@@ -122,6 +130,10 @@ class CheckoutService
 
             if ($ctx->useTenders) {
                 $transaction->tenders()->createMany($tenders);
+            }
+
+            if ($parentId) {
+                $this->addOnOrderService->record($transaction);
             }
 
             $this->processCartItems($transaction, $carts, $pricingPreview, $ctx->outlet, $subtotalAfterPromo, $appliedManualDiscount, $activeShift->warehouse_id, $ctx->userId);
@@ -166,7 +178,7 @@ class CheckoutService
                 paymentStatus: $paymentStatus,
                 tenderBankAccountId: $tenderBankAccountId,
             );
-        });
+        }, 3); // retried on a deadlock: an add-on holds sales of a shift that another cashier may be closing
     }
 
     private function processCartItems(
