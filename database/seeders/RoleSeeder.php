@@ -57,6 +57,8 @@ class RoleSeeder extends Seeder
         $this->createRoleWithPermissions('customers-import', '%customers-import%');
         $this->createRoleWithPermissions('customers-export', '%customers-export%');
         $this->createRoleWithPermissions('discounts-approve', 'discounts-approve');
+        $this->createRoleWithPermissions('stock-waste-create', 'stock-waste-create');
+        $this->createRoleWithPermissions('stock-waste-approve', 'stock-waste-approve');
         $this->createRoleWithPermissions('price-lists-access', '%price-lists%');
         $this->createRoleWithPermissions('warehouses-access', '%warehouses%');
         $this->createRoleWithPermissions('units-access', '%units%');

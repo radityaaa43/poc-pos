@@ -432,6 +432,19 @@ return [
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
     ],
 
+    'waste' => [
+        'recorded' => 'Waste recorded and the stock was taken.',
+        'pending' => 'The waste is pending approval. The stock is unchanged.',
+        'item_not_allowed' => 'Only raw materials and recipe menus can be recorded as waste. ":item" is neither.',
+        'no_recipe' => 'The menu ":item" has no recipe yet.',
+        'nothing_to_take' => 'The quantity of ":item" is too small: no ingredient would be taken.',
+        'insufficient' => 'Not enough stock of :item. Available: :left.',
+        'product_in_use' => 'This product cannot be deleted because it has waste records.',
+        'movement' => 'Stock waste #:id.',
+        'audit_recorded' => 'Waste #:id recorded.',
+        'audit_pending' => 'Waste #:id is pending approval.',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages

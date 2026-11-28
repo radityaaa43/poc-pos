@@ -272,6 +272,8 @@ class StockWasteRecordTest extends TestCase
         $sugar = $this->product('Gula', ['is_raw_material' => true], stock: 10);
         $sugar->warehouses()->attach($central->id, ['stock' => 0, 'avg_cost' => 33.3333]);
         $salt = $this->product('Garam', ['is_raw_material' => true, 'buy_price' => 7], stock: 10);
+        // Rows start at the reference price; without an average of its own the fallback decides.
+        ProductWarehouse::where('warehouse_id', $this->warehouse->id)->whereIn('product_id', [$sugar->id, $salt->id])->update(['avg_cost' => null]);
 
         $this->record([[$sugar, 7], [$salt, 3]])->assertSessionHasNoErrors();
 
