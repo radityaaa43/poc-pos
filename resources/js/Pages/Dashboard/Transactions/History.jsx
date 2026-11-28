@@ -384,6 +384,11 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                 <span className="text-sm font-semibold text-slate-900 dark:text-white">
                                                     {transaction.invoice}
                                                 </span>
+                                                {transaction.order_name && (
+                                                    <span className="block text-xs text-slate-500 dark:text-slate-400">
+                                                        {transaction.order_name}
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-400">
                                                 {formatDateTime(transaction.created_at)}

@@ -850,19 +850,7 @@ export default function Index({
                     setIsSubmitting(false);
                     // Only a saved sale flashes success. A refusal also lands here, and keeps the form (#473).
                     if (!page.props.flash?.success) return;
-                    setDiscountInput("");
-                    setRedeemPointsInput("");
-                    setCashInput("");
-                    setShippingInput("");
-                    setSelectedCustomer(null);
-                    setSelectedBankAccount(null);
-                    resetSplitTenders();
-                    setSelectedVoucherId("");
-                    setPaymentMethod(defaultPaymentGateway ?? "cash");
-                    setPayLater(false);
-                    setDueDate("");
-                    setOrderType("in_store");
-                    setOrderNote("");
+                    resetSaleForm();
                     setOrderName("");
                     toast.success(page.props.flash.success);
                 },

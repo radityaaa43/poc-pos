@@ -606,7 +606,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                 </span>
                                             </div>
                                             <InvoiceNumber transaction={transaction} />
-                                            <OrderNameLine name={transaction.order_name} className="text-sm font-semibold" />
+                                            <OrderNameLine name={transaction.order_name} className="text-sm font-semibold print:hidden" />
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at
