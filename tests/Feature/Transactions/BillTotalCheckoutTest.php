@@ -297,7 +297,8 @@ class BillTotalCheckoutTest extends TestCase
         $this->actingAs($this->cashier)->get(route('transactions.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('initialPricingPreview.summary.service_charge', 1000)
-                ->where('initialPricingPreview.summary.grand_total', 23310));
+                ->where('initialPricingPreview.summary.grand_total', 23310)
+                ->where('activeCashierShift.service_charge_rate', 5));
     }
 
     public function test_preview_without_a_shift_uses_the_defaults(): void

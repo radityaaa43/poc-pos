@@ -1195,7 +1195,8 @@
         "bill": {
             "serviceCharge": "Service charge",
             "taxPpn": "PPN",
-            "taxPb1": "PB1 {{rate}}%"
+            "taxPb1": "PB1 {{rate}}%",
+            "offlineOrderTypeLocked": "The order type can't be changed offline at this outlet"
         },
         "payLater": {
             "label": "Bayar Belakangan",

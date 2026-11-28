@@ -21,8 +21,8 @@ import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
-import useBillTotals from "@/Hooks/useBillTotals";
 import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
+import OrderTypeLock from "@/Components/POS/OrderTypeLock";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -213,8 +213,10 @@ export default function Index({
         () => Number(pricingPreview?.summary?.subtotal_after_promo ?? 0),
         [pricingPreview]
     );
-    const bill = useBillTotals(pricingPreview?.summary);
-    const payable = bill.grand_total;
+    const payable = useMemo(
+        () => Number(pricingPreview?.summary?.grand_total ?? 0),
+        [pricingPreview]
+    );
     const quickCashAmounts = useMemo(() => {
         if (payable <= 0) return [];
 
@@ -301,7 +303,6 @@ export default function Index({
         redeemPointsInput,
         selectedVoucherId,
         orderType,
-        bill.reconnects,
     ]);
 
     useEffect(() => {
@@ -1269,7 +1270,7 @@ export default function Index({
                                     Detail Pesanan
                                 </p>
 
-                                <div>
+                                <OrderTypeLock>
                                     <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
                                         Tipe Pesanan
                                     </label>
@@ -1293,7 +1294,7 @@ export default function Index({
                                             </button>
                                         ))}
                                     </div>
-                                </div>
+                                </OrderTypeLock>
 
                                 {isDelivery && (
                                     <div>
@@ -1899,7 +1900,7 @@ export default function Index({
                             loyalty={loyaltyDiscount}
                             discount={discount}
                             shipping={shipping}
-                            bill={bill}
+                            bill={pricingPreview?.summary ?? {}}
                             format={formatPrice}
                         />
                         <div className="flex justify-between items-center mb-3">

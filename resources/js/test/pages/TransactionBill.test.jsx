@@ -1,8 +1,8 @@
 // Lives outside Pages/ because the Inertia page glob would bundle a test placed there.
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import axios from "axios";
-import toast from "react-hot-toast";
 import i18n from "@/i18n";
 import Index from "@/Pages/Dashboard/Transactions/Index";
 
@@ -17,6 +17,7 @@ vi.mock("@inertiajs/react", () => ({
 vi.mock("react-hot-toast", () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
 // Offline the preview request fails; online it never answers here, so the first preview stays on screen.
 vi.mock("axios", () => ({ default: { post: vi.fn(() => (page.online ? new Promise(() => {}) : Promise.reject(new Error()))) } }));
+vi.mock("@/Context/OnlineStatusContext", () => ({ useOnlineStatus: () => page.online }));
 vi.mock("@/Utils/offlineDb", () => ({ getPendingTransactions: async () => [], getPendingCount: async () => 0 }));
 vi.mock("@/Layouts/POSLayout", () => ({ default: () => null }));
 vi.mock("@/Components/POS/ProductGrid", () => ({ default: () => null }));
@@ -52,16 +53,17 @@ describe("POS checkout bill", () => {
         await waitFor(() => expect(orderTypes()).toEqual(["in_store", "takeaway"]));
     });
 
-    it("offline, a changed order type keeps the last server total (recomputing it is #418)", async () => {
+    it("offline at an outlet with a service charge, the order type stays and the screen says why (BR-5)", async () => {
         page.online = false;
+        page.props.activeCashierShift.service_charge_rate = 5;
         view();
-        await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(1)); // the preview on opening
 
-        fireEvent.click(screen.getByRole("button", { name: "Bawa Pulang" }));
+        await userEvent.click(screen.getByRole("button", { name: "Bawa Pulang" }));
 
-        await waitFor(() => expect(toast.error).toHaveBeenCalledTimes(2));
-        expect(toast.error).toHaveBeenLastCalledWith("Gagal memuat promo aktif");
+        expect(screen.getByText("Tipe pesanan tidak bisa diubah saat offline di outlet ini")).toBeInTheDocument();
         expect(total()).toHaveTextContent(/23\.310/);
-        expect(screen.getByText("Service charge")).toBeInTheDocument();
+        // Only the preview on opening: the order type never changed.
+        await waitFor(() => expect(axios.post).toHaveBeenCalledTimes(1));
+        expect(axios.post.mock.calls[0][1].order_type).toBe("in_store");
     });
 });

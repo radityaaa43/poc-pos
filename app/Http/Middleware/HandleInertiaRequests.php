@@ -11,6 +11,7 @@ use App\Models\ProductBatch;
 use App\Models\Receivable;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Services\BillSettingsService;
 use App\Services\CashierShiftService;
 use App\Services\OutletAccessService;
 use App\Services\PayableAgingService;
@@ -197,6 +198,9 @@ class HandleInertiaRequests extends Middleware
 
             if ($activeShift) {
                 $activeCashierShift = app(CashierShiftService::class)->summarizeForDisplay($activeShift);
+                // The POS locks the order type offline at an outlet with a service charge (REQ-010 BR-5).
+                $billSettings = app(BillSettingsService::class)->get($activeShift->warehouse?->outlet);
+                $activeCashierShift['service_charge_rate'] = $billSettings['service_charge_rate'];
             }
 
             $securityWarnings = ProductionSecurityBaseline::issues();

@@ -11,7 +11,7 @@ function Row({ label, value, tone = "font-medium" }) {
     );
 }
 
-/** The checkout summary between the promo rows and the total. `bill` comes from useBillTotals. */
+/** The checkout summary between the promo rows and the total. `bill` is the preview's summary. */
 export default function CheckoutSummaryRows({ voucher, loyalty, discount, shipping, bill, format }) {
     const { t } = useTranslation();
 
