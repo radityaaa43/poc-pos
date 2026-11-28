@@ -366,7 +366,7 @@ class AddOnOrderTest extends TestCase
 
     public function test_parent_transaction_migration_rolls_back(): void
     {
-        $migration = require database_path('migrations/2026_12_11_100001_add_add_on_links_to_transactions_and_dine_orders.php');
+        $migration = require database_path('migrations/2026_12_14_100001_add_add_on_links_to_transactions_and_dine_orders.php');
 
         $migration->down();
         $this->assertFalse(Schema::hasColumn('transactions', 'parent_transaction_id'));
