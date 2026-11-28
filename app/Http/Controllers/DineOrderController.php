@@ -94,6 +94,13 @@ class DineOrderController extends Controller
             $preview = $previews->get($product->id);
             $selection = ModifierSelection::resolve($product, $item['modifier_option_ids'] ?? [], $outlet, $warehouseId);
             $optionIds = collect($selection['options'])->pluck('id')->sort()->values()->all();
+            // The shown snapshot (name + price) is kept so accept cannot re-price an option the guest was offered (AC-15).
+            $snapshot = $selection['has_groups']
+                ? array_map(
+                    fn (array $option) => ['id' => $option['id'], 'group_name' => $option['group_name'], 'name' => $option['name'], 'price_delta' => $option['price_delta']],
+                    $selection['options'],
+                )
+                : null;
             $price = (int) ($preview['effective_unit_price'] ?? $product->sell_price) + $selection['unit_total'];
             $subtotal += $price * $item['qty'];
             $orderItems[] = [
@@ -104,6 +111,7 @@ class DineOrderController extends Controller
                 'price' => $price,
                 'note' => $item['note'] ?? null,
                 'modifier_option_ids' => $selection['has_groups'] ? $optionIds : null,
+                'modifier_snapshot' => $snapshot,
             ];
         }
 

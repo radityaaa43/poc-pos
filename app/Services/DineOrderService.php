@@ -103,10 +103,15 @@ class DineOrderService
 
                 // A line written before this ticket (or before its menu had groups) carries no options: accept writes none.
                 $itemOptionIds = $item->getAttribute('modifier_option_ids');
-                $selection = $itemOptionIds === null
-                    ? ['options' => [], 'unit_total' => 0]
-                    : ModifierSelection::resolve($product, (array) $itemOptionIds, $outlet, $warehouseId);
-                $options = $selection['options'];
+                if ($itemOptionIds === null) {
+                    $options = [];
+                } else {
+                    // Re-check availability at the latest data (BR-3): an option gone or switched off refuses the accept.
+                    // Prices stay as shown to the guest: the stored snapshot, never a fresh catalog price.
+                    $resolved = ModifierSelection::resolve($product, (array) $itemOptionIds, $outlet, $warehouseId);
+                    $options = (array) ($item->getAttribute('modifier_snapshot') ?? $resolved['options']);
+                }
+                $modifierTotal = (int) array_sum(array_column($options, 'price_delta'));
 
                 // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
                 $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, (int) $item->qty, (float) ($item->conversion_factor ?? 1));
@@ -124,7 +129,7 @@ class DineOrderService
                     'cost_total' => $costTotal,
                     'needs_preparation' => $product->needs_preparation, // the bill is paid later: freeze the flag at accept
                     'note' => $item->getAttribute('note'),
-                    'modifier_total' => $selection['unit_total'],
+                    'modifier_total' => $modifierTotal,
                 ]);
 
                 if ($options !== []) {

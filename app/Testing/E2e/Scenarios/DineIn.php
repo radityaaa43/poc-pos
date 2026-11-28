@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
+use App\Models\ModifierOption;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
@@ -69,6 +70,7 @@ class DineIn
                 $optionIds = isset($options['modifier_option_ids'])
                     ? array_map('intval', array_filter(explode(',', $options['modifier_option_ids'])))
                     : null;
+                $unitPrice = (int) $product->sell_price + (int) ModifierOption::whereIn('id', $optionIds ?: [])->sum('price_delta');
 
                 $order = DineOrder::create([
                     'dine_table_id' => $table->id,
@@ -77,11 +79,11 @@ class DineIn
                     'payment_option' => ($options['option'] ?? DineOrder::PAY_AT_COUNTER) === DineOrder::PAY_LATER
                         ? DineOrder::PAY_LATER : DineOrder::PAY_AT_COUNTER,
                     'notes' => $options['notes'] ?? null,
-                    'subtotal' => (int) $product->sell_price * $qty,
+                    'subtotal' => $unitPrice * $qty,
                     'item_count' => $qty,
                 ]);
                 $order->items()->create([
-                    'product_id' => $product->id, 'qty' => $qty, 'price' => (int) $product->sell_price,
+                    'product_id' => $product->id, 'qty' => $qty, 'price' => $unitPrice,
                     'note' => $options['note'] ?? null, 'modifier_option_ids' => $optionIds ?: null,
                 ]);
 

@@ -397,6 +397,16 @@ describe("buildKitchenTicketBytes", () => {
         expect(textOf(t)).not.toMatch(/Rp|5000|5\.000|price/i);
     });
 
+    it("prints the chosen options on a DIBATALKAN ticket too", () => {
+        const text = textOf(
+            ticket({ kind: "cancel", items: [{ title: "Kopi", qty: 1, modifiers: ["Large"], note: null }] }),
+            "80mm",
+            { type: "Dine in", unpaid: "UNPAID", cancelled: "DIBATALKAN" }
+        );
+        expect(text).toContain("DIBATALKAN");
+        expect(text).toContain("+ Large");
+    });
+
     it("wraps a long option to the paper width, 32 on 58mm and 48 on 80mm", () => {
         const long = "Ekstra".repeat(12); // 72 characters
         const option = `+ ${long}`;

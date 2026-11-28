@@ -6,10 +6,12 @@ use App\Models\DineArea;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
+use App\Models\KitchenPrintDevice;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\InventoryCostService;
+use App\Services\KitchenTicketService;
 use App\Support\Kitchen\KitchenOrders;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -146,6 +148,70 @@ class DineModifierOrderTest extends ModifierSaleTestCase
 
         $this->assertSame([6, 6], $this->stockOf($this->milk)); // 2 portions x 2 units
         $this->assertSame([48, 48], $this->stockOf($this->menu)); // the menu itself is taken too
+    }
+
+    public function test_accept_keeps_the_submit_time_option_price(): void
+    {
+        $large = $this->option('Large');
+        $this->submit([
+            ['product_id' => $this->menu->id, 'qty' => 1, 'modifier_option_ids' => [$large->id]],
+        ])->assertSessionHasNoErrors();
+        $order = DineOrder::firstOrFail();
+
+        // The owner raises the option price after the guest sent the order: the accepted line keeps the shown price.
+        $large->update(['price_delta' => 9000]);
+
+        $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        $detail = Transaction::findOrFail($order->fresh()->transaction_id)->details()->firstOrFail();
+        $this->assertSame(5000, (int) $detail->modifier_total);
+        $this->assertSame(5000, (int) $detail->modifiers()->firstOrFail()->price_delta);
+        $this->assertSame(25000, (int) $detail->unit_price);
+        $this->assertSame(25000, (int) $detail->price);
+    }
+
+    public function test_an_order_already_in_the_kitchen_keeps_its_note(): void
+    {
+        $this->menu->update(['needs_preparation' => true]);
+        $device = new KitchenPrintDevice(['outlet_id' => $this->outlet->id, 'name' => 'Dapur']);
+        $device->created_at = now()->subMinute();
+        $device->save();
+
+        $this->submit([
+            ['product_id' => $this->menu->id, 'qty' => 1, 'note' => 'alergi kacang'],
+        ], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
+        $order = DineOrder::firstOrFail();
+        $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        // In flight: the item is in the kitchen; its note survives on the read model and on the ticket payload.
+        $items = KitchenItem::with(KitchenOrders::RELATIONS)->get();
+        $this->assertSame('alergi kacang', KitchenOrders::fromItems($items)->first()['items']->first()['note']);
+        $this->assertSame('alergi kacang', app(KitchenTicketService::class)->pending($device)->first()['items'][0]['note']);
+    }
+
+    public function test_an_add_on_order_carries_options_and_note_to_the_kitchen(): void
+    {
+        $this->menu->update(['needs_preparation' => true]);
+        $large = $this->option('Large');
+
+        // A first order on the table, accepted and already in the kitchen.
+        $this->submit([['product_id' => $this->menu->id, 'qty' => 1]], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
+        $first = DineOrder::firstOrFail();
+        $this->post(route('dine-orders.accept', $first))->assertSessionHasNoErrors();
+
+        // The guest adds another order on the same table with an option and a note (the add-on path uses the same submit).
+        $this->submit([
+            ['product_id' => $this->menu->id, 'qty' => 1, 'modifier_option_ids' => [$large->id], 'note' => 'tambah pedas'],
+        ], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
+        $addOn = DineOrder::orderByDesc('id')->firstOrFail();
+        $this->assertNotSame($first->id, $addOn->id);
+        $this->post(route('dine-orders.accept', $addOn))->assertSessionHasNoErrors();
+
+        $transaction = Transaction::findOrFail($addOn->fresh()->transaction_id);
+        $item = KitchenItem::where('transaction_id', $transaction->id)->sole();
+        $this->assertSame('tambah pedas', $item->note);
+        $presented = KitchenOrders::fromItems(KitchenItem::with(KitchenOrders::RELATIONS)->where('transaction_id', $transaction->id)->get());
+        $this->assertSame(['Large'], $presented->first()['items']->first()['modifiers']);
     }
 
     public function test_option_recipe_cost_matches_the_pos_frozen_cost(): void
