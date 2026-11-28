@@ -784,8 +784,7 @@ export default function Index({
             return;
         }
 
-        creditException.submit(
-            withAddOn({
+        creditException.submit(withAddOn({
                 customer_id: selectedCustomer?.id ?? null,
                 discount,
                 redeem_points: Number(redeemPointsInput || 0),
@@ -1991,9 +1990,7 @@ export default function Index({
                     </div>
                 </div>
             </div>
-
             {creditException.dialog}
-
             {/* Numpad Modal */}
             <NumpadModal
                 isOpen={numpadOpen}
