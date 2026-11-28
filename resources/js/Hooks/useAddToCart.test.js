@@ -46,6 +46,15 @@ describe("useAddToCart", () => {
         expect(router.post.mock.calls[0][1]).toMatchObject({ product_id: 7, modifier_option_ids: [12], note: "less ice" });
     });
 
+    it("keeps the panel open when a scan adds a plain product meanwhile", () => {
+        const { result } = renderHook(() => useAddToCart(groups));
+
+        act(() => void result.current.addToCart(menu));
+        act(() => void result.current.addToCart({ id: 8, title: "Air" }));
+        act(() => router.post.mock.calls[0][2].onSuccess());
+        expect(result.current.panel).toMatchObject({ title: "Kopi" });
+    });
+
     it("never adds a sold out menu", () => {
         const { result } = renderHook(() => useAddToCart(groups));
 

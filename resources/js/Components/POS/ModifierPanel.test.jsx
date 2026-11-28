@@ -48,7 +48,6 @@ describe("ModifierPanel", () => {
         expect(screen.getByRole("radio", { name: /Regular/ })).not.toBeChecked();
         expect(screen.getByText("Rp 28.000")).toBeInTheDocument();
 
-        // Topping is full at two.
         await userEvent.click(box("Jelly"));
 
         expect(box("Cheese")).toBeDisabled();
@@ -60,6 +59,17 @@ describe("ModifierPanel", () => {
 
         expect(box("Oreo")).toBeDisabled();
         expect(box("Oreo").closest("label")).toHaveTextContent("Habis");
+    });
+
+    it("after a reload drops a gone option and lets a sold out tick be cleared", async () => {
+        const props = { title: "Kopi Susu", basePrice: 20000, selected: [1, 3, 4], labels, onClose: vi.fn(), onAdd: vi.fn() };
+        const { rerender } = render(<ModifierPanel {...props} groups={groups} />);
+        rerender(<ModifierPanel {...props} groups={[groups[0], group(2, "Topping", 0, 2, [option(4, "Jelly", 2000, false)])]} />);
+        await userEvent.click(screen.getByRole("button", { name: "Tambah" }));
+        expect(props.onAdd).toHaveBeenCalledWith({ optionIds: [1, 4], note: null });
+        await userEvent.click(box("Jelly"));
+        expect(box("Jelly")).not.toBeChecked();
+        expect(box("Jelly")).toBeDisabled();
     });
 
     it("disables Add and names the group under its minimum", () => {

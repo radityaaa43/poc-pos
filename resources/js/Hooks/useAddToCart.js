@@ -6,7 +6,6 @@ import { useTranslation } from "react-i18next";
 const defaultOptionIds = (groups) =>
     groups.flatMap((group) => group.options.filter((option) => option.is_default && option.available).map((option) => option.id));
 
-// A menu with modifier groups opens the options panel first (REQ-008 AC-06); `panel` holds its props meanwhile.
 export default function useAddToCart(modifierGroups = {}) {
     const { t } = useTranslation();
     const [addingProductId, setAddingProductId] = useState(null);
@@ -22,10 +21,9 @@ export default function useAddToCart(modifierGroups = {}) {
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success(`${product.title}${unit ? ` (${unit.code})` : ""} ditambahkan`);
-                    setPicking(null);
+                    if (choice.modifier_option_ids) setPicking(null);
                     setAddingProductId(null);
                 },
-                // A refusal keeps the panel open with the cashier's choices.
                 onError: (errors) => {
                     toast.error(errors?.message || errors?.modifiers || errors?.note || "Gagal menambahkan produk");
                     setAddingProductId(null);
@@ -34,7 +32,6 @@ export default function useAddToCart(modifierGroups = {}) {
         );
     };
 
-    /** True when the product went straight to the cart. */
     const addToCart = (product, unit = null) => {
         if (!product?.id) return false;
 

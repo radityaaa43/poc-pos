@@ -3,7 +3,6 @@ import Modal from "@/Components/Dashboard/Modal";
 
 const rupiah = (value) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
 
-// Exactly one: a radio swaps the choice. Anything else is checkboxes, locked once the maximum is ticked.
 const pickOne = (group) => group.min_select === 1 && group.max_select === 1;
 
 // Presentational (REQ-008 AC-06..AC-09), so the QR menu can reuse it: texts come in `labels`.
@@ -25,13 +24,13 @@ export default function ModifierPanel({ title, basePrice, groups, selected, labe
 
     const submit = (event) => {
         event.preventDefault();
-        onAdd({ optionIds: ids, note: note.trim() || null });
+        onAdd({ optionIds: groups.flatMap(chosen).map((option) => option.id), note: note.trim() || null });
     };
 
     return (
         <Modal show title={title} onClose={onClose} maxWidth="md">
             <form onSubmit={submit} className="space-y-3 text-sm text-slate-800 dark:text-slate-200">
-                <div className="max-h-[55vh] space-y-4 overflow-y-auto">
+                <div className="max-h-[45vh] space-y-4 overflow-y-auto">
                     {groups.map((group) => {
                         const full = chosen(group).length >= group.max_select;
 
@@ -45,7 +44,7 @@ export default function ModifierPanel({ title, basePrice, groups, selected, labe
                                 </legend>
                                 {group.options.map((option) => {
                                     const checked = ids.includes(option.id);
-                                    const disabled = !option.available || (!checked && full && !pickOne(group));
+                                    const disabled = !checked && (!option.available || (full && !pickOne(group)));
 
                                     return (
                                         <label
@@ -69,18 +68,18 @@ export default function ModifierPanel({ title, basePrice, groups, selected, labe
                             </fieldset>
                         );
                     })}
-                    <label className="block">
-                        <span className="font-semibold">{labels.note}</span>
-                        <textarea
-                            value={note}
-                            maxLength={100}
-                            rows={2}
-                            onChange={(event) => setNote(event.target.value)}
-                            className="mt-1 w-full rounded-lg border-slate-300 bg-white text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-900"
-                        />
-                    </label>
-                    <p className="text-right text-xs text-slate-500">{labels.noteCount(note.length)}</p>
                 </div>
+                <label className="block">
+                    <span className="font-semibold">{labels.note}</span>
+                    <textarea
+                        value={note}
+                        maxLength={100}
+                        rows={2}
+                        onChange={(event) => setNote(event.target.value)}
+                        className="mt-1 w-full rounded-lg border-slate-300 bg-white text-sm focus:border-primary-500 focus:ring-primary-500 dark:border-slate-700 dark:bg-slate-900"
+                    />
+                </label>
+                <p className="text-right text-xs text-slate-500">{labels.noteCount(note.length)}</p>
                 <p className="flex justify-between font-bold" aria-live="polite">
                     <span>{labels.portionPrice}</span>
                     <span>{rupiah(price)}</span>
