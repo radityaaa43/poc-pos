@@ -197,6 +197,20 @@ class ReturnStockTest extends TestCase
         $this->assertDatabaseCount('sales_returns', 0);
     }
 
+    // Never more than sold, within one request too: a line listed twice must not pass the quantity check twice.
+    public function test_the_same_line_twice_in_one_return_is_refused(): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+        $payload = $this->returnPayload($sale, [2]);
+        $payload['items'][] = $payload['items'][0];
+
+        $this->apiDraft(['transaction_id' => $sale->id] + $payload)->assertJsonValidationErrors('items.1.transaction_detail_id');
+        $this->actingAs($this->cashier)->post(route('sales-returns.store', $sale), $payload)
+            ->assertSessionHasErrors('items.1.transaction_detail_id');
+
+        $this->assertDatabaseCount('sales_returns', 0);
+    }
+
     private function apiDraft(array $payload): TestResponse
     {
         Sanctum::actingAs($this->cashier, ['*']);
