@@ -35,6 +35,7 @@ class TransactionTender extends Model
         'cash_received',
         'change',
         'bank_account_id',
+        'cashier_shift_id',
         'payment_status',
         'payment_reference',
         'payment_url',

@@ -75,7 +75,15 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
     return (
         <div className="mt-4 space-y-3 rounded-xl border border-danger-200 bg-danger-50/60 p-3 dark:border-danger-900/50 dark:bg-danger-950/20 sm:p-4">
             <p className="text-sm font-semibold text-danger-700 dark:text-danger-400">
-                {t(`pos.retryPayment.${transaction.payment_status === "expired" ? "expired" : "failed"}`)}
+                {t(
+                    `pos.retryPayment.${
+                        transaction.payment_method === "split"
+                            ? "splitRest"
+                            : transaction.payment_status === "expired"
+                              ? "expired"
+                              : "failed"
+                    }`
+                )}
             </p>
 
             {total < Number(transaction.grand_total || 0) && (

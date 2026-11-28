@@ -146,7 +146,15 @@ export default function OpenBills({ openBills: initialBills = NO_BILLS, bankAcco
                                         </p>
                                     )}
                                 </div>
-                                {bill.pending && !bill.awaiting_online ? (
+                                {bill.kind === "split" ? (
+                                    // a split sale with money in: the rest is collected on its receipt
+                                    <Link
+                                        href={route("transactions.print", bill.invoice)}
+                                        className="inline-flex h-9 items-center rounded-lg bg-sky-500 px-3 text-xs font-semibold text-white hover:bg-sky-600"
+                                    >
+                                        {t("pos.unpaidBills.payRest")}
+                                    </Link>
+                                ) : bill.pending && !bill.awaiting_online ? (
                                     // a gateway payment is already waiting: show its QR instead of charging again
                                     <Link
                                         href={route("transactions.print", bill.invoice)}

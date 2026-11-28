@@ -1202,7 +1202,8 @@
             "change": "Change",
             "bankAccount": "Destination account",
             "pay": "Pay",
-            "due": "Amount due"
+            "due": "Amount due",
+            "splitRest": "The rest of this split payment is still owed."
         },
         "bill": {
             "serviceCharge": "Service charge",
@@ -1222,6 +1223,7 @@
         "unpaidBills": {
             "title": "Unpaid",
             "pay": "Pay",
+            "payRest": "Pay the rest",
             "ageMinutes": "{{count}} min",
             "ageHours": "{{count}} h",
             "awaitingOnline": "Waiting for online payment",

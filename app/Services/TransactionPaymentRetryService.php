@@ -30,12 +30,41 @@ class TransactionPaymentRetryService
 
     public function isRetryable(Transaction $transaction): bool
     {
+        if ($this->collectsRest($transaction)) {
+            return true;
+        }
+
         // A dine-in bill is paid through its open bill (dine-orders.pay), which already settles failed bills.
         // A credit sale is collected through its receivable: a retry would charge it a second time.
         return in_array($transaction->payment_status, self::RETRYABLE_STATUSES, true)
             && ! $transaction->dineOrder()->exists()
             && ! $transaction->receivable()->exists()
             && ! $transaction->wasRestocked();
+    }
+
+    /** A pay-now split sale with money received and not paid as a whole: the #396 hold predicate. */
+    public function hasPartlyPaidSplit(Transaction $transaction): bool
+    {
+        return Transaction::partlyPaidSplit()->whereKey($transaction->id)->exists();
+    }
+
+    /**
+     * A split sale whose rest can be collected now: failed or unpaid, or pending with an abandoned claim. A live pending
+     * tender is finished first, and a sale awaiting discount approval may still change its total.
+     */
+    public function collectsRest(Transaction $transaction): bool
+    {
+        if (! $this->hasPartlyPaidSplit($transaction) || $transaction->payment_status === 'pending_approval') {
+            return false;
+        }
+
+        return $transaction->payment_status !== 'pending' || $transaction->tenders()->abandonedClaim()->exists();
+    }
+
+    /** What a retry or a collected rest asks: the rest of a partly paid split, otherwise what the sale owes. */
+    public function amountFor(Transaction $transaction): int
+    {
+        return $this->hasPartlyPaidSplit($transaction) ? $transaction->unpaidAmount() : $transaction->amountDue();
     }
 
     /**

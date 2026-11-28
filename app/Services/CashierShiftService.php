@@ -152,14 +152,20 @@ class CashierShiftService
             ->sum('grand_total');
 
         // A split sale counts only the money received (#396): its paid cash tenders are in the drawer, its paid non-cash
-        // tenders are non-cash sales, and its grand_total counts nowhere.
-        $splitSales = (clone $transactions)->where('payment_method', 'split')->select('transactions.id');
+        // tenders are non-cash sales, and its grand_total counts nowhere. Each tender counts in the shift that took it
+        // (#530 BR-4): its own shift when another shift collected the rest, otherwise the sale's shift. The sale itself
+        // and its count stay with its own shift.
+        $splitTenders = TransactionTender::query()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->whereHas('transaction', fn ($sale) => $sale->where('payment_method', 'split'))
+            ->whereIn('transaction_id', Transaction::query()->notRestocked()->select('transactions.id'))
+            ->where(fn ($tenders) => $tenders
+                ->where('cashier_shift_id', $shift->id)
+                ->orWhere(fn ($own) => $own->whereNull('cashier_shift_id')
+                    ->whereHas('transaction', fn ($sale) => $sale->where('cashier_shift_id', $shift->id))));
         $paidTenders = TransactionTender::query()->where('payment_status', TransactionTender::STATUS_PAID);
 
-        $cashSalesTotal += (int) (clone $paidTenders)
-            ->where('method', TransactionTender::METHOD_CASH)
-            ->whereIn('transaction_id', $splitSales)
-            ->sum('amount');
+        $cashSalesTotal += (int) (clone $splitTenders)->where('method', TransactionTender::METHOD_CASH)->sum('amount');
 
         // Only money received counts: an unpaid bill (Belum Lunas) has taken none yet, and a gateway sale counts once it is paid (see countedInClosedRecap).
         $nonCashSales = (clone $transactions)
@@ -174,12 +180,13 @@ class CashierShiftService
                 ->orWhereIn('transactions.id', Receivable::query()->select('transaction_id')));
         $nonCashSalesTotal = (int) (clone $nonCashSales)->whereKeyNot($bookedBillIds)->sum('grand_total');
 
+        $nonCashSalesTotal += (int) (clone $splitTenders)->where('method', '!=', TransactionTender::METHOD_CASH)->sum('amount');
+
         // A booked bill is already a shortfall (BR-16): like a split, only the non-cash part it did receive counts here.
         $nonCashSalesTotal += (int) (clone $paidTenders)
             ->where('method', '!=', TransactionTender::METHOD_CASH)
-            ->where(fn ($tenders) => $tenders
-                ->whereIn('transaction_id', $splitSales)
-                ->orWhereIn('transaction_id', $bookedBillIds))
+            ->whereIn('transaction_id', $bookedBillIds)
+            ->where(fn ($tenders) => $tenders->whereNull('cashier_shift_id')->orWhere('cashier_shift_id', $shift->id))
             ->sum('amount');
 
         // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
