@@ -150,13 +150,15 @@ describe("dine orders queue", () => {
         vi.unstubAllGlobals();
     });
 
-    it("says an order was already processed when it is accepted again", async () => {
+    it.each(["Terima", "Tolak"])("says an order was already processed when %s is pressed on it", async (button) => {
         const refusal = "Pesanan ini sudah diproses.";
         router.post.mockImplementationOnce((url, data, options) => options.onError({ order: refusal }));
         vi.stubGlobal("confirm", () => true);
+        vi.stubGlobal("prompt", () => "Habis");
+        toast.error.mockClear();
         render(<Index orders={orders} />);
 
-        await userEvent.click(screen.getByRole("button", { name: "Terima" }));
+        await userEvent.click(screen.getByRole("button", { name: button }));
 
         expect(toast.error).toHaveBeenCalledWith(refusal);
         vi.unstubAllGlobals();

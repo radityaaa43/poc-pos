@@ -88,7 +88,7 @@ export default function Index({ orders }) {
             { reason },
             {
                 onSuccess: () => toast.success("Pesanan ditolak."),
-                onError: () => toast.error("Gagal menolak pesanan."),
+                onError: (errors) => toast.error(errors?.order ?? "Gagal menolak pesanan."),
             }
         );
     };
