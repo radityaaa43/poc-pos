@@ -4,6 +4,7 @@ namespace Tests\Feature\SalesReturn;
 
 use App\Models\CashierShift;
 use App\Models\Category;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\SalesReturn;
@@ -154,6 +155,53 @@ class ReturnStockTest extends TestCase
             $this->assertSame($inWarehouse, $this->warehouseStock($product));
         }
         $this->assertSame(0, StockMutation::where('reference_type', 'sales_return')->count());
+    }
+
+    public function test_api_creates_a_return_draft(): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+
+        $this->apiDraft(['transaction_id' => $sale->id] + $this->returnPayload($sale, [1]))
+            ->assertCreated()
+            ->assertJsonPath('data.status', 'draft')
+            ->assertJsonPath('data.transaction.id', $sale->id);
+
+        $this->assertDatabaseHas('sales_returns', ['transaction_id' => $sale->id, 'status' => 'draft']);
+    }
+
+    public function test_api_refuses_another_outlets_sale(): void
+    {
+        $own = Outlet::create(['code' => 'OUT-1', 'name' => 'Outlet 1', 'is_active' => true]);
+        $other = Outlet::create(['code' => 'OUT-2', 'name' => 'Outlet 2', 'is_active' => true]);
+        $this->cashier->outlets()->attach($own->id);
+        // The cashier's own sale, so only the outlet scope can refuse it.
+        $sale = $this->sale(
+            [[$this->product(stock: 10), 2]],
+            Warehouse::create(['code' => 'WH-2', 'name' => 'Gudang 2', 'is_active' => true, 'outlet_id' => $other->id]),
+        );
+
+        $this->apiDraft(['transaction_id' => $sale->id] + $this->returnPayload($sale, [1]))->assertNotFound();
+        $this->apiDraft(['transaction_id' => $sale->id + 1] + $this->returnPayload($sale, [1]))->assertNotFound();
+
+        $this->assertDatabaseCount('sales_returns', 0);
+    }
+
+    public function test_api_refuses_a_return_that_names_no_sale(): void
+    {
+        $sale = $this->sale([[$this->product(stock: 10), 2]]);
+
+        $this->apiDraft($this->returnPayload($sale, [1]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('transaction_id');
+
+        $this->assertDatabaseCount('sales_returns', 0);
+    }
+
+    private function apiDraft(array $payload): TestResponse
+    {
+        Sanctum::actingAs($this->cashier, ['*']);
+
+        return $this->postJson(route('api.sales-returns.store'), $payload);
     }
 
     /** @return array{Product, Product, Product} a recipe menu and its components: 20 beans and 150 milk each */
