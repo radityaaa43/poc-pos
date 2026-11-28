@@ -28,7 +28,7 @@ class TransactionRetryController extends Controller
 
         $data = $request->validate([
             'payment_method' => ['required', Rule::in(['cash', 'qris', 'midtrans', 'xendit', 'bank_transfer'])],
-            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.$this->paymentRetryService->amountDue($transaction)],
+            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.$transaction->amountDue()],
             'bank_account_id' => ['exclude_unless:payment_method,bank_transfer', 'required', 'integer', 'exists:bank_accounts,id'],
         ]);
 

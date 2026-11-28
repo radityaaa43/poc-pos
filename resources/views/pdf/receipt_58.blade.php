@@ -131,6 +131,12 @@
             <span>TOTAL</span>
             <span>{{ $formatPrice($total) }}</span>
         </div>
+        @if(($due = $transaction->reducedAmountDue()) !== null)
+            <div style="display:flex; justify-content:space-between; font-weight:700; font-size:12px;">
+                <span>SISA TAGIHAN</span>
+                <span>{{ $formatPrice($due) }}</span>
+            </div>
+        @endif
     </div>
 
     <pre style="margin:3px 0;">{{ $dash }}</pre>

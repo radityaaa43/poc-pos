@@ -157,7 +157,7 @@ export default function ShippingLabel({ transaction, store = {} }) {
                                 </div>
                                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center">
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">Total Bayar</span>
-                                    <span className="text-sm font-black text-slate-900">{formatPrice(transaction?.grand_total)}</span>
+                                    <span className="text-sm font-black text-slate-900">{formatPrice(transaction?.amount_due ?? transaction?.grand_total)}</span>
                                 </div>
                             </div>
                         </div>

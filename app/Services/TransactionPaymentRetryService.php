@@ -35,12 +35,6 @@ class TransactionPaymentRetryService
             && ! $transaction->wasRestocked();
     }
 
-    /** What a retry asks for: what the sale still owes after returns. A credit sale (a receivable) keeps its grand total. */
-    public function amountDue(Transaction $sale): int
-    {
-        return $sale->receivable()->exists() ? (int) $sale->grand_total : $sale->remainingTotal();
-    }
-
     /**
      * @param  array{payment_method: string, cash_amount?: int, bank_account_id?: int}  $input
      *
@@ -85,7 +79,7 @@ class TransactionPaymentRetryService
                 throw ValidationException::withMessages(['payment' => 'Buka shift di outlet penjualan ini']);
             }
 
-            $total = $this->amountDue($sale);
+            $total = $sale->amountDue(); // failed or expired: what is still owed (a credit sale: its total)
 
             if (! $sale->receivable()->exists() && (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1)) {
                 throw ValidationException::withMessages(['payment' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);

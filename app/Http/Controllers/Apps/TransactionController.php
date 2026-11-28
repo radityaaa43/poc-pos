@@ -765,7 +765,7 @@ class TransactionController extends Controller
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
-        $transaction->setAttribute('retry_amount', $retryable ? $this->paymentRetryService->amountDue($transaction) : null);
+        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue()]);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [
@@ -840,8 +840,7 @@ class TransactionController extends Controller
         });
 
         if ($salesReturnTablesReady) {
-            $query->with('details.salesReturnItems.salesReturn:id,status')
-                ->withSum(['salesReturns as returned_total' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount');
+            $query->with('details.salesReturnItems.salesReturn:id,status')->withScreenAmounts();
         }
 
         if (! $request->user()->isSuperAdmin()) {
@@ -891,8 +890,8 @@ class TransactionController extends Controller
             return [
                 ...$transaction->toArray(),
                 'can_create_sales_return' => $canCreateSalesReturn,
-                // what an open bill still owes: the "Bayar" modal asks this, not the grand total
-                'owed_total' => max(0, (int) $transaction->grand_total - (int) $transaction->getAttribute('returned_total')),
+                // what the dialogs ask: after returns, not the grand total
+                ...($salesReturnTablesReady ? $transaction->screenAmounts() : ['owed_total' => (int) $transaction->grand_total]),
             ];
         });
 

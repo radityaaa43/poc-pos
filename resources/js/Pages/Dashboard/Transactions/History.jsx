@@ -4,6 +4,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import Button from "@/Components/Dashboard/Button";
 import Table from "@/Components/Dashboard/Table";
 import OpenBillPayModal from "@/Components/POS/OpenBillPayModal";
+import AmountDueNote from "@/Components/POS/AmountDueNote";
 import LateRefundBadge from "./LateRefundBadge";
 import PaidAfterCloseBadge from "./PaidAfterCloseBadge";
 import { useTranslation } from "react-i18next";
@@ -407,6 +408,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                 {formatCurrency(
                                                     transaction.grand_total ?? 0
                                                 )}
+                                                <AmountDueNote transaction={transaction} />
                                             </td>
                                             <td className="px-4 py-4 text-center">
                                                 {transaction.payment_method ===
@@ -589,6 +591,7 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                                     transaction.grand_total ?? 0
                                                 )}
                                             </p>
+                                            <AmountDueNote transaction={transaction} />
                                         </div>
                                     </div>
 
@@ -779,12 +782,12 @@ const History = ({ transactions, filters, warehouses = [], bankAccounts = [], pa
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-slate-500 dark:text-slate-400">
-                                        Total
+                                        {confirmModal.transaction.amount_due != null ? "Sisa tagihan" : "Total"}
                                     </span>
                                     <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
                                         {formatCurrency(
-                                            confirmModal.transaction
-                                                .grand_total ?? 0
+                                            confirmModal.transaction.amount_due ??
+                                                confirmModal.transaction.grand_total ?? 0
                                         )}
                                     </span>
                                 </div>

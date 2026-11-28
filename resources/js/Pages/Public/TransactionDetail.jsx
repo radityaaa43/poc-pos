@@ -48,6 +48,12 @@ export default function TransactionDetail({ transaction, token, error }) {
                                 <span>Total</span>
                                 <span className="text-primary-600">{formatPrice(transaction.grand_total)}</span>
                             </div>
+                            {transaction.amount_due != null && (
+                                <div className="flex justify-between font-bold text-lg">
+                                    <span>Sisa tagihan</span>
+                                    <span className="text-primary-600">{formatPrice(transaction.amount_due)}</span>
+                                </div>
+                            )}
                         </div>
 
                         {transaction.payment_method === "cash" && transaction.cash > 0 && (
