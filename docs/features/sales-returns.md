@@ -16,6 +16,7 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - restock ke inventory
 - koreksi receivable untuk transaksi `pay_later`
 - retur mengembalikan service charge dan pajak secara proporsional (pembulatan tunai tidak dikembalikan)
+- retur mengembalikan harga item yang benar-benar dibayar (setelah diskon) dan memindahkan poin loyalty
 - histori retur penjualan
 
 ## Halaman dan Route
@@ -49,9 +50,11 @@ Di API, kemampuan token sama dengan izin web: baca `sales-returns-access`, form/
 
 ## Nilai Retur
 
-`total_return_amount` = nilai item yang diretur + `service_refunded` + `tax_refunded`. Refund tunai, saldo toko, penurunan piutang, sisa tagihan (`remainingTotal()`), daftar open bill, dan rekap shift semuanya membaca nilai ini.
+`total_return_amount` = nilai item yang diretur − `discount_deducted` + `service_refunded` + `tax_refunded`. Refund tunai, saldo toko, penurunan piutang, sisa tagihan (`remainingTotal()`), daftar open bill, dan rekap shift semuanya membaca nilai ini.
 
-- Service charge dan pajak dibagi proporsional terhadap nilai item yang diretur, dengan pembulatan kumulatif bilangan bulat: bagian dari seluruh retur satu penjualan berjumlah tepat sebesar yang pernah ditagih dan retur terakhir menanggung sisa pembulatan. Karena harga baris masih sebelum diskon, bagian ini dibatasi agar total retur tidak pernah melebihi yang dibayar pembeli (`grand_total` dikurangi ongkir dan pajaknya).
+- Nilai item yang diretur adalah harga baris (yang sudah bersih dari promo baris/grup) dikurangi bagian diskon bill-level penjualan: `discount`, `loyalty_discount_total`, dan `customer_voucher_discount`, dibagi proporsional terhadap nilai kotor yang diretur. `transaction_details.discount_total` hanya informasi dan tidak dikurangi lagi. Bagian tiap retur dibulatkan kumulatif: seluruh retur satu penjualan berjumlah tepat sebesar uang yang dibayar pembeli untuk item (`Σprice − diskon bill-level`) dan retur terakhir menanggung sisa pembulatan. Diskon yang dipotong dicatat di `discount_deducted`.
+- Service charge dan pajak dibagi proporsional terhadap nilai kotor item yang diretur, dengan pembulatan kumulatif bilangan bulat: bagian dari seluruh retur satu penjualan berjumlah tepat sebesar yang pernah ditagih dan retur terakhir menanggung sisa pembulatan.
+- Poin redeem yang dipakai pada penjualan kembali sebagai poin (bukan uang); poin yang diperoleh pada penjualan ditarik kembali, keduanya proporsional terhadap nilai retur. Saldo poin tidak pernah turun di bawah 0: poin yang sudah tidak dipegang pelanggan dicatat sebagai kekurangan di audit retur (`points_shortfall`).
 - Pajak yang dikembalikan tidak termasuk PPN atas ongkos kirim (ongkir bukan baris item). PB1 tidak mengenakan pajak pada ongkir.
 - Penjualan sebelum rilis (`tax_kind` null) dibaca sebagai PPN tanpa service charge, jadi hanya pajaknya yang dikembalikan (BR-2). Retur yang sudah selesai sebelum rilis tidak pernah dihitung ulang dan tetap bernilai item saja.
 - Pembulatan tunai (`cash_rounding`) tidak pernah dikembalikan.
@@ -92,7 +95,7 @@ Completing a return (`sales-returns-complete`, web and API, in the return's own 
 - retur completed bisa menambah stok kembali
 - retur pada transaksi piutang bisa mengurangi total receivable
 - overpayment dari piutang dapat berubah menjadi refund atau customer credit
-- completing a return locks the sale (and its receivable) before working out the refund, so it is serialised with a payment of that sale: a payment committed first is refunded, a return completed first lowers what the payment asks. Two returns of one sale are serialised the same way: the second one checks the remaining quantity with locking reads of the completed returns, so a line is never returned (or restocked) beyond what was sold. Lock order: shift, return, kitchen items, dine order, receivable, sale, the sale's completed returns, stock
+- completing a return locks the sale (and its receivable) before working out the refund, so it is serialised with a payment of that sale: a payment committed first is refunded, a return completed first lowers what the payment asks. Two returns of one sale are serialised the same way: the second one checks the remaining quantity with locking reads of the completed returns, so a line is never returned (or restocked) beyond what was sold. Lock order: shift, return, customer, kitchen items, dine order, receivable, sale, the sale's completed returns, stock
 
 ## Batasan Saat Ini
 

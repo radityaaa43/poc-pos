@@ -134,45 +134,50 @@ export default function SalesReturnForm({
               Number(salesReturn.tax_refunded || 0)
             : computedAmount;
 
-        // Shares the sale's service charge and tax like ReturnBillShareService: cumulative round-half-up, so the
-        // returns of one sale add up to what it charged. Null bill_share (an older server payload) shows no rows.
+        // Shares the sale's discount, service charge and tax like ReturnBillShareService: cumulative round-half-up,
+        // so the returns of one sale add up to what it charged. Null bill_share (an older server payload) shows no rows.
         const billShare = transaction.bill_share ?? null;
         const base = Number(billShare?.base || 0);
         const returnedValue = Number(billShare?.returned_value || 0);
 
         let serviceShare = 0;
         let taxShare = 0;
+        let discountShare = 0;
+        let pointsRestored = 0;
+        let pointsReversed = 0;
         if (isCompleted) {
             serviceShare = Number(salesReturn.service_refunded || 0);
             taxShare = Number(salesReturn.tax_refunded || 0);
+            discountShare = Number(salesReturn.discount_deducted || 0);
+            pointsRestored = Number(salesReturn.points_restored || 0);
+            pointsReversed = Number(salesReturn.points_reversed || 0);
         } else if (billShare) {
             const returnedBefore = Math.min(base, returnedValue);
             const cumulative = Math.min(base, returnedBefore + totalAmount);
             const shareOf = (total, at) =>
                 base > 0 ? Math.floor((2 * total * at + base) / (2 * base)) : 0;
+            // Items refund their net share: the gross price less the discount that share carries (#545).
+            const netShare =
+                shareOf(Number(billShare.net_base || 0), cumulative) -
+                shareOf(Number(billShare.net_base || 0), returnedBefore);
+            discountShare = Math.max(0, totalAmount - netShare);
             serviceShare =
                 shareOf(Number(billShare.service_charge || 0), cumulative) -
                 shareOf(Number(billShare.service_charge || 0), returnedBefore);
             taxShare =
                 shareOf(Number(billShare.refundable_tax || 0), cumulative) -
                 shareOf(Number(billShare.refundable_tax || 0), returnedBefore);
-            // Items refund at pre-discount line prices, so cap the share at what is left of the paid amount.
-            if (billShare.paid != null) {
-                const cap = Math.max(
-                    0,
-                    Number(billShare.paid || 0) -
-                        Number(billShare.returned_total || 0) -
-                        totalAmount
-                );
-                if (serviceShare + taxShare > cap) {
-                    serviceShare = Math.min(serviceShare, cap);
-                    taxShare = Math.min(taxShare, cap - serviceShare);
-                }
-            }
+            pointsRestored =
+                shareOf(Number(billShare.points_redeemed || 0), cumulative) -
+                shareOf(Number(billShare.points_redeemed || 0), returnedBefore);
+            pointsReversed =
+                shareOf(Number(billShare.points_earned || 0), cumulative) -
+                shareOf(Number(billShare.points_earned || 0), returnedBefore);
         }
+        // A completed return shows its stored total; a draft, the net share plus service and tax.
         const grossAmount = isCompleted
             ? Number(salesReturn.total_return_amount || 0)
-            : totalAmount + serviceShare + taxShare;
+            : totalAmount - discountShare + serviceShare + taxShare;
 
         let receivableAfter = null;
         let settlementAmount = 0;
@@ -209,7 +214,12 @@ export default function SalesReturnForm({
             totalAmount,
             serviceShare,
             taxShare,
+            discountShare,
+            pointsRestored,
+            pointsReversed,
             grossAmount,
+            hasDiscount: discountShare > 0,
+            hasPoints: pointsRestored > 0 || pointsReversed > 0,
             hasBillShare: isCompleted
                 ? serviceShare !== 0 || taxShare !== 0
                 : Boolean(billShare) && (serviceShare !== 0 || taxShare !== 0),
@@ -555,6 +565,31 @@ export default function SalesReturnForm({
                                     label="Stok kembali"
                                     value={`${summary.restockQty} item`}
                                 />
+                                {summary.hasDiscount && (
+                                    <PreviewRow
+                                        label={t("salesReturns.discountDeduction")}
+                                        value={formatCurrency(-summary.discountShare)}
+                                    />
+                                )}
+                                {summary.hasPoints && (
+                                    <>
+                                        {summary.pointsRestored > 0 && (
+                                            <PreviewRow
+                                                label={t("salesReturns.pointsRestored")}
+                                                value={`${summary.pointsRestored} ${t("salesReturns.pointsUnit")}`}
+                                            />
+                                        )}
+                                        {summary.pointsReversed > 0 && (
+                                            <PreviewRow
+                                                label={t("salesReturns.pointsReversed")}
+                                                value={`${summary.pointsReversed} ${t("salesReturns.pointsUnit")}`}
+                                            />
+                                        )}
+                                        <p className="text-xs text-slate-400 dark:text-slate-500">
+                                            {t("salesReturns.pointsNote")}
+                                        </p>
+                                    </>
+                                )}
                                 {summary.hasBillShare && (
                                     <>
                                         <PreviewRow

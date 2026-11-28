@@ -75,6 +75,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
 | Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
 | Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
+| Refund base ("dasar refund", "diskon dipotong") | The money a return gives back for its items: their gross line price less the sale's bill-level discounts (manual, redeemed points, voucher), shared in proportion to the returned value. A full return equals what was paid for the items; the discount share taken off is recorded in `discount_deducted` | Gross line price: refunds more; `transaction_details.discount_total`: information only, never subtracted | `ReturnBillShareService`, `sales_returns.discount_deducted` |
 
 ## Retired terms
 

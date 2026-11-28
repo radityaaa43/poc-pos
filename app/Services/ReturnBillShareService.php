@@ -17,7 +17,7 @@ class ReturnBillShareService
      * The sale's figures a return shares out, plus the item value and the full total its completed returns already
      * gave back (excluding $exceptReturnId), and what the sale actually took.
      *
-     * @return array{base:int, service_charge:int, refundable_tax:int, returned_value:int, returned_total:int, paid:int}
+     * @return array{base:int, net_base:int, service_charge:int, refundable_tax:int, points_redeemed:int, points_earned:int, returned_value:int, returned_total:int, paid:int}
      */
     public function billShare(Transaction $sale, ?int $exceptReturnId = null, bool $lock = false): array
     {
@@ -26,16 +26,27 @@ class ReturnBillShareService
         // A pre-release sale (tax_kind null) is treated as PPN with no service charge (BR-2/A1).
         $service = $sale->tax_kind === null ? 0 : max(0, (int) $sale->service_charge);
 
+        // The money paid for the items: their gross price less the bill-level discounts. Line and group promotions
+        // are already in `price`; `transaction_details.discount_total` is information only and never subtracted (#545).
+        $netBase = max(0, $base
+            - (int) $sale->discount
+            - (int) $sale->loyalty_discount_total
+            - (int) $sale->customer_voucher_discount);
+
         $completed = $this->completedReturns($sale, $exceptReturnId, $lock);
 
         return [
             'base' => $base,
+            'net_base' => $netBase,
             'service_charge' => $service,
             'refundable_tax' => $this->refundableTax($sale),
+            'points_redeemed' => (int) $sale->loyalty_points_redeemed,
+            'points_earned' => (int) $sale->loyalty_points_earned,
             'returned_value' => min($base, max(0, (int) $completed->sum(
                 fn (SalesReturn $return) => (int) $return->total_return_amount
                     - (int) $return->service_refunded
                     - (int) $return->tax_refunded
+                    + (int) $return->discount_deducted
             ))),
             'returned_total' => (int) $completed->sum(fn (SalesReturn $return) => (int) $return->total_return_amount),
             // What the sale actually took: shipping and its tax are never refunded.
@@ -44,10 +55,11 @@ class ReturnBillShareService
     }
 
     /**
-     * The service charge and tax to refund for returning $itemValue more of $sale, over what its completed returns
-     * already took. Integer cumulative rounding, so successive returns never over- or under-refund.
+     * What returning $itemValue more of $sale gives back: the items' net share (their price less the discount that
+     * share carries), the service charge, tax, redeemed points and earned points. Integer cumulative rounding, so
+     * successive returns never over- or under-refund.
      *
-     * @return array{service_refunded:int, tax_refunded:int}
+     * @return array{discount_deducted:int, service_refunded:int, tax_refunded:int, points_restored:int, points_reversed:int}
      */
     public function forReturn(Transaction $sale, int $itemValue, ?int $exceptReturnId = null, bool $lock = false): array
     {
@@ -55,25 +67,31 @@ class ReturnBillShareService
         $base = $bill['base'];
 
         if ($base < 1) {
-            return ['service_refunded' => 0, 'tax_refunded' => 0];
+            return [
+                'discount_deducted' => 0,
+                'service_refunded' => 0,
+                'tax_refunded' => 0,
+                'points_restored' => 0,
+                'points_reversed' => 0,
+            ];
         }
 
         $from = $bill['returned_value'];
         $to = min($base, $from + max(0, $itemValue));
 
+        // The item refund is the net share, not the gross price: a discounted sale no longer pays back the discount.
+        $net = $this->share($bill['net_base'], $to, $base) - $this->share($bill['net_base'], $from, $base);
         $service = $this->share($bill['service_charge'], $to, $base) - $this->share($bill['service_charge'], $from, $base);
         $tax = $this->share($bill['refundable_tax'], $to, $base) - $this->share($bill['refundable_tax'], $from, $base);
 
-        // Items refund at pre-discount line prices, so a discounted sale can already give back more than it took. Cap
-        // the share at what is left of the paid amount after the completed returns and this return's actual item
-        // value ($to - $from, not the requested $itemValue, which may overshoot the remaining base).
-        $cap = max(0, $bill['paid'] - $bill['returned_total'] - ($to - $from));
-        if ($service + $tax > $cap) {
-            $service = min($service, $cap);
-            $tax = min($tax, $cap - $service);
-        }
-
-        return ['service_refunded' => $service, 'tax_refunded' => $tax];
+        return [
+            'discount_deducted' => max(0, max(0, $itemValue) - $net),
+            'service_refunded' => $service,
+            'tax_refunded' => $tax,
+            // Redeemed points come back as points; earned points are taken back, both in proportion to the return.
+            'points_restored' => $this->share($bill['points_redeemed'], $to, $base) - $this->share($bill['points_redeemed'], $from, $base),
+            'points_reversed' => $this->share($bill['points_earned'], $to, $base) - $this->share($bill['points_earned'], $from, $base),
+        ];
     }
 
     /** Round half up of $total x $cumulative / $base, integer only: the rule TransactionDetail::returnAmount uses. */
@@ -116,7 +134,7 @@ class ReturnBillShareService
         }
 
         return $query
-            ->get(['id', 'total_return_amount', 'service_refunded', 'tax_refunded'])
+            ->get(['id', 'total_return_amount', 'service_refunded', 'tax_refunded', 'discount_deducted'])
             ->reject(fn (SalesReturn $return) => $exceptReturnId !== null && (int) $return->id === $exceptReturnId)
             ->values();
     }

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import i18n from "@/i18n";
+import fixture from "../../../../../tests/fixtures/return-refund.json";
 import Form from "./Form";
 
 // A stateful useForm so ticking the box re-renders the page like the real one.
@@ -151,7 +152,7 @@ describe("SalesReturns/Form service and tax share", () => {
     const row = (label) => screen.getByText(label, { exact: true }).closest("div");
 
     // 5 % service and 10 % PB1 on Rp 20.000: returning 1 of 2 units refunds 10.000 + 500 + 1.050.
-    const billShare = { base: 20000, service_charge: 1000, refundable_tax: 2100, returned_value: 0, returned_total: 0, paid: 23100 };
+    const billShare = { base: 20000, net_base: 20000, service_charge: 1000, refundable_tax: 2100, returned_value: 0, returned_total: 0, paid: 23100 };
 
     it("shows the proportional service and tax rows and folds them into the refund", async () => {
         await i18n.changeLanguage("id");
@@ -194,7 +195,7 @@ describe("SalesReturns/Form service and tax share", () => {
         expect(screen.getByText("Nominal Retur").closest("div")).toHaveTextContent(/23\.100/);
     });
 
-    it("caps the share so a discounted full return never refunds above paid", async () => {
+    it("shows a discounted full return as what was paid: the net items plus service and tax", async () => {
         await i18n.changeLanguage("id");
         render(
             <Form
@@ -205,6 +206,7 @@ describe("SalesReturns/Form service and tax share", () => {
                     ]),
                     bill_share: {
                         base: 100000,
+                        net_base: 90000,
                         service_charge: 4500,
                         refundable_tax: 9450,
                         returned_value: 0,
@@ -219,6 +221,7 @@ describe("SalesReturns/Form service and tax share", () => {
         await userEvent.clear(screen.getByRole("spinbutton"));
         await userEvent.type(screen.getByRole("spinbutton"), "1");
 
+        expect(row("Diskon dipotong")).toHaveTextContent(/10\.000/);
         expect(row("Refund")).toHaveTextContent(/103\.950/);
         expect(row("Nominal retur")).toHaveTextContent(/103\.950/);
     });
@@ -232,6 +235,8 @@ describe("SalesReturns/Form service and tax share", () => {
 
         expect(screen.queryByText("Service charge dikembalikan")).not.toBeInTheDocument();
         expect(screen.queryByText("Pajak dikembalikan")).not.toBeInTheDocument();
+        expect(screen.queryByText("Diskon dipotong")).not.toBeInTheDocument();
+        expect(screen.queryByText("Poin kembali ke pelanggan")).not.toBeInTheDocument();
         expect(screen.queryByText("Pembulatan tunai tidak dikembalikan.")).not.toBeInTheDocument();
         expect(row("Refund")).toHaveTextContent(/10\.000/);
     });
@@ -247,4 +252,68 @@ describe("SalesReturns/Form service and tax share", () => {
         expect(screen.getByText("Tax refunded")).toBeInTheDocument();
         expect(screen.getByText("Cash rounding is not refunded.")).toBeInTheDocument();
     });
+});
+
+describe("SalesReturns/Form refund net of discount and points", () => {
+    // The same fixture ReturnNetOfDiscountTest reads in PHPUnit: the preview of the first return of each case.
+    const amount = (value) =>
+        new RegExp(String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "\\."));
+    const row = (label) => screen.getByText(label, { exact: true }).closest("div");
+
+    const billShare = (bill) => ({
+        base: bill.base,
+        net_base:
+            bill.base -
+            bill.discount -
+            bill.loyalty_discount_total -
+            bill.customer_voucher_discount,
+        service_charge: bill.service_charge,
+        refundable_tax: bill.refundable_tax,
+        points_redeemed: bill.points_redeemed,
+        points_earned: bill.points_earned,
+        returned_value: 0,
+        returned_total: 0,
+        paid: bill.grand_total - bill.shipping_cost,
+    });
+
+    it.each(fixture.cases.map((testCase) => [testCase.name, testCase]))(
+        "previews %s",
+        async (_name, testCase) => {
+            await i18n.changeLanguage("id");
+            const first = testCase.steps[0];
+            const base = testCase.bill.base;
+
+            render(
+                <Form
+                    title="Retur"
+                    transaction={{
+                        ...transaction([
+                            {
+                                ...detail(1, "Nasi Goreng", "served", true),
+                                qty: base / first.gross,
+                                price: base,
+                            },
+                        ]),
+                        bill_share: billShare(testCase.bill),
+                    }}
+                    submitRoute="/x"
+                />
+            );
+
+            await userEvent.clear(screen.getByRole("spinbutton"));
+            await userEvent.type(screen.getByRole("spinbutton"), "1");
+
+            if (first.discount_deducted > 0) {
+                expect(row("Diskon dipotong")).toHaveTextContent(amount(first.discount_deducted));
+            }
+            if (first.points_restored > 0) {
+                expect(row("Poin kembali ke pelanggan")).toHaveTextContent(amount(first.points_restored));
+            }
+            if (first.points_reversed > 0) {
+                expect(row("Poin ditarik kembali")).toHaveTextContent(amount(first.points_reversed));
+            }
+            expect(row("Refund")).toHaveTextContent(amount(first.total));
+            expect(row("Nominal retur")).toHaveTextContent(amount(first.total));
+        }
+    );
 });

@@ -72,8 +72,8 @@ class PosOperations
             // (default 7), --arg=method=cash|pay_later, --arg=customer=<name>|none, --arg=guest=1 (a pay-later guest
             // bill: no customer, no receivable, a note --arg=note=<text>). The sale belongs to the
             // cashier's open shift when there is one. Stock already reflects the sale. Optional bill figures
-            // --arg=service_charge, --arg=tax_total, --arg=tax_kind, --arg=tax_rate, --arg=shipping_cost set
-            // grand_total = items + service + tax, as checkout would store after release.
+            // --arg=discount, --arg=service_charge, --arg=tax_total, --arg=tax_kind, --arg=tax_rate, --arg=shipping_cost
+            // set grand_total = items - discount + service + tax, as checkout would store after release.
             'posops.sale' => function (array $options): array {
                 $qty = (int) ($options['qty'] ?? 3);
                 $product = self::product($options['title'] ?? null, (int) ($options['left'] ?? 7));
@@ -83,9 +83,10 @@ class PosOperations
                 $payLater = $guest || ($options['method'] ?? 'cash') === 'pay_later';
                 $cashier = self::user($options['cashier'] ?? 'cashier@e2e.test');
                 $total = $qty * 10000;
+                $discount = (int) ($options['discount'] ?? 0);
                 $service = (int) ($options['service_charge'] ?? 0);
                 $tax = (int) ($options['tax_total'] ?? 0);
-                $grandTotal = $total + $service + $tax;
+                $grandTotal = $total - $discount + $service + $tax;
 
                 $transaction = Transaction::create([
                     'cashier_id' => $cashier->id,
@@ -95,7 +96,7 @@ class PosOperations
                     'invoice' => 'TRX-E2E'.Str::upper(Str::random(8)),
                     'cash' => $payLater ? 0 : $grandTotal,
                     'change' => 0,
-                    'discount' => 0,
+                    'discount' => $discount,
                     'shipping_cost' => (int) ($options['shipping_cost'] ?? 0),
                     'service_charge' => $service,
                     'tax_total' => $tax,
