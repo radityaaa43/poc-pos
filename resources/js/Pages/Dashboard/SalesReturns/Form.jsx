@@ -307,7 +307,7 @@ export default function SalesReturnForm({
                                     <tr key={item.id}>
                                         <Table.Td>
                                             {/* The cell never wraps, so a long note would push the settlement panel off screen. */}
-                                            <div className="max-w-xs whitespace-normal break-words">
+                                            <div className="min-w-36 max-w-xs whitespace-normal [overflow-wrap:anywhere]">
                                                 <p className="font-medium text-slate-800 dark:text-slate-100">
                                                     {item.product?.title || "-"}
                                                 </p>
