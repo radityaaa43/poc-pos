@@ -25,6 +25,22 @@ Dukungan PPN (Pajak Pertambahan Nilai) pada transaksi, dengan mode exclusive/inc
 - NPWP dan NIB toko di Settings → Profil Toko
 - Laporan — PPN sudah termasuk di grand total
 
+## Bill settings (Tagihan) per outlet
+
+REQ-010. Edited in the outlet form (Settings → Outlets → edit, section **Tagihan**) or with `PUT /api/v1/settings/outlets/{outlet}`; both need `outlets-update` and a recent password confirmation. Stored as `settings` rows of that outlet; only `BillSettingsService` reads or writes them.
+
+| Key / request field | Values | Default (no row) |
+|---|---|---|
+| `service_charge_rate` | 0-100 %, at most 2 decimals; 0 = off | `0` |
+| `tax_kind` | `ppn` (per product, as above) or `pb1` (one rate for the whole bill) | `ppn` |
+| `pb1_rate` | 0-100 %, at most 2 decimals | `10` |
+| `cash_rounding_unit` | `0` (Tanpa), `100`, `500` | `0` |
+
+- An absent or `null` request field is unchanged. Global rows (left behind by a deleted outlet) are ignored.
+- Each effective change writes one `outlet.bill_settings_updated` audit row with the changed keys, before and after.
+- The outlet list (web and `GET /api/v1/settings/outlets`) returns them as `bill_settings`.
+- No total uses them yet (#450). They apply to new bills only; stored sales are never recalculated. `transactions.service_charge`, `tax_kind` (`null` = PPN) and `tax_base` hold what a sale was computed with, and stay `0` / `null` until #450 writes them.
+
 ## Database
 
 ### Products
