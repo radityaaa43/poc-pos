@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
+use App\Models\TransactionDetail;
 
 /** Puts a completed return's ticked lines back: the menu, then its options' ingredients as sold (REQ-008 AC-14). */
 class SalesReturnRestockService
@@ -15,20 +17,21 @@ class SalesReturnRestockService
     ) {}
 
     /** Call inside the return's DB::transaction, after the sale is locked and before any other stock row is touched. */
-    public function restock(SalesReturn $salesReturn, ?int $userId): void
+    public function restock(SalesReturn $salesReturn, ?int $warehouseId, ?int $userId): void
     {
-        $salesReturn->loadMissing(['items.product', 'items.transactionDetail.modifiers']);
-        $items = $salesReturn->items->where('restock_to_inventory', true);
-        $warehouseId = $salesReturn->transaction->warehouse_id;
+        $items = SalesReturnItem::where('sales_return_id', $salesReturn->id)->where('restock_to_inventory', true)->orderBy('id')->get();
+        $details = TransactionDetail::with('modifiers')->findMany($items->pluck('transaction_detail_id'))->keyBy('id');
 
-        $this->componentStock->lockRows($items->pluck('product_id')->merge(
-            $items->flatMap(fn (SalesReturnItem $item) => $item->transactionDetail->modifiers->flatMap->components->pluck('product_id'))
-        ), $warehouseId);
+        $this->componentStock->lockRows(
+            $items->pluck('product_id')->merge($details->flatMap->modifiers->flatMap->components->pluck('product_id')),
+            $warehouseId
+        );
 
         foreach ($items as $item) {
-            $this->restockLine($salesReturn, $item, $warehouseId, $userId);
+            $detail = $details[$item->transaction_detail_id];
+            $this->restockLine($salesReturn, $item, (float) ($detail->conversion_factor ?? 1), $warehouseId, $userId);
 
-            foreach ($this->componentStock->restockOptions($item->transactionDetail, (int) $item->qty_return, $warehouseId) as $row) {
+            foreach ($this->componentStock->restockOptions($detail, (int) $item->qty_return, $warehouseId) as $row) {
                 $this->stockMutationService->recordSalesReturnRestock(
                     product: $row['product'],
                     salesReturn: $salesReturn,
@@ -41,16 +44,16 @@ class SalesReturnRestockService
         }
     }
 
-    private function restockLine(SalesReturn $salesReturn, SalesReturnItem $item, ?int $warehouseId, ?int $userId): void
+    private function restockLine(SalesReturn $salesReturn, SalesReturnItem $item, float $factor, ?int $warehouseId, ?int $userId): void
     {
-        $product = $item->product ? $item->product()->lockForUpdate()->first() : null;
+        $product = Product::lockForUpdate()->find($item->product_id);
 
         if (! $product) {
             return;
         }
 
         // Stock effect is in base units: selling qty x conversion factor.
-        $baseQty = (int) round((int) $item->qty_return * (float) ($item->transactionDetail->conversion_factor ?? 1));
+        $baseQty = (int) round((int) $item->qty_return * $factor);
         $stockBefore = (int) $product->stock;
         $stockAfter = $stockBefore + $baseQty;
 

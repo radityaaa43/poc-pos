@@ -249,8 +249,6 @@ class SalesReturnController extends Controller
                 }
             }
 
-            app(SalesReturnRestockService::class)->restock($salesReturn, $request->user()?->id);
-
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
@@ -262,6 +260,8 @@ class SalesReturnController extends Controller
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
@@ -379,8 +379,7 @@ class SalesReturnController extends Controller
                 'transaction.details.modifiers',
                 'transaction.details.salesReturnItems.salesReturn:id,status',
                 'items.product:id,title,barcode,sku,buy_price',
-                'items.transactionDetail:id,transaction_id,product_id,qty,price,note',
-                'items.transactionDetail.modifiers',
+                'items.transactionDetail:id,transaction_id,product_id,qty,price',
             ])
             ->when(! $request->user()->isSuperAdmin(), function (Builder $query) use ($request) {
                 $query->whereHas('transaction', fn (Builder $builder) => $builder->where('cashier_id', $request->user()->id));
@@ -472,7 +471,8 @@ class SalesReturnController extends Controller
 
     protected function transformSalesReturn(SalesReturn $salesReturn): array
     {
-        $salesReturn->loadMissing('items.transactionDetail.modifiers');
+        // The sale's copy of each line: option names, prices and note as sold.
+        $lines = TransactionDetail::with('modifiers')->where('transaction_id', $salesReturn->transaction_id)->get()->keyBy('id');
 
         return [
             'id' => $salesReturn->id,
@@ -497,7 +497,7 @@ class SalesReturnController extends Controller
                 'id' => $salesReturn->transaction?->id,
                 'invoice' => $salesReturn->transaction?->invoice,
             ],
-            'items' => $salesReturn->items->map(function (SalesReturnItem $item) {
+            'items' => $salesReturn->items->map(function (SalesReturnItem $item) use ($lines) {
                 return [
                     'id' => $item->id,
                     'transaction_detail_id' => $item->transaction_detail_id,
@@ -507,8 +507,8 @@ class SalesReturnController extends Controller
                         'barcode' => $item->product->barcode,
                         'sku' => $item->product->sku,
                     ] : null,
-                    'modifiers' => $item->transactionDetail->modifiers ?? [],
-                    'note' => $item->transactionDetail?->note,
+                    'modifiers' => $lines->get($item->transaction_detail_id)->modifiers ?? [],
+                    'note' => $lines->get($item->transaction_detail_id)?->note,
                     'qty_sold' => (int) $item->qty_sold,
                     'qty_returned_before' => (int) $item->qty_returned_before,
                     'qty_return' => (int) $item->qty_return,

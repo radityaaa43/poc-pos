@@ -246,8 +246,6 @@ class SalesReturnController extends AppsSalesReturnController
                 }
             }
 
-            app(SalesReturnRestockService::class)->restock($salesReturn, $request->user()?->id);
-
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
@@ -258,6 +256,8 @@ class SalesReturnController extends AppsSalesReturnController
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
