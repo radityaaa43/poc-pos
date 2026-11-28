@@ -67,11 +67,11 @@ class Receivable extends Model
             return 'no_due_date';
         }
 
-        if (! now()->gt($this->due_date)) {
+        if (! today()->gt($this->due_date)) {
             return 'current';
         }
 
-        $daysOverdue = now()->diffInDays($this->due_date, true);
+        $daysOverdue = today()->diffInDays($this->due_date, true);
 
         return match (true) {
             $daysOverdue <= 30 => '0-30',
