@@ -1,7 +1,10 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeAll } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import i18n from "@/i18n";
 import ProductGrid from "./ProductGrid";
+
+beforeAll(() => i18n.changeLanguage("id"));
 
 const kopi = {
     id: 1,
@@ -132,6 +135,26 @@ describe("ProductGrid", () => {
         const rotiButton = cardButton("Roti");
         expect(rotiButton).toBeDisabled();
         await user.click(rotiButton);
+        expect(onAddToCart).not.toHaveBeenCalled();
+    });
+
+    it("shows a sold-out recipe menu as Habis and does not add it", async () => {
+        const user = userEvent.setup();
+        const americano = {
+            id: 9,
+            title: "Americano",
+            category_id: 1,
+            sell_price: 22000,
+            stock: 0,
+            is_composite: true,
+            sold_out: true,
+        };
+        const { onAddToCart } = renderGrid({ products: [americano] });
+
+        expect(screen.getByText("Habis")).toBeInTheDocument();
+        const card = cardButton("Americano");
+        expect(card).toBeDisabled();
+        await user.click(card);
         expect(onAddToCart).not.toHaveBeenCalled();
     });
 

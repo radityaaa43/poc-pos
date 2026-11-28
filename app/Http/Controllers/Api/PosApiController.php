@@ -171,9 +171,8 @@ class PosApiController extends Controller
         $products->through(function (Product $product) use ($warehouseId) {
             $data = (new ProductResource($product))->resolve();
             $data['stock'] = $product->stockIn($warehouseId);
-            if ($product->is_composite) {
-                $data['sell_price'] = $product->compositeSellPrice();
-            }
+            $data['sold_out'] = $product->is_composite && $data['stock'] < 1;
+            $data['sell_price'] = $product->is_composite ? $product->compositeSellPrice() : $data['sell_price'];
 
             return $data;
         });

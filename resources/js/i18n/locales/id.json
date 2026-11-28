@@ -1,5 +1,6 @@
 {
     "common": {
+        "soldOut": "Habis",
         "buttons": {
             "add": "Tambah",
             "edit": "Edit",

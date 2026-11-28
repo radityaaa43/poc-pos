@@ -175,3 +175,21 @@ describe("DineMenu online payment (REQ-005)", () => {
         );
     });
 });
+
+describe("DineMenu sold out (REQ-001 AC-04)", () => {
+    it("shows a recipe menu short of ingredients as Habis and cannot add it", async () => {
+        const user = userEvent.setup();
+        render(
+            <DineMenu
+                {...props}
+                products={[{ id: 8, title: "Americano", sell_price: 22000, category_id: null, sold_out: true }]}
+            />
+        );
+
+        expect(screen.getAllByText("Habis").length).toBeGreaterThan(0);
+        const button = screen.getByRole("button", { name: "Habis" });
+        expect(button).toBeDisabled();
+        await user.click(button);
+        expect(router.post).not.toHaveBeenCalled();
+    });
+});

@@ -127,8 +127,9 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                     <div className="grid grid-cols-2 gap-3 mt-4">
                         {filtered.map((product) => {
                             const qty = getQty(product.id);
+                            const soldOut = product.sold_out;
                             return (
-                                <div key={product.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                                <div key={product.id} className={`relative bg-white rounded-xl border border-slate-200 overflow-hidden${soldOut ? " opacity-60" : ""}`}>
                                     {product.image ? (
                                         <img src={product.image} alt={product.title} className="w-full aspect-square object-cover" loading="lazy" />
                                     ) : (
@@ -136,11 +137,24 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                                             <span className="text-slate-300 text-4xl font-bold">{product.title?.[0] ?? "?"}</span>
                                         </div>
                                     )}
+                                    {soldOut && (
+                                        <span className="absolute left-2 top-2 px-2 py-0.5 rounded-full bg-danger-500 text-white text-[11px] font-semibold">
+                                            {t("common.soldOut")}
+                                        </span>
+                                    )}
                                     <div className="p-3">
                                         <h3 className="font-medium text-slate-800 text-sm line-clamp-2">{product.title}</h3>
                                         <p className="text-primary-600 font-semibold text-sm mt-1">{fmt(product.sell_price)}</p>
                                         <div className="mt-2 flex items-center justify-between">
-                                            {qty === 0 ? (
+                                            {soldOut ? (
+                                                <button
+                                                    type="button"
+                                                    disabled
+                                                    className="w-full py-1.5 bg-slate-200 text-slate-500 text-xs font-medium rounded-lg cursor-not-allowed"
+                                                >
+                                                    {t("common.soldOut")}
+                                                </button>
+                                            ) : qty === 0 ? (
                                                 <button
                                                     onClick={() => addItem(product)}
                                                     className="w-full py-1.5 bg-primary-500 hover:bg-primary-600 text-white text-xs font-medium rounded-lg transition-colors"

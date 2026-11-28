@@ -75,7 +75,7 @@ class DineOrderController extends Controller
             $baseQty = (int) round($item['qty'] * (float) $conversionFactor);
 
             // Public orders are routed to the outlet's warehouse when accepted.
-            $available = $this->availableStock($product, $outlet);
+            $available = $product->stockAtOutlet($outlet);
 
             if ($available < $baseQty) {
                 // A flash would read as success to Inertia (and the public page renders none); an error reaches onError.
@@ -116,33 +116,6 @@ class DineOrderController extends Controller
         return redirect()
             ->route('dine-order.status', $order->access_token)
             ->with('success', 'Pesanan berhasil dikirim.');
-    }
-
-    private function availableStock(Product $product, $outlet): int
-    {
-        if (! $outlet) {
-            return $product->compositeStock();
-        }
-
-        if (! $product->is_composite) {
-            return (int) $product->warehouses()
-                ->where('outlet_id', $outlet->id)
-                ->where('warehouses.is_active', true)
-                ->sum('product_warehouse.stock');
-        }
-
-        $stock = null;
-        foreach ($product->components as $component) {
-            $componentStock = (int) $component->warehouses()
-                ->where('outlet_id', $outlet->id)
-                ->where('warehouses.is_active', true)
-                ->sum('product_warehouse.stock');
-            $stock = $stock === null
-                ? (int) floor($componentStock / max(1, (float) $component->pivot->qty))
-                : min($stock, (int) floor($componentStock / max(1, (float) $component->pivot->qty)));
-        }
-
-        return $stock ?? 0;
     }
 
     public function status(string $accessToken)

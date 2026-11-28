@@ -5,7 +5,9 @@ namespace Tests\Feature\Products;
 use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\Category;
+use App\Models\DineArea;
 use App\Models\DiningTable;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Transaction;
 use App\Models\User;
@@ -159,13 +161,36 @@ class RecipeProductTest extends TestCase
         $this->assertCount(2, $products, 'raw materials must not be offered on the POS');
     }
 
-    public function test_pos_hides_recipe_when_an_ingredient_runs_out(): void
+    public function test_pos_shows_recipe_as_sold_out_when_an_ingredient_runs_out(): void
     {
         [$americano] = $this->americano(beanStock: 10); // < 18 g
 
-        $ids = collect($this->posProducts())->pluck('id');
+        $products = collect($this->posProducts())->keyBy('id');
 
-        $this->assertNotContains($americano->id, $ids);
+        // A recipe menu stays in the list, sold out, instead of vanishing (REQ-001 AC-04).
+        $this->assertTrue($products->has($americano->id));
+        $this->assertTrue($products[$americano->id]['sold_out']);
+        $this->assertSame(0, $products[$americano->id]['stock']);
+    }
+
+    public function test_pos_still_hides_a_plain_product_at_zero(): void
+    {
+        $this->americano(beanStock: 100);
+        $empty = $this->product(['title' => 'Croissant', 'sell_price' => 22000], 0);
+
+        $this->assertNotContains($empty->id, collect($this->posProducts())->pluck('id'));
+    }
+
+    public function test_pos_shows_the_recipe_again_after_one_portion_is_possible(): void
+    {
+        [$americano, $bean] = $this->americano(beanStock: 10); // < 18 g: sold out
+        $this->assertTrue(collect($this->posProducts())->firstWhere('id', $americano->id)['sold_out']);
+
+        $this->warehouse->products()->updateExistingPivot($bean->id, ['stock' => 18]); // exactly one more portion
+
+        $row = collect($this->posProducts())->firstWhere('id', $americano->id);
+        $this->assertFalse($row['sold_out']);
+        $this->assertSame(1, $row['stock']);
     }
 
     public function test_raw_material_cannot_be_added_to_cart(): void
@@ -224,6 +249,7 @@ class RecipeProductTest extends TestCase
 
         $rows = collect($this->getJson('/api/v1/pos/products')->assertOk()->json('data'))->keyBy('id');
         $this->assertTrue($rows->has($americano->id));
+        $this->assertFalse($rows[$americano->id]['sold_out']);
         $this->assertSame(22000, $rows[$americano->id]['sell_price']);
         // limited by the scarcest ingredient: water 10000 ml / 200 ml = 50 (beans would allow 55)
         $this->assertSame(50, $rows[$americano->id]['stock']);
@@ -232,6 +258,28 @@ class RecipeProductTest extends TestCase
         $this->postJson('/api/v1/pos/cart', ['product_id' => $bean->id, 'qty' => 1])->assertStatus(422);
         $this->postJson('/api/v1/pos/cart', ['product_id' => $americano->id, 'qty' => 1])->assertSuccessful();
         $this->assertSame(22000, (int) Cart::where('product_id', $americano->id)->value('price'));
+    }
+
+    public function test_dine_in_menu_shows_recipe_as_sold_out_when_short_and_available_after_restock(): void
+    {
+        // The QR menu runs per outlet: a recipe short in THIS outlet's warehouse is sold out, not hidden.
+        $outlet = Outlet::create(['code' => 'OUT-MENU', 'name' => 'Outlet Menu', 'is_active' => true, 'is_sales_enabled' => true]);
+        $this->warehouse = Warehouse::create([
+            'outlet_id' => $outlet->id, 'code' => 'WH-MENU', 'name' => 'Gudang Menu', 'type' => 'branch', 'is_active' => true, 'sort_order' => 0,
+        ]);
+        $area = DineArea::create(['outlet_id' => $outlet->id, 'name' => 'Area Menu', 'is_active' => true]);
+        $table = DiningTable::create(['dine_area_id' => $area->id, 'name' => 'Meja Menu', 'is_active' => true, 'capacity' => 2, 'sort_order' => 0]);
+
+        [$americano, $bean] = $this->americano(beanStock: 10); // < 18 g for one portion, in this outlet
+
+        $row = fn () => collect($this->get(route('dine.menu', $table->token))->assertOk()->viewData('page')['props']['products'])
+            ->firstWhere('id', $americano->id);
+
+        $this->assertNotNull($row());
+        $this->assertTrue($row()['sold_out'], 'short of one portion: sold out');
+
+        $this->warehouse->products()->updateExistingPivot($bean->id, ['stock' => 18]); // exactly one portion now
+        $this->assertFalse($row()['sold_out'], 'one portion possible: available again');
     }
 
     public function test_dine_in_menu_renders_recipes_without_raw_materials(): void
