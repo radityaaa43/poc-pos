@@ -87,6 +87,7 @@ return [
         'before_tax' => 'Sebelum PPN',
         'tax_rate' => 'PPN :rate%',
         'grand_total' => 'TOTAL',
+        'amount_due' => 'SISA TAGIHAN',
         'payment_method' => 'Bayar via',
         'cash_payment' => 'Tunai',
         'card_payment' => 'Kartu',

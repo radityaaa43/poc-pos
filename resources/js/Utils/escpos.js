@@ -63,6 +63,7 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     if (data.shipping_cost > 0) leftRight("Ongkir", data.money(data.shipping_cost));
     emphasize(true);
     leftRight("TOTAL", data.money(data.grand_total));
+    if (data.amount_due != null) leftRight("Sisa tagihan", data.money(data.amount_due));
     emphasize(false);
     line();
     if (data.payment_method_label) leftRight("Bayar", data.payment_method_label);

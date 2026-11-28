@@ -223,6 +223,76 @@ class Transaction extends Model
             - (int) $this->salesReturns()->where('status', 'completed')->sum('total_return_amount'));
     }
 
+    /**
+     * What the customer is asked for this sale, after returns. A credit sale keeps its total (its receivable says what is
+     * owed). An unpaid, failed or expired sale is asked what it still owes. A pending or paid one was asked the sum of
+     * its tenders; without tenders, an open bill or a retried payment its total less the returns that refunded nothing,
+     * and any other sale its total. CashierShiftService::calculateSummary counts by the same rule.
+     */
+    public function amountDue(): int
+    {
+        // Read without setting the relation: the model may be serialised into a page afterwards.
+        $related = fn (string $name) => $this->relationLoaded($name) ? $this->getRelation($name) : $this->{$name}()->getResults();
+        $total = (int) $this->grand_total;
+
+        if ($related('receivable')) {
+            return $total;
+        }
+
+        $payable = in_array($this->payment_status, self::OPEN_BILL_PAYABLE, true);
+
+        if (! $payable) {
+            $tenders = $related('tenders');
+
+            if ($tenders->isNotEmpty()) {
+                return (int) $tenders->sum('amount');
+            }
+
+            if (! $this->is_pay_later && ! $this->payment_attempt && ! $related('dineOrder')) {
+                return $total;
+            }
+        }
+
+        $returns = $related('salesReturns')->where('status', 'completed');
+
+        if (! $payable) {
+            $returns = $returns->where('refund_amount', 0)->where('credited_amount', 0);
+        }
+
+        return max(0, $total - (int) $returns->sum('total_return_amount'));
+    }
+
+    /** For screens and receipts: the amount to ask when returns put a sale not yet paid below its total, else null. */
+    public function reducedAmountDue(): ?int
+    {
+        if ($this->payment_status === 'paid') {
+            return null;
+        }
+
+        $due = $this->amountDue();
+
+        return $due < (int) $this->grand_total ? $due : null;
+    }
+
+    /**
+     * The history page's amounts: owed_total is what the "Bayar" dialog of an open bill asks, amount_due what is shown
+     * when returns lowered the amount. Eager load them with withScreenAmounts() for a list.
+     *
+     * @return array{owed_total: int, amount_due: ?int}
+     */
+    public function screenAmounts(): array
+    {
+        $returned = (int) $this->getRelationValue('salesReturns')->where('status', 'completed')->sum('total_return_amount');
+
+        return ['owed_total' => max(0, (int) $this->grand_total - $returned), 'amount_due' => $this->reducedAmountDue()];
+    }
+
+    /** The relations screenAmounts() reads beyond receivable and dineOrder, for a list of sales. */
+    public function scopeWithScreenAmounts($query)
+    {
+        return $query->with('salesReturns', 'tenders');
+    }
+
     public function tenders()
     {
         return $this->hasMany(TransactionTender::class);
