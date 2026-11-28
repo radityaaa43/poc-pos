@@ -63,7 +63,7 @@ On Windows a USB printer normally runs on Windows' own printer driver, and Chrom
 
 ### Limits: paper out, a cable pulled mid-ticket
 
-- **Paper out is not detected.** WebUSB only tells the app whether the printer accepted the bytes, not whether paper came out. With the roll empty or the cover open the send succeeds, no warning shows and the order is marked printed. There is no reprint yet, so staff who see no ticket read the order from its card on the kitchen display.
+- **Paper out is not detected.** WebUSB only tells the app whether the printer accepted the bytes, not whether paper came out. With the roll empty or the cover open the send succeeds, no warning shows and the order is marked printed. Staff who see no ticket use **Cetak ulang** on the order's card: it prints the ticket again, marked CETAK ULANG, and records nothing.
 - A cable pulled in the middle of a ticket fails the send: the app shows **Printer dapur tidak terhubung** and prints the whole ticket from the start once the printer is plugged back in. The torn stub already on paper is for staff to discard.
 
 ## Route

@@ -8,6 +8,7 @@ import {
     getCachedProducts,
     getPendingCount,
     getPendingTransactions,
+    getUnsyncedCount,
     pruneExpiredPendingTransactions,
     queueTransaction,
     removePendingTransaction,
@@ -85,6 +86,15 @@ describe("getPendingCount", () => {
         }
 
         expect(await getPendingCount("s")).toBe(2);
+    });
+});
+
+describe("getUnsyncedCount", () => {
+    it("counts one cashier's unsent rows whatever the warehouse part of the key, legacy rows included", async () => {
+        for (const [scope_key, status] of [["5:none", "pending"], ["5:3", "failed"], [null, "syncing"], ["5:3", "conflict"], ["5:3", "synced"], ["51:none", "pending"]]) {
+            await putRaw({ data: {}, scope_key, status });
+        }
+        expect(await getUnsyncedCount(5)).toBe(3);
     });
 });
 

@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Head, Link, router, usePage } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import ShiftCloseBlockedList from "./ShiftCloseBlockedList";
+import { getUnsyncedCount } from "@/Utils/offlineDb";
 import {
     IconArrowLeft,
     IconCashBanknote,
@@ -82,8 +83,29 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
         ? null
         : actualCashNumber - Number(cashierShift.expected_cash || 0) - booked;
 
-    const handleCloseShift = (event) => {
+    // BR-12: sales the shift's cashier queued on this device must reach the shift first.
+    const cashierId = cashierShift.user?.id ?? "guest";
+    const [hasUnsynced, setHasUnsynced] = useState(false);
+    const checkUnsynced = useCallback(async () => {
+        // No IndexedDB means nothing can have been queued here.
+        const pending = (await getUnsyncedCount(cashierId).catch(() => 0)) > 0;
+        setHasUnsynced(pending);
+        return pending;
+    }, [cashierId]);
+
+    useEffect(() => {
+        if (!canCloseShift) return undefined;
+
+        checkUnsynced();
+        window.addEventListener("focus", checkUnsynced);
+        return () => window.removeEventListener("focus", checkUnsynced);
+    }, [canCloseShift, checkUnsynced]);
+
+    const handleCloseShift = async (event) => {
         event.preventDefault();
+
+        // Read again: another tab may have queued a sale since this page loaded.
+        if (await checkUnsynced()) return;
 
         router.post(route("cashier-shifts.close", cashierShift.id), {
             actual_cash: actualCashNumber,
@@ -318,13 +340,18 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
                                     )}
                                     <button
                                         type="submit"
-                                        className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors ${
+                                        disabled={hasUnsynced}
+                                        className={`inline-flex min-h-[44px] items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                                             forcing ? "bg-rose-600 hover:bg-rose-700" : "bg-primary-500 hover:bg-primary-600"
                                         }`}
                                     >
                                         <IconCashBanknote size={18} />
                                         <span>
-                                            {forcing ? t("cashierShifts.forced.submit") : "Finalisasi Closing"}
+                                            {hasUnsynced
+                                                ? t("cashierShifts.closeBlocked.syncFirst")
+                                                : forcing
+                                                  ? t("cashierShifts.forced.submit")
+                                                  : "Finalisasi Closing"}
                                         </span>
                                     </button>
                                 </form>

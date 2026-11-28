@@ -1249,12 +1249,6 @@ parameters:
 			path: app/Http/Controllers/Apps/PricingRuleController.php
 
 		-
-			message: '#^Using nullsafe property access "\?\-\>quantity" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
-			identifier: nullsafe.neverNull
-			count: 1
-			path: app/Http/Controllers/Apps/PricingRuleController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Product\:\:\$image\.$#'
 			identifier: property.notFound
 			count: 2

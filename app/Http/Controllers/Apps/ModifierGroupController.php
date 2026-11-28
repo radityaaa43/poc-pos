@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\SaveModifierGroupRequest;
 use App\Models\ModifierGroup;
+use App\Models\Outlet;
 use App\Models\Product;
 use App\Services\ModifierGroupService;
 use Inertia\Inertia;
@@ -18,7 +19,7 @@ class ModifierGroupController extends Controller
     public function index()
     {
         return Inertia::render('Dashboard/Settings/Modifiers', [
-            'groups' => ModifierGroup::with('options.components')
+            'groups' => ModifierGroup::with('options.components', 'options.disabledOutlets')
                 ->withCount('products')
                 ->orderBy('name')
                 ->get()
@@ -27,6 +28,7 @@ class ModifierGroupController extends Controller
                     'products_count' => $group->getAttribute('products_count'),
                     ...$group->snapshot(),
                 ]),
+            'outlets' => Outlet::orderBy('code')->get(['id', 'code', 'name']),
             'ingredients' => Product::select(['id', 'title'])->recipeComponents()->get(),
         ]);
     }

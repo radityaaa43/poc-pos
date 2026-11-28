@@ -211,6 +211,7 @@ dibaca dari jatuh tempo, sehingga tidak perlu diagram state baru.
 - **Pengaturan:** batas per pelanggan. Tidak ada pengaturan outlet baru.
 - **Tunggakan:** piutang dengan jatuh tempo sebelum hari ini dan sisa di atas 0. Tunggakan memblokir
   piutang baru hanya untuk pelanggan berbatas (keputusan 5).
+- **Keputusan saat build (Business/PM, 2026-11-28):** batas di bawah pemakaian diterima saat disimpan (#348); penolakan kredit barunya dibangun di #349 (BR-9).
 
 ## Non-functional requirements
 
