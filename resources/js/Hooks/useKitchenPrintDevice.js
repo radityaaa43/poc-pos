@@ -86,6 +86,7 @@ const reprintTicket = (order, key) => ({
     key,
     number: order.number,
     type: order.type,
+    ...(order.kind ? { kind: order.kind } : {}),
     unpaid: order.unpaid,
     since: order.since,
     reprint: true,

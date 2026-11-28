@@ -1281,6 +1281,7 @@
     },
     "addOn": {
         "add": "Add to order",
+        "label": "Add-on",
         "banner": "Add-on order for {{invoice}}",
         "receipt": "Add-on to {{invoice}}",
         "completed": "The previous order is finished. This starts a new order.",

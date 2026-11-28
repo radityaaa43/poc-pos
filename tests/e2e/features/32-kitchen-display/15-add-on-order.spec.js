@@ -8,7 +8,7 @@ const CANCELLED = 'Pesanan asal sudah dibatalkan — buat pesanan baru';
 test.describe('32-kitchen-display', () => {
     test.describe.configure({ timeout: 240_000 });
 
-    test('Tambah pesanan on a receipt makes a linked add-on that reaches the display as its own card once it is paid', { tag: ['@REQ-003-AC-21'] }, async ({ asRole, arrange, uniq }) => {
+    test('Tambah pesanan on a receipt makes a linked add-on that joins the original card under Tambahan once it is paid', { tag: ['@REQ-003-AC-21'] }, async ({ asRole, arrange, uniq }) => {
         const original = arrange('kitchen-sale', { prefix: uniq('Asal'), flagged: 1 });
         const title = uniq('Susulan');
         arrange('kitchen.flag', { product_id: arrange('product', { title, stock: 10 }).product_id });
@@ -29,12 +29,15 @@ test.describe('32-kitchen-display', () => {
         // Pay now: nothing of the add-on reaches the kitchen before it is paid.
         await page.goto('/dashboard/kitchen');
         const card = page.locator('article', { hasText: original.invoice });
-        const addOnCard = page.locator('article', { hasText: invoice });
         await expect(card).toContainText(original.flagged[0]);
-        await expect(addOnCard).toHaveCount(0);
-        arrange('kitchen.set-status', { invoice, status: 'paid' });
-        await expect(addOnCard).toContainText(title, { timeout: 15_000 });
+        // The add-on is never its own card; before payment it is nowhere.
+        await expect(page.locator('article', { hasText: invoice })).toHaveCount(0);
         await expect(card).not.toContainText(title);
+        arrange('kitchen.set-status', { invoice, status: 'paid' });
+        // Paid: its items join the original's card under a Tambahan heading (#314).
+        await expect(card).toContainText(title, { timeout: 15_000 });
+        await expect(card.getByRole('heading', { name: 'Tambahan' })).toBeVisible();
+        await expect(page.locator('article', { hasText: invoice })).toHaveCount(0);
     });
 
     test('an add-on to a cancelled order is refused on the POS', { tag: ['@REQ-003-AC-21'] }, async ({ asRole, arrange, uniq }) => {
