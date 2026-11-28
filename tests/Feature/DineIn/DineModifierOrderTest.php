@@ -178,7 +178,7 @@ class DineModifierOrderTest extends ModifierSaleTestCase
         $device->save();
 
         $this->submit([
-            ['product_id' => $this->menu->id, 'qty' => 1, 'note' => 'alergi kacang'],
+            ['product_id' => $this->menu->id, 'qty' => 1, 'modifier_option_ids' => [$this->option('Large')->id], 'note' => 'alergi kacang'],
         ], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
         $order = DineOrder::firstOrFail();
         $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
@@ -195,7 +195,7 @@ class DineModifierOrderTest extends ModifierSaleTestCase
         $large = $this->option('Large');
 
         // A first order on the table, accepted and already in the kitchen.
-        $this->submit([['product_id' => $this->menu->id, 'qty' => 1]], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
+        $this->submit([['product_id' => $this->menu->id, 'qty' => 1, 'modifier_option_ids' => [$large->id]]], DineOrder::PAY_LATER)->assertSessionHasNoErrors();
         $first = DineOrder::firstOrFail();
         $this->post(route('dine-orders.accept', $first))->assertSessionHasNoErrors();
 
