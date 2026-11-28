@@ -1452,7 +1452,7 @@
             "cost": "Biaya waste",
             "costDescription": "Tidak termasuk HPP penjualan",
             "afterWaste": "Profit setelah waste",
-            "afterWasteDescription": "Profit dikurangi biaya waste",
+            "afterWasteDescription": "Setelah dikurangi waste",
             "hiddenNote": "Biaya waste tidak ditampilkan saat filter faktur, kasir atau pelanggan aktif",
             "link": "Lihat laporan waste"
         }
