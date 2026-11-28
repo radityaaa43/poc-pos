@@ -189,6 +189,7 @@ class PermissionSeeder extends Seeder
         $create('dine-orders-process');
         $create('dine-orders-prepare');
         $create('dine-orders-handover');
+        $create('dine-reservations-manage');
 
         // modifiers (REQ-008)
         $create('modifiers-manage');

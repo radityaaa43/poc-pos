@@ -61,6 +61,10 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Waste | Raw material or recipe menu thrown away, recorded with a reason; a menu takes its recipe ingredients. Statuses: Tercatat (stock taken), Menunggu persetujuan (stock untouched) | Stock opname: a counted variance without a reason | `StockWaste` / `stock_wastes`, `StockWasteService` |
 | Waste value | Average cost at the moment the stock is taken x quantity, whole rupiah per stock product taken; an estimate while pending | HPP: the cost of what was sold | `stock_wastes.total_value`, `stock_waste_moves.value` |
 | Waste approval limit | Rupiah per waste record, per outlet (default Rp 100,000): at or under it the stock is taken at once, above it the record waits for approval | Credit limit | `settings.waste_approval_limit` (per `outlet_id`) |
+| Reservasi (reservation) | One booking of one dine-in table for a guest at a date and time, recorded by staff. Starts as Dicatat; two on one table must be at least 2 hours apart | Dine order: what the guest orders once there | `DineReservation` / `dine_reservations` |
+| Dipesan | A table with a Dicatat reservation, from 30 minutes before its time until staff mark it. Derived, never stored; showing it on the table list is not built yet (#426) | Dicatat: the reservation's own status | `DineReservation::bookedSoon` |
+| Datang | The mark for a reservation whose guest arrived. It still holds its time slot | Tidak datang: the guest did not come, which frees the slot (like Batal) | `status = arrived` |
+| Tidak datang | The mark for a reservation whose guest did not come | Batal: the booking was called off | `status = no_show` |
 
 ## Retired terms
 
