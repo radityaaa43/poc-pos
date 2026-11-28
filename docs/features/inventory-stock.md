@@ -79,3 +79,7 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 - `app/Http/Controllers/Apps/StockMutationController.php`
 - `app/Services/StockMutationService.php`
 - `app/Services/StockWasteService.php`
+
+## Selisih Opname per Bulan
+
+`StockOpnameVarianceService` menampilkan, untuk outlet aktif, 12 bulan terakhir rata-rata nilai selisih absolut dan rata-rata item selisih dari stock opname final, dengan penanda bulan mulai pencatatan waste. Nilai memakai biaya per unit yang disimpan saat opname difinalisasi; opname lama tanpa biaya tersimpan memakai HPP rata-rata hari ini dan ditandai estimasi.

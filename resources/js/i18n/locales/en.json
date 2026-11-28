@@ -1523,5 +1523,22 @@
         "deletedUser": "Deleted user",
         "wastePercent": "Waste as % of sales cost",
         "noSalesCost": "No sales cost in this period"
+    },
+    "opnameVariance": {
+        "title": "Opname variance by month",
+        "description": "Average absolute variance of finalized stock opnames, before and after waste recording started.",
+        "month": "Month",
+        "phase": "Phase",
+        "before": "Before",
+        "after": "After",
+        "opnames": "Opnames",
+        "avgValue": "Avg variance value",
+        "avgItemsOff": "Avg items off",
+        "wasteStarted": "Waste recording started",
+        "empty": "No finalized stock opname in the last 12 months.",
+        "noWaste": "No waste recorded yet: every month counts as before.",
+        "startedIn": "Waste recording started in {{month}}",
+        "estimated": "Estimated",
+        "estimatedNote": "Estimated rows use today's average cost because the opname has no stored cost."
     }
 }
