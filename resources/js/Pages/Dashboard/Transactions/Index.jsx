@@ -10,7 +10,6 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
-import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
