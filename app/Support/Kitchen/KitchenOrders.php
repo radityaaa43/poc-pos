@@ -27,14 +27,9 @@ class KitchenOrders
         // groupBy keeps first-seen order, so the order with the oldest item comes first.
         return $items->groupBy('transaction_id')->map(function ($lines) {
             $first = $lines->first();
-            $transaction = $first->transaction;
-            $dineOrder = $transaction->dineOrder;
 
-            return [
-                'id' => $transaction->id,
-                'number' => $dineOrder ? $dineOrder->table?->name : $transaction->invoice,
-                'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
-                'unpaid' => $transaction->payment_status !== 'paid',
+            // header(): id, root_id, number (the original's for an add-on), type and unpaid (#314).
+            return array_merge(self::header($first->transaction), [
                 'since' => $first->accepted_at ?? $first->created_at,
                 'items' => $lines->map(fn ($item) => [
                     'id' => $item->id,
@@ -46,7 +41,7 @@ class KitchenOrders
                     'station_id' => $item->kitchen_station_id,
                     'station' => $item->kitchenStation?->name,
                 ])->values(),
-            ];
+            ]);
         })->values();
     }
 
