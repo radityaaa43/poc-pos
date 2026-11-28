@@ -372,6 +372,22 @@ export default function Index({
         setSplitMode(false);
         setSplitTenders([{ ...emptyTender }, { ...emptyTender }]);
     };
+    // What belongs to one sale, cleared once it is posted or queued offline (the order name goes with the cart).
+    const resetSaleForm = () => {
+        setDiscountInput("");
+        setRedeemPointsInput("");
+        setCashInput("");
+        setShippingInput("");
+        setSelectedCustomer(null);
+        setSelectedBankAccount(null);
+        resetSplitTenders();
+        setSelectedVoucherId("");
+        setPaymentMethod(defaultPaymentGateway ?? "cash");
+        setPayLater(false);
+        setDueDate("");
+        setOrderType("in_store");
+        setOrderNote("");
+    };
 
     const handleOpenShift = () => {
         router.post(route("cashier-shifts.store"), {
@@ -791,6 +807,7 @@ export default function Index({
                 refreshPendingCount();
                 setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
+                resetSaleForm();
                 toast.success("Transaksi disimpan offline. Akan dikirim saat online.");
             });
             setIsSubmitting(false);
@@ -841,19 +858,7 @@ export default function Index({
             },
             {
                 onSuccess: () => {
-                    setDiscountInput("");
-                    setRedeemPointsInput("");
-                    setCashInput("");
-                    setShippingInput("");
-                    setSelectedCustomer(null);
-                    setSelectedBankAccount(null);
-                    resetSplitTenders();
-                    setSelectedVoucherId("");
-                    setPaymentMethod(defaultPaymentGateway ?? "cash");
-                    setPayLater(false);
-                    setDueDate("");
-                    setOrderType("in_store");
-                    setOrderNote("");
+                    resetSaleForm();
                     setIsSubmitting(false);
                     toast.success("Transaksi berhasil!");
                 },
