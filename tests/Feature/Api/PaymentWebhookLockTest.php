@@ -234,6 +234,12 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());
     }
 
+    /** A cashier charge made before #358: attempt 0, so the gateway knows it by the bare invoice. */
+    private function cashierChargeAtAttemptZero(DineOrder $order): void
+    {
+        $this->cashierPays($order, 'qris')->update(['payment_attempt' => 0]);
+    }
+
     // ---- who wins ------------------------------------------------------------------------------------
 
     #[DataProvider('gateways')]
@@ -464,7 +470,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris'); // attempt 0: the order id is the bare invoice
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
         $tender = $bill->tenders()->sole();
         $this->assertSame('failed', $bill->fresh()->payment_status);
@@ -489,7 +495,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
         $this->cashierPays($order); // cash instead: attempt 0 stays, the failed QR tender is replaced by a paid cash tender
         $this->assertSame(0, $bill->fresh()->payment_attempt);
@@ -510,7 +516,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'paid', reference: 'first')->assertOk();
         // Only the tender holds the settlement's reference; the bill keeps the one its charge was created with.
         $this->assertSame('first', $bill->tenders()->sole()->payment_reference);
@@ -759,24 +765,24 @@ class PaymentWebhookLockTest extends TestCase
     }
 
     /**
-     * A guest's attempt 1 is paid while the cashier collects by QRIS (attempt 2): flagged. Then her QRIS expires.
+     * A guest's attempt 1 is paid while the cashier collects by QRIS (attempt 2): flagged. Then her QRIS expires, and the
+     * re-check books the payment if its amount fits.
      *
      * @return array{0: DineOrder, 1: Transaction}
      */
-    private function flaggedWhileACashierChargeIsPending(string $reference): array
+    private function flaggedWhileACashierChargeIsPending(string $reference, ?int $amount = null): array
     {
         [$order, $bill] = $this->guestBill('midtrans');
         $this->cashierPays($order, 'qris');
-        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: $reference)->assertOk();
+        $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', amount: $amount, reference: $reference)->assertOk();
         $this->assertNotNull($bill->fresh()->late_superseded_payment_at);
         $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
-        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // nothing holds the bill any more
-        $this->assertSame('failed', $bill->fresh()->payment_status);
+        $this->notify('midtrans', "{$bill->invoice}-r2", 'expired')->assertOk(); // nothing holds the bill any more: re-checked
 
         return [$order, $bill];
     }
 
-    public function test_a_flagged_payment_that_is_booked_on_redelivery_loses_the_refund_marker_and_keeps_both_audits(): void
+    public function test_a_flagged_payment_booked_when_the_cashier_charge_expires_loses_the_refund_marker_and_keeps_both_audits(): void
     {
         [, $bill] = $this->flaggedWhileACashierChargeIsPending('guest-ref');
 
@@ -792,7 +798,7 @@ class PaymentWebhookLockTest extends TestCase
 
     public function test_booking_keeps_the_refund_marker_when_a_different_reference_was_flagged(): void
     {
-        [, $bill] = $this->flaggedWhileACashierChargeIsPending('ref-other');
+        [, $bill] = $this->flaggedWhileACashierChargeIsPending('ref-other', amount: 20000); // too little: stays flagged
 
         $this->notify('midtrans', "{$bill->invoice}-r1", 'paid', reference: 'ref-booked')->assertOk();
 

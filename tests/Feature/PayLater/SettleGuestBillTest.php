@@ -22,6 +22,7 @@ use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use App\Services\Payments\PaymentGatewayManager;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 use Tests\TestCase;
@@ -195,6 +196,25 @@ class SettleGuestBillTest extends TestCase
         $this->assertSame('ref-1', $bill->tenders()->sole()->payment_reference);
     }
 
+    public function test_settle_calls_the_gateway_with_no_transaction_open(): void
+    {
+        $this->enableMidtrans();
+        $bill = $this->guestBill();
+        $baseline = DB::transactionLevel(); // RefreshDatabase wraps every test in one transaction
+        $levelInCall = null;
+        $this->mock(PaymentGatewayManager::class)->shouldReceive('createTenderPayment')->once()
+            ->andReturnUsing(function () use (&$levelInCall) {
+                $levelInCall = DB::transactionLevel();
+
+                return ['reference' => 'ref-1', 'payment_url' => null, 'qr_string' => '000201QR'];
+            });
+
+        $this->settle($bill, [['method' => 'qris', 'amount' => 10000]])->assertSessionHasNoErrors();
+
+        $this->assertSame($baseline, $levelInCall);
+        $this->assertSame('ref-1', $bill->fresh()->payment_reference);
+    }
+
     public function test_settle_with_a_transfer_waits_for_the_cashier_to_confirm(): void
     {
         $bill = $this->guestBill();
@@ -327,11 +347,15 @@ class SettleGuestBillTest extends TestCase
         $this->mock(PaymentGatewayManager::class)
             ->shouldReceive('createTenderPayment')->once()->andThrow(new PaymentGatewayException('Gateway down'));
 
+        $before = $bill->only(['cashier_id', 'cashier_shift_id', 'payment_method']);
+
         $this->settle($bill, [['method' => 'qris', 'amount' => 10000]])->assertSessionHasErrors('tenders');
 
         $bill->refresh();
         $this->assertSame('unpaid', $bill->payment_status);
         $this->assertSame(0, $bill->tenders()->count());
+        $this->assertSame($before, $bill->only(array_keys($before)));
+        $this->assertSame(1, $bill->payment_attempt);
 
         $this->settle($bill, $this->cash())->assertSessionHasNoErrors();
         $this->assertSame('paid', $bill->fresh()->payment_status);
@@ -348,6 +372,26 @@ class SettleGuestBillTest extends TestCase
         $this->settle($bill, $this->cash())->assertSessionHasErrors('bill');
 
         $this->assertSame('pending', $bill->fresh()->payment_status);
+        $this->assertSame(1, $bill->tenders()->count());
+    }
+
+    public function test_an_abandoned_settle_claim_is_replaced_after_two_minutes(): void
+    {
+        $this->freezeTime();
+        $this->enableMidtrans();
+        $bill = $this->guestBill();
+        // What is committed when the request dies before the gateway's answer: pending, a gateway tender, no reference.
+        $bill->update(['payment_method' => 'qris', 'payment_status' => 'pending', 'payment_attempt' => 1]);
+        $bill->tenders()->create(['method' => 'qris', 'amount' => 10000, 'payment_status' => 'pending']);
+
+        $this->travel(119)->seconds();
+        $this->settle($bill, $this->cash())->assertSessionHasErrors('bill');
+
+        $this->travel(2)->seconds();
+        $this->settle($bill, $this->cash())->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame(['paid', 'cash', 2], [$bill->payment_status, $bill->payment_method, $bill->payment_attempt]);
         $this->assertSame(1, $bill->tenders()->count());
     }
 

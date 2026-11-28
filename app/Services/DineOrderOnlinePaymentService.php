@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\ExpireSupersededGatewayCharge;
 use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
@@ -112,6 +113,10 @@ class DineOrderOnlinePaymentService
 
             // A guest charge never has tender rows; the ones left are a failed cashier attempt's, which held no money.
             $bill->tenders()->delete();
+            // A charge still pending is superseded by this tap: have the gateway expire it once this claim commits.
+            if ($bill->payment_status === 'pending') {
+                ExpireSupersededGatewayCharge::dispatchFor($bill, $bill->only(['payment_attempt', 'payment_method', 'payment_reference', 'payment_url']));
+            }
             $bill->update([
                 'payment_attempt' => $attempt,
                 'payment_method' => $method === self::METHOD_QRIS ? TransactionTender::METHOD_QRIS : $gateway,
@@ -147,17 +152,22 @@ class DineOrderOnlinePaymentService
             }
         } catch (Throwable $exception) {
             // Failed, so the bill is payable at the counter again; any failure counts (also a timeout).
-            $this->storeResult($bill, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
+            Transaction::storeChargeResult($bill->id, $attempt, ['payment_status' => 'failed', 'payment_failure_reason' => 'gateway_error']);
             Log::warning('Dine guest payment could not be started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'message' => $exception->getMessage()]);
 
             throw ValidationException::withMessages(['payment' => ['gateway_error']]);
         }
 
-        $this->storeResult($bill, $attempt, [
+        $stored = Transaction::storeChargeResult($bill->id, $attempt, [
             'payment_reference' => $charge['reference'] ?? null,
             'payment_url' => $charge['payment_url'] ?? null,
             'qr_string' => $charge['qr_string'] ?? null,
         ]);
+        if (! $stored) {
+            // Superseded while the gateway answered: only now is this charge's reference known. A charge that is still
+            // current (a webhook settled it first) is left alone by the job.
+            ExpireSupersededGatewayCharge::dispatchFor($bill, ['payment_attempt' => $attempt, 'payment_method' => $bill->payment_method, 'payment_reference' => $charge['reference'] ?? null, 'payment_url' => $charge['payment_url'] ?? null]);
+        }
         Log::info('Dine guest payment started', ['transaction_id' => $bill->id, 'attempt' => $attempt, 'gateway' => $gateway, 'amount' => $amount, 'pay_later' => (bool) $bill->is_pay_later]);
 
         return $this->state($order) ?? throw ValidationException::withMessages(['payment' => [self::NOT_PAYABLE]]);
@@ -230,19 +240,6 @@ class DineOrderOnlinePaymentService
             $bill->payment_failure_reason === 'gateway_error' => 'gateway_error',
             default => 'failed',
         };
-    }
-
-    /**
-     * Store a charge's outcome only while its attempt is still the bill's current one and still pending: a newer
-     * tap (the old charge is dead, its webhook is ignored) or a webhook that already settled the bill wins.
-     * One guarded UPDATE, so no lock is needed.
-     */
-    private function storeResult(Transaction $bill, int $attempt, array $values): void
-    {
-        Transaction::whereKey($bill->id)
-            ->where('payment_attempt', $attempt)
-            ->where('payment_status', 'pending')
-            ->update($values);
     }
 
     private function qrImage(string $qrString): string
