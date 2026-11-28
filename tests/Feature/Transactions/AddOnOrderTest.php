@@ -93,9 +93,7 @@ class AddOnOrderTest extends TestCase
     public function test_add_on_to_an_add_on_links_to_the_root(): void
     {
         $original = $this->sell();
-        $first = $this->addOnTo($original);
-
-        $second = $this->addOnTo($first);
+        $second = $this->addOnTo($this->addOnTo($original));
 
         $this->assertSame($original->id, $second->parent_transaction_id);
     }

@@ -797,9 +797,9 @@ class PosApiController extends Controller
             return ['status' => 'failed', 'reason' => 'Tidak terautentikasi.'];
         }
 
-        // Neither can be replayed blind: pay later needs the online outlet setting and a note, an add-on the original order.
+        // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
         $payLater = ($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later';
-        if ($payLater || isset($payload['add_on_to'])) {
+        if ($payLater || isset($payload['add_on_to'])) { // nor can an add-on: it needs its original order
             return ['status' => 'failed', 'reason' => $payLater ? 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online' : 'Pesanan tambahan tidak tersedia saat offline'];
         }
 
@@ -924,11 +924,9 @@ class PosApiController extends Controller
             $json = json_decode($response->getContent(), true);
 
             if ($response->isSuccessful()) {
-                $transactionId = data_get($json, 'data.id');
-
                 return [
                     'status' => $response->getStatusCode() === 202 ? 'pending_approval' : 'synced',
-                    'transaction_id' => $transactionId,
+                    'transaction_id' => data_get($json, 'data.id'),
                     'invoice' => data_get($json, 'data.invoice'),
                     'grand_total' => (int) data_get($json, 'data.grand_total', 0),
                 ];
