@@ -11,6 +11,7 @@ use App\Services\CashierShiftService;
 use App\Services\DineOrderService;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\Feature\DineIn\Concerns\MakesDineBills;
@@ -127,6 +128,7 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertFlagged($this->bill($order), 5000);
         $recap = $this->recap($order);
         $this->assertSame([5000, 15000], [$recap['cash_sales_total'], $recap['non_cash_sales_total']]);
+        $this->assertSame(0, AuditLog::where('event', 'payment.overpaid_after_return')->sole()->meta['cash_excess']);
     }
 
     /** 10000 too much, only 5000 of it by transfer: the other 5000 is cash in the drawer. */
@@ -144,6 +146,52 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertFlagged($this->bill($order), 10000);
         $recap = $this->recap($order);
         $this->assertSame([15000, 0, 115000], [$recap['cash_sales_total'], $recap['non_cash_sales_total'], $recap['expected_cash']]);
+    }
+
+    /** BR-5: the audit row and the sale page name the cash part of the excess, and whether its drawer is still open. */
+    #[DataProvider('shiftStates')]
+    public function test_the_cash_part_of_an_excess_is_kept_and_shown_with_its_shift(bool $closed): void
+    {
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [
+            ['method' => 'cash', 'amount' => 20000, 'cash_received' => 20000],
+            ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $this->bankAccount()->id],
+        ]);
+        $this->returnFromBill($this->bill($order), $this->flagged);
+        if ($closed) {
+            $this->closeShiftOf($this->bill($order));
+        }
+
+        $this->confirmOnTheWeb($this->bill($order));
+
+        $this->assertSame(5000, AuditLog::where('event', 'payment.overpaid_after_return')->sole()->meta['cash_excess']);
+        $this->cashier->givePermissionTo('transactions-access');
+        $this->actingAs($this->cashier)->get(route('transactions.print', $this->bill($order)->invoice))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('transaction.cash_excess', 5000)
+                ->where('transaction.shift_open', ! $closed));
+    }
+
+    /** @return array<string, array<int, bool>> */
+    public static function shiftStates(): array
+    {
+        return ['shift open' => [false], 'shift closed' => [true]];
+    }
+
+    /** BR-5: a failed tender took no money, so it does not shrink the cash part, on the sale or in the recap. */
+    public function test_the_cash_part_counts_only_paid_non_cash_tenders(): void
+    {
+        $sale = $this->posSale('split', 'paid');
+        $sale->update(['overpaid_amount' => 10000]);
+        $sale->tenders()->createMany([
+            ['method' => 'cash', 'amount' => 20000, 'cash_received' => 20000, 'payment_status' => 'paid'],
+            ['method' => 'bank_transfer', 'amount' => 5000, 'payment_status' => 'paid'],
+            ['method' => 'qris', 'amount' => 5000, 'payment_status' => 'failed'],
+        ]);
+
+        $this->assertSame(5000, $sale->cashExcess());
+        $recap = app(CashierShiftService::class)->calculateSummary(CashierShift::findOrFail($sale->cashier_shift_id));
+        $this->assertSame([15000, 0], [$recap['cash_sales_total'], $recap['non_cash_sales_total']]);
     }
 
     /** A checkout transfer is no open bill: the recap counts its total, so the excess has to come off it. */
