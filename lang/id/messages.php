@@ -432,6 +432,15 @@ return [
         'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
     ],
 
+    'dine_reservations' => [
+        'clash' => 'Meja ini sudah direservasi atas nama :name pada :time. Beri jarak minimal 2 jam.',
+        'not_booked' => 'Reservasi ini sudah ditandai dan tidak bisa diubah lagi.',
+        'required' => 'Wajib diisi.',
+        'invalid_phone' => 'Nomor HP berisi 6 sampai 30 karakter: angka, spasi, +, -, atau tanda kurung.',
+        'invalid_party_size' => 'Jumlah tamu antara 1 dan 100.',
+        'table_unavailable' => 'Meja ini tidak tersedia.',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages

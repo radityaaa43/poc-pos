@@ -63,6 +63,8 @@ class RoleSeeder extends Seeder
 
         $this->createRoleWithPermissions('dine-tables-access', '%dine-tables%');
         $this->createRoleWithPermissions('dine-orders-access', '%dine-orders%');
+        // Whoever manages tables also takes their bookings; the pattern above does not match this name.
+        Role::findByName('dine-tables-access')->givePermissionTo('dine-reservations-manage');
 
         $superAdminRole = Role::firstOrCreate(['name' => 'super-admin']);
         $superAdminRole->syncPermissions(Permission::all());

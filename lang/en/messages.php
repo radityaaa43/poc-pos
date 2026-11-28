@@ -432,6 +432,15 @@ return [
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
     ],
 
+    'dine_reservations' => [
+        'clash' => 'This table is already reserved for :name on :time. Leave at least 2 hours between bookings.',
+        'not_booked' => 'This reservation is already marked and can no longer be changed.',
+        'required' => 'This field is required.',
+        'invalid_phone' => 'The phone number takes 6 to 30 characters: digits, spaces, +, - or brackets.',
+        'invalid_party_size' => 'The number of guests is between 1 and 100.',
+        'table_unavailable' => 'This table is not available.',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages
