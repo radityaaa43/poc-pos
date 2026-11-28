@@ -1148,7 +1148,12 @@
             "notPrinted": "Belum tercetak",
             "retry": "Coba lagi",
             "unsupported": "Perangkat ini tidak mendukung printer USB",
-            "unsupportedInsecure": "Cetak USB perlu koneksi aman (HTTPS)"
+            "unsupportedInsecure": "Cetak USB perlu koneksi aman (HTTPS)",
+            "stale": "Printer dapur offline atau tab tidur",
+            "wakeLockOff": "Layar bisa tidur — jaga perangkat tetap menyala",
+            "reprint": "CETAK ULANG",
+            "reprintButton": "Cetak ulang",
+            "reprintFailed": "Gagal mencetak ulang"
         },
         "actions": {
             "start": "Mulai buat",
@@ -1164,6 +1169,11 @@
             "progress": "{{ready}} dari {{total}} siap",
             "removed": "Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.",
             "emptyForSelection": "Belum ada pesanan untuk stasiun ini"
+        },
+        "pickup": {
+            "title": "Siap diambil ({{count}})",
+            "all": "Lihat semua ({{count}})",
+            "less": "Tampilkan lebih sedikit"
         }
     },
     "pos": {

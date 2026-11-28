@@ -396,6 +396,55 @@ describe("createPrintQueue: failure details (REQ-004 K2)", () => {
 
         expect(warn).toHaveBeenCalledWith("kitchen print failed", "t7", "claim_failed");
     });
+
+    it("drops a manual job that fails (its send saw the error) and keeps the queue going", async () => {
+        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const send = vi.fn(async (job) => {
+            if (job.manual) throw failure("transfer");
+        });
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "r1-1", manual: true });
+        queue.enqueue({ key: "a" });
+
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(2);
+        expect(send.mock.calls.map(([job]) => job.key)).toEqual(["r1-1", "a"]);
+        expect(queue.jobs).toEqual([]);
+        expect(queue.status).toBe("idle");
+        expect(warn).toHaveBeenCalledWith("kitchen print failed", "r1-1", "transfer");
+    });
+
+    it("keeps a failed head of any kind, and a manual job queued behind it waits", async () => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const send = vi.fn().mockRejectedValue(failure("transfer"));
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "a" });
+        queue.enqueue({ key: "r1-1", manual: true });
+
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queue.status).toBe("failed");
+        expect(queue.jobs.map((j) => j.key)).toEqual(["a", "r1-1"]);
+    });
+
+    it.each([
+        ["fails", () => vi.fn().mockRejectedValue(failure("transfer"))],
+        ["prints", () => vi.fn().mockResolvedValue(undefined)],
+    ])("a manual job alone that %s is sent once and gone, leaving the queue idle", async (_case, makeSend) => {
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const send = makeSend();
+        const queue = createPrintQueue({ send });
+        queue.enqueue({ key: "r1-1", manual: true });
+
+        await queue.drain();
+        await queue.drain();
+
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(queue.status).toBe("idle");
+        expect(queue.jobs).toEqual([]);
+    });
 });
 
 describe("createPrintQueue: stop (#410 D2)", () => {

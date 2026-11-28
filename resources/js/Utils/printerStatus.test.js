@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+    STALE_HOLD_MS,
     STALE_PRINT_MS,
     classifyPrinterError,
     derivePrinterStatus,
     isNotPrinted,
+    isStale,
     unprintedFromJobs,
     webUsbSupport,
 } from "./printerStatus";
@@ -79,11 +81,18 @@ describe("webUsbSupport", () => {
 });
 
 describe("derivePrinterStatus", () => {
-    const base = { supported: true, autoPrint: true, errorCode: null, disconnected: false };
+    const NOW = Date.parse("2026-11-26T10:10:00Z");
+    const ago = (ms) => new Date(NOW - ms).toISOString();
+    const base = { supported: true, autoPrint: true, errorCode: null, disconnected: false, unprinted: [], wakeLock: "held", now: NOW };
     const status = (over) => derivePrinterStatus({ ...base, ...over });
+    const old = [{ key: "t1", since: ago(STALE_PRINT_MS + 1000), state: "queued" }];
 
     it("is null when everything is fine", () => {
         expect(status({})).toBeNull();
+    });
+
+    it("is null while Wake Lock is still being requested", () => {
+        expect(status({ wakeLock: "pending" })).toBeNull();
     });
 
     it("unsupported wins over everything, even with auto-print off", () => {
@@ -91,11 +100,12 @@ describe("derivePrinterStatus", () => {
     });
 
     it("follows the priority table, highest first", () => {
-        const all = { errorCode: "driver_locked", disconnected: true };
+        const all = { errorCode: "driver_locked", disconnected: true, unprinted: old, wakeLock: "refused" };
         expect(status(all)).toBe("driver_locked");
         expect(status({ ...all, errorCode: "transfer" })).toBe("not_connected");
         expect(status({ ...all, errorCode: "transfer", disconnected: false })).toBe("failed");
-        expect(status({ ...all, errorCode: null, disconnected: false })).toBeNull();
+        expect(status({ ...all, errorCode: null, disconnected: false })).toBe("stale");
+        expect(status({ ...all, errorCode: null, disconnected: false, unprinted: [] })).toBe("wake_lock_off");
     });
 
     it("a head job that failed with not_connected is not_connected", () => {
@@ -106,10 +116,42 @@ describe("derivePrinterStatus", () => {
         expect(status({ errorCode })).toBe("failed");
     });
 
+    it.each(["unsupported", "refused", "released"])("Wake Lock %s shows wake_lock_off", (wakeLock) => {
+        expect(status({ wakeLock })).toBe("wake_lock_off");
+    });
+
     it("stays quiet with auto-print off, except the driver lock a connect attempt found", () => {
-        const noisy = { autoPrint: false, errorCode: "transfer", disconnected: true };
+        const noisy = { autoPrint: false, errorCode: "transfer", disconnected: true, unprinted: old, wakeLock: "refused" };
         expect(status(noisy)).toBeNull();
         expect(status({ ...noisy, errorCode: "driver_locked" })).toBe("driver_locked");
+    });
+
+    describe("stale", () => {
+        it("needs an unprinted ticket older than 30 s", () => {
+            expect(STALE_PRINT_MS).toBe(30000);
+            expect(status({ unprinted: [{ key: "t1", since: ago(STALE_PRINT_MS), state: "queued" }] })).toBeNull();
+            expect(status({ unprinted: [{ key: "t1", since: ago(STALE_PRINT_MS + 1), state: "queued" }] })).toBe("stale");
+        });
+
+        it("is held for 15 s after the condition cleared, then goes", () => {
+            expect(STALE_HOLD_MS).toBe(15000);
+            const staleAt = NOW - (STALE_HOLD_MS - 1);
+            expect(status({ staleAt })).toBe("stale");
+            expect(status({ staleAt: NOW - STALE_HOLD_MS })).toBeNull();
+        });
+
+        it("is not shown with auto-print off, hold or not", () => {
+            expect(status({ autoPrint: false, staleAt: NOW })).toBeNull();
+        });
+    });
+});
+
+describe("isStale", () => {
+    it("is true when any ticket is older than 30 s", () => {
+        const now = Date.parse("2026-11-26T10:00:40Z");
+        expect(isStale([{ since: "2026-11-26T10:00:00Z" }], now)).toBe(true);
+        expect(isStale([{ since: "2026-11-26T10:00:20Z" }], now)).toBe(false);
+        expect(isStale([], now)).toBe(false);
     });
 });
 
@@ -137,11 +179,12 @@ describe("isNotPrinted", () => {
 describe("unprintedFromJobs", () => {
     const original = (n, over = {}) => ({ key: `t${n}`, ticket: { key: `t${n}`, since: `s${n}` }, itemIds: [n], ...over });
 
-    it("lists queued originals, marks the failed head, and leaves out cancel jobs", () => {
+    it("lists queued originals, marks the failed head, and leaves out cancel and manual jobs", () => {
         const jobs = [
             original(1, { lastError: { code: "transfer" } }),
             original(2),
             { key: "c1t1", kind: "cancel", ticket: { since: "x" } },
+            { key: "r2-1", manual: true, ticket: { since: "y" } },
         ];
         expect(unprintedFromJobs(jobs)).toEqual([
             { key: "t1", since: "s1", state: "failed" },

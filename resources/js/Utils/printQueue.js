@@ -16,9 +16,14 @@ export function createPrintQueue({ send }) {
             try {
                 await send(jobs[0]);
             } catch (error) {
-                status = "failed";
                 console.warn(`Print job ${jobs[0].key} failed`, error);
                 console.warn("kitchen print failed", jobs[0].key, error?.code);
+                // A reprint is one-shot (its send saw the error): a forgotten tap must not retry ahead of real tickets.
+                if (jobs[0].manual) {
+                    jobs.shift();
+                    continue;
+                }
+                status = "failed";
                 jobs[0] = { ...jobs[0], lastError: { code: error?.code, message: error?.message } };
                 release();
                 return;

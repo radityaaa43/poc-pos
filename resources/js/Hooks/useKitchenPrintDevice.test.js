@@ -47,6 +47,7 @@ const postedIds = () => itemPosts().map((c) => c[1].item_ids);
 
 let onLine;
 let usb;
+let wakeLock;
 let tickets;
 let cancellations;
 
@@ -62,9 +63,11 @@ beforeEach(async () => {
     onLine = true;
     vi.spyOn(navigator, "onLine", "get").mockImplementation(() => onLine);
     vi.spyOn(console, "warn").mockImplementation(() => {});
-    // WebUSB exists unless a test removes it; the hook skips printing without it.
+    // WebUSB and Wake Lock exist unless a test removes them; the hook skips printing without WebUSB.
     usb = new EventTarget();
     Object.defineProperty(navigator, "usb", { value: usb, configurable: true });
+    wakeLock = { request: vi.fn(async () => ({ released: false, release: vi.fn(), addEventListener: vi.fn() })) };
+    Object.defineProperty(navigator, "wakeLock", { value: wakeLock, configurable: true });
     tickets = [ticket(1, [11, 12])];
     cancellations = [];
     axios.get.mockImplementation(async () => ({ data: { tickets, cancellations } }));
@@ -76,6 +79,7 @@ afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     delete navigator.usb;
+    delete navigator.wakeLock;
 });
 
 describe("useKitchenPrintDevice: when it does nothing", () => {
@@ -392,6 +396,14 @@ describe("useKitchenPrintDevice: one tab prints per device", () => {
         expect(result.current.otherTab).toBe(true);
         expect(axios.get).not.toHaveBeenCalled();
         expect(printBytes).not.toHaveBeenCalled();
+    });
+
+    it("says nothing about unfetched tickets in a tab that is not the printing one", async () => {
+        locks.request("kitchen-print", {}, () => new Promise(() => {})); // another tab is the leader
+        const { result } = mount();
+        await advance(60000);
+
+        expect(result.current.status).toBeNull();
     });
 
     it("starts the loop when the lock is granted", async () => {
@@ -773,5 +785,147 @@ describe("useKitchenPrintDevice: reconciling queued originals with the poll", ()
 
         expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["t1", "c7t1"]);
         expect(cancelPosts()).toHaveLength(1);
+    });
+});
+
+describe("useKitchenPrintDevice: a reprint keeps the print safety rules (#410)", () => {
+    const order = { id: 7, number: "Meja 4", type: "dine_in", unpaid: false, since: "2026-11-26T09:50:00Z", items: [] };
+    let release;
+    const sent = () => buildKitchenTicketBytes.mock.calls.map((c) => c[0].key);
+    const holdFirstSend = () => printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    const tap = (result) => act(async () => void result.current.reprint(order));
+    const finishSend = () =>
+        act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+    it("sends nothing without a chosen kitchen printer, and names the order", async () => {
+        setStorage({ "kitchen.printerKey": null, "kitchen.autoPrint": "false" });
+        const { result } = mount();
+
+        await act(() => result.current.reprint(order));
+
+        expect(printBytes).not.toHaveBeenCalled();
+        expect(result.current.reprintFailed).toBe(7);
+    });
+
+    it.each([
+        ["off", [false]],
+        ["off and on again", [false, true]],
+    ])("waits for the send in flight after auto-print is switched %s", async (_case, switches) => {
+        setStorage();
+        holdFirstSend();
+        const { result } = mount();
+        await flush();
+        for (const on of switches) act(() => result.current.setAutoPrint(on));
+
+        await tap(result);
+        expect(sent()).toEqual(["t1"]);
+
+        tickets = [];
+        await finishSend();
+        expect(sent()).toEqual(["t1", "r7-1"]);
+    });
+
+    it("holds the queue back while a reprint started with auto-print off is still sending", async () => {
+        setStorage({ "kitchen.autoPrint": "false" });
+        holdFirstSend();
+        const { result } = mount();
+        await tap(result);
+
+        act(() => result.current.setAutoPrint(true));
+        await advance(10000);
+        expect(sent()).toEqual(["r7-1"]);
+
+        await finishSend();
+        expect(sent()).toEqual(["r7-1", "t1"]);
+    });
+
+    it("after the session ended: drops the queued reprint with its failure, and a new one prints after the send in flight", async () => {
+        setStorage();
+        holdFirstSend();
+        const { result } = mount();
+        await flush();
+        await tap(result); // queued behind the original
+        axios.get.mockRejectedValue({ response: { status: 401 } });
+        await advance(5000);
+
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.reprintFailed).toBe(7);
+
+        await tap(result);
+        expect(sent()).toEqual(["t1"]);
+
+        await finishSend();
+        expect(sent()).toEqual(["t1", "r7-2"]);
+        expect(result.current.reprinting).toEqual([]);
+    });
+});
+
+describe("useKitchenPrintDevice: tickets that cannot be fetched (REQ-004 AC-10, BR-4)", () => {
+    const answer = async () => ({ data: { tickets: [], cancellations: [] } });
+    const down = () => Promise.reject({ response: { status: 500 } });
+    const never = () => new Promise(() => {});
+    const mountFetching = (get) => {
+        setStorage();
+        axios.get.mockImplementation(get);
+        return mount();
+    };
+    // Quiet while the 30 s run, stale just after.
+    const turnsStale = async (result, quiet = 30000, past = 1000) => {
+        await advance(quiet);
+        expect(result.current.status).toBeNull();
+        await advance(past);
+        expect(result.current.status).toBe("stale");
+    };
+
+    it.each([
+        ["keeps failing", down],
+        ["never answers", never],
+    ])("shows stale after 30 s when the request %s, and clears on the next success", async (_case, get) => {
+        const { result } = mountFetching(get);
+        await turnsStale(result);
+
+        axios.get.mockImplementation(answer);
+        await advance(4000); // the next poll
+        expect(result.current.status).toBeNull();
+    });
+
+    it("counts the 30 s from the last success", async () => {
+        const { result } = mountFetching(answer);
+        await advance(40000);
+        expect(result.current.status).toBeNull();
+
+        axios.get.mockImplementation(down);
+        await turnsStale(result);
+    });
+
+    it("says nothing once auto-print is off, and starts the 30 s again when it is back on", async () => {
+        const { result } = mountFetching(never);
+        await advance(31000);
+
+        act(() => result.current.setAutoPrint(false));
+        expect(result.current.status).toBeNull();
+        await advance(60000);
+        expect(result.current.status).toBeNull();
+
+        act(() => result.current.setAutoPrint(true));
+        await advance(30000);
+        expect(result.current.status).toBeNull();
+    });
+
+    it("leaves an offline browser to the connection banner, and starts the 30 s again once it is back", async () => {
+        const { result } = mountFetching(down);
+        await advance(31000);
+        expect(result.current.status).toBe("stale");
+
+        onLine = false;
+        await advance(60000);
+        expect(result.current.status).toBeNull();
+
+        onLine = true;
+        await act(async () => window.dispatchEvent(new Event("online")));
+        await turnsStale(result, 29000, 2000);
     });
 });

@@ -69,6 +69,47 @@ export const setUserAgent = (page, userAgent) => page.addInitScript((ua) => {
     Object.defineProperty(navigator, 'userAgent', { configurable: true, get: () => ua });
 }, userAgent);
 
+// A Wake Lock API that counts the requests and keeps a boolean `released` like the real sentinel (the app reads it).
+// Call before the first page.goto(); read it with wakeLockState().
+export const fakeWakeLock = (page) => page.addInitScript(() => {
+    const lock = { requests: 0, sentinels: [] };
+    window.__wakeLock = lock;
+    Object.defineProperty(navigator, 'wakeLock', {
+        configurable: true,
+        value: {
+            request: async () => {
+                lock.requests += 1;
+                const target = new EventTarget();
+                const sentinel = {
+                    released: false,
+                    type: 'screen',
+                    release: async () => {
+                        if (sentinel.released) return;
+                        sentinel.released = true;
+                        target.dispatchEvent(new Event('release'));
+                    },
+                    addEventListener: (...args) => target.addEventListener(...args),
+                    removeEventListener: (...args) => target.removeEventListener(...args),
+                };
+                lock.sentinels.push(sentinel);
+
+                return sentinel;
+            },
+        },
+    });
+});
+
+// A browser without the Wake Lock API: navigator.wakeLock is undefined. Call before the first page.goto().
+export const removeWakeLock = (page) => page.addInitScript(() => {
+    Object.defineProperty(navigator, 'wakeLock', { configurable: true, value: undefined });
+});
+
+// How often the page asked for the lock, and whether one is held now (needs fakeWakeLock).
+export const wakeLockState = (page) => page.evaluate(() => ({
+    requests: window.__wakeLock.requests,
+    held: window.__wakeLock.sentinels.some((sentinel) => !sentinel.released),
+}));
+
 // What the page sent to the printer: one byte array per transferOut call.
 export const sentToPrinter = (page) => page.evaluate(() => window.__usbSent);
 

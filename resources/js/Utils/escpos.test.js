@@ -529,6 +529,38 @@ describe("buildKitchenTicketBytes", () => {
             expect(textOf(ticket(), "80mm", cancelLabels)).not.toContain("DIBATALKAN");
         });
     });
+
+    describe("reprint layout", () => {
+        const reprintLabels = { ...labels, reprint: "CETAK ULANG" };
+
+        it("prints the reprint label, then the number, both in double size, before the type and time", () => {
+            // eslint-disable-next-line no-control-regex
+            expect(textOf(ticket({ reprint: true }), "80mm", reprintLabels)).toMatch(/^\x1b@\x1d!\x11CETAK ULANG\nMeja 5\n\x1d!\x00Makan di tempat/);
+        });
+
+        it("uses the label it is given, so the English device prints REPRINT", () => {
+            const text = textOf(ticket({ reprint: true }), "80mm", { ...reprintLabels, reprint: "REPRINT" });
+            expect(text).toContain("REPRINT");
+            expect(text).not.toContain("CETAK ULANG");
+        });
+
+        it("keeps the unpaid line and the items of the original", () => {
+            const lines = kitchenLines(ticket({ reprint: true, unpaid: true }), "80mm", { ...reprintLabels, unpaid: "BELUM LUNAS" });
+            expect(lines).toContain("BELUM LUNAS");
+            expect(lines.some((l) => l.includes("x "))).toBe(true);
+        });
+
+        it("splits a long label in double size like the cancelled label", () => {
+            const lines = kitchenLines(ticket({ reprint: true }), "58mm", { ...reprintLabels, reprint: "CETAK ULANG TIKET" });
+            expect(Math.max(...lines.slice(0, 3).map((l) => l.length))).toBeLessThanOrEqual(16);
+        });
+
+        it("leaves the bytes of a ticket without reprint untouched", () => {
+            const original = bytesOf(ticket(), "80mm", labels);
+            expect(bytesOf(ticket({ reprint: false }), "80mm", reprintLabels)).toEqual(original);
+            expect(textOf(ticket(), "80mm", reprintLabels)).not.toContain("CETAK ULANG");
+        });
+    });
 });
 
 describe("printerKey and getPrinter", () => {
