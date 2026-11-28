@@ -138,12 +138,16 @@ class CashierShiftService
             // Without tenders (guest online, retry) the asked amount is the total less the returns that refunded nothing.
             // shortcut: a return made while a no-tender payment (guest online, retry) is waiting under-counts the recap;
             // exact fix = store the asked amount on the bill.
-            $returnedShort = (int) SalesReturn::query()
+            $unrefunded = SalesReturn::query()
                 ->where('status', 'completed')
                 ->where('refund_amount', 0)
                 ->where('credited_amount', 0)
-                ->whereIn('transaction_id', (clone $askedLater)->doesntHave('tenders')->select('id'))
-                ->sum('total_return_amount');
+                ->groupBy('transaction_id')
+                ->selectRaw('transaction_id, sum(total_return_amount) as unrefunded_total');
+            // Capped per sale: returns are priced before a bill discount, and a sale must not take off more than it added.
+            $returnedShort = (int) (clone $askedLater)->doesntHave('tenders')
+                ->joinSub($unrefunded, 'unrefunded', 'unrefunded.transaction_id', '=', 'transactions.id')
+                ->sum(DB::raw('case when unrefunded_total > grand_total then grand_total else unrefunded_total end'));
 
             return $tenderedShort + $returnedShort;
         };
