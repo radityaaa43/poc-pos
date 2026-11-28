@@ -364,6 +364,10 @@ export default function Index({
         [activeSplitTenders]
     );
     const splitRemaining = payable - splitTotal;
+    // The change due: in split mode it is summed over every cash tender (#501).
+    const cashTenders = activeSplitTenders.filter((t) => t.method === "cash");
+    const change = splitMode ? cashTenders.reduce((sum, t) => sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0), 0) : Math.max(cash - payable, 0);
+    const showsChange = splitMode ? change > 0 : cash >= payable && payable > 0;
     const updateSplitTender = (index, patch) =>
         setSplitTenders((prev) =>
             prev.map((tender, i) =>
@@ -728,13 +732,8 @@ export default function Index({
                 toast.error("Pilih rekening bank tujuan untuk tender transfer");
                 return;
             }
-            const cashTender = activeSplitTenders.find(
-                (t) => t.method === "cash"
-            );
-            if (
-                cashTender &&
-                Number(cashTender.cash_received || cashTender.amount) < Number(cashTender.amount)
-            ) {
+            // Any cash tender paid with less than its amount is refused; blank falls back to the amount (#497, #501).
+            if (cashTenders.some((t) => Number(t.cash_received || t.amount) < Number(t.amount))) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
             }
@@ -1725,7 +1724,7 @@ export default function Index({
                                     </div>
 
                                     <div className={`flex items-center justify-between rounded-xl p-3 ${
-                                        cash >= payable && payable > 0
+                                        showsChange
                                             ? "bg-success-100/70 dark:bg-success-950/30"
                                             : "bg-white/70 dark:bg-slate-900/50"
                                     }`}>
@@ -1733,11 +1732,11 @@ export default function Index({
                                             Kembalian
                                         </span>
                                         <span className={`text-lg font-bold ${
-                                            cash >= payable && payable > 0
+                                            showsChange
                                                 ? "text-success-600 dark:text-success-400"
                                                 : "text-slate-400"
                                         }`}>
-                                            {formatPrice(Math.max(cash - payable, 0))}
+                                            {formatPrice(change)}
                                         </span>
                                     </div>
                                 </div>
@@ -1939,19 +1938,16 @@ export default function Index({
                             </span>
                         </div>
 
-                        {paymentMethod === "cash" &&
-                            !payLater &&
-                            cash >= payable &&
-                            payable > 0 && (
-                                <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
-                                    <span className="text-sm text-success-700 dark:text-success-400">
-                                        Kembalian
-                                    </span>
-                                    <span className="font-bold text-success-600">
-                                        {formatPrice(cash - payable)}
-                                    </span>
-                                </div>
-                            )}
+                        {(splitMode || paymentMethod === "cash") && !payLater && showsChange && (
+                            <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
+                                <span className="text-sm text-success-700 dark:text-success-400">
+                                    Kembalian
+                                </span>
+                                <span className="font-bold text-success-600">
+                                    {formatPrice(change)}
+                                </span>
+                            </div>
+                        )}
 
                         {/* Submit Button - Always visible */}
                         <button

@@ -139,7 +139,7 @@ class RecapUnowedReturnTest extends TestCase
         $this->assertRecap(cash: 5000, nonCash: 15000, expectedCash: 105000);
     }
 
-    public function test_a_return_while_a_counter_gateway_charge_waits_is_not_taken_off_once_paid(): void
+    public function test_a_return_while_a_counter_gateway_charge_waits_leaves_the_excess_out_once_paid(): void
     {
         $this->useGateway('midtrans');
         $order = $this->acceptedOrder();
@@ -149,7 +149,9 @@ class RecapUnowedReturnTest extends TestCase
         $this->notify('midtrans', $this->bill($order)->invoice.'-r1', 'paid')->assertOk();
         $this->assertSame('paid', $this->bill($order)->payment_status);
 
-        $this->assertRecap(cash: 0, nonCash: self::TOTAL, expectedCash: 100000);
+        // 25000 came in, the bill owed 20000: the rest is flagged for a refund (#444)
+        $this->assertSame(5000, $this->bill($order)->overpaid_amount);
+        $this->assertRecap(cash: 0, nonCash: 20000, expectedCash: 100000);
     }
 
     /** Only an open bill is asked for less after a return. A plain POS sale was asked for its grand total at checkout. */

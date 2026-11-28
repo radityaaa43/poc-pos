@@ -122,7 +122,8 @@ class TransactionPaymentRetryService
                 description: "Pembayaran invoice {$sale->invoice} diulang dengan metode {$method}.",
                 before: $before,
                 after: ['payment_method' => $sale->payment_method, 'payment_status' => $sale->payment_status, 'payment_attempt' => $sale->payment_attempt],
-                meta: ['invoice' => $sale->invoice],
+                // amount: what this attempt asks, read when a transfer without tenders is confirmed (#444).
+                meta: ['invoice' => $sale->invoice, 'amount' => $total],
                 actor: $user,
             );
 

@@ -71,6 +71,12 @@ class SalesReturn extends Model
         return $this->hasMany(CustomerCredit::class);
     }
 
+    /** Completed without handing anything back: the sale was not paid yet, so it owes that much less. */
+    public function scopeNothingRefunded($query)
+    {
+        return $query->where('status', 'completed')->where('refund_amount', 0)->where('credited_amount', 0);
+    }
+
     public function isDraft(): bool
     {
         return $this->status === 'draft';
