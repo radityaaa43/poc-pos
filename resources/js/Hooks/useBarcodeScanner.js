@@ -68,6 +68,9 @@ export default function useBarcodeScanner(onScan, options = {}) {
             // Handle Enter key - end of barcode
             if (e.key === "Enter") {
                 if (bufferRef.current.length >= minLength) {
+                    // The scanner's Enter ends the scan only: it must not press a focused button or submit (#477).
+                    e.preventDefault();
+                    e.stopPropagation();
                     const barcode = bufferRef.current;
                     setLastBarcode(barcode);
                     setIsScanning(false);
@@ -100,10 +103,11 @@ export default function useBarcodeScanner(onScan, options = {}) {
     useEffect(() => {
         if (!enabled) return;
 
-        window.addEventListener("keydown", handleKeyDown);
+        // Capture phase: before any element handler sees the key.
+        window.addEventListener("keydown", handleKeyDown, true);
 
         return () => {
-            window.removeEventListener("keydown", handleKeyDown);
+            window.removeEventListener("keydown", handleKeyDown, true);
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
             }
