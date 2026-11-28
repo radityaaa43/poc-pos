@@ -65,6 +65,7 @@ Everything below counts only the orders whose transaction is on the closing shif
   - the bills stay payable; a later payment counts in the shift that takes it, and the closed recap does not change;
   - audit: `cashier_shift.hold_overridden` (note, items, bills, total, cancelled sales) beside `cashier_shift.force_closed`.
 - **Auto-cancel of unpaid Bayar sekarang sales.** Every close that goes through cancels the shift's sales with no money received (pending, failed or expired): stock goes back to `product_warehouse` and `products`, the sale is marked failed, and `transaction.cancelled_on_shift_close` is audited. It uses the same routine as `transactions:expire` (`UnpaidSaleCancellationService`). Not cancelled: bills, dine-in orders, a split with a paid part, and a sale with a completed sales return. An unconfirmed bank transfer is unpaid and is cancelled too: confirm it before closing. A cancelled sale leaves every recap total and the transaction count.
+- **Offline queue.** The shift page disables the close button while this device still holds unsynced sales ("Sinkronkan transaksi offline dulu").
 
 ## Batasan Saat Ini
 
