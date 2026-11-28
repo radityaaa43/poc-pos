@@ -49,6 +49,12 @@ describe("Kitchen/Index pickup section (#361)", () => {
         expect(numbers()).toEqual(["Meja 1", "Meja 2"]);
     });
 
+    it("an order with a cancelled line and the rest ready moves to Siap diambil", () => {
+        onStation(2, [order(1, [item(1, "ready", ago(9)), item(3, "cancelled")]), order(2, [item(2, "cancelled")])]);
+        expect(inPickup()).toEqual(["Meja 1"]);
+        expect(numbers()).toEqual(["Meja 2", "Meja 1"]);
+    });
+
     it("shows the 10 longest waiting, oldest first", () => {
         onStation(2, waiting(12));
 

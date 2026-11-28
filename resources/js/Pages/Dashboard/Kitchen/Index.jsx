@@ -95,8 +95,11 @@ export default function Index({ orders, outlet, stations = [] }) {
         .map((order) => ({ ...order, items: order.items.filter(isShown) }))
         .filter((order) => order.items.length > 0);
     // A station screen sets a fully ready order aside, longest ready first; without ready_at, since counts (#361).
-    const waitsForPickup = (order) => !showAll && order.items.every((item) => item.status === "ready");
-    const readySince = (order) => Math.max(...order.items.map((item) => Date.parse(item.ready_at ?? order.since)));
+    // A cancelled line is not an unmade one: it neither holds the order back nor dates it.
+    const live = (order) => order.items.filter((item) => item.status !== "cancelled");
+    const waitsForPickup = (order) =>
+        !showAll && live(order).length > 0 && live(order).every((item) => item.status === "ready");
+    const readySince = (order) => Math.max(...live(order).map((item) => Date.parse(item.ready_at ?? order.since)));
     const working = shownOrders.filter((order) => !waitsForPickup(order));
     const pickup = shownOrders.filter(waitsForPickup).sort((a, b) => readySince(a) - readySince(b));
 
