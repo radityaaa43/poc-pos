@@ -81,7 +81,6 @@ class BillTotalServiceTest extends TestCase
         }
     }
 
-    /** The same table drives the offline mirror, computeBill in billTotals.js (TC-9). */
     #[DataProvider('billCases')]
     public function test_compute_matches_the_shared_table(array $case): void
     {

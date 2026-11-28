@@ -1,5 +1,5 @@
 {
-    "_comment": "One table for two runners: BillTotalServiceTest (BillTotalService::compute) and billTotals.test.js (computeBill). A case that changes here changes both.",
+    "_comment": "BillTotalServiceTest holds BillTotalService::compute to this table; the offline client mirror (#418) is meant to share it.",
     "cases": [
         {
             "name": "default outlet: PPN per line with the shipping taxed, no service charge",

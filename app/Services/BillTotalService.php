@@ -6,8 +6,8 @@ use App\Models\Outlet;
 use App\Models\Product;
 
 /**
- * The only place that adds service charge and PB1 to a bill (REQ-010). The POS offline mirrors `compute` in
- * resources/js/Utils/billTotals.js; tests/fixtures/bill-totals.json holds both to the same numbers.
+ * The only place that adds service charge and PB1 to a bill (REQ-010); tests/fixtures/bill-totals.json pins
+ * its numbers.
  */
 class BillTotalService
 {
@@ -86,7 +86,7 @@ class BillTotalService
             'tax_rate' => $rate ?: null,
             'tax_base' => $taxBase,
             'grand_total' => $afterDiscount + $shipping + $service + $taxTotal,
-            // What the POS needs to recompute this bill offline, when the order type changes.
+            // The inputs of this total, for a client that recomputes it (the offline POS, #418).
             'bill_basis' => [
                 'after_discount' => $afterDiscount,
                 'shipping' => $shipping,

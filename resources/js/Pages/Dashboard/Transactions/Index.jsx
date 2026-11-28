@@ -213,7 +213,7 @@ export default function Index({
         () => Number(pricingPreview?.summary?.subtotal_after_promo ?? 0),
         [pricingPreview]
     );
-    const bill = useBillTotals(pricingPreview?.summary, { orderType, shipping, outlet: activeCashierShift?.outlet });
+    const bill = useBillTotals(pricingPreview?.summary);
     const payable = bill.grand_total;
     const quickCashAmounts = useMemo(() => {
         if (payable <= 0) return [];

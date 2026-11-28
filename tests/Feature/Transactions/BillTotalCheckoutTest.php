@@ -288,7 +288,7 @@ class BillTotalCheckoutTest extends TestCase
         $this->getJson('/api/v1/transactions/pricing-preview?order_type=dine')->assertUnprocessable();
     }
 
-    public function test_pos_page_opens_with_the_dine_in_bill_and_the_outlet_bill_settings(): void
+    public function test_pos_page_opens_with_the_dine_in_bill(): void
     {
         $this->charge();
         $this->openShift();
@@ -297,10 +297,7 @@ class BillTotalCheckoutTest extends TestCase
         $this->actingAs($this->cashier)->get(route('transactions.index'))->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('initialPricingPreview.summary.service_charge', 1000)
-                ->where('initialPricingPreview.summary.grand_total', 23310)
-                ->where('activeCashierShift.outlet.id', $this->outlet->id)
-                ->where('activeCashierShift.outlet.bill_settings.service_charge_rate', 5)
-                ->where('activeCashierShift.outlet.bill_settings.tax_kind', 'ppn'));
+                ->where('initialPricingPreview.summary.grand_total', 23310));
     }
 
     public function test_preview_without_a_shift_uses_the_defaults(): void

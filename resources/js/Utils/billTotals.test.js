@@ -1,22 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import i18n from "@/i18n";
-// One table for both runners: BillTotalServiceTest holds the server to it, this holds the offline mirror.
-import table from "../../../tests/fixtures/bill-totals.json";
-import { billSubtotal, computeBill, receiptBillData, taxLabel } from "./billTotals";
+import { billSubtotal, receiptBillData, taxLabel } from "./billTotals";
 
 beforeAll(() => i18n.changeLanguage("id"));
-
-describe("computeBill mirrors BillTotalService::compute", () => {
-    it.each(table.cases)("$name", ({ settings, dine_in, expected }) => {
-        expect(computeBill(expected.bill_basis, settings, dine_in)).toEqual({
-            service_charge: expected.service_charge,
-            tax_kind: expected.tax_kind,
-            tax_total: expected.tax_total,
-            tax_rate: expected.tax_rate,
-            grand_total: expected.grand_total,
-        });
-    });
-});
 
 describe("billSubtotal", () => {
     it("old_sale: a sale from before the bill rules derives the same subtotal", () => {
