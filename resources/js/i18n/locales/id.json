@@ -525,7 +525,8 @@
             "badge": "Bayar ganda — refund manual",
             "filter": "Perlu refund",
             "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual",
-            "overpaid": "Kelebihan bayar {{amount}} setelah retur — refund manual."
+            "overpaid": "Kelebihan bayar {{amount}} setelah retur — refund manual.",
+            "checkHistory": "Perlu refund manual — cek riwayat pembayaran"
         },
         "paidAfterClose": {
             "badge": "Dibayar setelah shift ditutup",

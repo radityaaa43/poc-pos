@@ -26,10 +26,13 @@ export function LateRefundNotice({ transaction }) {
         return null;
     }
 
+    const overpaid = transaction.overpaid_amount > 0;
+
     return (
         <p role="status" className="mt-3 text-sm font-medium text-danger-700 dark:text-danger-400">
-            {t("transactions.lateRefund.notice")}
-            {transaction.overpaid_amount > 0 && (
+            {/* An overpaying payment was booked: "not booked" could get all of it refunded. */}
+            {t(overpaid ? "transactions.lateRefund.checkHistory" : "transactions.lateRefund.notice")}
+            {overpaid && (
                 <span className="block">
                     {t("transactions.lateRefund.overpaid", { amount: formatPrice(transaction.overpaid_amount) })}
                 </span>

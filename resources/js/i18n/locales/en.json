@@ -525,7 +525,8 @@
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
             "notice": "A gateway payment was received but not booked — manual refund needed",
-            "overpaid": "Overpaid by {{amount}} after a return — refund manually."
+            "overpaid": "Overpaid by {{amount}} after a return — refund manually.",
+            "checkHistory": "Manual refund needed — check the payment history"
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
