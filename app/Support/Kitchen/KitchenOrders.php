@@ -58,6 +58,7 @@ class KitchenOrders
             'id' => $transaction->id,
             'root_id' => $transaction->orderRootId(),
             'number' => $original->dineOrder ? $original->dineOrder->table?->name : ($original->order_name ?? $original->invoice),
+            'invoice' => $original->invoice,
             'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
             'unpaid' => $transaction->payment_status !== 'paid',
         ];
