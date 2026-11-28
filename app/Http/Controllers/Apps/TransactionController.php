@@ -676,6 +676,7 @@ class TransactionController extends Controller
         if (! $result || $result->needsDiscountApproval) {
             return $this->awaitApproval($result, $request->user()->id);
         }
+        $request->session()->flash('success', 'Transaksi berhasil!'); // saved: the POS toasts only this flash (#473)
 
         if ($useTenders) {
             $gatewayTenders = $result->transaction->tenders()
@@ -743,7 +744,6 @@ class TransactionController extends Controller
 
     public function print(Request $request, $invoice)
     {
-        // get transaction
         $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
             ->where('invoice', $invoice)
             ->firstOrFail();

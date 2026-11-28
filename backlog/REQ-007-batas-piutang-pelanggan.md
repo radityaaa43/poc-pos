@@ -212,6 +212,7 @@ dibaca dari jatuh tempo, sehingga tidak perlu diagram state baru.
 - **Tunggakan:** piutang dengan jatuh tempo sebelum hari ini dan sisa di atas 0. Tunggakan memblokir
   piutang baru hanya untuk pelanggan berbatas (keputusan 5).
 - **Keputusan saat build (Business/PM, 2026-11-28):** batas di bawah pemakaian diterima saat disimpan (#348); penolakan kredit barunya dibangun di #349 (BR-9).
+- **Keputusan saat build (Business/PM, 2026-11-28, lanjutan):** penolakan kredit (#483, PR #481) boleh dirilis sebelum pengecualian manajer (#349), karena pelanggan Tanpa batas tidak pernah ditolak (keputusan 5); sampai pengecualian ada, kasir menagih sekarang atau manajer mengubah batas.
 
 ## Non-functional requirements
 

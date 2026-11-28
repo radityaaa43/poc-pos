@@ -62,7 +62,7 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
   (3 sampai 500 karakter). Boleh memutuskan pengajuannya sendiri; kedua nama tercatat di audit.
 - **Setujui** menjalankan checkout sekali atas nama kasir di shift yang sama: piutang dibuat, dapur menerima pesanan,
   batas tidak berubah. Ditolak sistem (pengajuan tetap menunggu) bila shift sudah ditutup, total berubah, stok kurang,
-  atau izin piutang pelanggan sudah dicabut. Persetujuan kedua tidak mengubah apa pun. Diskon yang melewati ambang
+  izin piutang pelanggan sudah dicabut, atau pay later dimatikan untuk outletnya. Persetujuan kedua tidak mengubah apa pun. Diskon yang melewati ambang
   tetap menunggu approval diskon.
 - **Tolak**: kasir melihat alasannya di daftar transaksi ditahan, lalu melanjutkan (bayar sekarang) atau menghapusnya.
 - Audit: `credit_approval.requested`, `.approved`, `.denied` pada pelanggan.

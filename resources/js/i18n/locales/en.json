@@ -310,7 +310,8 @@
             "units": "Units",
             "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp",
-            "modifiers": "Modifier"
+            "modifiers": "Modifier",
+            "dineReservations": "Reservations"
         },
         "menu": {
             "overview": "Overview",
@@ -1340,5 +1341,38 @@
         "approve": "Approve",
         "deny": "Deny",
         "empty": "No credit requests."
+    },
+    "dineReservations": {
+        "title": "Reservations",
+        "add": "Add reservation",
+        "edit": "Edit",
+        "editTitle": "Edit reservation",
+        "date": "Date",
+        "time": "Time",
+        "guestName": "Guest name",
+        "phone": "Phone number",
+        "partySize": "Guests",
+        "table": "Table",
+        "chooseTable": "Choose a table",
+        "removedTable": "Table removed",
+        "note": "Note",
+        "status": "Status",
+        "empty": "No reservations on this date",
+        "statuses": {
+            "booked": "Booked",
+            "arrived": "Arrived",
+            "cancelled": "Cancelled",
+            "no_show": "No-show"
+        },
+        "actions": {
+            "arrived": "Arrived",
+            "cancelled": "Cancel",
+            "no_show": "No-show"
+        },
+        "markTitle": "Mark {{name}}'s reservation as {{status}}?",
+        "markConfirm": "A mark cannot be changed afterwards.",
+        "saved": "Reservation saved",
+        "marked": "Reservation status changed",
+        "failed": "The reservation could not be saved"
     }
 }
