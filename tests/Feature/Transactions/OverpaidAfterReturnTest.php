@@ -11,6 +11,7 @@ use App\Services\CashierShiftService;
 use App\Services\DineOrderService;
 use Database\Seeders\PermissionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -148,7 +149,7 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertSame([15000, 0, 115000], [$recap['cash_sales_total'], $recap['non_cash_sales_total'], $recap['expected_cash']]);
     }
 
-    /** BR-5: the audit row and the sale page name the cash part of the excess, and whether its drawer is still open. */
+    /** BR-5, BR-6: the audit row keeps the cash part and whether the shift was open then; the sale page shows both. */
     #[DataProvider('shiftStates')]
     public function test_the_cash_part_of_an_excess_is_kept_and_shown_with_its_shift(bool $closed): void
     {
@@ -164,18 +165,35 @@ class OverpaidAfterReturnTest extends TestCase
 
         $this->confirmOnTheWeb($this->bill($order));
 
-        $this->assertSame(5000, AuditLog::where('event', 'payment.overpaid_after_return')->sole()->meta['cash_excess']);
-        $this->cashier->givePermissionTo('transactions-access');
-        $this->actingAs($this->cashier)->get(route('transactions.print', $this->bill($order)->invoice))
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('transaction.cash_excess', 5000)
-                ->where('transaction.shift_open', ! $closed));
+        $meta = AuditLog::where('event', 'payment.overpaid_after_return')->sole()->meta;
+        $this->assertSame([5000, ! $closed], [$meta['cash_excess'], $meta['shift_open']]);
+        $this->assertCashNotice($this->bill($order), 5000, ! $closed);
     }
 
     /** @return array<string, array<int, bool>> */
     public static function shiftStates(): array
     {
-        return ['shift open' => [false], 'shift closed' => [true]];
+        return ['flagged while open' => [false], 'flagged after close' => [true]];
+    }
+
+    /** BR-6: a later close does not change which drawer the line names. A row without that fact gives no cash line. */
+    public function test_a_cash_excess_flagged_with_the_shift_open_stays_so_after_the_close(): void
+    {
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [
+            ['method' => 'cash', 'amount' => 20000, 'cash_received' => 20000],
+            ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $this->bankAccount()->id],
+        ]);
+        $this->returnFromBill($this->bill($order), $this->flagged);
+        $this->confirmOnTheWeb($this->bill($order));
+
+        $this->assertFalse($this->closeShiftOf($this->bill($order))->isOpen());
+
+        $this->assertCashNotice($this->bill($order), 5000, true);
+
+        $row = AuditLog::where('event', 'payment.overpaid_after_return')->sole();
+        $row->update(['meta' => Arr::except($row->meta, 'shift_open')]);
+        $this->assertCashNotice($this->bill($order), 0, false);
     }
 
     /** BR-5: a failed tender took no money, so it does not shrink the cash part, on the sale or in the recap. */
@@ -320,6 +338,15 @@ class OverpaidAfterReturnTest extends TestCase
     private function payAtCounter(DineOrder $order, array $tenders): void
     {
         app(DineOrderService::class)->pay($order, $this->cashier, $tenders);
+    }
+
+    private function assertCashNotice(Transaction $bill, int $cash, bool $flaggedOpen): void
+    {
+        $this->cashier->givePermissionTo('transactions-access');
+        $this->actingAs($this->cashier)->get(route('transactions.print', $bill->invoice))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('transaction.cash_excess', $cash)
+                ->where('transaction.flagged_shift_open', $flaggedOpen));
     }
 
     private function bankAccount(): BankAccount

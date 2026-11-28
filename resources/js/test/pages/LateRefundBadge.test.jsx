@@ -46,21 +46,30 @@ describe("LateRefundBadge", () => {
 
     const overpaid = { late_superseded_payment_at: "2026-11-28T10:00:00Z", overpaid_amount: 10000 };
 
-    // BR-5: the cash part of the excess has its own instruction, which depends on the sale's shift.
+    // BR-5, BR-6: the cash part has its own instruction, picked by the sale's shift when the excess was flagged.
     it.each([
         ["id", true, "Kembalikan Rp 5.000 tunai dari laci — jangan catat kas keluar."],
         ["id", false, "Shift sudah ditutup — kembalikan Rp 5.000 dan catat sebagai kas keluar di shift berjalan."],
         ["en", true, "Return Rp 5,000 in cash from the drawer — don't record a cash out."],
         ["en", false, "The shift is closed — return Rp 5,000 and record it as a cash out in the current shift."],
-    ])("tells the cashier what to do with the cash part (%s, shift open: %s)", async (language, shiftOpen, line) => {
+    ])("tells the cashier what to do with the cash part (%s, flagged with the shift open: %s)", async (language, flaggedOpen, line) => {
         await i18n.changeLanguage(language);
-        render(<LateRefundNotice transaction={{ ...overpaid, cash_excess: 5000, shift_open: shiftOpen }} />);
+        render(<LateRefundNotice transaction={{ ...overpaid, cash_excess: 5000, flagged_shift_open: flaggedOpen }} />);
 
         expect(screen.getByText(line)).toBeInTheDocument();
     });
 
+    it("keeps the drawer line of an excess flagged before the shift closed", () => {
+        // shift_open: false is a shift that has closed since: it must not pick the line.
+        const transaction = { ...overpaid, cash_excess: 5000, flagged_shift_open: true, shift_open: false };
+        render(<LateRefundNotice transaction={transaction} />);
+
+        expect(screen.getByText("Kembalikan Rp 5.000 tunai dari laci — jangan catat kas keluar.")).toBeInTheDocument();
+        expect(screen.getByRole("status")).not.toHaveTextContent("Shift sudah ditutup");
+    });
+
     it("says nothing about cash when the excess holds none", () => {
-        render(<LateRefundNotice transaction={{ ...overpaid, cash_excess: 0, shift_open: false }} />);
+        render(<LateRefundNotice transaction={{ ...overpaid, cash_excess: 0, flagged_shift_open: false }} />);
 
         expect(screen.getByRole("status")).not.toHaveTextContent(/laci|kas keluar/);
     });
