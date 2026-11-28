@@ -434,6 +434,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Customer credit: refusals and the manager exception
+    |--------------------------------------------------------------------------
+    */
+    'credit' => [
+        'credit_limit_exceeded' => 'Over the credit limit — :remaining left',
+        'credit_overdue' => 'Settle the overdue receivable first',
+        'awaiting' => 'Awaiting credit approval',
+        'approved' => 'Approved',
+        'denied' => 'Denied',
+        'already_approved' => 'Already approved',
+        'already_denied' => 'Already denied',
+        'shift_closed' => "The cashier's shift is already closed.",
+        'credit_revoked' => 'The customer may no longer buy on credit.',
+        'cart_gone' => 'The cart is no longer there.',
+        'total_changed' => 'The total changed since it was requested. Deny it and ask the cashier to request again.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Validation Messages
     |--------------------------------------------------------------------------
     */

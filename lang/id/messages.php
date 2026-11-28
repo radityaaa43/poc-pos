@@ -434,6 +434,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Customer credit: refusals and the manager exception
+    |--------------------------------------------------------------------------
+    */
+    'credit' => [
+        'credit_limit_exceeded' => 'Melebihi batas piutang — sisa :remaining',
+        'credit_overdue' => 'Lunasi piutang yang lewat jatuh tempo dulu',
+        'awaiting' => 'Menunggu persetujuan kredit',
+        'approved' => 'Disetujui',
+        'denied' => 'Ditolak',
+        'already_approved' => 'Sudah disetujui',
+        'already_denied' => 'Sudah ditolak',
+        'shift_closed' => 'Shift kasir sudah ditutup.',
+        'credit_revoked' => 'Pelanggan tidak lagi boleh piutang.',
+        'cart_gone' => 'Keranjang sudah tidak ada.',
+        'total_changed' => 'Total berubah sejak diajukan. Tolak, lalu minta kasir mengajukan ulang.',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Validation Messages
     |--------------------------------------------------------------------------
     */

@@ -59,6 +59,8 @@ class CreditLimitCheckoutTest extends TestCase
 
         $this->cashier = $this->userWith('transactions-access', 'cashier-shifts-access');
         $this->cashier->markEmailAsVerified();
+        // The column's default: the web answers in the user's language.
+        $this->cashier->forceFill(['locale' => 'id'])->save();
         app(CashierShiftService::class)->openShift(
             cashier: $this->cashier,
             actor: $this->cashier,
@@ -187,6 +189,18 @@ class CreditLimitCheckoutTest extends TestCase
         $this->receivable($budi, 100000, 40000, ['due_date' => today()->subDay()]);
 
         $this->assertRefused($budi, 10000, 'credit_overdue', 440000, self::OVERDUE_MESSAGE);
+    }
+
+    public function test_the_web_refusal_follows_the_users_language_and_the_api_stays_indonesian(): void
+    {
+        $this->cashier->forceFill(['locale' => 'en'])->save();
+        $budi = $this->customer(100000);
+
+        $this->web($budi, 210000)->assertSessionHasErrors(['credit' => 'Over the credit limit — Rp 100.000 left']);
+        $this->api($budi, 210000)->assertStatus(422)->assertJsonPath('message', 'Melebihi batas piutang — sisa Rp 100.000');
+
+        $this->receivable($budi, 10000, overrides: ['due_date' => today()->subDay()]);
+        $this->web($budi, 10000)->assertSessionHasErrors(['credit' => 'Settle the overdue receivable first']);
     }
 
     public function test_the_limit_is_checked_before_overdue(): void
