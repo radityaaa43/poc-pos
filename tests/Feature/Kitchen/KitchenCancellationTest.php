@@ -9,6 +9,7 @@ use App\Models\DiningTable;
 use App\Models\KitchenCancellation;
 use App\Models\KitchenItem;
 use App\Models\KitchenPrintDevice;
+use App\Models\KitchenStation;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
@@ -199,6 +200,34 @@ class KitchenCancellationTest extends TestCase
         $this->completeReturn($this->draft($sale, [[$detail, 1]]));
 
         $this->assertSame($sale->invoice, $this->cancellations($device)[0]['number']);
+    }
+
+    // AC-07 / BR-4 (#345): DIBATALKAN follows the stations the device serves, like the original ticket.
+    public function test_a_cancellation_prints_only_on_the_device_that_serves_its_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $dapur = KitchenStation::defaultId();
+
+        [$sale, $barDetail, $barItem] = $this->sale();
+        $barItem->update(['kitchen_station_id' => $bar->id]);
+        $dapurItem = $this->kitchenItem($sale, $this->line($sale));
+        $dapurItem->update(['kitchen_station_id' => $dapur]);
+
+        $barDevice = $this->device('Bar 1');
+        $barDevice->stations()->sync([$bar->id]);
+        $dapurDevice = $this->device('Dapur 1');
+        $dapurDevice->stations()->sync([$dapur]);
+
+        // Both originals were printed by their own device, as K1's confirm does.
+        $this->printed($barItem, $barDevice);
+        $this->printed($dapurItem, $dapurDevice);
+
+        $this->completeReturn($this->draft($sale, [[$barDetail, 1]]));
+
+        $barTickets = $this->cancellations($barDevice);
+        $this->assertCount(1, $barTickets);
+        $this->assertSame([$barDetail->product->title], array_column($barTickets[0]['items'], 'title'));
+        $this->assertSame([], $this->cancellations($dapurDevice));
     }
 
     // BR-1 / J3.2: several lines of one return, only the printed ones
