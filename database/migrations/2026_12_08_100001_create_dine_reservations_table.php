@@ -12,7 +12,8 @@ return new class extends Migration
             $table->id();
             // Its own outlet: a table without an area is shared by every outlet, the list is still per outlet.
             $table->foreignId('outlet_id')->constrained('outlets')->cascadeOnDelete();
-            $table->foreignId('dine_table_id')->constrained('dine_tables')->cascadeOnDelete();
+            // Null once the table is deleted: marked reservations stay as history (a booked one blocks the delete).
+            $table->foreignId('dine_table_id')->nullable()->constrained('dine_tables')->nullOnDelete();
             // guest_name, not name: the audit log would copy a `name` column as its target label.
             $table->string('guest_name', 100);
             $table->string('phone', 30); // personal data: never printed, never written to the audit log

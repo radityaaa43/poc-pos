@@ -70,6 +70,12 @@ describe("Reservations page", () => {
         expect(within(card("Budi")).getByText("8 Des 2026")).toBeInTheDocument();
     });
 
+    it("says the table was removed on a marked reservation that outlived it", () => {
+        page([row({ status: "arrived", dine_table_id: null, table_name: null, area_name: null })]);
+
+        expect(within(card("Budi")).getByText("Meja sudah dihapus")).toBeInTheDocument();
+    });
+
     it("offers the three marks and Ubah only on a booked row", () => {
         page([row(), row({ id: 2, guest_name: "Sari", status: "arrived" })]);
 

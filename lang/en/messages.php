@@ -439,6 +439,7 @@ return [
         'invalid_phone' => 'The phone number takes 6 to 30 characters: digits, spaces, +, - or brackets.',
         'invalid_party_size' => 'The number of guests is between 1 and 100.',
         'table_unavailable' => 'This table is not available.',
+        'table_has_booking' => 'This table has a reservation for :name :time — mark or cancel it first',
     ],
 
     /*

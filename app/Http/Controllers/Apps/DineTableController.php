@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Models\DineArea;
 use App\Models\DiningTable;
+use App\Services\DineReservationService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +15,10 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class DineTableController extends Controller
 {
-    public function __construct(protected readonly OutletAccessService $outletAccess) {}
+    public function __construct(
+        protected readonly OutletAccessService $outletAccess,
+        protected readonly DineReservationService $reservations,
+    ) {}
 
     public function index(Request $request)
     {
@@ -90,7 +94,7 @@ class DineTableController extends Controller
         ]);
         $this->validateAreaAccess($validated['dine_area_id'] ?? null, $request);
 
-        $dineTable->update($validated);
+        $this->reservations->updateTable($dineTable, $validated);
 
         return back()->with('success', 'Meja berhasil diperbarui.');
     }
@@ -98,7 +102,7 @@ class DineTableController extends Controller
     public function destroy(DiningTable $dineTable)
     {
         abort_unless($this->ownsTable($dineTable, request()), 404);
-        $dineTable->delete();
+        $this->reservations->deleteTable($dineTable);
 
         return back()->with('success', 'Meja berhasil dihapus.');
     }

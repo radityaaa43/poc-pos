@@ -44,8 +44,9 @@ class DineReservationController extends Controller
                 // Strings in the app timezone: an ISO date would be shifted by the browser.
                 'date' => $reservation->reserved_at->format('Y-m-d'),
                 'time' => $reservation->reserved_at->format('H:i'),
-                'table_name' => $reservation->diningTable->name,
-                'area_name' => $reservation->diningTable->area?->name,
+                // Both null when the table has been deleted since.
+                'table_name' => $reservation->diningTable?->name,
+                'area_name' => $reservation->diningTable?->area?->name,
             ]),
             'tables' => DiningTable::active()->forOutlet($outlet)->with('area')
                 ->orderBy('dine_area_id')->orderBy('sort_order')->get()

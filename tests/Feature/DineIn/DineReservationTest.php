@@ -8,6 +8,7 @@ use App\Models\DineReservation;
 use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\User;
+use App\Services\DineReservationService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -15,11 +16,12 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
-/** Table reservations (REQ-009 AC-16, AC-18, AC-19, AC-21, AC-22, BR-1, BR-2). */
+/** Table reservations (REQ-009 AC-16, AC-18, AC-19, AC-21, AC-22, BR-1, BR-2; issue #431 BR-3). */
 class DineReservationTest extends TestCase
 {
     use RefreshDatabase;
@@ -104,24 +106,66 @@ class DineReservationTest extends TestCase
 
     public function test_the_table_row_is_locked_before_the_clash_query(): void
     {
-        DB::flushQueryLog();
-        DB::enableQueryLog();
-        $this->book()->assertSessionHasNoErrors();
-        $queries = array_column(DB::getQueryLog(), 'query');
-        DB::disableQueryLog();
+        $this->assertTableLockedBeforeReservationsAreRead(fn () => $this->book()->assertSessionHasNoErrors());
+    }
 
-        // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
-        $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
-        $lock = $first('/^select \* from [`"]dine_tables[`"] where [`"]dine_tables[`"]\.[`"]id[`"] = \?/');
-        $clash = $first('/from [`"]dine_reservations[`"]/');
+    public function test_removing_a_table_locks_its_row_before_looking_for_a_reservation(): void
+    {
+        $this->assertTableLockedBeforeReservationsAreRead(fn () => app(DineReservationService::class)->deleteTable($this->table));
+    }
 
-        $this->assertIsInt($lock);
-        $this->assertIsInt($clash);
-        $this->assertLessThan($clash, $lock);
-        // SQLite renders no lock clause: only the MySQL job can show it.
-        if (DB::getDriverName() === 'mysql') {
-            $this->assertStringContainsString('for update', strtolower($queries[$lock]));
+    public function test_table_with_a_booked_reservation_cannot_be_deleted_or_deactivated(): void
+    {
+        $manager = $this->userAt($this->outlet, ['dine-tables-update', 'dine-tables-delete']);
+        $manager->update(['locale' => 'id']);
+        $edit = ['dine_area_id' => $this->table->dine_area_id, 'name' => 'Meja 1', 'is_active' => false];
+
+        // An earlier day, never marked: still in the way.
+        $overdue = $this->reservation(['reserved_at' => '2026-12-08 19:00:00']);
+        $refusal = ['table' => 'Meja ini punya reservasi Budi 08/12/2026 19:00 — tandai atau batalkan dulu'];
+        $this->actingAs($manager)->delete(route('dine-tables.destroy', $this->table))->assertSessionHasErrors($refusal);
+        $this->patch(route('dine-tables.update', $this->table), $edit)->assertSessionHasErrors($refusal);
+
+        // Weeks ahead, far outside the 30-minute window: in the way too.
+        $overdue->update(['status' => 'arrived']);
+        $ahead = $this->reservation(['guest_name' => 'Sari', 'reserved_at' => '2027-01-05 19:00:00']);
+        Sanctum::actingAs($manager, ['*']);
+        foreach ([
+            $this->deleteJson(route('api.dine-tables.destroy', $this->table)),
+            $this->patchJson(route('api.dine-tables.update', $this->table), $edit),
+        ] as $response) {
+            $response->assertStatus(422)->assertJsonValidationErrors('table');
+            $this->assertStringContainsString('Sari 05/01/2027 19:00', $response->json('errors.table.0'));
         }
+
+        $this->assertTrue($this->table->fresh()->is_active);
+        $this->assertSame('booked', $ahead->fresh()->status);
+
+        // An edit that leaves the table on is saved; once nothing is unmarked it can be switched off.
+        $this->patchJson(route('api.dine-tables.update', $this->table), ['name' => 'Meja Depan', 'is_active' => true] + $edit)->assertOk();
+        $ahead->update(['status' => 'cancelled']);
+        $this->patchJson(route('api.dine-tables.update', $this->table), $edit)->assertOk();
+        $this->assertFalse($this->table->fresh()->is_active);
+    }
+
+    public function test_marked_reservations_survive_their_table_being_deleted(): void
+    {
+        $manager = $this->userAt($this->outlet, ['dine-reservations-manage', 'dine-tables-delete']);
+        foreach (DineReservation::MARKS as $status) {
+            $this->reservation(['status' => $status]);
+        }
+
+        $this->actingAs($manager)->delete(route('dine-tables.destroy', $this->table))->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('dine_tables', ['id' => $this->table->id]);
+        $this->assertSame(3, DineReservation::whereNull('dine_table_id')->count());
+        $this->get(route('dine-reservations.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->has('reservations', 3)
+                ->where('reservations.0.guest_name', 'Budi')
+                ->where('reservations.0.dine_table_id', null)
+                ->where('reservations.0.table_name', null)
+                ->where('reservations.0.area_name', null));
     }
 
     public function test_invalid_input_and_foreign_or_inactive_tables_are_refused(): void
@@ -383,6 +427,29 @@ class DineReservationTest extends TestCase
                 ->assertInertia(fn (Assert $page) => $page->where('date', '2026-12-10')->where('reservations.0.time', '19:00'));
         } finally {
             date_default_timezone_set($zone);
+        }
+    }
+
+    /** The table row lock must come before any reservation read: that order is what queues two writers. */
+    private function assertTableLockedBeforeReservationsAreRead(callable $act): void
+    {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $act();
+        $queries = array_column(DB::getQueryLog(), 'query');
+        DB::disableQueryLog();
+
+        // SQLite quotes names with ", MySQL (the CI backend job) with `: match both.
+        $first = fn (string $pattern) => collect($queries)->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
+        $lock = $first('/^select \* from [`"]dine_tables[`"] where [`"]dine_tables[`"]\.[`"]id[`"] = \?/');
+        $read = $first('/from [`"]dine_reservations[`"]/');
+
+        $this->assertIsInt($lock);
+        $this->assertIsInt($read);
+        $this->assertLessThan($read, $lock);
+        // SQLite renders no lock clause: only the MySQL job can show it.
+        if (DB::getDriverName() === 'mysql') {
+            $this->assertStringContainsString('for update', strtolower($queries[$lock]));
         }
     }
 

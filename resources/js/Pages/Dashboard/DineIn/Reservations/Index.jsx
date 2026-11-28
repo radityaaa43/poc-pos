@@ -58,7 +58,7 @@ export default function Index({ reservations = [], tables = [], date }) {
                       party_size: reservation.party_size,
                       reserved_date: reservation.date,
                       reserved_time: reservation.time,
-                      dine_table_id: reservation.dine_table_id,
+                      dine_table_id: reservation.dine_table_id ?? "",
                       note: reservation.note ?? "",
                   }
                 : emptyForm(date),
@@ -174,7 +174,9 @@ export default function Index({ reservations = [], tables = [], date }) {
                                         </Detail>
                                         <Detail label={t("dineReservations.partySize")}>{reservation.party_size}</Detail>
                                         <Detail label={t("dineReservations.table")}>
-                                            {tableLabel(reservation.table_name, reservation.area_name)}
+                                            {reservation.table_name
+                                                ? tableLabel(reservation.table_name, reservation.area_name)
+                                                : t("dineReservations.removedTable")}
                                         </Detail>
                                         {reservation.note && (
                                             <Detail label={t("dineReservations.note")}>{reservation.note}</Detail>

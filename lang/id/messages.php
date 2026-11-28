@@ -439,6 +439,7 @@ return [
         'invalid_phone' => 'Nomor HP berisi 6 sampai 30 karakter: angka, spasi, +, -, atau tanda kurung.',
         'invalid_party_size' => 'Jumlah tamu antara 1 dan 100.',
         'table_unavailable' => 'Meja ini tidak tersedia.',
+        'table_has_booking' => 'Meja ini punya reservasi :name :time — tandai atau batalkan dulu',
     ],
 
     /*

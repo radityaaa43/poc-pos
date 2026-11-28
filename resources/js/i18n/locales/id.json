@@ -1332,6 +1332,7 @@
         "partySize": "Jumlah tamu",
         "table": "Meja",
         "chooseTable": "Pilih meja",
+        "removedTable": "Meja sudah dihapus",
         "note": "Catatan",
         "status": "Status",
         "empty": "Belum ada reservasi pada tanggal ini",

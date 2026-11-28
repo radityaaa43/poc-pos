@@ -1332,6 +1332,7 @@
         "partySize": "Guests",
         "table": "Table",
         "chooseTable": "Choose a table",
+        "removedTable": "Table removed",
         "note": "Note",
         "status": "Status",
         "empty": "No reservations on this date",
