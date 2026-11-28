@@ -271,7 +271,7 @@ class AddOnOrderTest extends TestCase
 
         $response = $this->actingAs($this->cashier)->get(route('transactions.print', $sale->invoice))->assertOk();
 
-        $this->assertInertia(fn (Assert $page) => $page
+        $response->assertInertia(fn (Assert $page) => $page
             ->where('canAddOn', true)
             ->missing('transaction.dine_order'));
         $this->assertStringNotContainsString($order->access_token, $response->getContent());
