@@ -319,6 +319,51 @@ class DineOrderPayLaterTest extends TestCase
         $this->assertSame(100, (int) $this->nasi->fresh()->stock);
     }
 
+    // #438 BR-1: a stale Tolak marked a sold order rejected while its sale and stock deduction stayed
+    public function test_rejecting_an_accepted_order_is_refused_and_keeps_its_sale_and_stock(): void
+    {
+        $order = $this->accept($this->placeOrder([[$this->nasi, 2]]));
+        $before = $order->only(['status', 'notes', 'transaction_id']);
+
+        $this->assertRejectRefused($order);
+
+        $this->assertSame($before, $order->fresh()->only(['status', 'notes', 'transaction_id']));
+        $this->assertSame('unpaid', $order->fresh()->transaction->payment_status);
+        $this->assertDatabaseCount('transactions', 1);
+        $this->assertDatabaseCount('stock_mutations', 1);
+        $this->assertDatabaseCount('kitchen_items', 1);
+        $this->assertSame(98, (int) $this->nasi->fresh()->stock);
+        $this->assertSame(98, (int) $this->warehouse->products()->find($this->nasi->id)->pivot->stock);
+    }
+
+    public function test_rejecting_an_order_twice_is_refused_and_keeps_the_first_reason(): void
+    {
+        $order = $this->placeOrder([[$this->nasi, 2]]);
+        $this->actingAs($this->cashier)->post(route('dine-orders.reject', $order), ['reason' => 'Habis'])->assertSessionHasNoErrors();
+        $before = $order->fresh()->only(['status', 'notes', 'transaction_id']);
+
+        $this->assertRejectRefused($order);
+
+        $this->assertSame($before, $order->fresh()->only(['status', 'notes', 'transaction_id']));
+        $this->assertDatabaseCount('transactions', 0);
+        $this->assertDatabaseCount('stock_mutations', 0);
+        $this->assertSame(100, (int) $this->nasi->fresh()->stock);
+    }
+
+    /** Tolak on an order already processed, through the web page and the API. */
+    private function assertRejectRefused(DineOrder $order): void
+    {
+        $refusal = 'Pesanan ini sudah diproses.';
+
+        $this->actingAs($this->cashier)->from(route('dine-orders.index'))
+            ->post(route('dine-orders.reject', $order), ['reason' => 'Tutup'])
+            ->assertSessionHasErrors(['order' => $refusal]);
+        Sanctum::actingAs($this->cashier, ['*']);
+        $this->postJson("/api/v1/dine-orders/{$order->id}/reject", ['reason' => 'Tutup'])
+            ->assertUnprocessable()
+            ->assertJsonPath('errors.order.0', $refusal);
+    }
+
     public function test_flagged_pay_later_order_is_not_served_when_the_intake_skipped_its_lines(): void
     {
         $order = $this->accept($this->placeOrder([[$this->nasi, 1]]));
