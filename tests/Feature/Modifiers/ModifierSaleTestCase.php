@@ -31,13 +31,13 @@ abstract class ModifierSaleTestCase extends TestCase
 
     protected Warehouse $warehouse;
 
-    protected Category $category;
-
     protected Product $menu;
 
     protected Product $milk;
 
     protected Product $boba;
+
+    private int $categoryId;
 
     private int $seq = 0;
 
@@ -50,7 +50,7 @@ abstract class ModifierSaleTestCase extends TestCase
         $this->cashier->markEmailAsVerified();
         $this->outlet = Outlet::create(['code' => 'O1', 'name' => 'Outlet 1', 'is_active' => true, 'is_sales_enabled' => true]);
         $this->warehouse = Warehouse::create(['code' => 'W1', 'name' => 'Gudang 1', 'status' => 'active', 'outlet_id' => $this->outlet->id]);
-        $this->category = Category::create(['name' => 'Menu', 'image' => 'categories/t.jpg', 'description' => 'x']);
+        $this->categoryId = Category::create(['name' => 'Menu', 'image' => 'categories/t.jpg', 'description' => 'x'])->id;
         app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
         $this->actingAs($this->cashier);
 
@@ -75,7 +75,7 @@ abstract class ModifierSaleTestCase extends TestCase
         $product = Product::create($attributes + [
             'title' => $title, 'sku' => "SKU-SALE-$n", 'barcode' => "BC-SALE-$n", 'description' => 'x',
             'image' => 'products/t.jpg', 'buy_price' => 5000, 'sell_price' => $price, 'stock' => $stock,
-            'tax_rate' => 0, 'category_id' => $this->category->id,
+            'tax_rate' => 0, 'category_id' => $this->categoryId,
         ]);
         $this->warehouse->products()->attach($product->id, ['stock' => $stock]);
 

@@ -6,16 +6,10 @@ import ModifierPanel from "./ModifierPanel";
 
 const option = (id, name, price_delta = 0, available = true) => ({ id, name, price_delta, available });
 
+const group = (id, name, min_select, max_select, options) => ({ id, name, is_required: min_select > 0, min_select, max_select, options });
 const groups = [
-    { id: 1, name: "Size", is_required: true, min_select: 1, max_select: 1, options: [option(1, "Regular"), option(2, "Large", 5000)] },
-    {
-        id: 2,
-        name: "Topping",
-        is_required: false,
-        min_select: 0,
-        max_select: 2,
-        options: [option(3, "Boba", 3000), option(4, "Jelly", 2000), option(5, "Cheese", 4000), option(6, "Oreo", 1000, false)],
-    },
+    group(1, "Size", 1, 1, [option(1, "Regular"), option(2, "Large", 5000)]),
+    group(2, "Topping", 0, 2, [option(3, "Boba", 3000), option(4, "Jelly", 2000), option(5, "Cheese", 4000), option(6, "Oreo", 1000, false)]),
 ];
 
 const labels = {
@@ -42,7 +36,7 @@ const open = (props) => {
 const box = (name) => screen.getByRole("checkbox", { name: new RegExp(name) });
 
 describe("ModifierPanel", () => {
-    it("opens with defaults and price, then follows the choice", async () => {
+    it("opens with defaults and price, follows the choice and locks at the maximum", async () => {
         open();
 
         expect(screen.getByRole("radio", { name: /Regular/ })).toBeChecked();
@@ -53,12 +47,8 @@ describe("ModifierPanel", () => {
 
         expect(screen.getByRole("radio", { name: /Regular/ })).not.toBeChecked();
         expect(screen.getByText("Rp 28.000")).toBeInTheDocument();
-    });
 
-    it("locks the other options at the maximum", async () => {
-        open();
-
-        await userEvent.click(box("Boba"));
+        // Topping is full at two.
         await userEvent.click(box("Jelly"));
 
         expect(box("Cheese")).toBeDisabled();

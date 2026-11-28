@@ -33,20 +33,14 @@ const price = (panel) => panel.getByText('Harga porsi').locator('xpath=..');
 test.describe('48-modifiers: selling on the POS', () => {
     test.describe.configure({ timeout: 120_000 });
 
-    test('the panel opens with the defaults picked and prices the portion', { tag: ['@REQ-008-AC-06'] }, async ({ asRole, arrange, uniq }) => {
-        const { card, panel } = await sell({ asRole, arrange, uniq });
+    test('the panel picks defaults and prices the portion; the maximum locks and a missing required group disables Add', { tag: ['@REQ-008-AC-06', '@REQ-008-AC-07', '@REQ-008-AC-09'] }, async ({ asRole, arrange, uniq }) => {
+        const { card, panel, add } = await sell({ asRole, arrange, uniq });
 
         await card.click();
         await expect(panel.getByLabel(/^Regular/)).toBeChecked();
         await expect(price(panel)).toContainText(rupiah(20000));
         await panel.getByLabel(/^Large/).check();
         await expect(price(panel)).toContainText(rupiah(25000));
-    });
-
-    test('the maximum locks other options and a missing required group disables Add', { tag: ['@REQ-008-AC-07', '@REQ-008-AC-09'] }, async ({ asRole, arrange, uniq }) => {
-        const { card, panel, add } = await sell({ asRole, arrange, uniq });
-
-        await card.click();
         // Its default is out of ingredients: shown as Habis, not picked, and the group is named.
         await expect(panel.getByLabel(/^Normal/)).toBeDisabled();
         await expect(panel.locator('label').filter({ hasText: 'Normal' })).toContainText('Habis');

@@ -32,22 +32,15 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             ->where('products.0.modifiers_sold_out', false));
     }
 
-    public function test_line_price_is_menu_plus_options(): void
+    public function test_line_price_is_menu_plus_options_and_ignores_the_client(): void
     {
-        $this->add(['Large', 'Boba'], 2, 'less ice')->assertSessionHasNoErrors();
+        $this->add(['Large', 'Boba'], 2, 'less ice', ['sell_price' => 1, 'price' => 1, 'modifier_total' => 0])->assertSessionHasNoErrors();
 
         $cart = Cart::sole();
         $this->assertSame(56000, (int) $cart->price);
         $this->assertSame(8000, $cart->modifier_total);
         $this->assertSame('less ice', $cart->note);
         $this->assertSame([$this->option('Large')->id, $this->option('Boba')->id], $cart->modifier_option_ids);
-    }
-
-    public function test_client_price_is_ignored(): void
-    {
-        $this->add(['Large'], 1, null, ['sell_price' => 1, 'price' => 1, 'modifier_total' => 0]);
-
-        $this->assertSame(25000, (int) Cart::sole()->price);
     }
 
     public function test_selection_rules_are_enforced_on_the_server(): void
@@ -97,26 +90,18 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             ->map(fn (Cart $cart) => [(int) $cart->qty, (int) $cart->price])->all());
     }
 
-    public function test_changing_the_quantity_keeps_the_option_price(): void
+    public function test_quantity_changes_and_the_mobile_cart_leave_option_lines_whole(): void
     {
         $this->add(['Large']);
-        $cart = Cart::sole();
-
-        $this->patch(route('transactions.updateCart', $cart->id), ['qty' => 3])->assertSessionHasNoErrors();
-        $this->assertSame(75000, (int) $cart->fresh()->price);
-    }
-
-    public function test_mobile_cart_never_merges_into_a_line_with_options(): void
-    {
-        $this->add(['Large']);
+        $this->patch(route('transactions.updateCart', Cart::sole()->id), ['qty' => 2])->assertSessionHasNoErrors();
         Sanctum::actingAs($this->cashier, ['*']);
 
         $this->postJson('/api/v1/pos/cart', ['product_id' => $this->menu->id, 'qty' => 1])->assertOk();
 
-        $this->assertSame([25000, 20000], Cart::orderBy('id')->pluck('price')->map(fn ($price) => (int) $price)->all());
+        $this->assertSame([50000, 20000], Cart::orderBy('id')->pluck('price')->map(fn ($price) => (int) $price)->all());
     }
 
-    public function test_checkout_snapshots_option_names_and_prices(): void
+    public function test_checkout_snapshots_the_options_and_takes_their_stock(): void
     {
         $this->add(['Large', 'Boba'], 2, 'less ice');
 
@@ -130,31 +115,10 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         );
         // Menu HPP 2 x 5.000, plus 4 milk x 700 and 2 boba x 900.
         $this->assertSame(14600, (int) $detail->cost_total);
-    }
-
-    public function test_option_recipe_stock_is_taken_with_the_sale(): void
-    {
-        $this->add(['Large', 'Boba'], 2);
-
-        $this->checkout()->assertSessionHasNoErrors();
-
         $this->assertSame([[48, 48], [6, 6], [8, 8]], [$this->stockOf($this->menu), $this->stockOf($this->milk), $this->stockOf($this->boba)]);
         $mutation = StockMutation::where('product_id', $this->milk->id)->sole();
         $this->assertSame(['out', 4, 10, 6], [$mutation->mutation_type, (int) $mutation->qty, (int) $mutation->stock_before, (int) $mutation->stock_after]);
         $this->assertSame('Penjualan '.Transaction::sole()->invoice.' (opsi Large Kopi Susu)', $mutation->notes);
-    }
-
-    public function test_composite_menu_and_its_option_both_take_a_shared_ingredient(): void
-    {
-        $this->menu->update(['is_composite' => true]);
-        $this->menu->components()->attach($this->milk->id, ['qty' => 3]);
-        $this->add(['Large']);
-
-        $this->checkout()->assertSessionHasNoErrors();
-
-        // 3 for the menu recipe and 2 for Large; the composite itself holds no stock.
-        $this->assertSame([5, 5], $this->stockOf($this->milk));
-        $this->assertSame([50, 50], $this->stockOf($this->menu));
     }
 
     public function test_option_shortage_rolls_back_the_sale(): void
@@ -170,8 +134,11 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(0, StockMutation::count());
     }
 
-    public function test_checkout_uses_latest_option_price(): void
+    public function test_checkout_uses_latest_option_price_and_takes_both_recipes(): void
     {
+        // A composite menu keeps its stored menu price; its recipe and Large both use milk.
+        $this->menu->update(['is_composite' => true]);
+        $this->menu->components()->attach($this->milk->id, ['qty' => 3]);
         $this->add(['Large']);
         $this->option('Large')->update(['price_delta' => 7000]);
 
@@ -179,18 +146,7 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
         $this->assertSame(27000, (int) Transaction::sole()->grand_total);
         $this->assertSame(7000, TransactionDetail::sole()->modifiers->sole()->price_delta);
-    }
-
-    public function test_composite_line_takes_the_latest_option_price_on_its_stored_menu_price(): void
-    {
-        $this->menu->update(['is_composite' => true]);
-        $this->menu->components()->attach($this->boba->id, ['qty' => 1]);
-        $this->add(['Large']);
-        $this->option('Large')->update(['price_delta' => 7000]);
-
-        $this->checkout()->assertSessionHasNoErrors();
-
-        $this->assertSame(27000, (int) Transaction::sole()->grand_total);
+        $this->assertSame([5, 5], $this->stockOf($this->milk));
     }
 
     public function test_checkout_refuses_an_option_no_longer_available(): void
@@ -244,11 +200,13 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(4, (int) StockMutation::where('product_id', $this->milk->id)->where('mutation_type', 'in')->sole()->qty);
     }
 
-    public function test_receipts_print_the_sold_options_and_note(): void
+    public function test_receipts_keep_the_sold_options_after_the_group_is_deleted(): void
     {
         $this->add(['Large', 'Jelly'], 1, 'less ice');
         $this->checkout();
-        $this->option('Large')->update(['name' => 'Jumbo']);
+        $groupId = $this->option('Large')->modifier_group_id;
+        $this->option('Large')->update(['name' => 'Jumbo', 'price_delta' => 9000]);
+        app(ModifierGroupService::class)->delete(ModifierGroup::findOrFail($groupId));
         $sale = Transaction::sole();
         $expected = ['+ Large 5.000', '+ Jelly 2.000', __('messages.modifiers.note_line', ['note' => 'less ice'])];
 
@@ -270,19 +228,5 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             $this->get($url)->assertOk();
         }
         $this->assertSame(3, substr_count($html, '+ Large 5.000'));
-    }
-
-    public function test_old_sale_keeps_its_option_snapshot(): void
-    {
-        $this->add(['Large']);
-        $this->checkout();
-        $groupId = $this->option('Large')->modifier_group_id;
-
-        $this->option('Large')->update(['name' => 'Jumbo', 'price_delta' => 9000]);
-        app(ModifierGroupService::class)->delete(ModifierGroup::findOrFail($groupId));
-
-        $row = TransactionDetail::sole()->modifiers->sole();
-        $this->assertSame(['Large', 5000], [$row->option_name, $row->price_delta]);
-        $this->assertSame(25000, (int) Transaction::sole()->grand_total);
     }
 }

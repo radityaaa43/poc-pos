@@ -25,22 +25,15 @@ class ModifierPricingTest extends ModifierSaleTestCase
         return app(PricingService::class)->previewCart(Cart::with('product')->orderBy('id')->get(), $customer, null, $this->outlet);
     }
 
-    public function test_preview_splits_menu_and_option_price(): void
-    {
-        $this->add(['Large', 'Boba']);
-
-        $item = $this->preview()['items'][0];
-
-        $this->assertSame([20000, 8000, 28000, 28000], [$item['menu_unit_price'], $item['option_unit_total'], $item['base_unit_price'], $item['line_total']]);
-        $this->assertSame(['Large', 'Boba'], array_column($item['options'], 'name'));
-    }
-
     public function test_percent_promo_applies_to_menu_plus_options(): void
     {
         $this->rule(['discount_value' => 10]);
         $this->add(['Large'], 2);
 
-        $this->assertSame(45000, $this->preview()['items'][0]['line_total']);
+        $item = $this->preview()['items'][0];
+
+        $this->assertSame([20000, 5000, 25000, 45000], [$item['menu_unit_price'], $item['option_unit_total'], $item['base_unit_price'], $item['line_total']]);
+        $this->assertSame(['Large'], array_column($item['options'], 'name'));
     }
 
     public function test_fixed_price_and_qty_break_replace_only_the_menu_price(): void

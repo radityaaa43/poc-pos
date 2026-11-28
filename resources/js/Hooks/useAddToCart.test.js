@@ -8,18 +8,11 @@ import { modifierLines } from "@/Components/Modifiers/LineModifiers";
 vi.mock("@inertiajs/react", () => ({ router: { post: vi.fn() } }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
+const option = (id, is_default, available = true) => ({ id, is_default, available });
 const groups = {
     7: [
-        {
-            id: 1,
-            min_select: 1,
-            max_select: 1,
-            options: [
-                { id: 11, is_default: true, available: true },
-                { id: 12, is_default: false, available: true },
-            ],
-        },
-        { id: 2, min_select: 0, max_select: 1, options: [{ id: 21, is_default: true, available: false }] },
+        { id: 1, min_select: 1, max_select: 1, options: [option(11, true), option(12, false)] },
+        { id: 2, min_select: 0, max_select: 1, options: [option(21, true, false)] },
     ],
 };
 const menu = { id: 7, title: "Kopi", menu_price: 20000 };

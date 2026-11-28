@@ -65,11 +65,7 @@ class ModifierSelection
         ];
     }
 
-    /**
-     * Refuses an option whose recipe cannot cover $qty portions in the warehouse.
-     *
-     * @param  list<array<string, mixed>>  $options  from resolve()
-     */
+    /** @param  list<array<string, mixed>>  $options  from resolve(); refuses one whose recipe cannot cover $qty portions */
     public static function assertStock(Product $product, array $options, int $qty, ?int $warehouseId): void
     {
         $stock = self::stockOf($options, $warehouseId);
@@ -100,8 +96,7 @@ class ModifierSelection
         return $selections;
     }
 
-    /**
-     * The sale line's own copy of its options, so later edits never change it (REQ-008 decision 11).
+    /** The sale line's own copy of its options, so later edits never change it (REQ-008 decision 11).
      *
      * @param  list<array<string, mixed>>  $options  from resolve()
      * @return list<array<string, mixed>>
@@ -137,8 +132,7 @@ class ModifierSelection
             ->values()->all()]);
     }
 
-    /**
-     * The catalog as the POS panel draws it: an availability flag instead of the recipe.
+    /** The catalog as the POS panel draws it: an availability flag instead of the recipe.
      *
      * @param  Collection<int, int>  $productIds
      * @return Collection<int, array<int, array<string, mixed>>> by product id
@@ -157,11 +151,7 @@ class ModifierSelection
         ], $groups));
     }
 
-    /**
-     * A menu cannot be added when a group cannot reach its minimum with the options still available.
-     *
-     * @param  array<int, array<string, mixed>>  $groups  of one product, from forPos()
-     */
+    /** @param  array<int, array<string, mixed>>  $groups  from forPos(); true when a group cannot reach its minimum */
     public static function isSoldOut(array $groups): bool
     {
         return collect($groups)->contains(
