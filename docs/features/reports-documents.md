@@ -71,6 +71,14 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 - One card with the average time from payment to the last item served, over orders whose live items are all served. It is order level, so the station filter does not narrow it; with a station chosen the card carries the caption *Semua pesanan dari semua stasiun*.
 - Medians are computed in PHP (`KitchenSpeedReportService`); minutes show with one decimal ("4,5 mnt"). An empty period says so instead of showing zeros.
 
+## Unprinted Kitchen Tickets Report
+
+Read-only report **Tiket Dapur Tidak Tercetak** (`reports.kitchen-unprinted.index`, menu Reports, permission `reports-access`), per outlet and date range; the default is the current month in the app timezone.
+
+- Lists every kitchen ticket that was due in the period but no print device of the outlet recorded as printed, after a 30-second grace. It is derived from `kitchen_items` and `kitchen_ticket_prints`; there is no new table and a GET writes nothing.
+- One row per order and station, numbered as on the kitchen display, with the order number, the station, the outlet's print devices that existed by the due time and the time; a ticket printed later through Coba lagi leaves the list, and Cetak ulang (client-side) records nothing. Cancelled items are left out; a served ticket that never printed stays listed, and an outlet with no print device lists nothing.
+- A per-day count table and the period total (target 0); 0 shows "Semua tiket pada periode ini tercetak". The ticket list is capped at the newest 500 rows (the page says so) while the counts stay exact. The service is `KitchenUnprintedReportService`.
+
 ## Profit Report: Biaya Waste dan Waste Report
 
 Laporan profit menampilkan **Biaya waste** sebagai baris sendiri dan **Profit setelah waste** (profit penjualan dikurangi biaya waste), dihitung dari `stock_wastes` yang berstatus `recorded`/`cancelled` pada `recorded_at` di periode itu, dikurangi nilai yang dibatalkan pada `cancelled_at` di periode itu. Jadi pembatalan mengurangi periodenya sendiri; `pending` dan `rejected` tidak pernah dihitung. Nilai waste tidak masuk ke HPP penjualan: `profit_total` dan `margin` tetap penjualan saja. Kedua baris disembunyikan (dengan catatan penjelasan) saat filter faktur, kasir atau pelanggan aktif, karena waste tidak punya ketiganya. Nilainya juga ada di `GET /api/v1/reports/profits` (`summary.waste_cost_total`, `summary.profit_after_waste`).

@@ -346,6 +346,13 @@ export default function Menu() {
                     permissions: hasAnyPermission(["reports-access"]),
                 },
                 {
+                    title: t("sidebar.items.kitchenUnprinted"),
+                    href: route("reports.kitchen-unprinted.index"),
+                    active: url.startsWith("/dashboard/reports/kitchen-unprinted"),
+                    icon: <IconAlertCircle size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["reports-access"]),
+                },
+                {
                     title: t("sidebar.items.wasteReport"),
                     href: route("reports.waste.index"),
                     active: url.startsWith("/dashboard/reports/waste"),

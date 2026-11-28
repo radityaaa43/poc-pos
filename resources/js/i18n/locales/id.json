@@ -293,6 +293,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "kitchenUnprinted": "Tiket Dapur Tidak Tercetak",
             "wasteReport": "Laporan Waste",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
@@ -937,6 +938,26 @@
             "allStations": "Semua stasiun",
             "stationDeleted": "(dihapus)",
             "handoverAllStations": "Semua pesanan dari semua stasiun"
+        },
+        "kitchenUnprinted": {
+            "title": "Tiket Dapur Tidak Tercetak",
+            "note": "Tiket muncul bila tidak ada perangkat cetak outlet yang mencatatnya tercetak setelah 30 detik.",
+            "outlet": "Outlet",
+            "startDate": "Tanggal Mulai",
+            "endDate": "Tanggal Akhir",
+            "apply": "Terapkan",
+            "total": "Tiket tidak tercetak",
+            "allPrinted": "Semua tiket pada periode ini tercetak",
+            "truncated": "Menampilkan {{shown}} tiket terbaru dari {{total}}",
+            "perDay": "Jumlah per hari",
+            "date": "Tanggal",
+            "count": "Jumlah",
+            "tickets": "Tiket tidak tercetak",
+            "time": "Waktu",
+            "number": "Pesanan",
+            "station": "Stasiun",
+            "device": "Perangkat cetak",
+            "items": "Item"
         }
     },
     "auditLogs": {

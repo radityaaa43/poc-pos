@@ -25,6 +25,7 @@ use App\Testing\E2e\Scenarios;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -260,6 +261,59 @@ class Kitchen
                     'sales_return_id' => $return->id,
                     'cancelled_qty' => (int) KitchenCancellation::where('sales_return_id', $return->id)->sum('qty_cancelled'),
                     'item_status' => $item->status,
+                ];
+            },
+
+            // A print device named the day before --arg=date=<Y-m-d> (a past day the step passes) and --arg=count=<n>
+            // (default 1) paid sales due at 10:00 that nobody ever printed: the unprinted tickets report (#555) lists
+            // them. The device is inserted through DB::table because created_at is not fillable. Returns the device id
+            // and name and each sale's invoice and kitchen item ids, so a step can print one through the prints endpoint.
+            'kitchen.unprinted-items' => function (array $options): array {
+                $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
+                $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
+                $date = $options['date'] ?? '2025-04-14';
+                $count = max(1, (int) ($options['count'] ?? 1));
+                $device = $options['device'] ?? 'Dapur '.Str::upper(Str::random(6));
+
+                $deviceId = DB::table('kitchen_print_devices')->insertGetId([
+                    'outlet_id' => $warehouse->outlet_id, 'name' => $device,
+                    'created_at' => $date.' 09:00:00', 'updated_at' => $date.' 09:00:00',
+                ]);
+
+                $product = Product::create([
+                    'category_id' => Category::firstOrCreate(['name' => 'E2E Kategori'])->id,
+                    'barcode' => 'E2E-'.Str::upper(Str::random(10)),
+                    'title' => 'Soto '.Str::upper(Str::random(6)),
+                    'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 20, 'tax_type' => 'exclusive', 'tax_rate' => 0,
+                    'needs_preparation' => true,
+                ]);
+                $warehouse->products()->attach($product->id, ['stock' => 20]);
+
+                $invoices = [];
+                $itemIds = [];
+                for ($i = 0; $i < $count; $i++) {
+                    $invoice = 'UP'.Str::upper(Str::random(8));
+                    $transaction = Transaction::create([
+                        'cashier_id' => $cashier->id, 'warehouse_id' => $warehouse->id, 'invoice' => $invoice,
+                        'cash' => 10000, 'change' => 0, 'discount' => 0, 'shipping_cost' => 0, 'grand_total' => 10000,
+                        'payment_method' => 'cash', 'payment_status' => 'paid', 'tax_rate' => 0, 'tax_total' => 0,
+                    ]);
+                    $detail = $transaction->details()->create([
+                        'product_id' => $product->id, 'conversion_factor' => 1, 'qty' => 1, 'base_unit_price' => 10000,
+                        'unit_price' => 10000, 'price' => 10000, 'discount_total' => 0, 'cost_total' => 5000,
+                    ]);
+                    $item = KitchenItem::create([
+                        'transaction_id' => $transaction->id, 'transaction_detail_id' => $detail->id, 'product_id' => $product->id,
+                        'warehouse_id' => $warehouse->id, 'qty' => 1, 'status' => KitchenItem::STATUS_ACCEPTED,
+                        'accepted_at' => $date.' 10:00:00',
+                    ]);
+                    $invoices[] = $invoice;
+                    $itemIds[] = $item->id;
+                }
+
+                return [
+                    'date' => $date, 'device_id' => $deviceId, 'device' => $device,
+                    'invoices' => $invoices, 'item_ids' => $itemIds, 'invoice' => $invoices[0],
                 ];
             },
         ];
