@@ -29,6 +29,21 @@ const lines = (data, paper) =>
     render(data, paper).replace(/\x1bE[\x00\x01]/g, "").split("\n");
 
 describe("buildReceiptBytes", () => {
+    it("prints the service charge and the tax label the caller translated", () => {
+        const text = render(baseData({ service_charge: 1000, service_charge_label: "Service charge", tax_total: 2100, tax_label: "PB1 10%" }));
+
+        expect(text).toMatch(/Service charge +1000/);
+        expect(text).toMatch(/PB1 10% +2100/);
+        expect(text).not.toContain("PPN");
+    });
+
+    it("keeps a sale without a service charge or a tax label as it was", () => {
+        const text = render(baseData({ service_charge: 0, tax_total: 2200 }));
+
+        expect(text).toMatch(/PPN +2200/);
+        expect(text).not.toContain("Service charge");
+    });
+
     it("prints what a returned sale still owes, and nothing extra otherwise", () => {
         expect(render(baseData({ amount_due: 800 }))).toMatch(/Sisa tagihan +800/);
         expect(render(baseData({ amount_due: null }))).not.toContain("Sisa tagihan");

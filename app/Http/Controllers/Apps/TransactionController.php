@@ -17,9 +17,11 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
+use App\Services\AddOnOrderService;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
+use App\Services\CheckoutPreviewService;
 use App\Services\CheckoutService;
 use App\Services\LoyaltyService;
 use App\Services\OpenBillListService;
@@ -53,13 +55,9 @@ class TransactionController extends Controller
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
         protected readonly TransactionPaymentRetryService $paymentRetryService,
+        protected readonly CheckoutPreviewService $checkoutPreviewService,
     ) {}
 
-    /**
-     * index
-     *
-     * @return void
-     */
     public function index()
     {
         $userId = auth()->user()->id;
@@ -75,9 +73,8 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $initialPricingPreview = $this->loyaltyService->previewCheckout(
-            $this->pricingService->previewCart($carts, null, null, $outlet)
-        );
+        // The POS opens on Di Tempat, so the first paint already carries the dine-in bill.
+        $initialPricingPreview = $this->checkoutPreviewService->checkout(auth()->user(), null, ['order_type' => 'in_store'], $carts);
 
         // Get held carts grouped by hold_id
         $heldCarts = Cart::with('product:id,title,sell_price,image')
@@ -181,6 +178,7 @@ class TransactionController extends Controller
             'warehouses' => $this->outletAccessService->salesWarehousesFor(auth()->user())->values(),
             'shiftSummary' => $this->cashierShiftService->summarizeForDisplay($activeShift),
             'loyaltyTierOptions' => $this->loyaltyService->tierOptions(),
+            'addOn' => $activeShift && is_string(request('add_on_to')) ? app(AddOnOrderService::class)->preview(request('add_on_to'), $activeShift) : null,
         ]);
     }
 
@@ -234,6 +232,7 @@ class TransactionController extends Controller
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
+            'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
         ]);
 
         $customer = isset($validated['customer_id'])
@@ -242,8 +241,6 @@ class TransactionController extends Controller
         $voucher = isset($validated['customer_voucher_id'])
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
 
         $carts = Cart::with('product.category')
             ->where('cashier_id', $request->user()->id)
@@ -251,16 +248,15 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $pricingPreview = $this->pricingService->previewCart($carts, $customer, null, $activeShift?->warehouse?->outlet);
-
         return response()->json([
             'success' => true,
-            'data' => $this->loyaltyService->previewCheckout($pricingPreview, $customer, [
+            'data' => $this->checkoutPreviewService->checkout($request->user(), $customer, [
                 'manual_discount' => (int) ($validated['discount'] ?? 0),
                 'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
                 'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
                 'voucher' => $voucher,
-            ], null, $activeShift?->warehouse?->outlet),
+                'order_type' => $validated['order_type'] ?? null,
+            ], $carts),
         ]);
     }
 
@@ -357,7 +353,7 @@ class TransactionController extends Controller
             ]);
         }
 
-        return redirect()->route('transactions.index')->with('success', 'Product Added Successfully!.');
+        return redirect()->route('transactions.index', $request->only('add_on_to'))->with('success', 'Product Added Successfully!.');
     }
 
     /**
@@ -637,7 +633,7 @@ class TransactionController extends Controller
 
             if ($customer?->may_buy_on_credit && ! $request->filled('due_date')) {
                 return redirect()
-                    ->route('transactions.index')
+                    ->route('transactions.index', $request->only('add_on_to'))
                     ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
             }
         }
@@ -653,7 +649,7 @@ class TransactionController extends Controller
 
             if (! $gatewayReady) {
                 return redirect()
-                    ->route('transactions.index')
+                    ->route('transactions.index', $request->only('add_on_to'))
                     ->with('error', 'Gateway pembayaran belum dikonfigurasi.');
             }
         }
@@ -683,9 +679,11 @@ class TransactionController extends Controller
             tenderInput: $tenderInput,
             outlet: $outlet,
             bankAccountId: $request->input('bank_account_id'),
+            addOnTo: $request->validate(['add_on_to' => ['nullable', 'string']])['add_on_to'] ?? null,
         );
 
         $result = $this->checkoutService->execute($context);
+        $request->session()->flash('success', 'Transaksi berhasil!'); // saved: the POS toasts only this flash (#473)
 
         if ($result->needsDiscountApproval) {
             $result->transaction->update([
@@ -758,19 +756,20 @@ class TransactionController extends Controller
     public function print(Request $request, $invoice)
     {
         // get transaction
-        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
+        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders', 'parent:id,invoice')
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
-        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue()]);
+        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue(), ...$transaction->cashRefundNotice()]);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [
             'transaction' => $transaction,
             'retryable' => $retryable,
+            'canAddOn' => app(AddOnOrderService::class)->offersAddOn($transaction),
             'bankAccounts' => $retryable ? BankAccount::active()->forOutlet($outlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']) : [],
             'paymentGateways' => $retryable ? PaymentSetting::forOutlet($outlet)?->enabledGateways($outlet) ?? [] : [],
         ]);

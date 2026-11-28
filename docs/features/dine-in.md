@@ -51,6 +51,10 @@ Aturan:
 Tagihan belum lunas (*Belum Lunas*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
 metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
+## Add-on orders
+
+While an accepted order is not completed, or the server would still link to it (an add-on of it is open), its status page offers **Tambah pesanan** (#251). The link opens the table menu with that order's access token (`?add_on_to=`), and the submit stores the order it was made from (`dine_orders.add_on_to_dine_order_id`). The server refuses (422) a token that is unknown, of another table or of an order staff have not accepted, and a cancelled one: "Pesanan asal sudah dibatalkan — buat pesanan baru" (order cancelled or rejected, or every line returned; a `failed` or `expired` payment is not a cancellation, the bill can still be paid). A new order without that link is never merged, even at the same table. At accept the original is checked again under a lock: cancelled means the accept is refused and nothing is written (staff reject the add-on); finished (the original and every non-cancelled add-on paid, nothing left in the kitchen) means a plain new order; otherwise the new sale gets `transactions.parent_transaction_id` = the root sale; the kitchen display still shows it as its own card. Payment, stock and shift are those of any accepted order.
+
 ## Database
 
 ### Tabel: `dine_areas`
@@ -93,6 +97,7 @@ Header pesanan pelanggan.
 | `payment_url` | string | URL pembayaran (nullable) |
 | `cashier_id` | foreignId | Kasir yang konfirmasi (nullable) |
 | `transaction_id` | foreignId | Transaksi terkait (nullable) |
+| `add_on_to_dine_order_id` | foreignId | Order this one was added to from its status page (nullable, `nullOnDelete`) |
 | `subtotal` | integer | Total pesanan |
 | `item_count` | integer | Jumlah item |
 | `accepted_at`/`accepted_by`, `preparing_at`/`preparing_by`, `ready_at`/`ready_by`, `served_at`/`served_by`, `completed_at` | timestamp / foreignId | Kapan dan siapa (user, nullable, `nullOnDelete`) untuk tiap langkah, diisi dalam transaksi DB yang sama dengan perubahan status dan tidak ditimpa oleh pengulangan. Bahan analisis kecepatan dapur per menu (laporannya issue terpisah). Yang menentukan tahap adalah `status` |
@@ -199,7 +204,7 @@ Dikontrol via `Setting` table:
 ### QR Code Generation
 - QR berisi URL: `{APP_URL}/dine/{token}`
 - Di-generate via `simplesoftwareio/simple-qrcode`
-- Dashboard membuka QR sebagai SVG (format PNG butuh ekstensi `imagick`, yang tidak ada di image Docker/CI); endpoint API `/api/v1/dine-tables/{table}/qr` masih PNG
+- Dashboard membuka QR sebagai SVG (format PNG butuh ekstensi `imagick`, yang tidak dipasang di setup host maupun CI); endpoint API `/api/v1/dine-tables/{table}/qr` masih PNG
 
 ### Self-Order Pelanggan
 - Pilih kategori & produk
@@ -349,6 +354,9 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   A failed bill of attempt 0 takes the late path above when it has a gateway charge of its own (a gateway tender row, a single-method gateway sale, or a
   credit sale with a receivable, #380; any gateway tender in any status counts, a pending or paid one then blocks the booking); one without any stays failed. A bill settled by cash or transfer at attempt 0 flags a later gateway payment as a second payment. A late payment of a sale that was restocked is flagged, not booked.
   When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
+  A booked payment of the current attempt that is more than the bill owes after a return completed while it waited is
+  flagged too, with the excess in `overpaid_amount` and the audit `payment.overpaid_after_return` (#444, see
+  [`pos-transactions.md`](pos-transactions.md)); a transfer confirmation applies the same rule.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
   charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::claim`), so the guest's charge is
@@ -371,7 +379,8 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
-  closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
+  closed recap did not hold the money (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas), a gateway sale unpaid at close,
+  an unpaid pay-later sale without a receivable or the unreceived part of a split sale; see `cashier-shifts.md`).
 - **What the cashier sees** (REQ-005 AC-06, AC-08, AC-10). The POS unpaid bill (Belum Lunas) section marks a dine-in bill whose
   guest charge is pending **Menunggu pembayaran online** (`awaiting_online`, from `Transaction::isAwaitingGuestPayment()`), in place of
   "Menunggu Pembayaran"; **Bayar** stays, and **Lihat QR** stays only for the cashier's own pending charge. Opening **Bayar** on such a

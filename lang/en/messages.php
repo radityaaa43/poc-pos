@@ -431,6 +431,12 @@ return [
         'raw_material' => 'A raw material cannot take modifiers.',
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
     ],
+    'outlet_bill' => [
+        'service_charge_rate' => 'Service charge must be 0 to 100, with at most 2 decimals.',
+        'tax_kind' => 'Tax type must be PPN or PB1.',
+        'pb1_rate' => 'The PB1 rate must be 0 to 100, with at most 2 decimals.',
+        'cash_rounding_unit' => 'Cash rounding must be None, 100 or 500.',
+    ],
 
     'dine_reservations' => [
         'clash' => 'This table is already reserved for :name on :time. Leave at least 2 hours between bookings.',
@@ -442,6 +448,22 @@ return [
         'table_has_booking' => 'This table has a reservation for :name :time — mark or cancel it first',
         'clash_at_outlet' => 'This table is already reserved by outlet :outlet on :time. Leave at least 2 hours between bookings.',
         'table_has_booking_at_outlet' => 'This table has a reservation of outlet :outlet on :time — mark or cancel it first',
+    ],
+
+    'waste' => [
+        'reason_required' => 'Choose a reason.',
+        'item_required' => 'Choose a raw material or menu.',
+        'qty_invalid' => 'The quantity must be a whole number from 1 to 1,000,000.',
+        'recorded' => 'Waste recorded and the stock was taken.',
+        'pending' => 'The waste is pending approval. The stock is unchanged.',
+        'item_not_allowed' => 'Only raw materials and recipe menus can be recorded as waste. ":item" is neither.',
+        'no_recipe' => 'The menu ":item" has no recipe yet.',
+        'nothing_to_take' => 'The quantity of ":item" is too small: no ingredient would be taken.',
+        'insufficient' => 'Not enough stock of :item. Available: :left.',
+        'product_in_use' => 'This product cannot be deleted because it has waste records.',
+        'movement' => 'Stock waste #:id.',
+        'audit_recorded' => 'Waste #:id recorded.',
+        'audit_pending' => 'Waste #:id is pending approval.',
     ],
 
     /*

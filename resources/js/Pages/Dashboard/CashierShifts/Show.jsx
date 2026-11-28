@@ -299,6 +299,9 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
                                     {forcing && (
                                         <p id="force-close-warning" className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
                                             {t("cashierShifts.forced.warning")}
+                                            {closeBlockers.some((row) => row.type === "split") && (
+                                                <span className="mt-1 block">{t("cashierShifts.forced.splitNote")}</span>
+                                            )}
                                         </p>
                                     )}
                                     <div>

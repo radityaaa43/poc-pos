@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@inertiajs/react";
+import toast from "react-hot-toast";
 import Index from "./Index";
 
 const granted = ["dine-orders-process", "dine-orders-prepare", "dine-orders-handover"];
@@ -137,6 +138,31 @@ describe("dine orders queue", () => {
         expect(screen.queryByRole("button", { name: "Serahkan" })).toBeNull();
     });
 
+    it("says why an add-on to a cancelled order cannot be accepted", async () => {
+        const refusal = "Pesanan asal sudah dibatalkan — buat pesanan baru";
+        router.post.mockImplementationOnce((url, data, options) => options.onError({ add_on_to: refusal }));
+        vi.stubGlobal("confirm", () => true);
+        render(<Index orders={orders} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Terima" }));
+
+        expect(toast.error).toHaveBeenCalledWith(refusal);
+        vi.unstubAllGlobals();
+    });
+
+    it.each(["Terima", "Tolak"])("says an order was already processed when %s is pressed on it", async (button) => {
+        const refusal = "Pesanan ini sudah diproses.";
+        router.post.mockImplementationOnce((url, data, options) => options.onError({ order: refusal }));
+        vi.stubGlobal("confirm", () => true);
+        vi.stubGlobal("prompt", () => "Habis");
+        toast.error.mockClear();
+        render(<Index orders={orders} />);
+
+        await userEvent.click(screen.getByRole("button", { name: button }));
+
+        expect(toast.error).toHaveBeenCalledWith(refusal);
+        vi.unstubAllGlobals();
+    });
     it("still accepts and rejects a submitted order", async () => {
         const user = userEvent.setup();
         vi.stubGlobal("confirm", () => true);

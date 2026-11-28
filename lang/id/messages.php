@@ -431,6 +431,12 @@ return [
         'raw_material' => 'Bahan baku tidak bisa diberi modifier.',
         'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
     ],
+    'outlet_bill' => [
+        'service_charge_rate' => 'Service charge harus 0 sampai 100, paling banyak 2 angka desimal.',
+        'tax_kind' => 'Jenis pajak harus PPN atau PB1.',
+        'pb1_rate' => 'Tarif PB1 harus 0 sampai 100, paling banyak 2 angka desimal.',
+        'cash_rounding_unit' => 'Pembulatan tunai harus Tanpa, 100, atau 500.',
+    ],
 
     'dine_reservations' => [
         'clash' => 'Meja ini sudah direservasi atas nama :name pada :time. Beri jarak minimal 2 jam.',
@@ -442,6 +448,22 @@ return [
         'table_has_booking' => 'Meja ini punya reservasi :name :time — tandai atau batalkan dulu',
         'clash_at_outlet' => 'Meja ini sudah direservasi outlet :outlet pada :time. Beri jarak minimal 2 jam.',
         'table_has_booking_at_outlet' => 'Meja ini punya reservasi outlet :outlet pada :time — tandai atau batalkan dulu',
+    ],
+
+    'waste' => [
+        'reason_required' => 'Pilih alasan.',
+        'item_required' => 'Pilih bahan baku atau menu.',
+        'qty_invalid' => 'Jumlah harus angka bulat dari 1 sampai 1.000.000.',
+        'recorded' => 'Waste tercatat dan stok sudah dipotong.',
+        'pending' => 'Waste menunggu persetujuan. Stok belum berubah.',
+        'item_not_allowed' => 'Hanya bahan baku dan menu resep yang bisa dicatat sebagai waste. ":item" bukan keduanya.',
+        'no_recipe' => 'Menu ":item" belum punya resep.',
+        'nothing_to_take' => 'Jumlah ":item" terlalu kecil: tidak ada bahan yang terpotong.',
+        'insufficient' => 'Stok :item tidak mencukupi. Tersedia: :left.',
+        'product_in_use' => 'Produk ini tidak bisa dihapus karena sudah punya catatan waste.',
+        'movement' => 'Waste stok #:id.',
+        'audit_recorded' => 'Waste #:id tercatat.',
+        'audit_pending' => 'Waste #:id menunggu persetujuan.',
     ],
 
     /*

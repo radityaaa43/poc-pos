@@ -152,6 +152,7 @@ class TransactionController extends AppsTransactionController
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
+            'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
         ]);
 
         $customer = isset($validated['customer_id'])
@@ -160,8 +161,6 @@ class TransactionController extends AppsTransactionController
         $voucher = isset($validated['customer_voucher_id'])
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
 
         $carts = Cart::with('product.category')
             ->where('cashier_id', $request->user()->id)
@@ -169,19 +168,13 @@ class TransactionController extends AppsTransactionController
             ->latest()
             ->get();
 
-        $pricingPreview = $this->pricingService->previewCart(
-            $carts,
-            $customer,
-            null,
-            $activeShift?->warehouse?->outlet
-        );
-
-        return $this->ok($this->loyaltyService->previewCheckout($pricingPreview, $customer, [
+        return $this->ok($this->checkoutPreviewService->checkout($request->user(), $customer, [
             'manual_discount' => (int) ($validated['discount'] ?? 0),
             'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
             'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
             'voucher' => $voucher,
-        ], null, $activeShift?->warehouse?->outlet));
+            'order_type' => $validated['order_type'] ?? null,
+        ], $carts));
     }
 
     /**

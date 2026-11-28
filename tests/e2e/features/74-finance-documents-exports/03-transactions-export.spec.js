@@ -21,13 +21,13 @@ test.describe('exports: transactions workbook', () => {
 
         const manager = await asRole(role('manager'));
         const rows = await exportRows(manager, 'start_date=2025-03-01&end_date=2025-03-31');
-        expect(rows[0]).toEqual(['Invoice', 'Tanggal', 'Kasir', 'Pelanggan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Ongkir', 'PPN', 'Grand Total']);
+        expect(rows[0]).toEqual(['Invoice', 'Tanggal', 'Kasir', 'Pelanggan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Ongkir', 'Service Charge', 'Jenis Pajak', 'Pajak', 'Grand Total']);
         const byInvoice = Object.fromEntries(rows.slice(1).map((row) => [row[0], row]));
         expect(byInvoice[a1].slice(0, 6)).toEqual([a1, '2025-03-10 10:15:00', 'E2E Cashier', 'Umum', 'cash', 'paid']);
         // Zero amounts are blank cells (Laravel Excel's strict_null_comparison is off).
-        expect(byInvoice[a1].slice(6)).toEqual(['35000', '', '', '', '35000']);
+        expect(byInvoice[a1].slice(6)).toEqual(['35000', '', '', '', 'PPN', '', '35000']);
         expect(byInvoice[a2].slice(0, 6)).toEqual([a2, '2025-03-20 14:30:00', 'E2E Manager', customer, 'cash', 'paid']);
-        expect(byInvoice[a2].slice(7)).toEqual(['3000', '', '', '27000']);
+        expect(byInvoice[a2].slice(7)).toEqual(['3000', '', '', 'PPN', '', '27000']);
         expect(byInvoice[b1], 'a sale of an outlet the manager is not assigned to').toBeUndefined();
 
         // The date range is honoured: 11-31 March leaves out A1.
@@ -41,12 +41,12 @@ test.describe('exports: transactions workbook', () => {
         expect(all).toEqual(expect.arrayContaining([a1, a2, b1]));
     });
 
-    test('Subtotal adds up: Subtotal - Diskon + Ongkir + PPN = Grand Total', async ({ asRole, arrange }) => {
+    test('Subtotal adds up: Subtotal - Diskon + Ongkir + Service Charge + Pajak = Grand Total', async ({ asRole, arrange }) => {
         const { a2 } = arrange('reports.sales');
         const manager = await asRole(role('manager'));
 
         const row = (await exportRows(manager, 'start_date=2025-03-20&end_date=2025-03-20')).find((cells) => cells[0] === a2);
-        expect(row.slice(6)).toEqual(['30000', '3000', '', '', '27000']);
+        expect(row.slice(6)).toEqual(['30000', '3000', '', '', 'PPN', '', '27000']);
     });
 
     test('the cashier role may export, stock-opname may not', async ({ asRole }) => {
