@@ -44,14 +44,26 @@ class InventoryCostService
     public function lineCost(Product $product, ?int $warehouseId, float $qty, float $factor = 1.0): int
     {
         if ($product->is_composite) {
-            $costs = $this->unitCosts($product->components, $warehouseId);
-
-            return (int) round($product->components->sum(
-                fn ($component) => $costs[$component->id] * (float) $component->pivot->qty
-            ) * $qty);
+            return $this->recipeCost($product->components->whereInstanceOf(Product::class), $warehouseId, $qty);
         }
 
         return (int) round($this->unitCost($product, $warehouseId) * $qty * $factor);
+    }
+
+    /** @param  iterable<Product>  $components  each with pivot->qty; HPP of $qty portions, whole rupiah */
+    public function recipeCost(iterable $components, ?int $warehouseId, float $qty): int
+    {
+        $components = collect($components);
+
+        if ($components->isEmpty()) {
+            return 0;
+        }
+
+        $costs = $this->unitCosts(new Collection($components->all()), $warehouseId);
+
+        return (int) round($components->sum(
+            fn (Product $component) => $costs[$component->id] * (float) $component->getRelationValue('pivot')?->qty
+        ) * $qty);
     }
 
     /** The warehouse of an outlet that does not sell (ReorderService::isCentral); the lowest sort_order, then id, when several. */

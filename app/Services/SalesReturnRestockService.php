@@ -1,0 +1,79 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\Product;
+use App\Models\ProductWarehouse;
+use App\Models\SalesReturn;
+use App\Models\SalesReturnItem;
+use App\Models\TransactionDetail;
+
+/** Puts a completed return's ticked lines back: the menu, then its options' ingredients as sold (REQ-008 AC-14). */
+class SalesReturnRestockService
+{
+    public function __construct(
+        private readonly ComponentStockService $componentStock,
+        private readonly StockMutationService $stockMutationService,
+    ) {}
+
+    /** Call inside the return's DB::transaction, after the sale is locked and before any other stock row is touched. */
+    public function restock(SalesReturn $salesReturn, ?int $warehouseId, ?int $userId): void
+    {
+        $items = SalesReturnItem::where('sales_return_id', $salesReturn->id)->where('restock_to_inventory', true)->orderBy('id')->get();
+        $details = TransactionDetail::with('modifiers')->findMany($items->pluck('transaction_detail_id'))->keyBy('id');
+
+        $this->componentStock->lockRows(
+            $items->pluck('product_id')->merge($details->flatMap->modifiers->flatMap->components->pluck('product_id')),
+            $warehouseId
+        );
+
+        foreach ($items as $item) {
+            $detail = $details[$item->transaction_detail_id];
+            $this->restockLine($salesReturn, $item, (float) ($detail->conversion_factor ?? 1), $warehouseId, $userId);
+
+            foreach ($this->componentStock->restockOptions($detail, (int) $item->qty_return, $warehouseId) as $row) {
+                $this->stockMutationService->recordSalesReturnRestock(
+                    product: $row['product'],
+                    salesReturn: $salesReturn,
+                    stockBefore: $row['stock_before'],
+                    stockAfter: $row['stock_before'] + $row['qty'],
+                    reason: $item->return_reason,
+                    userId: $userId,
+                );
+            }
+        }
+    }
+
+    private function restockLine(SalesReturn $salesReturn, SalesReturnItem $item, float $factor, ?int $warehouseId, ?int $userId): void
+    {
+        $product = Product::lockForUpdate()->find($item->product_id);
+
+        if (! $product) {
+            return;
+        }
+
+        // Stock effect is in base units: selling qty x conversion factor.
+        $baseQty = (int) round((int) $item->qty_return * $factor);
+        $stockBefore = (int) $product->stock;
+        $stockAfter = $stockBefore + $baseQty;
+
+        $product->update(['stock' => $stockAfter]);
+
+        // Restock to transaction warehouse
+        if ($warehouseId) {
+            ProductWarehouse::where([
+                'product_id' => $product->id,
+                'warehouse_id' => $warehouseId,
+            ])->increment('stock', $baseQty);
+        }
+
+        $this->stockMutationService->recordSalesReturnRestock(
+            product: $product,
+            salesReturn: $salesReturn,
+            stockBefore: $stockBefore,
+            stockAfter: $stockAfter,
+            reason: $item->return_reason,
+            userId: $userId,
+        );
+    }
+}

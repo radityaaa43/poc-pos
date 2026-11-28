@@ -53,6 +53,10 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     for (const item of data.items || []) {
         const name = `${item.qty}x ${item.name}`.slice(0, width);
         bytes.push(...textBytes(name + "\n"));
+        // Options and note of the line; typed by people, so printer commands are stripped.
+        for (const extra of item.extras || []) {
+            wrapLines(printable(extra), width - 2).forEach((part) => bytes.push(...textBytes(`  ${part}\n`)));
+        }
         leftRight("", data.money(item.price));
     }
 

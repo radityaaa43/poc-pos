@@ -10,6 +10,7 @@ use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 
 class SalesReportController extends Controller
@@ -27,13 +28,7 @@ class SalesReportController extends Controller
      */
     public function reportData(Request $request, OutletAccessService $outletAccessService): array
     {
-        $warehouseIds = $outletAccessService->warehousesFor($request->user())->pluck('id');
-        $activeOutlet = $outletAccessService->activeOutlet($request);
-        if ($activeOutlet) {
-            $warehouseIds = $outletAccessService->warehousesFor($request->user())
-                ->where('outlet_id', $activeOutlet->id)
-                ->pluck('id');
-        }
+        $warehouseIds = $this->scopedWarehouseIds($request, $outletAccessService);
         $filters = [
             'start_date' => $request->input('start_date'),
             'end_date' => $request->input('end_date'),
@@ -104,6 +99,15 @@ class SalesReportController extends Controller
             'customers' => Customer::select('id', 'name')->orderBy('name')->get(),
             'warehouses' => $outletAccessService->warehousesFor($request->user()),
         ];
+    }
+
+    /** The user's warehouses, narrowed to the active outlet. */
+    protected function scopedWarehouseIds(Request $request, OutletAccessService $outletAccessService): Collection
+    {
+        $warehouses = $outletAccessService->warehousesFor($request->user());
+        $activeOutlet = $outletAccessService->activeOutlet($request);
+
+        return ($activeOutlet ? $warehouses->where('outlet_id', $activeOutlet->id) : $warehouses)->pluck('id');
     }
 
     /**

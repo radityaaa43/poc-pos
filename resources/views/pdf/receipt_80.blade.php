@@ -70,6 +70,9 @@
                 $unit = $item->unit_price ?: ($qty ? $total / $qty : $total);
             @endphp
             <div style="font-weight:600;">{{ $item->product->title ?? $l('receipt.product') }}</div>
+            @foreach ($item->receiptExtras() as $extra)
+                <div style="font-size:10px; color:#475569;">{{ $extra }}</div>
+            @endforeach
             @if($item->discount_total > 0 && ($item->pricing_group_label || $item->pricing_rule_name))
                 <div style="display:flex; justify-content:space-between; font-size:10px; color:#64748b;">
                     <span>{{ $l('receipt.promo') }}: {{ $item->pricing_group_label ?: $item->pricing_rule_name }}</span>

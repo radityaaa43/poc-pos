@@ -292,6 +292,7 @@
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Kitchen Speed Report",
+            "modifierSalesReport": "Sales per Option",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
             "permissions": "Permissions",
@@ -926,6 +927,17 @@
             "allStations": "All stations",
             "stationDeleted": "(deleted)",
             "handoverAllStations": "All orders from all stations"
+        },
+        "modifiers": {
+            "title": "Sales per Option",
+            "startDate": "Start date",
+            "endDate": "End date",
+            "apply": "Apply",
+            "group": "Group",
+            "option": "Option",
+            "qty": "Sold",
+            "revenue": "Option revenue (before discounts)",
+            "empty": "No options sold in this period."
         }
     },
     "auditLogs": {
@@ -1223,6 +1235,20 @@
             "overdue": "Overdue receivable exists",
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
+        },
+        "modifiers": {
+            "required": "Required",
+            "optional": "Optional",
+            "range": "Pick {{min}}–{{max}}",
+            "soldOut": "Sold out",
+            "note": "Note",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Portion price",
+            "add": "Add",
+            "cancel": "Cancel",
+            "incomplete": "Complete your choices: {{group}}",
+            "noteLine": "Note: {{note}}",
+            "offline": "A sale with options or notes cannot be saved offline yet"
         }
     },
     "outlets": {

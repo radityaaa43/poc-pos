@@ -13,7 +13,7 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - complete retur
 - refund tunai
 - store credit
-- restock ke inventory
+- restock ke inventory, termasuk bahan opsi modifier sesuai resep saat dijual (`docs/features/modifiers.md` → Retur)
 - koreksi receivable untuk transaksi `pay_later`
 - histori retur penjualan
 
@@ -81,4 +81,5 @@ Completing a return (`sales-returns-complete`, web and API, in the return's own 
 ## File Sentral
 
 - `app/Http/Controllers/Apps/SalesReturnController.php`
+- `app/Services/SalesReturnRestockService.php` (stock: locks every row by product id, then the line and its options)
 - `resources/js/Pages/Dashboard/SalesReturns`

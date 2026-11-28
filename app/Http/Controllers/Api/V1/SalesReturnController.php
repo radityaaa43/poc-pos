@@ -7,11 +7,11 @@ use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Http\Traits\ApiResponder;
 use App\Models\CustomerCredit;
-use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Services\KitchenItemService;
+use App\Services\SalesReturnRestockService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -248,34 +248,6 @@ class SalesReturnController extends AppsSalesReturnController
 
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
-                $baseQty = (int) round((int) $item->qty_return * (float) ($detail->conversion_factor ?? 1));
-
-                if ($item->restock_to_inventory && $item->product) {
-                    $product = $item->product()->lockForUpdate()->first();
-
-                    if ($product) {
-                        $stockBefore = (int) $product->stock;
-                        $stockAfter = $stockBefore + $baseQty;
-
-                        $product->update(['stock' => $stockAfter]);
-
-                        if ($transactionWarehouseId = $salesReturn->transaction->warehouse_id) {
-                            ProductWarehouse::where([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $transactionWarehouseId,
-                            ])->increment('stock', $baseQty);
-                        }
-
-                        $this->stockMutationService->recordSalesReturnRestock(
-                            product: $product,
-                            salesReturn: $salesReturn,
-                            stockBefore: $stockBefore,
-                            stockAfter: $stockAfter,
-                            reason: $item->return_reason,
-                            userId: $request->user()?->id,
-                        );
-                    }
-                }
 
                 $margin = $detail->returnMargin((int) $item->qty_return);
 
@@ -284,6 +256,8 @@ class SalesReturnController extends AppsSalesReturnController
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(

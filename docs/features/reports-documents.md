@@ -68,6 +68,10 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 - One card with the average time from payment to the last item served, over orders whose live items are all served. It is order level, so the station filter does not narrow it; with a station chosen the card carries the caption *Semua pesanan dari semua stasiun*.
 - Medians are computed in PHP (`KitchenSpeedReportService`); minutes show with one decimal ("4,5 mnt"). An empty period says so instead of showing zeros.
 
+## Sales per Option
+
+Read-only report **Penjualan per Opsi** (`reports.modifiers.index`, menu Reports, permission `reports-access`): quantity sold and option revenue per modifier option. Rules: `docs/features/modifiers.md` → *Laporan penjualan per opsi*.
+
 ## Efek Bisnis Penting
 
 - laporan sales dan profit bergantung pada kualitas data transaksi

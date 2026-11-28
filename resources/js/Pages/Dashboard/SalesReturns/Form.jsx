@@ -6,6 +6,7 @@ import Table from "@/Components/Dashboard/Table";
 import { IconArrowLeft, IconCheck, IconDeviceFloppy } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import LineModifiers from "@/Components/Modifiers/LineModifiers";
 
 // Matches the server's restock_default: items already being made are not restocked by default.
 const inKitchen = (item) => ["preparing", "ready"].includes(item.kitchen_status);
@@ -305,10 +306,12 @@ export default function SalesReturnForm({
                                 {itemStates.map((item) => (
                                     <tr key={item.id}>
                                         <Table.Td>
-                                            <div>
+                                            {/* The cell never wraps, so a long note would push the settlement panel off screen. */}
+                                            <div className="min-w-36 max-w-xs whitespace-normal [overflow-wrap:anywhere]">
                                                 <p className="font-medium text-slate-800 dark:text-slate-100">
                                                     {item.product?.title || "-"}
                                                 </p>
+                                                <LineModifiers item={item} />
                                                 <p className="text-xs text-slate-500 dark:text-slate-400">
                                                     {item.product?.barcode ||
                                                         item.product?.sku ||

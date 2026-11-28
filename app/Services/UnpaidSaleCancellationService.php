@@ -11,14 +11,17 @@ use Illuminate\Support\Facades\DB;
  */
 class UnpaidSaleCancellationService
 {
-    public function __construct(private readonly StockMutationService $stockMutationService) {}
+    public function __construct(
+        private readonly StockMutationService $stockMutationService,
+        private readonly ComponentStockService $componentStock,
+    ) {}
 
     /**
      * The caller owns the DB::transaction, holds the row lock on `$sale` and has checked it may still be cancelled.
      */
     public function cancel(Transaction $sale, string $mutationNote, string $saleNote): void
     {
-        $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
+        $sale->loadMissing(['details.product.components', 'details.modifiers', 'details.batchAllocations']);
         $this->lockStockRows($sale);
 
         foreach ($sale->details as $detail) {
@@ -54,6 +57,21 @@ class UnpaidSaleCancellationService
                 notes: $mutationNote,
                 userId: null,
             );
+
+            foreach ($this->componentStock->restockOptions($detail, (int) $detail->qty, $warehouseId) as $row) {
+                $this->stockMutationService->recordMutation(
+                    product: $row['product'],
+                    warehouseId: $warehouseId,
+                    referenceType: 'transaction_expire',
+                    referenceId: $sale->id,
+                    mutationType: 'in',
+                    qty: $row['qty'],
+                    stockBefore: $row['stock_before'],
+                    stockAfter: $row['stock_before'] + $row['qty'],
+                    notes: "{$mutationNote} (opsi)",
+                    userId: null,
+                );
+            }
         }
 
         $sale->update([
@@ -62,19 +80,11 @@ class UnpaidSaleCancellationService
         ]);
     }
 
-    /**
-     * Locks the stock rows the restock writes (warehouse rows then products, checkout's order, by product id), so
-     * each mutation records the before and after this restock really made.
-     */
     private function lockStockRows(Transaction $sale): void
     {
-        $ids = $sale->details
+        $this->componentStock->lockRows($sale->details
             ->flatMap(fn ($detail) => [$detail->product_id, ...($detail->product ? $detail->product->components->modelKeys() : [])])
-            ->unique()->sort()->values();
-
-        DB::table('product_warehouse')->where('warehouse_id', $sale->warehouse_id)->whereIn('product_id', $ids)
-            ->orderBy('product_id')->lockForUpdate()->get();
-        DB::table('products')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            ->merge($sale->details->flatMap->modifiers->flatMap->components->pluck('product_id')), $sale->warehouse_id);
     }
 
     private function restock($product, ?int $warehouseId, int $qty): void

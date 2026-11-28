@@ -15,6 +15,7 @@ import {
 import ThermalReceipt, {
     ThermalReceipt58mm,
 } from "@/Components/Receipt/ThermalReceipt";
+import LineModifiers, { modifierLines } from "@/Components/Modifiers/LineModifiers";
 import ShippingLabel from "@/Components/Receipt/ShippingLabel";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
 import { LateRefundNotice } from "./LateRefundBadge";
@@ -198,6 +199,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
             items: items.map((item) => ({
                 qty: Number(item.qty),
                 name: item.product?.title ?? item.product?.name ?? "Item",
+                extras: modifierLines(item),
                 price: Number(item.price),
             })),
             money: formatPrice,
@@ -762,11 +764,9 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                     >
                                                         <td className="py-3">
                                                             <p className="font-medium text-slate-900 dark:text-white">
-                                                                {
-                                                                    item.product
-                                                                        ?.title
-                                                                }
+                                                                {item.product?.title}
                                                             </p>
+                                                            <LineModifiers item={item} />
                                                             {hasPromo && (
                                                                 <p className="text-xs font-medium text-rose-500 dark:text-rose-400">
                                                                     {item.pricing_group_label ||

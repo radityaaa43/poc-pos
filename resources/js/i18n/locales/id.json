@@ -292,6 +292,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "modifierSalesReport": "Penjualan per Opsi",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -926,6 +927,17 @@
             "allStations": "Semua stasiun",
             "stationDeleted": "(dihapus)",
             "handoverAllStations": "Semua pesanan dari semua stasiun"
+        },
+        "modifiers": {
+            "title": "Penjualan per Opsi",
+            "startDate": "Tanggal mulai",
+            "endDate": "Tanggal akhir",
+            "apply": "Terapkan",
+            "group": "Grup",
+            "option": "Opsi",
+            "qty": "Terjual",
+            "revenue": "Omzet opsi (sebelum diskon)",
+            "empty": "Belum ada opsi terjual pada periode ini."
         }
     },
     "auditLogs": {
@@ -1223,6 +1235,20 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "modifiers": {
+            "required": "Wajib",
+            "optional": "Opsional",
+            "range": "Pilih {{min}}–{{max}}",
+            "soldOut": "Habis",
+            "note": "Catatan",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Harga porsi",
+            "add": "Tambah",
+            "cancel": "Batal",
+            "incomplete": "Lengkapi pilihan: {{group}}",
+            "noteLine": "Catatan: {{note}}",
+            "offline": "Penjualan dengan opsi atau catatan belum bisa disimpan saat offline"
         }
     },
     "outlets": {

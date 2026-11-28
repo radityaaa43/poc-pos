@@ -7,7 +7,6 @@ use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
-use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
@@ -19,7 +18,7 @@ use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
-use App\Services\StockMutationService;
+use App\Services\SalesReturnRestockService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +34,6 @@ use Inertia\Response;
 class SalesReturnController extends Controller
 {
     public function __construct(
-        protected readonly StockMutationService $stockMutationService,
         protected readonly CashierShiftService $cashierShiftService,
         protected readonly AuditLogService $auditLogService,
         protected readonly OutletAccessService $outletAccessService
@@ -254,40 +252,6 @@ class SalesReturnController extends Controller
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
-                // Stock effect is in base units: selling qty x conversion factor.
-                $baseQty = (int) round((int) $item->qty_return * (float) ($detail->conversion_factor ?? 1));
-
-                if ($item->restock_to_inventory && $item->product) {
-                    $product = $item->product()->lockForUpdate()->first();
-
-                    if ($product) {
-                        $stockBefore = (int) $product->stock;
-                        $stockAfter = $stockBefore + $baseQty;
-
-                        $product->update([
-                            'stock' => $stockAfter,
-                        ]);
-
-                        // Restock to transaction warehouse
-                        $transactionWarehouseId = $salesReturn->transaction->warehouse_id;
-                        if ($transactionWarehouseId) {
-                            ProductWarehouse::where([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $transactionWarehouseId,
-                            ])->increment('stock', $baseQty);
-                        }
-
-                        $this->stockMutationService->recordSalesReturnRestock(
-                            product: $product,
-                            salesReturn: $salesReturn,
-                            stockBefore: $stockBefore,
-                            stockAfter: $stockAfter,
-                            reason: $item->return_reason,
-                            userId: $request->user()?->id,
-                        );
-                    }
-                }
-
                 // Reverse margin proportionally: (unit sell - unit cost) x returned qty.
                 $margin = $detail->returnMargin((int) $item->qty_return);
 
@@ -296,6 +260,8 @@ class SalesReturnController extends Controller
                     'total' => -$margin,
                 ]);
             }
+
+            app(SalesReturnRestockService::class)->restock($salesReturn, $salesReturn->transaction->warehouse_id, $request->user()?->id);
 
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
@@ -386,6 +352,7 @@ class SalesReturnController extends Controller
                 'customer:id,name',
                 'receivable',
                 'details.product:id,title,barcode,sku,buy_price',
+                'details.modifiers',
                 'details.salesReturnItems.salesReturn:id,status',
             ])
             ->when(! $request->user()->isSuperAdmin(), fn (Builder $query) => $query->where('cashier_id', $request->user()->id))
@@ -409,6 +376,7 @@ class SalesReturnController extends Controller
                 'transaction.customer:id,name',
                 'transaction.receivable',
                 'transaction.details.product:id,title,barcode,sku,buy_price',
+                'transaction.details.modifiers',
                 'transaction.details.salesReturnItems.salesReturn:id,status',
                 'items.product:id,title,barcode,sku,buy_price',
                 'items.transactionDetail:id,transaction_id,product_id,qty,price',
@@ -482,6 +450,9 @@ class SalesReturnController extends Controller
                     ] : null,
                     'qty' => $qtySold,
                     'price' => (int) $detail->price,
+                    // Tells apart two lines of one menu; the model hides the recipe.
+                    'modifiers' => $detail->modifiers,
+                    'note' => $detail->note,
                     'returned_completed_qty' => $completedReturnedQty,
                     'remaining_returnable_qty' => max(0, $qtySold - $completedReturnedQty),
                     'kitchen_status' => $kitchenStatus,
@@ -500,6 +471,9 @@ class SalesReturnController extends Controller
 
     protected function transformSalesReturn(SalesReturn $salesReturn): array
     {
+        // The sale's copy of each line: option names, prices and note as sold.
+        $lines = TransactionDetail::with('modifiers')->where('transaction_id', $salesReturn->transaction_id)->get()->keyBy('id');
+
         return [
             'id' => $salesReturn->id,
             'code' => $salesReturn->code,
@@ -523,7 +497,7 @@ class SalesReturnController extends Controller
                 'id' => $salesReturn->transaction?->id,
                 'invoice' => $salesReturn->transaction?->invoice,
             ],
-            'items' => $salesReturn->items->map(function (SalesReturnItem $item) {
+            'items' => $salesReturn->items->map(function (SalesReturnItem $item) use ($lines) {
                 return [
                     'id' => $item->id,
                     'transaction_detail_id' => $item->transaction_detail_id,
@@ -533,6 +507,8 @@ class SalesReturnController extends Controller
                         'barcode' => $item->product->barcode,
                         'sku' => $item->product->sku,
                     ] : null,
+                    'modifiers' => $lines->get($item->transaction_detail_id)->modifiers ?? [],
+                    'note' => $lines->get($item->transaction_detail_id)?->note,
                     'qty_sold' => (int) $item->qty_sold,
                     'qty_returned_before' => (int) $item->qty_returned_before,
                     'qty_return' => (int) $item->qty_return,
