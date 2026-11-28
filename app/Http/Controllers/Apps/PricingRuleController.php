@@ -526,7 +526,7 @@ class PricingRuleController extends Controller
         }
 
         if ($rule->kind === PricingRule::KIND_BUNDLE_PRICE) {
-            return (int) ($rule->bundleItems->firstWhere('product_id', $product->id)?->quantity ?? 1);
+            return (int) ($rule->bundleItems->where('product_id', $product->id)->sum('quantity') ?: 1);
         }
 
         if ($rule->kind === PricingRule::KIND_BUY_X_GET_Y) {
