@@ -148,8 +148,9 @@ class CashierShiftService
 
         // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
         // open bill (pay-later or dine-in) or a retried payment is asked for less than its grand total.
-        $neverAsked = function ($sales): int {
+        $neverAsked = function ($sales) use ($bookedBillIds): int {
             $askedLater = $sales
+                ->whereKeyNot($bookedBillIds) // booked by a forced close: not counted above, so nothing to take off
                 ->where(fn ($later) => $later->where('is_pay_later', true)->orWhere('payment_attempt', '>', 0)->orWhereHas('dineOrder'))
                 ->doesntHave('receivable');
 
