@@ -211,7 +211,7 @@ class TransactionController extends AppsTransactionController
         }
 
         $beforeStatus = $transaction->payment_status;
-        $newStatus = $tenderService->confirmTransfer($transaction);
+        $newStatus = $tenderService->confirmTransfer($transaction, $request->filled('received_amount') ? (int) $request->input('received_amount') : null);
 
         $this->auditLogService->log(
             event: 'transaction.payment_confirmed',

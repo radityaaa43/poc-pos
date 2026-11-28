@@ -212,9 +212,9 @@ class TransactionTenderService
      * (PaymentWebhookController::applyNotification): shift (shared), dine order (marking the bill paid may complete it),
      * receivable, sale.
      */
-    public function confirmTransfer(Transaction $transaction): string
+    public function confirmTransfer(Transaction $transaction, ?int $receivedAmount = null): string
     {
-        return DB::transaction(function () use ($transaction) {
+        return DB::transaction(function () use ($transaction, $receivedAmount) {
             CashierShift::whereKey($transaction->cashier_shift_id)->sharedLock()->value('id');
             DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->first();
             Receivable::where('transaction_id', $transaction->id)->lockForUpdate()->value('id'); // no row is fine
@@ -233,12 +233,21 @@ class TransactionTenderService
             $tenders = $transaction->tenders()->get();
             $newStatus = $tenders->isEmpty() ? 'paid' : $this->aggregateStatus($tenders);
 
+            // What the bank actually showed (#507): recorded on a no-tender transfer, default the amount due. The recap
+            // and the overpayment flag read this through Transaction::transferSettledAmount().
+            $received = $newStatus === 'paid' && $tenders->isEmpty()
+                ? ($receivedAmount ?? (int) $bill->amountDue())
+                : null;
+
             $this->flagIfBookedAtClose($transaction, $newStatus);
             $transaction->update(['payment_status' => $newStatus]);
+            if ($received !== null) {
+                $bill->update(['transfer_received_amount' => $received]);
+            }
 
             if ($newStatus === 'paid') {
-                // Without tenders, the transfer asked the grand total at checkout, or what a retry asked then.
-                $asked = $bill->payment_attempt
+                // Without tenders, what a transfer asked: the retry's ask when retried, else the grand total.
+                $inferred = $bill->payment_attempt
                     ? AuditLog::where('event', 'transaction.payment_retried')
                         ->where('auditable_type', $bill->getMorphClass())
                         ->where('auditable_id', $bill->id)
@@ -246,7 +255,7 @@ class TransactionTenderService
                         ->first()?->meta['amount'] ?? null
                     : (int) $bill->grand_total;
 
-                $this->flagOverpayment($bill, $asked, ['source' => 'transfer']);
+                $this->flagOverpayment($bill, $bill->transferSettledAmount((int) $inferred), ['source' => 'transfer']);
             }
 
             return $newStatus;

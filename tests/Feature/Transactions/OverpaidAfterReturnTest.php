@@ -258,6 +258,25 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertSaleShiftNonCash($sale, 20000);
     }
 
+    /** #507: a retry, then a later return, then the reduced amount the bank shows, recorded as received. */
+    public function test_a_reduced_amount_recorded_as_received_after_a_later_return_is_not_flagged(): void
+    {
+        $sale = $this->posSale('qris', 'failed');
+        $this->returnFromBill($sale, $this->plain); // before the retry: it asks 20000
+        $this->cashier->givePermissionTo('transactions-access');
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'bank_transfer', 'bank_account_id' => $this->bankAccount()->id])
+            ->assertSessionHasNoErrors();
+        $this->returnFromBill($sale, $this->flagged); // while it waits: 10000 less
+
+        // The bank shows the reduced amount; the cashier records it instead of the old asked total.
+        $this->confirmOnTheWeb($sale, received: 10000);
+
+        $this->assertNotFlagged($sale->fresh());
+        $this->assertSame(10000, $sale->fresh()->transfer_received_amount);
+        $this->assertSaleShiftNonCash($sale, 10000);
+    }
+
     public function test_paying_what_is_owed_after_a_return_is_not_flagged(): void
     {
         $this->useGateway('midtrans');
@@ -377,10 +396,10 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertSame($expected, app(CashierShiftService::class)->calculateSummary($shift)['non_cash_sales_total']);
     }
 
-    private function confirmOnTheWeb(Transaction $sale): void
+    private function confirmOnTheWeb(Transaction $sale, ?int $received = null): void
     {
         $this->actingAs($this->cashier)->withSession(['auth.password_confirmed_at' => time()])
-            ->patch(route('transactions.confirm-payment', $sale))
+            ->patch(route('transactions.confirm-payment', $sale), $received === null ? [] : ['received_amount' => $received])
             ->assertSessionHas('success');
         $this->assertSame('paid', $sale->fresh()->payment_status);
     }
