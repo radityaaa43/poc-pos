@@ -34,6 +34,10 @@ class ModifierGroupService
                 $option->components()->sync(collect($row['components'] ?? [])
                     ->mapWithKeys(fn (array $line) => [$line['product_id'] => ['qty' => $line['qty']]])
                     ->all());
+                // Absent (a form opened before the switch existed) keeps the switches; an empty list clears them.
+                if (array_key_exists('disabled_outlet_ids', $row)) {
+                    $option->disabledOutlets()->sync($row['disabled_outlet_ids'] ?? []);
+                }
                 $kept[] = $option->getKey();
             }
 
