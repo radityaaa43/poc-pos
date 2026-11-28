@@ -11,9 +11,10 @@ const formatCurrency = (value = 0) =>
 const CHIP_COLORS = {
     item: "bg-primary-100 text-primary-700 dark:bg-primary-900/50 dark:text-primary-300",
     bill: "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-300",
+    split: "bg-danger-100 text-danger-700 dark:bg-danger-900/50 dark:text-danger-300",
 };
 
-/** What holds the shift close (REQ-003 AC-12): food not handed over and unpaid pay-later bills. */
+/** What holds the shift close: food not handed over, unpaid pay-later bills (REQ-003 AC-12) and partly paid splits (#396). */
 export default function ShiftCloseBlockedList({ blockers = [] }) {
     const { t } = useTranslation();
 
@@ -37,12 +38,15 @@ export default function ShiftCloseBlockedList({ blockers = [] }) {
                                 <p className="break-words text-sm text-slate-600 dark:text-slate-300">{blocker.label}</p>
                             )}
                             <span className={`mt-1 inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${CHIP_COLORS[blocker.type]}`}>
-                                {t(`cashierShifts.closeBlocked.${blocker.type}`)}
+                                {t(`cashierShifts.closeBlocked.${blocker.type}`, { amount: formatCurrency(blocker.amount) })}
                             </span>
                         </div>
-                        <span className="shrink-0 text-sm font-semibold text-slate-900 dark:text-white">
-                            {formatCurrency(blocker.amount)}
-                        </span>
+                        {/* A split's chip already says the amount. */}
+                        {blocker.type !== "split" && (
+                            <span className="shrink-0 text-sm font-semibold text-slate-900 dark:text-white">
+                                {formatCurrency(blocker.amount)}
+                            </span>
+                        )}
                     </li>
                 ))}
             </ul>

@@ -4,7 +4,7 @@ namespace App\Exceptions;
 
 use Illuminate\Validation\ValidationException;
 
-/** The shift still holds unhanded kitchen items or unpaid bills (REQ-003 AC-12); `$blockers` is the list to show. */
+/** The shift still holds unhanded items, unpaid bills (REQ-003 AC-12) or partly paid splits (#396): `$blockers` lists them. */
 class ShiftCloseBlockedException extends ValidationException
 {
     public const MESSAGE = 'Shift tidak bisa ditutup: masih ada item belum diserahkan atau tagihan belum lunas.';
