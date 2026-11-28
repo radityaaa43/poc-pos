@@ -1228,7 +1228,7 @@
         "orderName": {
             "label": "Order name",
             "placeholder": "Name / buzzer number (optional)",
-            "limit": "20 characters maximum"
+            "limit": "Max 20 characters"
         }
     },
     "outlets": {

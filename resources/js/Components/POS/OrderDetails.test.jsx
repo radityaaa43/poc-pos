@@ -57,6 +57,6 @@ describe("OrderDetails", () => {
         const input = screen.getByLabelText("Order name");
         expect(input).toHaveAttribute("placeholder", "Name / buzzer number (optional)");
         await userEvent.type(input, "a".repeat(20));
-        expect(screen.getByText("20 characters maximum")).toBeInTheDocument();
+        expect(screen.getByText("Max 20 characters")).toBeInTheDocument();
     });
 });
