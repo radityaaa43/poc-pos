@@ -690,11 +690,9 @@ class SalesReturnController extends Controller
 
     /**
      * Locks the sale a return is completed against, so the return and a payment of that sale are serialised: the second
-     * one waits, and the settlement is worked out on the locked sale and receivable. The returned-quantity check is still a
-     * plain read (an older MySQL snapshot), so two returns of one sale completed together can both pass it: that older race
-     * is not closed here. Call it after cancelForReturn (kitchen and dine-order locks) and before any
-     * stock row: dine order, receivable, sale is the order of pay(), the payment webhook and the receivable payments, and
-     * sale before stock is that of transactions:expire.
+     * one waits and reads what the first did. Call it after cancelForReturn (kitchen and dine-order locks) and before any
+     * stock row. pay() takes the dine order, then the sale (a dine bill has no receivable); the payment webhook and the
+     * receivable payments take a receivable before its sale; transactions:expire takes the sale before stock.
      */
     protected function lockSaleForReturn(SalesReturn $salesReturn): void
     {
