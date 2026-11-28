@@ -115,6 +115,28 @@ class PaymentRetryTest extends TestCase
         $this->assertSame(1, $sale->fresh()->payment_attempt);
     }
 
+    public function test_a_pay_later_sale_retried_in_cash_after_its_shift_was_force_closed_is_marked_paid_after_close(): void
+    {
+        $sale = $this->makeSale('midtrans', ['is_pay_later' => true]);
+        $closed = app(CashierShiftService::class)->closeShift($this->shift, $this->cashier, 0, 'Tutup paksa', forceClose: true);
+        $recap = $closed->only(['expected_cash', 'cash_sales_total', 'non_cash_sales_total', 'transactions_count']);
+        $next = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
+            ->assertSessionHasNoErrors();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame($next->id, $sale->cashier_shift_id);
+        $this->assertNotNull($sale->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closed->id, 'retry', 20000], [$log->meta['shift_id'], $log->meta['source'], $log->meta['amount']]);
+        // BR-3: the closed recap is a stored snapshot and does not move; the money is in the shift that takes it.
+        $this->assertSame($recap, CashierShift::findOrFail($closed->id)->only(array_keys($recap)));
+        $this->assertSame(20000, (int) app(CashierShiftService::class)->calculateSummary($next)['cash_sales_total']);
+    }
+
     public function test_dine_open_bill_is_not_retried_here(): void
     {
         $sale = $this->makeSale('qris');
