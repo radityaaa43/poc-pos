@@ -109,6 +109,8 @@ class DineOrderService
             foreach ($order->items as $item) {
                 $product = $item->product;
                 $lineTotal = (int) $item->price * (int) $item->qty;
+                // The sale column is 100 wide: an order pending from before the submit cap could still carry more.
+                $note = $item->getAttribute('note');
 
                 // A line written before this ticket (or before its menu had groups) carries no options: accept writes none.
                 $itemOptionIds = $item->getAttribute('modifier_option_ids');
@@ -137,7 +139,7 @@ class DineOrderService
                     'discount_total' => 0,
                     'cost_total' => $costTotal,
                     'needs_preparation' => $product->needs_preparation, // the bill is paid later: freeze the flag at accept
-                    'note' => $item->getAttribute('note'),
+                    'note' => $note === null ? null : mb_substr($note, 0, 100),
                     'modifier_total' => $modifierTotal,
                 ]);
 

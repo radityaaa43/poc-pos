@@ -9,6 +9,7 @@ use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
 use App\Models\KitchenStation;
+use App\Models\ModifierGroup;
 use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\Transaction;
@@ -252,6 +253,32 @@ class KitchenIntakeTest extends TestCase
         $this->payAtCounter($order->fresh());
 
         $this->assertSame('tanpa cabai', KitchenItem::sole()->note);
+    }
+
+    public function test_each_dine_line_keeps_its_own_note_in_the_kitchen(): void
+    {
+        // Two lines of one menu that differ by option: the first has a note, the second none. A new order's line
+        // must not inherit the other line's note; only a pre-deploy order falls back to the dine item's note.
+        $rujak = $this->product('Rujak', flagged: true);
+        $group = ModifierGroup::create(['name' => 'Size', 'is_required' => true, 'min_select' => 1, 'max_select' => 1]);
+        $regular = $group->options()->create(['name' => 'Regular', 'price_delta' => 0, 'is_default' => true, 'sort' => 0]);
+        $large = $group->options()->create(['name' => 'Large', 'price_delta' => 0, 'is_default' => false, 'sort' => 1]);
+        $rujak->modifierGroups()->attach($group->id, ['sort' => $group->id]);
+
+        $table = DiningTable::create(['name' => 'Meja 10', 'is_active' => true, 'capacity' => 4, 'sort_order' => 0]);
+        $this->post(route('dine-order.store', $table->token), [
+            'items' => [
+                ['product_id' => $rujak->id, 'qty' => 1, 'note' => 'tanpa cabai', 'modifier_option_ids' => [$large->id]],
+                ['product_id' => $rujak->id, 'qty' => 1, 'modifier_option_ids' => [$regular->id]],
+            ],
+            'payment_option' => 'pay_at_counter',
+        ])->assertSessionHasNoErrors();
+        $order = DineOrder::firstOrFail();
+        $this->actingAs($this->cashier)->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        $this->payAtCounter($order->fresh());
+
+        $this->assertSame(['tanpa cabai', null], KitchenItem::orderBy('id')->pluck('note')->all());
     }
 
     public function test_pos_line_has_no_kitchen_note(): void

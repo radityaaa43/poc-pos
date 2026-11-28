@@ -150,6 +150,21 @@ describe("dine orders queue", () => {
         vi.unstubAllGlobals();
     });
 
+    it.each([
+        ["modifiers", "Opsi Large untuk Kopi tidak tersedia lagi."],
+        ["stock", "Stok Kopi tidak mencukupi (tersedia: 0)."],
+    ])("shows the server's %s refusal when Terima is pressed", async (key, refusal) => {
+        router.post.mockImplementationOnce((url, data, options) => options.onError({ [key]: refusal }));
+        vi.stubGlobal("confirm", () => true);
+        toast.error.mockClear();
+        render(<Index orders={orders} />);
+
+        await userEvent.click(screen.getByRole("button", { name: "Terima" }));
+
+        expect(toast.error).toHaveBeenCalledWith(refusal);
+        vi.unstubAllGlobals();
+    });
+
     it.each(["Terima", "Tolak"])("says an order was already processed when %s is pressed on it", async (button) => {
         const refusal = "Pesanan ini sudah diproses.";
         router.post.mockImplementationOnce((url, data, options) => options.onError({ order: refusal }));

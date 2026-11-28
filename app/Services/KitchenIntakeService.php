@@ -121,19 +121,20 @@ class KitchenIntakeService
                     continue;
                 }
 
-                // The line's own note: the detail is the single source (POS checkout and dine accept both write it),
-                // so two lines of one menu that differ by options never trade notes. Older dine sales fall back below.
-                $note = $detail->note;
-                if ($note === null) {
-                    // shortcut: pre-deploy dine sales carry the note only on the dine item; drop this fallback when none are in flight
-                    foreach ($dineItems as $i => $item) {
-                        if ($item->product_id == $detail->product_id && $item->unit_id == $detail->unit_id) {
-                            $note = $item->note;
-                            unset($dineItems[$i]);
-                            break;
-                        }
+                // The line's own note is the single source (POS checkout and dine accept both write it), so two lines
+                // of one menu never trade notes. The dine item is matched and consumed for every line, keeping the two
+                // lists aligned; the fallback to its note is only for pre-deploy dine sales, which carry no modifier data.
+                $matched = null;
+                // shortcut: pre-deploy dine sales carry the note only on the dine item; drop this fallback when none are in flight
+                foreach ($dineItems as $i => $item) {
+                    if ($item->product_id == $detail->product_id && $item->unit_id == $detail->unit_id) {
+                        $matched = $item;
+                        unset($dineItems[$i]);
+                        break;
                     }
                 }
+                $legacyLine = $matched !== null && $matched->modifier_option_ids === null && $matched->modifier_snapshot === null;
+                $note = $detail->note ?? ($legacyLine ? $matched->note : null);
 
                 KitchenItem::createOrFirst(['transaction_detail_id' => $detail->id], [
                     'transaction_id' => $transaction->id,

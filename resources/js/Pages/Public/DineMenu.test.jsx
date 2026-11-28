@@ -235,6 +235,26 @@ describe("DineMenu modifiers (REQ-008 J3)", () => {
         );
     });
 
+    it("adds a second option set from the card's + instead of repeating the last line", async () => {
+        const { user, panel } = await openPanel();
+        await user.click(within(panel).getByRole("radio", { name: /Large/ }));
+        await user.click(within(panel).getByRole("button", { name: "Tambah ke pesanan" }));
+
+        // The card now shows a stepper; its + starts another line, so the panel opens again for the second option set.
+        const card = within(screen.getByRole("main")).getByText("Kopi").closest(".bg-white");
+        const buttons = within(card).getAllByRole("button");
+        await user.click(buttons[buttons.length - 1]);
+        const second = screen.getByRole("dialog", { name: "Kopi" });
+        await user.click(within(second).getByRole("radio", { name: /Regular/ }));
+        await user.click(within(second).getByRole("button", { name: "Tambah ke pesanan" }));
+
+        await user.click(screen.getByText("Pesan — Bayar di Kasir"));
+        expect(router.post.mock.calls[0][1].items).toEqual([
+            expect.objectContaining({ modifier_option_ids: [12] }),
+            expect.objectContaining({ modifier_option_ids: [11] }),
+        ]);
+    });
+
     it("keeps the guest's cart when the server refuses an option", async () => {
         const refusal = "Opsi Large untuk Kopi tidak tersedia lagi.";
         router.post.mockImplementation((url, data, opts) => opts.onError({ modifiers: refusal }));

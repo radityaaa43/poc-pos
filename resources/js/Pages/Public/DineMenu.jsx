@@ -53,14 +53,6 @@ export default function DineMenu({ table, categories, products, modifierGroups =
         addLine(product, [], "");
     };
 
-    // A stepper tap repeats the last line of that menu (same options and note), never reopens the panel.
-    const increaseProduct = (productId) => setCart((prev) => {
-        const line = [...prev].reverse().find((each) => each.product_id === productId);
-        if (!line) return [...prev, { key: lineKey(productId, [], ""), product_id: productId, qty: 1, modifier_option_ids: [], note: "" }];
-
-        return prev.map((each) => (each.key === line.key ? { ...each, qty: each.qty + 1 } : each));
-    });
-
     const decreaseProduct = (productId) => setCart((prev) => {
         const line = [...prev].reverse().find((each) => each.product_id === productId);
         if (!line) return prev;
@@ -231,7 +223,7 @@ export default function DineMenu({ table, categories, products, modifierGroups =
                                                     </button>
                                                     <span className="flex-1 text-center font-semibold text-sm">{qty}</span>
                                                     <button
-                                                        onClick={() => increaseProduct(product.id)}
+                                                        onClick={() => addItem(product)}
                                                         className="p-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors"
                                                     >
                                                         <IconPlus size={14} />

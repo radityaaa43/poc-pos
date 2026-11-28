@@ -61,7 +61,7 @@ export default function Index({ orders }) {
             {
                 onSuccess: () => toast.success("Pesanan diterima."),
                 // An add-on to a cancelled order (#251) and an order already processed (#438) are refused with their own message.
-                onError: (errors) => toast.error(errors?.add_on_to ?? errors?.order ?? "Gagal menerima pesanan."),
+                onError: (errors) => toast.error(errors?.add_on_to ?? errors?.order ?? errors?.modifiers ?? errors?.stock ?? "Gagal menerima pesanan."),
             }
         );
     };

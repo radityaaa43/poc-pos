@@ -40,7 +40,7 @@ class DineOrderController extends Controller
             'items.*.product_id' => ['required', 'exists:products,id'],
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.unit_id' => ['nullable', 'exists:units,id'],
-            'items.*.note' => ['nullable', 'string', 'max:255'],
+            'items.*.note' => ['nullable', 'string', 'max:100'],
             'items.*.modifier_option_ids' => ['nullable', 'array', 'max:50'],
             'items.*.modifier_option_ids.*' => ['integer'],
             'notes' => ['nullable', 'string', 'max:500'],
