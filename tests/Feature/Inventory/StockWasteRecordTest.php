@@ -327,6 +327,15 @@ class StockWasteRecordTest extends TestCase
         $this->assertDatabaseCount('stock_wastes', 0);
     }
 
+    public function test_an_unfilled_form_says_what_is_missing(): void
+    {
+        $this->record([[$this->beans, 1]], ['reason' => '', 'lines' => [['product_id' => '', 'qty' => '']]])->assertSessionHasErrors([
+            'reason' => __('messages.waste.reason_required'),
+            'lines.0.product_id' => __('messages.waste.item_required'),
+            'lines.0.qty' => __('messages.waste.qty_invalid'),
+        ]);
+    }
+
     public function test_an_inactive_warehouse_is_refused(): void
     {
         $this->warehouse->update(['is_active' => false]);

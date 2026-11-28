@@ -433,6 +433,9 @@ return [
     ],
 
     'waste' => [
+        'reason_required' => 'Pilih alasan.',
+        'item_required' => 'Pilih bahan baku atau menu.',
+        'qty_invalid' => 'Jumlah harus angka bulat dari 1 sampai 1.000.000.',
         'recorded' => 'Waste tercatat dan stok sudah dipotong.',
         'pending' => 'Waste menunggu persetujuan. Stok belum berubah.',
         'item_not_allowed' => 'Hanya bahan baku dan menu resep yang bisa dicatat sebagai waste. ":item" bukan keduanya.',

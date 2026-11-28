@@ -433,6 +433,9 @@ return [
     ],
 
     'waste' => [
+        'reason_required' => 'Choose a reason.',
+        'item_required' => 'Choose a raw material or menu.',
+        'qty_invalid' => 'The quantity must be a whole number from 1 to 1,000,000.',
         'recorded' => 'Waste recorded and the stock was taken.',
         'pending' => 'The waste is pending approval. The stock is unchanged.',
         'item_not_allowed' => 'Only raw materials and recipe menus can be recorded as waste. ":item" is neither.',

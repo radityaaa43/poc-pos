@@ -26,4 +26,14 @@ class StoreStockWasteRequest extends FormRequest
             'lines.*.qty' => ['required', 'integer', 'min:1', 'max:1000000'],
         ];
     }
+
+    /** The refusals a user can reach from the form, in their language: the app ships no Indonesian validation file. */
+    public function messages(): array
+    {
+        return [
+            'reason.required' => __('messages.waste.reason_required'),
+            'lines.*.product_id.required' => __('messages.waste.item_required'),
+            'lines.*.qty' => __('messages.waste.qty_invalid'),
+        ];
+    }
 }
