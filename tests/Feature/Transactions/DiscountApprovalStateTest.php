@@ -258,4 +258,17 @@ class DiscountApprovalStateTest extends TestCase
         $this->assertFalse($transaction->wasRestocked());
         $this->assertSame(CashierShift::STATUS_CLOSED, $shift->fresh()->status);
     }
+
+    // TC-1 / TC-3: only a waiting sale takes its method's status; any other state is kept.
+    public function test_approving_a_failed_gateway_sale_keeps_it_failed(): void
+    {
+        $transaction = $this->makeTransaction(['payment_method' => 'qris', 'payment_status' => 'failed']);
+
+        $this->from(route('dashboard.access'))
+            ->post(route('discount-approvals.approve', $transaction))
+            ->assertSessionHas('success');
+
+        $transaction->refresh();
+        $this->assertSame(['approved', 'failed'], [$transaction->discount_approval_status, $transaction->payment_status]);
+    }
 }
