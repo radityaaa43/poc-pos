@@ -135,6 +135,8 @@ function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
     if (ticket.reprint) wrapLines(printable(labels.reprint), Math.floor(width / 2)).forEach(write);
     wrapLines(printable(ticket.number), Math.floor(width / 2)).forEach(write);
     if (ticket.kind === "addon") wrapLines(printable(labels.addon), Math.floor(width / 2)).forEach(write);
+    // A device that serves some of several stations titles its ticket with the station name (#345).
+    if (ticket.station) wrapLines(printable(ticket.station), Math.floor(width / 2)).forEach(write);
     bytes.push(GS, 0x21, 0x00);
 
     const type = printable(labels.type);
