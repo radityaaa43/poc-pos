@@ -7,7 +7,6 @@ use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
 use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
-use App\Models\ProductWarehouse;
 use App\Models\Profit;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
@@ -19,7 +18,7 @@ use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
-use App\Services\StockMutationService;
+use App\Services\SalesReturnRestockService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
@@ -35,7 +34,6 @@ use Inertia\Response;
 class SalesReturnController extends Controller
 {
     public function __construct(
-        protected readonly StockMutationService $stockMutationService,
         protected readonly CashierShiftService $cashierShiftService,
         protected readonly AuditLogService $auditLogService,
         protected readonly OutletAccessService $outletAccessService
@@ -251,42 +249,10 @@ class SalesReturnController extends Controller
                 }
             }
 
+            app(SalesReturnRestockService::class)->restock($salesReturn, $request->user()?->id);
+
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
-
-                // Stock effect is in base units: selling qty x conversion factor.
-                $baseQty = (int) round((int) $item->qty_return * (float) ($detail->conversion_factor ?? 1));
-
-                if ($item->restock_to_inventory && $item->product) {
-                    $product = $item->product()->lockForUpdate()->first();
-
-                    if ($product) {
-                        $stockBefore = (int) $product->stock;
-                        $stockAfter = $stockBefore + $baseQty;
-
-                        $product->update([
-                            'stock' => $stockAfter,
-                        ]);
-
-                        // Restock to transaction warehouse
-                        $transactionWarehouseId = $salesReturn->transaction->warehouse_id;
-                        if ($transactionWarehouseId) {
-                            ProductWarehouse::where([
-                                'product_id' => $product->id,
-                                'warehouse_id' => $transactionWarehouseId,
-                            ])->increment('stock', $baseQty);
-                        }
-
-                        $this->stockMutationService->recordSalesReturnRestock(
-                            product: $product,
-                            salesReturn: $salesReturn,
-                            stockBefore: $stockBefore,
-                            stockAfter: $stockAfter,
-                            reason: $item->return_reason,
-                            userId: $request->user()?->id,
-                        );
-                    }
-                }
 
                 // Reverse margin proportionally: (unit sell - unit cost) x returned qty.
                 $margin = $detail->returnMargin((int) $item->qty_return);

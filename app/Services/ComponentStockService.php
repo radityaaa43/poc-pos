@@ -6,6 +6,8 @@ use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /** Stock taken by composite and option recipes (REQ-008 BR-3). Call inside the sale's DB::transaction. */
@@ -23,6 +25,19 @@ class ComponentStockService
         foreach (collect($productIds)->unique()->sort() as $productId) {
             ProductWarehouse::where(['product_id' => $productId, 'warehouse_id' => $warehouseId])->lockForUpdate()->first();
         }
+    }
+
+    /**
+     * Before a restock writes: locks the warehouse rows then the products (checkout's order, by product id), so
+     * each mutation records the before and after the restock really made.
+     */
+    public function lockRows(Collection $productIds, ?int $warehouseId): void
+    {
+        $ids = $productIds->filter()->unique()->sort()->values();
+
+        DB::table('product_warehouse')->where('warehouse_id', $warehouseId)->whereIn('product_id', $ids)
+            ->orderBy('product_id')->lockForUpdate()->get();
+        DB::table('products')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
     }
 
     /** @param  iterable<Product>  $components  each with pivot->qty per portion; takes $qty units' worth or refuses */

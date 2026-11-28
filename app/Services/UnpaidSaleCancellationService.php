@@ -80,20 +80,11 @@ class UnpaidSaleCancellationService
         ]);
     }
 
-    /**
-     * Locks the stock rows the restock writes (warehouse rows then products, checkout's order, by product id), so
-     * each mutation records the before and after this restock really made.
-     */
     private function lockStockRows(Transaction $sale): void
     {
-        $ids = $sale->details
+        $this->componentStock->lockRows($sale->details
             ->flatMap(fn ($detail) => [$detail->product_id, ...($detail->product ? $detail->product->components->modelKeys() : [])])
-            ->merge($sale->details->flatMap->modifiers->flatMap->components->pluck('product_id'))
-            ->unique()->sort()->values();
-
-        DB::table('product_warehouse')->where('warehouse_id', $sale->warehouse_id)->whereIn('product_id', $ids)
-            ->orderBy('product_id')->lockForUpdate()->get();
-        DB::table('products')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
+            ->merge($sale->details->flatMap->modifiers->flatMap->components->pluck('product_id')), $sale->warehouse_id);
     }
 
     private function restock($product, ?int $warehouseId, int $qty): void

@@ -1,7 +1,7 @@
 # Modifier (REQ-008)
 
 Pilihan per menu (Size, Level gula, Topping) tanpa satu produk per variasi: **pengaturan** (J1) dan penjualan
-online di POS (J2); retur stok opsi, QR menu, dapur dan laporan menyusul. Menu tanpa grup terjual seperti sebelumnya.
+online di POS (J2); QR menu, dapur dan laporan menyusul. Menu tanpa grup terjual seperti sebelumnya.
 
 - **Settings → Modifier** (`/dashboard/settings/modifiers`, `modifiers-manage`): tambah, ubah, hapus grup.
 - **Grup**: wajib atau opsional. Ditolak: minimum > maksimum, maksimum di luar 1–50, grup wajib dengan minimum 0,
@@ -36,8 +36,16 @@ grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `c
   satuan non-dasar tidak), bundle dan "gratis" beli X gratis Y hanya mengenai harga menu.
 - Checkout menyimpan nama, harga dan resep opsi (`transaction_detail_modifiers`), `note` dan `modifier_total`; struk
   membaca salinan ini. Bahan opsi diambil satu transaksi dengan stok menu (`ComponentStockService`, urut `product_id`).
-- Bahan opsi kembali saat pembayaran kedaluwarsa atau tutup shift, **belum** saat retur. Baris beropsi tak bisa
-  diantre offline; baris tanpa pilihan (API mobile, sinkron offline) hanya diperiksa BR-6.
+- Bahan opsi kembali saat pembayaran kedaluwarsa, tutup shift atau retur. Baris beropsi tak bisa diantre offline;
+  baris tanpa pilihan (API mobile, sinkron offline) hanya diperiksa BR-6.
+
+## Retur
+
+- Retur per baris beserta opsinya; opsi saja tidak bisa diretur. Qty boleh sebagian, uangnya bagian dari total baris.
+- Bila **Restock** dicentang, bahan opsi kembali sebanyak qty retur dari resep yang disimpan saat penjualan, bukan
+  resep sekarang, ke gudang penjualan (`SalesReturnRestockService`, mutasi `sales_return`). Bahan yang sudah dihapus
+  dilewati. Tanpa centang, stok menu dan opsi tidak kembali.
+- Halaman retur (dan API retur) menampilkan opsi dan catatan tiap baris dari salinan penjualan.
 
 ## Deploy
 
