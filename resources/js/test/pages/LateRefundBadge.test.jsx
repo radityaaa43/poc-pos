@@ -38,5 +38,8 @@ describe("LateRefundBadge", () => {
         );
 
         expect(screen.getByRole("status")).toHaveTextContent(/Kelebihan bayar Rp\s*5\.000 setelah retur — refund manual\./);
+        // That payment was booked: saying otherwise could make a cashier refund all of it.
+        expect(screen.getByRole("status")).toHaveTextContent("Perlu refund manual — cek riwayat pembayaran");
+        expect(screen.getByRole("status")).not.toHaveTextContent("tidak dibukukan");
     });
 });

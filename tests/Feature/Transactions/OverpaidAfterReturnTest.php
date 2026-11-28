@@ -129,6 +129,23 @@ class OverpaidAfterReturnTest extends TestCase
         $this->assertSame([5000, 15000], [$recap['cash_sales_total'], $recap['non_cash_sales_total']]);
     }
 
+    /** 10000 too much, only 5000 of it by transfer: the other 5000 is cash in the drawer. */
+    public function test_a_split_excess_above_its_transfer_comes_off_the_cash(): void
+    {
+        $order = $this->acceptedOrder();
+        $this->payAtCounter($order, [
+            ['method' => 'cash', 'amount' => 20000, 'cash_received' => 20000],
+            ['method' => 'bank_transfer', 'amount' => 5000, 'bank_account_id' => $this->bankAccount()->id],
+        ]);
+        $this->returnFromBill($this->bill($order), $this->flagged);
+
+        $this->confirmOnTheWeb($this->bill($order));
+
+        $this->assertFlagged($this->bill($order), 10000);
+        $recap = $this->recap($order);
+        $this->assertSame([15000, 0, 115000], [$recap['cash_sales_total'], $recap['non_cash_sales_total'], $recap['expected_cash']]);
+    }
+
     /** A checkout transfer is no open bill: the recap counts its total, so the excess has to come off it. */
     public function test_a_checkout_transfer_confirmed_after_a_return_is_flagged_and_not_counted_in_full(): void
     {
