@@ -169,7 +169,7 @@ export default function Index({
                     handleAddToCart(product);
                     toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
-                    toast.error(`${product.title} stok habis`);
+                    toast.error(`${product.title} ${i18n.t("common.soldOut")}`);
                 }
             } else {
                 toast.error(`Produk tidak ditemukan: ${barcode}`);

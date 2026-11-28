@@ -214,6 +214,45 @@ class Product extends Model
             ->min();
     }
 
+    /**
+     * Portions a menu can make from one outlet's active warehouses: a plain product's stock there, or a recipe menu's
+     * from its ingredients. The single rule the QR menu and the QR order submit both use.
+     */
+    public function stockAtOutlet(?Outlet $outlet): int
+    {
+        if (! $outlet) {
+            return $this->compositeStock();
+        }
+
+        if (! $this->is_composite) {
+            return $this->outletStock($this, $outlet);
+        }
+
+        $components = $this->components;
+        if ($components->isEmpty()) {
+            return 0;
+        }
+
+        return (int) $components
+            ->map(fn (Product $c) => (int) floor($this->outletStock($c, $outlet) / max(1, (float) $c->pivot->qty)))
+            ->min();
+    }
+
+    /** Stock in one outlet's active warehouses, summed in memory when the warehouses are eager loaded (QR menu). */
+    private function outletStock(Product $product, Outlet $outlet): int
+    {
+        if ($product->relationLoaded('warehouses')) {
+            return (int) $product->warehouses
+                ->filter(fn ($warehouse) => (int) data_get($warehouse, 'outlet_id') === $outlet->id && data_get($warehouse, 'is_active'))
+                ->sum(fn ($warehouse) => (int) data_get($warehouse, 'pivot.stock', 0));
+        }
+
+        return (int) $product->warehouses()
+            ->where('outlet_id', $outlet->id)
+            ->where('warehouses.is_active', true)
+            ->sum('product_warehouse.stock');
+    }
+
     private function pivotStockIn(?int $warehouseId): int
     {
         if (! $warehouseId) {

@@ -110,7 +110,7 @@ class TransactionController extends Controller
             ->forPos($warehouseId)
             ->orderBy('title')
             ->get()
-            ->filter(fn (Product $product) => $product->stockIn($warehouseId) > 0)
+            ->filter(fn (Product $product) => $product->is_composite || $product->stockIn($warehouseId) > 0)
             ->values();
         $pricingBadges = $this->pricingService->previewProducts($products, null, null, $outlet);
         $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId) {
@@ -118,7 +118,7 @@ class TransactionController extends Controller
 
             return [
                 ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
-                'stock' => $product->stockIn($warehouseId),
+                'stock' => ($stock = $product->stockIn($warehouseId)), 'sold_out' => $product->is_composite && $stock < 1,
                 'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
                 'units' => $product->units->map(fn ($u) => [
                     'unit_id' => $u->id,
