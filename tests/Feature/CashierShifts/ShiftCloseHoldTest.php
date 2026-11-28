@@ -548,8 +548,9 @@ class ShiftCloseHoldTest extends TestCase
         $split->refresh();
         $this->assertSame('paid', $split->payment_status);
         $this->assertNotNull($split->paid_after_close_at);
-        // The late money is the transfer, not the 20000 sale (#531 BR-1).
+        // The late money is the transfer, not the 20000 sale (#531 BR-1), and confirming it stamps the tender paid.
         $this->assertSame(15000, $split->paid_after_close_amount);
+        $this->assertNotNull($split->tenders()->where('method', 'bank_transfer')->sole()->paid_at);
         $this->assertSame($this->shift->id, $split->cashier_shift_id);
         $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
         $this->assertSame([$this->shift->id, 15000], [$meta['shift_id'], $meta['amount']]);
