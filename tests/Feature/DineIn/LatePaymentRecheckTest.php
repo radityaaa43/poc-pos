@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\KitchenItem;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
+use App\Services\DineOrderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\DB;
@@ -144,7 +145,8 @@ class LatePaymentRecheckTest extends TestCase
             'return_type' => 'refund_cash', 'refund_amount' => 5000, 'credited_amount' => 0, 'total_return_amount' => 5000,
             'completed_at' => now(),
         ]);
-        $this->cashierPays($bill->dineOrder()->sole(), 'qris');
+        // The counter now collects only what is owed (#405).
+        app(DineOrderService::class)->pay($bill->dineOrder()->sole(), $this->cashier, [['method' => 'qris', 'amount' => 20000]]);
 
         $this->notify('midtrans', "{$bill->invoice}-r3", 'expired')->assertOk();
 
