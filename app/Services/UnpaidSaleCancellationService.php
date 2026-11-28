@@ -2,12 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Product;
 use App\Models\Transaction;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * The one way an unpaid sale is cancelled: stock goes back and the sale is marked failed.
- * Used by `transactions:expire` and by the shift close (REQ-003 AC-20).
+ * Used by `transactions:expire` and by the shift close (REQ-003 AC-20). Sales returns restock through
+ * `lockStockRows` and `restock` (SalesReturnRestockService), so recipes go back the same way (#486).
  */
 class UnpaidSaleCancellationService
 {
@@ -19,7 +22,7 @@ class UnpaidSaleCancellationService
     public function cancel(Transaction $sale, string $mutationNote, string $saleNote): void
     {
         $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
-        $this->lockStockRows($sale);
+        $this->lockStockRows($sale->details, $sale->warehouse_id);
 
         foreach ($sale->details as $detail) {
             $product = $detail->product;
@@ -63,29 +66,36 @@ class UnpaidSaleCancellationService
     }
 
     /**
-     * Locks the stock rows the restock writes (warehouse rows then products, checkout's order, by product id), so
-     * each mutation records the before and after this restock really made.
+     * Locks the stock rows a restock of these sale or return lines writes (warehouse rows then products, checkout's
+     * order, by product id), so each mutation records the before and after the restock really made.
      */
-    private function lockStockRows(Transaction $sale): void
+    public function lockStockRows(Collection $lines, ?int $warehouseId): void
     {
-        $ids = $sale->details
-            ->flatMap(fn ($detail) => [$detail->product_id, ...($detail->product ? $detail->product->components->modelKeys() : [])])
+        $ids = $lines
+            ->flatMap(fn ($line) => [$line->product_id, ...($line->product ? $line->product->components->modelKeys() : [])])
             ->unique()->sort()->values();
 
-        DB::table('product_warehouse')->where('warehouse_id', $sale->warehouse_id)->whereIn('product_id', $ids)
+        DB::table('product_warehouse')->where('warehouse_id', $warehouseId)->whereIn('product_id', $ids)
             ->orderBy('product_id')->lockForUpdate()->get();
         DB::table('products')->whereIn('id', $ids)->orderBy('id')->lockForUpdate()->get();
     }
 
-    private function restock($product, ?int $warehouseId, int $qty): void
+    /**
+     * Adds `$qty` base units back to both stock tables; a recipe gets its components back instead. Lock the rows first.
+     *
+     * @return list<array{product: Product, qty: int}> the products whose stock moved
+     */
+    public function restock($product, ?int $warehouseId, int $qty): array
     {
         if ($product->is_composite) {
+            $moved = [];
+
             foreach ($product->components as $component) {
                 $componentQty = (int) round((float) $component->pivot->qty * $qty);
-                $this->restock($component, $warehouseId, $componentQty);
+                array_push($moved, ...$this->restock($component, $warehouseId, $componentQty));
             }
 
-            return;
+            return $moved;
         }
 
         if ($warehouseId) {
@@ -96,6 +106,8 @@ class UnpaidSaleCancellationService
         }
 
         $product->increment('stock', $qty);
+
+        return [['product' => $product, 'qty' => $qty]];
     }
 
     // ponytail: re-reads stock per detail; fine for an hourly batch of few rows
