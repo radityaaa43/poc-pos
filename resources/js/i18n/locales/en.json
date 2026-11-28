@@ -310,7 +310,8 @@
             "units": "Units",
             "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp",
-            "modifiers": "Modifier"
+            "modifiers": "Modifier",
+            "dineReservations": "Reservations"
         },
         "menu": {
             "overview": "Overview",
@@ -1229,6 +1230,29 @@
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Let the POS of this outlet sell now and collect payment later."
+        },
+        "bill": {
+            "title": "Bill",
+            "appliesToNew": "Applies to new bills only; bills already made do not change.",
+            "serviceCharge": {
+                "label": "Service charge (%)",
+                "hint": "0 = off"
+            },
+            "taxKind": {
+                "label": "Tax type",
+                "ppn": "PPN",
+                "ppnHint": "PPN per product",
+                "pb1": "PB1",
+                "pb1Hint": "One rate for the whole bill"
+            },
+            "pb1Rate": {
+                "label": "PB1 rate (%)",
+                "hint": "Used when the tax type is PB1."
+            },
+            "rounding": {
+                "label": "Cash rounding",
+                "none": "None"
+            }
         }
     },
     "dineMenu": {
@@ -1325,5 +1349,38 @@
         "moveUp": "Move {{name}} up",
         "moveDown": "Move {{name}} down",
         "detach": "Detach {{name}}"
+    },
+    "dineReservations": {
+        "title": "Reservations",
+        "add": "Add reservation",
+        "edit": "Edit",
+        "editTitle": "Edit reservation",
+        "date": "Date",
+        "time": "Time",
+        "guestName": "Guest name",
+        "phone": "Phone number",
+        "partySize": "Guests",
+        "table": "Table",
+        "chooseTable": "Choose a table",
+        "removedTable": "Table removed",
+        "note": "Note",
+        "status": "Status",
+        "empty": "No reservations on this date",
+        "statuses": {
+            "booked": "Booked",
+            "arrived": "Arrived",
+            "cancelled": "Cancelled",
+            "no_show": "No-show"
+        },
+        "actions": {
+            "arrived": "Arrived",
+            "cancelled": "Cancel",
+            "no_show": "No-show"
+        },
+        "markTitle": "Mark {{name}}'s reservation as {{status}}?",
+        "markConfirm": "A mark cannot be changed afterwards.",
+        "saved": "Reservation saved",
+        "marked": "Reservation status changed",
+        "failed": "The reservation could not be saved"
     }
 }

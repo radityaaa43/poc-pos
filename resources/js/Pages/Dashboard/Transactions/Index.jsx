@@ -21,6 +21,7 @@ import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
+import usePosShortcuts from "@/Hooks/usePosShortcuts";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -612,50 +613,45 @@ export default function Index({
     }, [flushPendingTransactions]);
 
     // Keyboard shortcuts
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            // Don't trigger if user is typing in an input
-            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
-                return;
+    usePosShortcuts((e) => {
+        // Don't trigger if user is typing in an input
+        if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")
+            return;
 
-            switch (e.key) {
-                case "/":
-                case "F5":
-                    e.preventDefault();
-                    // Focus search input
-                    if (searchInputRef.current) {
-                        searchInputRef.current.focus();
-                    }
-                    break;
-                case "F1":
-                    e.preventDefault();
-                    setNumpadOpen(true);
-                    break;
-                case "F2":
-                    e.preventDefault();
-                    if (carts.length > 0) handleSubmitTransaction();
-                    break;
-                case "F3":
-                    e.preventDefault();
-                    setMobileView(
-                        mobileView === "products" ? "cart" : "products"
-                    );
-                    break;
-                case "F4":
-                    e.preventDefault();
-                    setShowShortcuts(!showShortcuts);
-                    break;
-                case "Escape":
-                    setNumpadOpen(false);
-                    setShowShortcuts(false);
-                    setSearchQuery("");
-                    break;
-            }
-        };
-
-        window.addEventListener("keydown", handleKeyDown);
-        return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [carts, selectedCustomer, mobileView, showShortcuts]);
+        switch (e.key) {
+            case "/":
+            case "F5":
+                e.preventDefault();
+                // Focus search input
+                if (searchInputRef.current) {
+                    searchInputRef.current.focus();
+                }
+                break;
+            case "F1":
+                e.preventDefault();
+                setNumpadOpen(true);
+                break;
+            case "F2":
+                e.preventDefault();
+                if (carts.length > 0 && !isSubmitting && !isLoadingPricing) handleSubmitTransaction();
+                break;
+            case "F3":
+                e.preventDefault();
+                setMobileView(
+                    mobileView === "products" ? "cart" : "products"
+                );
+                break;
+            case "F4":
+                e.preventDefault();
+                setShowShortcuts(!showShortcuts);
+                break;
+            case "Escape":
+                setNumpadOpen(false);
+                setShowShortcuts(false);
+                setSearchQuery("");
+                break;
+        }
+    });
 
     // Handle remove from cart
     const handleRemoveFromCart = (cartId) => {
@@ -815,13 +811,8 @@ export default function Index({
                                   : null,
                       }))
                     : null,
-                payment_gateway: splitMode
-                    ? null
-                    : payLater
-                      ? null
-                      : isCashPayment
-                        ? null
-                        : paymentMethod,
+                payment_gateway:
+                    splitMode || payLater || isCashPayment ? null : paymentMethod,
                 bank_account_id: isBankTransfer
                     ? selectedBankAccount?.id
                     : null,
@@ -831,7 +822,10 @@ export default function Index({
                 note: orderNote || null,
             },
             {
-                onSuccess: () => {
+                onSuccess: (page) => {
+                    setIsSubmitting(false);
+                    // Only a saved sale flashes success. A refusal also lands here, and keeps the form (#473).
+                    if (!page.props.flash?.success) return;
                     setDiscountInput("");
                     setRedeemPointsInput("");
                     setCashInput("");
@@ -845,8 +839,7 @@ export default function Index({
                     setDueDate("");
                     setOrderType("in_store");
                     setOrderNote("");
-                    setIsSubmitting(false);
-                    toast.success("Transaksi berhasil!");
+                    toast.success(page.props.flash.success);
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);

@@ -44,11 +44,8 @@ class UnpaidSaleCancellationService
             }
 
             // Stock effect is in base units: selling qty x conversion factor, less what a completed return already restocked.
-            $baseQty = $detail->baseQuantity() - ($returned[$detail->id] ?? 0);
-
-            if ($baseQty <= 0) {
-                continue;
-            }
+            // Clamped at 0 (a fully returned line) and never skipped: a qty-0 mutation still writes the cancelled marker.
+            $baseQty = max(0, $detail->baseQuantity() - ($returned[$detail->id] ?? 0));
 
             $this->restock($product, $warehouseId, $baseQty);
 
@@ -81,20 +78,30 @@ class UnpaidSaleCancellationService
      */
     private function returnedBaseQtyByDetail(Transaction $sale): array
     {
+        // Two steps: lock only the completed returns first, so a return still being drafted is not locked, then their items.
+        $returnIds = DB::table('sales_returns')
+            ->where('transaction_id', $sale->id)
+            ->where('status', 'completed')
+            ->lockForUpdate()
+            ->pluck('id');
+
+        if ($returnIds->isEmpty()) {
+            return [];
+        }
+
         $rows = DB::table('sales_return_items as i')
-            ->join('sales_returns as r', 'r.id', '=', 'i.sales_return_id')
             ->join('transaction_details as d', 'd.id', '=', 'i.transaction_detail_id')
-            ->where('r.transaction_id', $sale->id)
-            ->where('r.status', 'completed')
+            ->whereIn('i.sales_return_id', $returnIds)
             ->where('i.restock_to_inventory', true)
             ->select('i.transaction_detail_id', 'i.qty_return', 'd.conversion_factor')
             ->lockForUpdate()
             ->get();
 
+        // Round each row before summing, so a fractional recipe qty never restocks one unit more than was sold.
         return $rows->groupBy('transaction_detail_id')
-            ->map(fn (Collection $items) => (int) round($items->sum(
-                fn ($row) => (int) $row->qty_return * (float) $row->conversion_factor,
-            )))
+            ->map(fn (Collection $items) => (int) $items->sum(
+                fn ($row) => (int) round((int) $row->qty_return * (float) $row->conversion_factor),
+            ))
             ->all();
     }
 

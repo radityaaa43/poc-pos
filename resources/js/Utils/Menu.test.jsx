@@ -61,6 +61,22 @@ describe("sidebar Menu", () => {
     });
 
     it.each([
+        [["dine-reservations-manage"], 1],
+        [["dine-tables-access", "dine-orders-access"], 0],
+    ])("shows the reservations entry for %j: %i entry", (perms, count) => {
+        const granted = leaves(
+            renderMenu({
+                auth: {
+                    super: false,
+                    permissions: Object.fromEntries(perms.map((p) => [p, true])),
+                },
+            }),
+        ).filter((i) => i.href === "/dine-reservations.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
+    });
+
+    it.each([
         [["products-edit"], 1],
         [["products-access"], 0],
         [["dine-orders-prepare"], 0],

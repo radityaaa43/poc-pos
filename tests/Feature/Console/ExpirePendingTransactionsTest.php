@@ -407,4 +407,17 @@ class ExpirePendingTransactionsTest extends TestCase
         ]);
         $this->assertEquals(0, $menu->fresh()->stock, 'a recipe menu holds no stock of its own');
     }
+
+    /** #504: a fully returned sale restocks nothing on expiry but must still be marked cancelled (wasRestocked). */
+    public function test_fully_returned_sale_still_marks_it_cancelled_on_expiry(): void
+    {
+        $transaction = $this->makePendingTransaction('INV-RET-FULL', now()->subHours(30));
+        $this->completedReturnedLine($transaction, qtyReturn: 2); // all 2 sold units already returned
+        $this->putBack($this->product, 2);
+
+        \Artisan::call('transactions:expire');
+
+        $this->assertTrue($transaction->fresh()->wasRestocked());
+        $this->assertEquals(2, $this->product->fresh()->stock, 'no extra restock on a fully returned sale');
+    }
 }

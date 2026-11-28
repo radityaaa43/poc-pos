@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Apps\DineAreaController;
 use App\Http\Controllers\Apps\DineOrderController;
+use App\Http\Controllers\Apps\DineReservationController;
 use App\Http\Controllers\Apps\DineTableController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,3 +28,9 @@ Route::post('/dine-orders/{dineOrder}/ready', [DineOrderController::class, 'read
 Route::post('/dine-orders/{dineOrder}/serve', [DineOrderController::class, 'serve'])->middleware('permission:dine-orders-handover')->name('dine-orders.serve');
 Route::post('/dine-orders/{dineOrder}/pay', [DineOrderController::class, 'pay'])->middleware(['permission:dine-orders-process', 'active_shift'])->name('dine-orders.pay');
 Route::post('/dine-orders/{dineOrder}/reject', [DineOrderController::class, 'reject'])->middleware('permission:dine-orders-process')->name('dine-orders.reject');
+
+// dine-in reservations
+Route::get('/dine-reservations', [DineReservationController::class, 'index'])->middleware('permission:dine-reservations-manage')->name('dine-reservations.index');
+Route::post('/dine-reservations', [DineReservationController::class, 'store'])->middleware('permission:dine-reservations-manage')->name('dine-reservations.store');
+Route::patch('/dine-reservations/{dineReservation}', [DineReservationController::class, 'update'])->middleware('permission:dine-reservations-manage')->name('dine-reservations.update');
+Route::post('/dine-reservations/{dineReservation}/mark', [DineReservationController::class, 'mark'])->middleware('permission:dine-reservations-manage')->name('dine-reservations.mark');
