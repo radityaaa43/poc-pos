@@ -61,7 +61,9 @@ describe("Waste report page", () => {
     it("says the period is empty instead of showing an empty box", () => {
         render(<Waste {...props({ items: [], reasons: [], total_value: 0 })} />);
 
-        expect(screen.getByText("Tidak ada waste pada periode ini")).toBeInTheDocument();
+        expect(
+            within(screen.getByRole("region", { name: "Waste per Item" })).getByText("Tidak ada waste pada periode ini"),
+        ).toBeInTheDocument();
         expect(screen.queryByRole("row", { name: /Kedaluwarsa/ })).not.toBeInTheDocument();
         expect(within(screen.getByRole("region", { name: "Total biaya waste" })).getByText(/Rp\s?0/)).toBeInTheDocument();
     });
@@ -93,5 +95,36 @@ describe("Waste report page", () => {
         render(<Waste {...props({ errors: { end_date: "The end date must be a date after or equal to start date." } })} />);
 
         expect(screen.getByText("The end date must be a date after or equal to start date.")).toBeInTheDocument();
+    });
+
+    it("shows waste as a percent of sales cost with one decimal", () => {
+        render(<Waste {...props({ waste_percent: 150 })} />);
+
+        expect(
+            within(screen.getByRole("region", { name: "Waste terhadap HPP penjualan" })).getByText("150,0%"),
+        ).toBeInTheDocument();
+    });
+
+    it("shows a dash and a note when there are no sales in the period", () => {
+        render(<Waste {...props({ waste_percent: null })} />);
+
+        const card = screen.getByRole("region", { name: "Waste terhadap HPP penjualan" });
+        expect(within(card).getByText("—")).toBeInTheDocument();
+        expect(within(card).getByText("Tidak ada biaya penjualan pada periode ini")).toBeInTheDocument();
+    });
+
+    it("mounts the per-recorder and per-day table", () => {
+        render(
+            <Waste
+                {...props({
+                    recorder_days: [
+                        { date: "2026-05-10", user_id: 7, user_name: "Budi", records: 1, value: 1600, near_limit: 1 },
+                    ],
+                    approval_limit: 100000,
+                })}
+            />,
+        );
+
+        expect(screen.getByRole("region", { name: "Waste per Pencatat dan Hari" })).toBeInTheDocument();
     });
 });

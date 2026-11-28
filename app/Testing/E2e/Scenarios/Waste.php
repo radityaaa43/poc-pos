@@ -6,10 +6,12 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
+use App\Models\Setting;
 use App\Models\StockWaste;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\StockWasteService;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
@@ -85,6 +87,58 @@ class Waste
                 $record(400, StockWaste::STATUS_CANCELLED, "{$before} 09:00:00", "{$at} 13:00:00", 2);
 
                 return ['date' => $at, 'invoice' => $sale->invoice, 'item' => $beras->title];
+            },
+
+            // For #553: two recorders on one far day, near the outlet's approval limit, plus a sale so the
+            // waste percent has a denominator. Its own random day keeps 05-waste-report's numbers intact.
+            'waste.seed-recorders' => function (array $options): array {
+                $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
+                Setting::setForOutlet(StockWasteService::LIMIT_KEY, 100000, $warehouse->outlet);
+                $manager = User::where('email', 'manager@e2e.test')->firstOrFail();
+                $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
+                $category = Category::firstOrCreate(['name' => 'E2E Waste Recorders']);
+                $prefix = 'WSR'.strtoupper(Str::random(6));
+                $day = Carbon::create(2023, 1, 1)->addDays(random_int(0, 700));
+                $at = $day->toDateString();
+
+                $beras = Product::create([
+                    'category_id' => $category->id, 'barcode' => 'E2E-'.Str::upper(Str::random(10)),
+                    'title' => "Beras {$prefix}", 'buy_price' => 1000, 'sell_price' => 2000, 'stock' => 500,
+                    'tax_type' => 'exclusive', 'tax_rate' => 0,
+                ]);
+
+                // Sales cost 340.000, equal to the waste, so the headline reads 100,0%.
+                $sale = new Transaction([
+                    'cashier_id' => $cashier->id, 'warehouse_id' => $warehouse->id, 'customer_id' => null,
+                    'invoice' => "{$prefix}-A1", 'cash' => 0, 'change' => 0, 'discount' => 0,
+                    'shipping_cost' => 0, 'grand_total' => 500000, 'payment_method' => 'cash',
+                    'payment_status' => 'paid', 'tax_rate' => 0, 'tax_total' => 0,
+                ]);
+                $sale->forceFill(['created_at' => "{$at} 10:00:00", 'updated_at' => "{$at} 10:00:00"])->save();
+                $sale->details()->create([
+                    'product_id' => $beras->id, 'conversion_factor' => 1, 'qty' => 1,
+                    'base_unit_price' => 500000, 'unit_price' => 500000, 'price' => 500000,
+                    'discount_total' => 0, 'cost_total' => 340000,
+                ]);
+
+                $record = function (int $value, User $recorder, string $time) use ($warehouse, $beras): void {
+                    $waste = StockWaste::create([
+                        'warehouse_id' => $warehouse->id, 'status' => StockWaste::STATUS_RECORDED, 'reason' => 'expired',
+                        'total_value' => $value, 'recorded_at' => $time, 'created_by' => $recorder->id,
+                    ]);
+                    $line = $waste->lines()->create(['product_id' => $beras->id, 'qty' => 1]);
+                    $waste->moves()->create([
+                        'line_id' => $line->getKey(), 'product_id' => $beras->id, 'qty' => 1,
+                        'unit_cost' => $value, 'value' => $value,
+                    ]);
+                };
+                // Near the Rp 100.000 limit (at it or within 10% below): 95.000, 95.000, 100.000.
+                $record(95000, $manager, "{$at} 11:00:00");
+                $record(95000, $manager, "{$at} 12:00:00");
+                $record(50000, $manager, "{$at} 13:00:00");
+                $record(100000, $cashier, "{$at} 14:00:00");
+
+                return ['date' => $at, 'manager' => $manager->name, 'cashier' => $cashier->name];
             },
         ];
     }
