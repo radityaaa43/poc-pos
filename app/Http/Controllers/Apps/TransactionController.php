@@ -686,6 +686,7 @@ class TransactionController extends Controller
         );
 
         $result = $this->checkoutService->execute($context);
+        $request->session()->flash('success', 'Transaksi berhasil!'); // saved: the POS toasts only this flash (#473)
 
         if ($result->needsDiscountApproval) {
             $result->transaction->update([
@@ -757,7 +758,6 @@ class TransactionController extends Controller
 
     public function print(Request $request, $invoice)
     {
-        // get transaction
         $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
             ->where('invoice', $invoice)
             ->firstOrFail();

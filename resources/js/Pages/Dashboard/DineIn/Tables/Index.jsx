@@ -185,7 +185,8 @@ export default function Index({ tables, areas, filters }) {
             toast.success(editingTable ? "Meja berhasil diperbarui." : "Meja berhasil ditambahkan.");
             setModalOpen(false);
         };
-        const onError = () => toast.error("Gagal menyimpan meja.");
+        // `table`: the server says why, e.g. an unmarked reservation blocks switching it off.
+        const onError = (errs) => toast.error(errs.table ?? "Gagal menyimpan meja.");
 
         if (editingTable) {
             patch(route("dine-tables.update", editingTable.id), { onSuccess, onError });
@@ -198,7 +199,7 @@ export default function Index({ tables, areas, filters }) {
         if (!confirm(`Hapus meja "${table.name}"?`)) return;
         router.delete(route("dine-tables.destroy", table.id), {
             onSuccess: () => toast.success("Meja berhasil dihapus."),
-            onError: () => toast.error("Gagal menghapus meja."),
+            onError: (errs) => toast.error(errs.table ?? "Gagal menghapus meja."),
         });
     };
 
