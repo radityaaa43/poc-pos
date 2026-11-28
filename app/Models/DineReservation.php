@@ -40,10 +40,17 @@ class DineReservation extends Model
     protected function casts(): array
     {
         return [
+            'outlet_id' => 'integer',
             'dine_table_id' => 'integer',
             'party_size' => 'integer',
             'reserved_at' => 'datetime',
         ];
+    }
+
+    /** @return BelongsTo<Outlet, $this> */
+    public function outlet(): BelongsTo
+    {
+        return $this->belongsTo(Outlet::class);
     }
 
     /** @return BelongsTo<DiningTable, $this> */

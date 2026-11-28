@@ -94,7 +94,7 @@ class DineTableController extends Controller
         ]);
         $this->validateAreaAccess($validated['dine_area_id'] ?? null, $request);
 
-        $this->reservations->updateTable($dineTable, $validated);
+        $this->reservations->updateTable($dineTable, $validated, $request->user(), $this->outletAccess->activeOutlet($request));
 
         return back()->with('success', 'Meja berhasil diperbarui.');
     }
@@ -102,7 +102,7 @@ class DineTableController extends Controller
     public function destroy(DiningTable $dineTable)
     {
         abort_unless($this->ownsTable($dineTable, request()), 404);
-        $this->reservations->deleteTable($dineTable);
+        $this->reservations->deleteTable($dineTable, request()->user(), $this->outletAccess->activeOutlet(request()));
 
         return back()->with('success', 'Meja berhasil dihapus.');
     }

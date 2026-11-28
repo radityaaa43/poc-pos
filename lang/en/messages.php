@@ -440,6 +440,8 @@ return [
         'invalid_party_size' => 'The number of guests is between 1 and 100.',
         'table_unavailable' => 'This table is not available.',
         'table_has_booking' => 'This table has a reservation for :name :time — mark or cancel it first',
+        'clash_at_outlet' => 'This table is already reserved by outlet :outlet on :time. Leave at least 2 hours between bookings.',
+        'table_has_booking_at_outlet' => 'This table has a reservation of outlet :outlet on :time — mark or cancel it first',
     ],
 
     /*

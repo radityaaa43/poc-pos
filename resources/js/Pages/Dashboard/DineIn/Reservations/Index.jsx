@@ -108,6 +108,10 @@ export default function Index({ reservations = [], tables = [], date }) {
         });
     };
 
+    // The booked table may have moved to another outlet since: keep it selectable, or the form cannot be saved.
+    const moved = editing?.dine_table_id && !tables.some((table) => table.id === editing.dine_table_id);
+    const choices = moved ? [...tables, { id: editing.dine_table_id, name: editing.table_name, area_name: editing.area_name }] : tables;
+
     const field = (name, label, props = {}) => (
         <Input
             label={t(`dineReservations.${label}`)}
@@ -237,7 +241,7 @@ export default function Index({ reservations = [], tables = [], date }) {
                         required
                     >
                         <option value="">{t("dineReservations.chooseTable")}</option>
-                        {tables.map((table) => (
+                        {choices.map((table) => (
                             <option key={table.id} value={table.id}>
                                 {tableLabel(table.name, table.area_name)}
                             </option>

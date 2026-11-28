@@ -100,7 +100,7 @@ class DineTableController extends AppsDineTableController
         ]);
         $this->validateAreaAccess($validated['dine_area_id'] ?? null, $request);
 
-        $this->reservations->updateTable($dineTable, $validated);
+        $this->reservations->updateTable($dineTable, $validated, $request->user(), $this->outletAccess->activeOutlet($request));
 
         return $this->ok($dineTable->fresh('area'));
     }
@@ -111,7 +111,7 @@ class DineTableController extends AppsDineTableController
     public function destroyTable(Request $request, DiningTable $dineTable): JsonResponse
     {
         abort_unless($this->ownsTable($dineTable, $request), 404);
-        $this->reservations->deleteTable($dineTable);
+        $this->reservations->deleteTable($dineTable, $request->user(), $this->outletAccess->activeOutlet($request));
 
         return $this->noContent();
     }

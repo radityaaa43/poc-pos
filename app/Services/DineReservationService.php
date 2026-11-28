@@ -27,7 +27,7 @@ class DineReservationService
         return DB::transaction(function () use ($outlet, $data, $by) {
             $table = $this->lockTable($outlet, (int) $data['dine_table_id']);
             $reservation = new DineReservation($this->attributes($data) + ['outlet_id' => $outlet->id, 'status' => 'booked']);
-            $this->refuseClash($reservation);
+            $this->refuseClash($reservation, $by, $outlet);
             $reservation->save();
 
             $this->auditLogService->log(
@@ -48,15 +48,16 @@ class DineReservationService
     {
         DB::transaction(function () use ($reservation, $outlet, $data, $by) {
             $reservation = $this->lockBooked($reservation);
-            $table = $this->lockTable($outlet, (int) $data['dine_table_id']);
+            $table = $this->lockTable($outlet, (int) $data['dine_table_id'], $reservation->dine_table_id);
             $before = $this->snapshot($reservation, $reservation->diningTable);
 
             $reservation->fill($this->attributes($data));
             if (! $reservation->isDirty()) {
                 return;
             }
-            $this->refuseClash($reservation);
-            $phoneChanged = $reservation->isDirty('phone');
+            $this->refuseClash($reservation, $by, $outlet);
+            // Personal data: the log says that it changed, never what it is.
+            $changed = array_filter(['phone_changed' => $reservation->isDirty('phone'), 'guest_name_changed' => $reservation->isDirty('guest_name')]);
             $reservation->save();
 
             $this->auditLogService->log(
@@ -65,7 +66,7 @@ class DineReservationService
                 auditable: $reservation,
                 description: 'Reservasi meja diubah.',
                 before: $before,
-                after: $this->snapshot($reservation, $table) + ($phoneChanged ? ['phone_changed' => true] : []),
+                after: $this->snapshot($reservation, $table) + $changed,
                 actor: $by
             );
         });
@@ -91,38 +92,35 @@ class DineReservationService
     }
 
     /** @param array<string, mixed> $attributes validated table fields */
-    public function updateTable(DiningTable $table, array $attributes): void
+    public function updateTable(DiningTable $table, array $attributes, User $by, ?Outlet $outlet): void
     {
         $write = fn () => $table->update($attributes);
 
         // Only switching a table off is refused: its other fields stay editable while it is booked.
         if ($table->is_active && ! ($attributes['is_active'] ?? true)) {
-            $this->unlessBooked($table, $write);
+            $this->unlessBooked($table, $by, $outlet, $write);
         } else {
             $write();
         }
     }
 
-    public function deleteTable(DiningTable $table): void
+    public function deleteTable(DiningTable $table, User $by, ?Outlet $outlet): void
     {
-        $this->unlessBooked($table, fn () => $table->delete());
+        $this->unlessBooked($table, $by, $outlet, fn () => $table->delete());
     }
 
     /**
      * A table with an unmarked reservation of any date stays, and stays on. The same row lock as a booking,
      * so a booking and a removal cannot pass each other.
      */
-    private function unlessBooked(DiningTable $table, Closure $write): void
+    private function unlessBooked(DiningTable $table, User $by, ?Outlet $outlet, Closure $write): void
     {
-        DB::transaction(function () use ($table, $write) {
+        DB::transaction(function () use ($table, $by, $outlet, $write) {
             $this->lockRow($table->id);
             $booking = $table->blockingReservation();
 
             if ($booking) {
-                throw ValidationException::withMessages(['table' => __('messages.dine_reservations.table_has_booking', [
-                    'name' => $booking->guest_name,
-                    'time' => $booking->reserved_at->format('d/m/Y H:i'),
-                ])]);
+                throw ValidationException::withMessages(['table' => $this->refusal('table_has_booking', $booking, $by, $outlet)]);
             }
 
             $write();
@@ -142,11 +140,12 @@ class DineReservationService
     }
 
     /** The table row is what every booking of a table shares: locking it queues the competing ones. */
-    private function lockTable(Outlet $outlet, int $tableId): DiningTable
+    private function lockTable(Outlet $outlet, int $tableId, ?int $keptId = null): DiningTable
     {
         $this->lockRow($tableId); // whether the outlet may book it is asked afterwards
 
-        return DiningTable::active()->forOutlet($outlet)->findOrFail($tableId);
+        // The booked table is not asked about again: it may have moved to another outlet, the booking has not.
+        return $tableId === $keptId ? DiningTable::findOrFail($tableId) : DiningTable::active()->forOutlet($outlet)->findOrFail($tableId);
     }
 
     private function lockRow(int $tableId): void
@@ -156,7 +155,7 @@ class DineReservationService
     }
 
     /** Booked and arrived hold the table; cancelled and no-show free it. Exactly the minimum gap is allowed. */
-    private function refuseClash(DineReservation $reservation): void
+    private function refuseClash(DineReservation $reservation, User $by, Outlet $outlet): void
     {
         $gap = DineReservation::MIN_GAP_MINUTES;
         $other = DineReservation::where('dine_table_id', $reservation->dine_table_id)
@@ -168,11 +167,22 @@ class DineReservationService
             ->first();
 
         if ($other) {
-            throw ValidationException::withMessages(['reserved_time' => __('messages.dine_reservations.clash', [
-                'name' => $other->guest_name,
-                'time' => $other->reserved_at->format('d/m/Y H:i'),
-            ])]);
+            throw ValidationException::withMessages(['reserved_time' => $this->refusal('clash', $other, $by, $outlet)]);
         }
+    }
+
+    /**
+     * Names the booking in the way. A shared table can be held by another outlet, so the guest is named only to
+     * someone who can see that outlet's reservations; anyone else gets the outlet and the time (#431 BR-4).
+     */
+    private function refusal(string $key, DineReservation $booking, User $reader, ?Outlet $outlet): string
+    {
+        $named = $booking->outlet_id === $outlet?->id && $reader->can('dine-reservations-manage');
+
+        return __('messages.dine_reservations.'.$key.($named ? '' : '_at_outlet'), [
+            ...($named ? ['name' => $booking->guest_name] : ['outlet' => $booking->outlet->name]),
+            'time' => $booking->reserved_at->format('d/m/Y H:i'),
+        ]);
     }
 
     /**
@@ -192,14 +202,14 @@ class DineReservationService
     }
 
     /**
-     * What the audit log keeps. The phone number is never part of it, only the phone_changed flag (REQ-009 BR-1).
+     * What the audit log keeps. Never the phone number (REQ-009 BR-1) or the guest's name: the log is read by
+     * people who cannot see this outlet's reservations (#431 BR-4).
      *
      * @return array<string, mixed>
      */
     private function snapshot(DineReservation $reservation, ?DiningTable $table): array
     {
         return [
-            'guest_name' => $reservation->guest_name,
             'party_size' => $reservation->party_size,
             'table' => $table?->name,
             'reserved_at' => $reservation->reserved_at->format('Y-m-d H:i'),
