@@ -445,7 +445,7 @@ class KitchenReturnTest extends TestCase
         DB::disableQueryLog();
         $first = fn (string $pattern) => $queries->search(fn (string $sql) => (bool) preg_match($pattern, $sql));
         $dineLock = $first('/^select \* from [`"]dine_orders[`"] where [`"]transaction_id[`"] =/');
-        $marker = $first('/^select * from [`"]stock_mutations[`"] where [`"]reference_type[`"]/'); // read right after the sale lock
+        $marker = $first('/^select \* from [`"]stock_mutations[`"] where [`"]reference_type[`"]/'); // read right after the sale lock
         $this->assertIsInt($dineLock);
         $receivableLock = $first('/^select \* from [`"]receivables[`"] where [`"]receivables[`"]\.[`"]id[`"] =/');
         $this->assertLessThan($receivableLock, $dineLock);
