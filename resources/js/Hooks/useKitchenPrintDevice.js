@@ -88,7 +88,7 @@ const reprintTicket = (order, key) => ({
     unpaid: order.unpaid,
     since: order.since,
     reprint: true,
-    items: order.items.filter((item) => item.status !== "cancelled").map(({ title, qty, note }) => ({ title, qty, note })),
+    items: order.items.filter((item) => item.status !== "cancelled").map(({ title, qty, note, modifiers }) => ({ title, qty, note, modifiers })),
 });
 
 // Tells the server which items were printed, then forgets them locally. Throws when the POST fails,

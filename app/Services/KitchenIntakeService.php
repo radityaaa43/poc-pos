@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\DineOrderItem;
 use App\Models\KitchenItem;
 use App\Models\KitchenStation;
 use App\Models\Transaction;
@@ -105,16 +104,13 @@ class KitchenIntakeService
             return;
         }
 
-        $transaction->load('details.product:id,needs_preparation,kitchen_station_id', 'dineOrder.items');
+        $transaction->load('details.product:id,needs_preparation,kitchen_station_id');
         // Active stations in one query; a product pointing at a deleted or no station goes to the default one.
         $stations = KitchenStation::get(['id', 'is_default']);
         $defaultStationId = $stations->firstWhere('is_default', true)->id ?? KitchenStation::defaultId();
-        // Dine-in lines carry a note ("no sugar"); match each sale line to the first unused order line of the same product and unit.
-        /** @var list<DineOrderItem> $dineItems */
-        $dineItems = $transaction->dineOrder?->items->all() ?? [];
 
         // All or nothing: a failure midway must not leave some lines recorded, or the once-only guard above would skip the rest forever.
-        DB::transaction(function () use ($transaction, $dineItems, $stations, $defaultStationId) {
+        DB::transaction(function () use ($transaction, $stations, $defaultStationId) {
             foreach ($transaction->details as $detail) {
                 // The line's sale-time snapshot decides (the product's flag only for lines written before it existed),
                 // so a later product edit changes neither the items in the kitchen nor a retry's result.
@@ -122,22 +118,15 @@ class KitchenIntakeService
                     continue;
                 }
 
-                $note = null;
-                foreach ($dineItems as $i => $item) {
-                    if ($item->product_id == $detail->product_id && $item->unit_id == $detail->unit_id) {
-                        $note = $item->note;
-                        unset($dineItems[$i]);
-                        break;
-                    }
-                }
-
+                // The line's own note: the detail is the single source (POS checkout and dine accept both write it),
+                // so two lines of one menu that differ by options never trade notes.
                 KitchenItem::createOrFirst(['transaction_detail_id' => $detail->id], [
                     'transaction_id' => $transaction->id,
                     'product_id' => $detail->product_id,
                     'warehouse_id' => $transaction->warehouse_id,
                     'kitchen_station_id' => $stations->contains('id', $detail->product->kitchen_station_id) ? $detail->product->kitchen_station_id : $defaultStationId,
                     'qty' => $detail->qty,
-                    'note' => $note,
+                    'note' => $detail->note,
                     'status' => KitchenItem::STATUS_ACCEPTED,
                     'accepted_at' => now(),
                     'accepted_by' => auth()->id(), // null for webhooks and the scheduler

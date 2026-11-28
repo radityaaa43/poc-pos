@@ -3,52 +3,94 @@ import { Head, router } from "@inertiajs/react";
 import { IconShoppingCart, IconMinus, IconPlus } from "@tabler/icons-react";
 import toast, { Toaster } from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import ModifierPanel from "@/Components/POS/ModifierPanel";
 
 const fmt = (v) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
-export default function DineMenu({ table, categories, products, selfOrderEnabled, payLaterEnabled = false, onlinePayment = false, storeName }) {
+// A menu keeps separate lines per options + note (REQ-008 decision 12); identical lines merge into one quantity.
+const lineKey = (productId, optionIds, note) => `${productId}:${[...optionIds].sort((a, b) => a - b).join(",")}:${note || ""}`;
+
+export default function DineMenu({ table, categories, products, modifierGroups = {}, selfOrderEnabled, payLaterEnabled = false, onlinePayment = false, storeName }) {
     const { t } = useTranslation();
     const [cart, setCart] = useState([]);
     const [activeCategory, setActiveCategory] = useState("all");
     const [notes, setNotes] = useState("");
     const [submitting, setSubmitting] = useState(false);
+    const [picking, setPicking] = useState(null);
 
-    const addItem = (product) => {
+    const groupsFor = (product) => (product?.modifier_group_ids ?? []).map((id) => modifierGroups[id]).filter(Boolean);
+
+    // The price shown to the guest is a preview only; the server recomputes it at submit (REQ-008 decision 13).
+    const lineUnitPrice = (line) => {
+        const product = products.find((pr) => pr.id === line.product_id);
+        const deltas = groupsFor(product).flatMap((group) => group.options)
+            .filter((option) => line.modifier_option_ids.includes(option.id))
+            .reduce((sum, option) => sum + option.price_delta, 0);
+
+        return (product?.sell_price ?? 0) + deltas;
+    };
+
+    const addLine = (product, optionIds, note) => {
+        const key = lineKey(product.id, optionIds, note);
         setCart((prev) => {
-            const idx = prev.findIndex((c) => c.product_id === product.id);
+            const idx = prev.findIndex((line) => line.key === key);
             if (idx >= 0) {
                 const updated = [...prev];
                 updated[idx] = { ...updated[idx], qty: updated[idx].qty + 1 };
                 return updated;
             }
-            return [...prev, { product_id: product.id, qty: 1, note: "" }];
+
+            return [...prev, { key, product_id: product.id, qty: 1, modifier_option_ids: [...optionIds].sort((a, b) => a - b), note: note || "" }];
         });
     };
 
-    const removeItem = (productId) => {
-        setCart((prev) => {
-            const idx = prev.findIndex((c) => c.product_id === productId);
-            if (idx < 0) return prev;
-            if (prev[idx].qty <= 1) {
-                return prev.filter((c) => c.product_id !== productId);
-            }
-            const updated = [...prev];
-            updated[idx] = { ...updated[idx], qty: updated[idx].qty - 1 };
-            return updated;
-        });
+    // Tapping a menu that has options opens the panel; one without them goes straight into the cart.
+    const addItem = (product) => {
+        if (groupsFor(product).length > 0) {
+            setPicking(product);
+            return;
+        }
+        addLine(product, [], "");
     };
 
-    const cartTotal = () =>
-        cart.reduce((sum, item) => {
-            const p = products.find((pr) => pr.id === item.product_id);
-            return sum + (p?.sell_price ?? 0) * item.qty;
-        }, 0);
+    // A stepper tap repeats the last line of that menu (same options and note), never reopens the panel.
+    const increaseProduct = (productId) => setCart((prev) => {
+        const line = [...prev].reverse().find((each) => each.product_id === productId);
+        if (!line) return [...prev, { key: lineKey(productId, [], ""), product_id: productId, qty: 1, modifier_option_ids: [], note: "" }];
 
-    const cartCount = () => cart.reduce((s, i) => s + i.qty, 0);
+        return prev.map((each) => (each.key === line.key ? { ...each, qty: each.qty + 1 } : each));
+    });
 
-    const getQty = (productId) => {
-        const item = cart.find((c) => c.product_id === productId);
-        return item?.qty ?? 0;
+    const decreaseProduct = (productId) => setCart((prev) => {
+        const line = [...prev].reverse().find((each) => each.product_id === productId);
+        if (!line) return prev;
+
+        return prev.flatMap((each) => (each.key !== line.key ? [each] : each.qty <= 1 ? [] : [{ ...each, qty: each.qty - 1 }]));
+    });
+
+    const increaseLine = (key) => setCart((prev) => prev.map((line) => (line.key === key ? { ...line, qty: line.qty + 1 } : line)));
+    const decreaseLine = (key) => setCart((prev) => prev.flatMap((line) => (line.key !== key ? [line] : line.qty <= 1 ? [] : [{ ...line, qty: line.qty - 1 }])));
+
+    const cartTotal = () => cart.reduce((sum, line) => sum + lineUnitPrice(line) * line.qty, 0);
+
+    const cartCount = () => cart.reduce((sum, line) => sum + line.qty, 0);
+
+    const getQty = (productId) => cart.filter((line) => line.product_id === productId).reduce((sum, line) => sum + line.qty, 0);
+
+    const defaultOptionIds = (groups) =>
+        groups.flatMap((group) => group.options.filter((option) => option.is_default && option.available).map((option) => option.id));
+
+    const panelLabels = {
+        required: t("dineMenu.modifiers.required"),
+        optional: t("dineMenu.modifiers.optional"),
+        range: (group) => t("dineMenu.modifiers.range", { min: group.min_select, max: group.max_select }),
+        soldOut: t("dineMenu.modifiers.soldOut"),
+        note: t("dineMenu.modifiers.note"),
+        noteCount: (count) => t("dineMenu.modifiers.noteCount", { count }),
+        portionPrice: t("dineMenu.modifiers.portionPrice"),
+        incomplete: (group) => t("dineMenu.modifiers.incomplete", { group }),
+        add: t("dineMenu.modifiers.add"),
+        cancel: t("dineMenu.modifiers.cancel"),
     };
 
     const handleSubmit = (paymentOption) => {
@@ -63,11 +105,21 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
         setSubmitting(true);
         router.post(
             route("dine-order.store", table.token),
-            { items: cart, notes, payment_option: paymentOption },
+            {
+                items: cart.map((line) => ({
+                    product_id: line.product_id,
+                    qty: line.qty,
+                    modifier_option_ids: line.modifier_option_ids,
+                    note: line.note || null,
+                })),
+                notes,
+                payment_option: paymentOption,
+            },
             {
                 onSuccess: () => setSubmitting(false),
                 onError: (errors) => {
-                    toast.error(errors.order ?? "Gagal mengirim pesanan.");
+                    // Options refused at submit name the menu and option; the cart is kept so the guest can change it (AC-16).
+                    toast.error(errors.order ?? errors.modifiers ?? "Gagal mengirim pesanan.");
                     setSubmitting(false);
                 },
             }
@@ -150,14 +202,14 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                                             ) : (
                                                 <div className="flex items-center gap-2 w-full">
                                                     <button
-                                                        onClick={() => removeItem(product.id)}
+                                                        onClick={() => decreaseProduct(product.id)}
                                                         className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors"
                                                     >
                                                         <IconMinus size={14} />
                                                     </button>
                                                     <span className="flex-1 text-center font-semibold text-sm">{qty}</span>
                                                     <button
-                                                        onClick={() => addItem(product)}
+                                                        onClick={() => increaseProduct(product.id)}
                                                         className="p-1.5 rounded-lg bg-primary-500 hover:bg-primary-600 text-white transition-colors"
                                                     >
                                                         <IconPlus size={14} />
@@ -199,18 +251,22 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                         </div>
 
                         <div className="space-y-3 max-h-64 overflow-y-auto">
-                            {cart.map((item) => {
-                                const p = products.find((pr) => pr.id === item.product_id);
+                            {cart.map((line) => {
+                                const p = products.find((pr) => pr.id === line.product_id);
+                                const chosen = groupsFor(p).flatMap((group) => group.options).filter((option) => line.modifier_option_ids.includes(option.id));
+
                                 return (
-                                    <div key={item.product_id} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
+                                    <div key={line.key} className="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
                                         <div>
                                             <p className="font-medium text-sm">{p?.title}</p>
-                                            <p className="text-xs text-slate-500">{fmt(p?.sell_price ?? 0)}</p>
+                                            {chosen.length > 0 && <p className="text-xs text-slate-500">{chosen.map((option) => option.name).join(", ")}</p>}
+                                            {line.note && <p className="text-xs italic text-slate-500">{line.note}</p>}
+                                            <p className="text-xs text-slate-500">{fmt(lineUnitPrice(line))}</p>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            <button onClick={() => removeItem(item.product_id)} className="btn btn-xs btn-ghost">−</button>
-                                            <span className="text-sm font-medium w-6 text-center">{item.qty}</span>
-                                            <button onClick={() => addItem({ id: item.product_id })} className="btn btn-xs btn-ghost">+</button>
+                                            <button onClick={() => decreaseLine(line.key)} className="btn btn-xs btn-ghost">−</button>
+                                            <span className="text-sm font-medium w-6 text-center">{line.qty}</span>
+                                            <button onClick={() => increaseLine(line.key)} className="btn btn-xs btn-ghost">+</button>
                                         </div>
                                     </div>
                                 );
@@ -272,6 +328,21 @@ export default function DineMenu({ table, categories, products, selfOrderEnabled
                     </form>
                 </dialog>
             </div>
+
+            {picking && (
+                <ModifierPanel
+                    title={picking.title}
+                    basePrice={picking.sell_price}
+                    groups={groupsFor(picking)}
+                    selected={defaultOptionIds(groupsFor(picking))}
+                    labels={panelLabels}
+                    onAdd={({ optionIds, note }) => {
+                        addLine(picking, optionIds, note);
+                        setPicking(null);
+                    }}
+                    onClose={() => setPicking(null)}
+                />
+            )}
         </>
     );
 }

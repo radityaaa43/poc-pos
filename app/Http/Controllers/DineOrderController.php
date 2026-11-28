@@ -7,6 +7,8 @@ use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\DineOrderOnlinePaymentService;
+use App\Services\Modifiers\ModifierSelection;
+use App\Services\OutletAccessService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -18,6 +20,7 @@ class DineOrderController extends Controller
     public function __construct(
         private PricingService $pricingService,
         private DineOrderOnlinePaymentService $onlinePayment,
+        private OutletAccessService $outletAccessService,
     ) {}
 
     public function store(Request $request, string $token)
@@ -36,6 +39,8 @@ class DineOrderController extends Controller
             'items.*.qty' => ['required', 'integer', 'min:1'],
             'items.*.unit_id' => ['nullable', 'exists:units,id'],
             'items.*.note' => ['nullable', 'string', 'max:255'],
+            'items.*.modifier_option_ids' => ['nullable', 'array', 'max:50'],
+            'items.*.modifier_option_ids.*' => ['integer'],
             'notes' => ['nullable', 'string', 'max:500'],
             // Payment is never taken at submit: the guest can pay online only after staff accept (POST dine-order.pay).
             // So the only options here are the counter and pay later (the outlet's choice, checked below).
@@ -58,6 +63,8 @@ class DineOrderController extends Controller
             ->keyBy('id');
 
         $previews = $this->pricingService->previewProducts($productModels, null, null, $outlet);
+        // Options are checked for the outlet's own warehouse at submit; accept re-resolves against the shift's warehouse.
+        $warehouseId = $this->outletAccessService->outletWarehouseId($outlet);
 
         $subtotal = 0;
         $orderItems = [];
@@ -85,7 +92,9 @@ class DineOrderController extends Controller
             }
 
             $preview = $previews->get($product->id);
-            $price = (int) ($preview['effective_unit_price'] ?? $product->sell_price);
+            $selection = ModifierSelection::resolve($product, $item['modifier_option_ids'] ?? [], $outlet, $warehouseId);
+            $optionIds = collect($selection['options'])->pluck('id')->sort()->values()->all();
+            $price = (int) ($preview['effective_unit_price'] ?? $product->sell_price) + $selection['unit_total'];
             $subtotal += $price * $item['qty'];
             $orderItems[] = [
                 'product_id' => $item['product_id'],
@@ -94,6 +103,7 @@ class DineOrderController extends Controller
                 'qty' => $item['qty'],
                 'price' => $price,
                 'note' => $item['note'] ?? null,
+                'modifier_option_ids' => $selection['has_groups'] ? $optionIds : null,
             ];
         }
 

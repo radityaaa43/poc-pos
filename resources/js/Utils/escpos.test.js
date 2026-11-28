@@ -385,6 +385,36 @@ describe("buildKitchenTicketBytes", () => {
         expect(lines[i + 2]).toBe("1 x Es Teh");
     });
 
+    it("prints each chosen option as + name, free ones included, before the note and with no price", () => {
+        const t = ticket({ items: [{ title: "Kopi", qty: 1, modifiers: ["Large", "Jelly"], note: "tanpa gula" }] });
+        const text = kitchenLines(t);
+
+        const i = text.indexOf("1 x Kopi");
+        expect(i).toBeGreaterThan(-1);
+        expect(text[i + 1].trim()).toBe("+ Large");
+        expect(text[i + 2].trim()).toBe("+ Jelly");
+        expect(text[i + 3].trim()).toBe("tanpa gula");
+        expect(textOf(t)).not.toMatch(/Rp|5000|5\.000|price/i);
+    });
+
+    it("wraps a long option to the paper width, 32 on 58mm and 48 on 80mm", () => {
+        const long = "Ekstra".repeat(12); // 72 characters
+        const option = `+ ${long}`;
+
+        for (const [paper, width] of [["58mm", 32], ["80mm", 48]]) {
+            const lines = kitchenLines(ticket({ items: [{ title: "Kopi", qty: 1, modifiers: [long] }] }), paper);
+            const start = lines.indexOf("1 x Kopi") + 1;
+            const block = [];
+            for (let i = start; i < lines.length && lines[i].startsWith("  "); i += 1) {
+                block.push(lines[i].trim());
+            }
+
+            expect(block.length).toBeGreaterThan(1);
+            block.forEach((line) => expect(line.length).toBeLessThanOrEqual(width - 2));
+            expect(block.join("").replace(/\s/g, "")).toBe(option.replace(/\s/g, ""));
+        }
+    });
+
     it("never prints a price", () => {
         const text = textOf(
             ticket({ items: [{ title: "Kopi", qty: 1, note: null, price: 25000, subtotal: 25000 }] })

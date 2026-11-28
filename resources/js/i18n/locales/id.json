@@ -1250,6 +1250,18 @@
             "button": "Pesan — Bayar Belakangan",
             "helper": "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi.",
             "helperOnline": "Pesanan langsung dibuat. Bayar di kasir atau online dari halaman pesanan sebelum Anda pergi."
+        },
+        "modifiers": {
+            "required": "Wajib",
+            "optional": "Opsional",
+            "range": "Pilih {{min}}–{{max}}",
+            "soldOut": "Habis",
+            "note": "Catatan",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Harga porsi",
+            "add": "Tambah ke pesanan",
+            "cancel": "Batal",
+            "incomplete": "Lengkapi pilihan: {{group}}"
         }
     },
     "kitchenStations": {

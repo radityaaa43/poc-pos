@@ -60,6 +60,10 @@ class Modifiers
                 ]), fn (Product $made) => Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail()
                     ->products()->attach($made->id, ['stock' => $stock]));
                 $menu = $product($options['title'], 20);
+                // --arg=needs_prep=1 sends the menu to the kitchen when sold (the QR/dine and kitchen steps need it).
+                if (($options['needs_prep'] ?? '0') === '1') {
+                    $menu->update(['needs_preparation' => true]);
+                }
                 $milk = $product("Susu {$options['title']}", 10, true);
                 $empty = $product("Kosong {$options['title']}", 0, true);
                 $using = fn (Product $ingredient, int $qty) => [['product_id' => $ingredient->id, 'qty' => $qty]];
@@ -84,7 +88,9 @@ class Modifiers
                     ]);
                 }
 
-                return ['product_id' => $menu->id, 'milk_id' => $milk->id];
+                $menu->load('modifierGroups.options');
+
+                return ['product_id' => $menu->id, 'milk_id' => $milk->id, 'options' => $menu->modifierGroups->flatMap(fn ($group) => $group->options)->pluck('id', 'name')->all()];
             },
 
             // --arg=product=<menu id> --arg=option=<name>: switched off at the E2E outlet, or --arg=rename=<text>.

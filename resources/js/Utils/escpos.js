@@ -150,6 +150,10 @@ function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
 
     for (const item of ticket.items || []) {
         wrapLines(`${printable(item.qty)} x ${printable(item.title)}`, width).forEach(write);
+        // Options (free ones included) then the line's note, indented, never a price.
+        for (const option of item.modifiers || []) {
+            wrapLines(printable(`+ ${option}`), width - 2).forEach((l) => write(`  ${l}`));
+        }
         wrapLines(printable(item.note), width - 2).forEach((l) => write(`  ${l}`));
     }
 

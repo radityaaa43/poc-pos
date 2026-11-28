@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { router } from "@inertiajs/react";
 import i18n from "@/i18n";
@@ -175,3 +175,63 @@ describe("DineMenu online payment (REQ-005)", () => {
         );
     });
 });
+
+describe("DineMenu modifiers (REQ-008 J3)", () => {
+    const grouped = {
+        ...props,
+        products: [{ id: 7, title: "Kopi", sell_price: 20000, category_id: null, modifier_group_ids: [1] }],
+        modifierGroups: {
+            1: {
+                id: 1, name: "Size", is_required: true, min_select: 1, max_select: 1,
+                options: [
+                    { id: 11, name: "Regular", price_delta: 0, is_default: true, available: true },
+                    { id: 12, name: "Large", price_delta: 5000, is_default: false, available: true },
+                ],
+            },
+        },
+    };
+
+    const openPanel = async () => {
+        const user = userEvent.setup();
+        render(<DineMenu {...grouped} />);
+        await user.click(screen.getByText("+ Tambah"));
+        return { user, panel: screen.getByRole("dialog", { name: "Kopi" }) };
+    };
+
+    it("opens the panel with defaults and posts the chosen option with its note", async () => {
+        const { user, panel } = await openPanel();
+        expect(within(panel).getByRole("radio", { name: /Regular/ })).toBeChecked();
+
+        await user.click(within(panel).getByRole("radio", { name: /Large/ }));
+        await user.type(within(panel).getByRole("textbox"), "tanpa gula");
+        await user.click(within(panel).getByRole("button", { name: "Tambah ke pesanan" }));
+
+        // The cart keeps the line apart and shows its option and note.
+        await user.click(screen.getByRole("button", { name: /1 item/ }));
+        expect(screen.getByText("Large")).toBeTruthy();
+        expect(screen.getByText("tanpa gula")).toBeTruthy();
+
+        await user.click(screen.getByText("Pesan — Bayar di Kasir"));
+        expect(router.post).toHaveBeenCalledWith(
+            "/dine/t/order",
+            expect.objectContaining({
+                items: [expect.objectContaining({ product_id: 7, modifier_option_ids: [12], note: "tanpa gula" })],
+            }),
+            expect.any(Object)
+        );
+    });
+
+    it("keeps the guest's cart when the server refuses an option", async () => {
+        const refusal = "Opsi Large untuk Kopi tidak tersedia lagi.";
+        router.post.mockImplementation((url, data, opts) => opts.onError({ modifiers: refusal }));
+        const { user, panel } = await openPanel();
+
+        await user.click(within(panel).getByRole("button", { name: "Tambah ke pesanan" }));
+        await user.click(screen.getByRole("button", { name: /1 item/ }));
+        await user.click(screen.getByText("Pesan — Bayar di Kasir"));
+
+        expect(await screen.findByText(refusal)).toBeTruthy();
+        expect(screen.getByRole("button", { name: /1 item/ })).toBeTruthy(); // the line is still in the cart
+    });
+});
+
