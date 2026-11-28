@@ -26,15 +26,15 @@ Nothing goes directly to `main`. Workflow skills come from
 | 3. Branch | `git switch main && git pull && git switch -c <type>/<issue>-<slug>` | — |
 | 4. Build | Test-first, in thin vertical slices | `/implement` → `/tdd` |
 | 5. Verify | Fast static checks locally; PHPUnit and e2e run **only on CI**; then test the change by hand | — |
-| 6. Review | Review the diff against the issue, the standards and `REVIEW.md` | `/code-review` |
+| 6. Review | Self code review of the diff against the issue, the standards and `REVIEW.md`; only on a ticket with Expected size L or larger | `/code-review` |
 | 7. PR | A PR that closes the issue, with manual test, docs, and green CI | `/pr` |
 
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
 
 Five roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
-Technical review → Business review → Done): **Business / PM** (steps 1–2), **Tech Lead** (step 2b and
-the pre-review of every developer PR against its plan), **Developer** (steps 3–7), **Verifier** (all technical review, high risk
-included, and the business review of every PR; merges after posting the `Verifier` status; runs the board) and the
+Review → Done): **Business / PM** (steps 1–2), **Tech Lead** (step 2b and
+the pre-review of every developer PR against its plan), **Developer** (steps 3–7), **Verifier** (reviews each PR in the Review column, technical and business, high risk
+included; merges after posting the `Verifier` status; runs the board) and the
 **maintainer** (decides, owns the Standards, overrules). The board is the channel between them: a card move is the hand-off.
 Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 Flow rules (developers pull their own work, column limits, finish before starting): [`docs/agents/handoff.md` → 0](docs/agents/handoff.md#0-flow-rules-pull-limits-priorities).
@@ -79,9 +79,9 @@ issue, stdlib and native features before new libraries.
   joined by `;` (level `low`…`max`, or `unknown`), or `none`. CI checks the format.
 - **PRs** follow `.github/pull_request_template.md`: `Closes #<n>` per finished issue, one per line
   (`Refs` closes nothing), the manual test, and the docs updated. CI's *PR checklist* enforces it.
-  The Verifier verifies and merges; a `feat` PR also needs Business / PM's comment that its criteria
-  are met. While every session shares one GitHub login, ask for review by moving the card to
-  Technical review, and the Verifier's checklist posted as a PR comment is its approval. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
+  The Verifier reviews (technical and business) and merges. While every session shares one GitHub
+  login, ask for review by moving the card to Review, and the Verifier's checklist posted as a PR
+  comment is its approval. An Owner may merge their own `chore`, `docs`, `ci`, `test` PR
   once CI is green; every other PR needs another reviewer's approval.
   Never push to `main` or force-push a reviewed branch. After any
   post-review change, wait for green CI again.
@@ -136,8 +136,8 @@ npm run build
 CI runs PHPUnit (SQLite and MySQL 8.4) and the full e2e regression suite (Playwright;
 `tests/e2e/README.md`) on every PR. A red run is fixed and pushed again.
 
-- **CI is the gate.** Merge only with CI green; link the run in the PR. The CI run is the evidence for
-  PHPUnit and e2e.
+- **CI is the gate.** Merge only with CI green; the Verifier checks it before merging. The CI run is
+  the evidence for PHPUnit and e2e.
 - **Test it by hand** as the affected role(s) before the PR, and write what you tried and saw under
   *Manual test*.
 - **Tests for what the change touches**, derived from Done-when: add tests for new behavior, update
