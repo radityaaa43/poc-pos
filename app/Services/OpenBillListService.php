@@ -32,13 +32,14 @@ class OpenBillListService
             ->addSelect(['customer_name' => Customer::select('name')->whereColumn('customers.id', 'transactions.customer_id')->limit(1)])
             ->withSum(['salesReturns' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount')
             ->oldest()
-            ->get(['transactions.id', 'invoice', 'grand_total', 'payment_status', 'payment_attempt', 'late_superseded_payment_at', 'note', 'transactions.created_at'])
+            ->get(['transactions.id', 'invoice', 'grand_total', 'payment_status', 'payment_attempt', 'late_superseded_payment_at', 'note', 'order_name', 'transactions.created_at'])
             ->map(fn (Transaction $bill) => [
                 'id' => $bill->id,
                 'order_id' => $bill->dineOrder?->id,
                 'invoice' => $bill->invoice,
                 'label' => data_get($bill, 'dineOrder.table.name') ?? $bill->getAttribute('customer_name') ?? $bill->note,
                 'table' => $bill->dineOrder?->table?->name,
+                'order_name' => $bill->order_name,
                 'grand_total' => (int) $bill->grand_total,
                 'amount' => max(0, (int) $bill->grand_total - (int) $bill->getAttribute('sales_returns_sum_total_return_amount')),
                 'order_status' => $bill->dineOrder?->status,
