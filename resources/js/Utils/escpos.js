@@ -61,7 +61,8 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     line();
     leftRight("Subtotal", data.money(data.subtotal));
     if (data.discount_total > 0) leftRight("Diskon", `-${data.money(data.discount_total)}`);
-    if (data.tax_total > 0) leftRight("PPN", data.money(data.tax_total));
+    if (data.service_charge > 0) leftRight(data.service_charge_label ?? "Service charge", data.money(data.service_charge));
+    if (data.tax_total > 0) leftRight(data.tax_label ?? "PPN", data.money(data.tax_total));
     if (data.shipping_cost > 0) leftRight("Ongkir", data.money(data.shipping_cost));
     emphasize(true);
     leftRight("TOTAL", data.money(data.grand_total));
@@ -118,6 +119,7 @@ function clockTime(iso) {
 }
 
 // Kitchen ticket: no prices, ever. `labels` are already translated (this file stays free of i18n).
+// `ticket.kind === "addon"` is an add-on order: `labels.addon` (TAMBAHAN) under the original order's number.
 // `ticket.kind === "cancel"` prints a DIBATALKAN ticket: `labels.cancelled` on top, `since` is the cancel
 // time and each item's `qty` is the cancelled quantity.
 // `ticket.reprint` (a manual Cetak ulang) prints `labels.reprint` on top the same way.
@@ -134,6 +136,7 @@ function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
     if (cancel) wrapLines(printable(labels.cancelled), Math.floor(width / 2)).forEach(write);
     if (ticket.reprint) wrapLines(printable(labels.reprint), Math.floor(width / 2)).forEach(write);
     wrapLines(printable(ticket.number), Math.floor(width / 2)).forEach(write);
+    if (ticket.kind === "addon") wrapLines(printable(labels.addon), Math.floor(width / 2)).forEach(write);
     bytes.push(GS, 0x21, 0x00);
 
     const type = printable(labels.type);

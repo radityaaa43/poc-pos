@@ -74,7 +74,7 @@ class DiscountApprovalController extends AppsDiscountApprovalController
         abort_if($transaction->discount_approval_status !== 'pending', 404);
         $this->ensureOutletAccess($transaction);
 
-        $this->logAndUpdate($transaction, 'denied', $request->votes);
+        $this->logAndUpdate($transaction, 'denied', $request->notes);
 
         return $this->ok($transaction->fresh(), 'Diskon ditolak.');
     }

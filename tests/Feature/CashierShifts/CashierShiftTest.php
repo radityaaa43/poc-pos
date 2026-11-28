@@ -7,6 +7,7 @@ use App\Models\Category;
 use App\Models\Customer;
 use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
@@ -432,7 +433,9 @@ class CashierShiftTest extends TestCase
         $this->sale($shift, 'xendit', 'pending', 5000);
         // Not gateway sales: counted by their method as before.
         $this->sale($shift, 'bank_transfer', 'pending', 50000);
-        $this->sale($shift, 'pay_later', 'unpaid', 40000);
+        $credit = $this->sale($shift, 'pay_later', 'unpaid', 40000);
+        Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'total' => 40000, 'paid' => 0,
+            'due_date' => now()->addWeek(), 'status' => 'unpaid']);
         $this->sale($shift, Transaction::METHOD_OPEN_BILL, 'unpaid', 7000); // no money yet
 
         $summary = app(CashierShiftService::class)->calculateSummary($shift);

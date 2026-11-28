@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import OrderTypeLock from "@/Components/POS/OrderTypeLock";
 
 const ORDER_TYPES = [
     { value: "in_store", label: "Di Tempat" },
@@ -16,7 +17,7 @@ export default function OrderDetails({ orderType, onOrderTypeChange, orderName, 
 
     return (
         <>
-            <div>
+            <OrderTypeLock>
                 <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
                     Tipe Pesanan
                 </label>
@@ -36,7 +37,7 @@ export default function OrderDetails({ orderType, onOrderTypeChange, orderName, 
                         </button>
                     ))}
                 </div>
-            </div>
+            </OrderTypeLock>
 
             <div>
                 <label htmlFor="pos-order-name" className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">

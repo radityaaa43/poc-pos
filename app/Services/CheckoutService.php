@@ -28,11 +28,14 @@ class CheckoutService
         private readonly StockMutationService $stockMutationService,
         private readonly InventoryCostService $inventoryCostService,
         private readonly KitchenIntakeService $kitchenIntake,
+        private readonly CustomerCreditService $customerCredit,
         private readonly AddOnOrderService $addOnOrderService,
     ) {}
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
+        // attempts: a backstop for the deadlocks left (loyalty upgrading the sale's shared customer lock on a paid sale,
+        // a store-credit return of the same customer). The closure only writes to the database, so the victim runs again.
         // Looked up outside the transaction: its first plain read fixes MySQL's snapshot, and that must follow the locks.
         $original = $ctx->addOnTo ? Transaction::where('invoice', $ctx->addOnTo)->first() : null;
 
@@ -41,6 +44,11 @@ class CheckoutService
                 $ctx->userId,
                 lockForUpdate: true,
             );
+
+            // The credit mutex comes before the first plain read, so guard() below reads current receivables.
+            if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
+                $this->customerCredit->lock($ctx->customer->id);
+            }
 
             // Under a lock on the original, which is only read (BR-5), so a cancellation that committed meanwhile is seen.
             $parentId = $ctx->addOnTo ? $this->addOnOrderService->resolveForPos($original, $activeShift) : null;
@@ -64,6 +72,7 @@ class CheckoutService
                     'shipping_cost' => $ctx->shippingCost,
                     'redeem_points' => $ctx->requestedRedeemPoints,
                     'voucher' => $ctx->voucher,
+                    'order_type' => $ctx->orderType,
                 ],
                 null,
                 $ctx->outlet,
@@ -123,6 +132,10 @@ class CheckoutService
                 'note' => $ctx->note,
                 'tax_rate' => data_get($checkoutPreview, 'summary.tax_rate'),
                 'tax_total' => data_get($checkoutPreview, 'summary.tax_total', 0),
+                'service_charge' => data_get($checkoutPreview, 'summary.service_charge'),
+                'service_charge_rate' => data_get($checkoutPreview, 'summary.service_charge_rate'),
+                'tax_kind' => data_get($checkoutPreview, 'summary.tax_kind'),
+                'tax_base' => data_get($checkoutPreview, 'summary.tax_base'),
                 'customer_npwp' => $ctx->customerNpwp,
                 'price_list_id' => $this->priceListService->getApplicablePriceList($ctx->customer, $ctx->outlet)?->id,
                 'client_uuid' => $ctx->clientUuid,
@@ -155,6 +168,10 @@ class CheckoutService
 
             // Only a customer with "Boleh piutang" owes a receivable; a guest or other customer leaves an unpaid sale without one.
             if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
+                // The customer is locked since the start, so two cashiers cannot both fit under one limit (REQ-007 BR-3).
+                // A refusal rolls the whole sale back.
+                $this->customerCredit->guard($ctx->customer->id, $grandTotal);
+
                 Receivable::create([
                     'customer_id' => $ctx->customer->id,
                     'transaction_id' => $transaction->id,
@@ -179,7 +196,7 @@ class CheckoutService
                 paymentStatus: $paymentStatus,
                 tenderBankAccountId: $tenderBankAccountId,
             );
-        }, 3); // retried on a deadlock: an add-on holds sales of a shift that another cashier may be closing
+        }, attempts: 3); // retried on a deadlock: an add-on holds sales of a shift that another cashier may be closing
     }
 
     private function processCartItems(

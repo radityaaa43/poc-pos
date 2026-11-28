@@ -32,7 +32,8 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - share invoice publik
 - add customer langsung dari POS
 - penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk memakai poin, voucher, atau harga member; pay later (Bayar Belakangan) tidak lagi butuh pelanggan: tamu cukup mengisi catatan minimal 2 karakter
-- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet and do not change any total yet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet).
+- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet). The service charge and the tax type change the total ([how](tax-management.md#how-a-bill-is-computed)); cash rounding does not yet.
+- The pricing preview takes `order_type` and its summary returns `service_charge`, `tax_kind`, `tax_base` and `bill_basis` (the inputs of the total) beside the tax and total. The POS previews again when the order type changes, so the Service charge row follows Di Tempat / Bawa Pulang / Diantar.
 
 ## Halaman dan Route
 
@@ -49,6 +50,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - `transactions.store`
 - `transactions.print`
 - `transactions.public`
+- `transactions.sync`, `transactions.offline-discard` (antrean offline: `docs/features/offline-mode.md`)
 
 ## Permission
 
@@ -62,7 +64,7 @@ Operasi transaksional tertentu juga mewajibkan middleware `active_shift`.
 2. jika shift aktif, kasir dapat cari produk dan membangun cart
 3. cart dapat di-hold lalu di-resume
 4. checkout membuat transaksi, detail, profit, dan pengurangan stok
-5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi
+5. jika `pay_later`: hanya tersedia bila outlet mengaktifkan **Bayar Belakangan** (Pengaturan → Outlet, izin `outlets-update`, tercatat di audit log) dan POS online; checkout ditolak bila setting mati. Transaksi tetap `unpaid` (`is_pay_later`) dan langsung masuk dapur. Receivable dibuat hanya untuk pelanggan dengan flag *Boleh piutang* (wajib tanggal jatuh tempo); tamu atau pelanggan tanpa flag tidak punya receivable, dan tamu wajib mengisi catatan. Antrean offline lama yang berisi pay later ditolak saat sinkronisasi. Pelanggan yang punya batas piutang ditolak bila melewati batas atau punya piutang lewat jatuh tempo; kasir menerima pembayaran sekarang (`receivables.md` → Batas Piutang)
 6. tagihan Bayar Belakangan tanpa piutang (tamu atau pelanggan tanpa flag) muncul di bagian **Belum Lunas** POS dengan label (catatan atau nama pelanggan), jumlah, dan umur. Kasir dengan `transactions-access` dan shift aktif di outlet tagihan melunasinya penuh dengan metode apa pun (`POST /dashboard/transactions/{transaction}/settle`); setelah retur sebagian jumlahnya sisa total, tagihan yang diretur penuh tidak tampil, dan bila dua kasir melunasi bersamaan yang pertama menang. Pelunasan dihitung di shift yang menerimanya dan tidak membuat item dapur kedua. A gateway method is charged after the payment commits, exactly as for a dine-in bill (`dine-in.md`, "Pembayaran tagihan belum lunas"): a failed charge leaves the bill payable, and one left without an answer for 120 s can be paid again
 7. user diarahkan ke dokumen print / invoice
 
@@ -79,8 +81,8 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   is booked as the payment only when the sale is not paid, no pending or paid tender holds it and the amount is what is still owed (audit
   `payment.late_after_failed`); otherwise it sets `late_superseded_payment_at`, writes the audit entry `payment.late_superseded`
   (or `payment.late_after_failed` with `booked: false`) and shows "Bayar ganda — refund manual" in the transactions history
-  (filter "Perlu refund"); the refund itself is manual. History also marks a gateway sale that was paid after its shift closed
-  with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
+  (filter "Perlu refund"); the refund itself is manual. History also marks a sale of any method that was paid after its shift closed — a gateway sale, a dine-in bill paid at the till, or a
+  pay-later sale retried in cash — with "Dibayar setelah shift ditutup" (filter chip of the same name). A sale that was restocked is never booked late. A failed sale of attempt 0 takes the late path when it has a gateway charge of its own (#380): a gateway tender row, a single-method
   QRIS, Midtrans or Xendit sale (the web POS writes no tender rows for it), or a credit sale charged through the customer portal (a receivable;
   its late payment settles the receivable, and the amount it must match is what the receivable still owes, so a partly paid one can be booked). A gateway payment on a credit sale the cashier already paid in full through the receivable is flagged (a second payment), and so is any part of a gateway payment beyond the receivable's balance: the balance is booked, the rest is flagged "Bayar ganda — refund manual" (audit `payment.late_superseded`, `excess`). A settlement that arrives later is booked when the sale is not paid, no pending or paid tender holds
   it, nothing was restocked and the amount equals the remaining total; otherwise it is flagged "Bayar ganda — refund manual" (audit
@@ -107,6 +109,17 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
   shift recap counts by) is shown as *Sisa tagihan* on the print page, Riwayat (rows and the transfer confirmation), the
   public invoice page, thermal receipts, the PDF invoice and receipts and the shipping label. Confirming a transfer takes
   no amount: it only marks the sale paid. The mobile API still returns `grand_total` only.
+- **Paid more than owed after a return** (#444): when a waiting gateway charge or bank transfer makes a sale paid for more
+  than `Transaction::owedAfterReturns()` (total less the completed returns that refunded nothing), the sale is paid, the
+  excess goes to `overpaid_amount`, "Bayar ganda — refund manual" is set, the sale page names the amount and one audit
+  entry `payment.overpaid_after_return` is written. What was paid is the sum of the paid tenders; without tenders the
+  gateway notification's amount (none in it: nothing is flagged), or for a transfer what it asked: the total at checkout,
+  the amount of the last retry (kept in the `transaction.payment_retried` audit entry; a retry made before this change
+  kept none and is not flagged). A credit sale is left to its receivable. The refund itself is manual.
+  The cash part of an excess (`Transaction::cashExcess()`: a split's excess beyond its **paid** non-cash tenders, kept
+  as `meta.cash_excess`) gets its own line on the sale page, picked by `meta.shift_open`, the sale's shift when the
+  excess was flagged: flagged with the shift open, hand it back from the drawer without recording a cash out (the line
+  stays after that shift closes); flagged after the close, hand it back and record it as a cash out in the current shift.
 - Web POS only; the mobile API does not retry.
 
 ## Add-on orders

@@ -10,7 +10,6 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
-import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
@@ -21,17 +20,16 @@ import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBa
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import OrderDetails from "@/Components/POS/OrderDetails";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
+import OfflineQueuePanel from "@/Components/POS/OfflineQueuePanel";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
+import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
+
 import usePosShortcuts from "@/Hooks/usePosShortcuts";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
-import {
-    getPendingTransactions,
-    getPendingCount,
-    updatePendingTransaction,
-    removePendingTransaction,
-} from "@/Utils/offlineDb";
+import { getPendingCount } from "@/Utils/offlineDb";
+import { claimSendable, markFailed, markRefused, markSynced } from "@/Utils/offlineQueue";
 import {
     IconUser,
     IconShoppingCart,
@@ -170,7 +168,7 @@ export default function Index({
                     handleAddToCart(product);
                     toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
-                    toast.error(`${product.title} stok habis`);
+                    toast.error(`${product.title} ${i18n.t("common.soldOut")}`);
                 }
             } else {
                 toast.error(`Produk tidak ditemukan: ${barcode}`);
@@ -209,10 +207,6 @@ export default function Index({
     );
     const loyaltyDiscount = useMemo(
         () => Number(pricingPreview?.summary?.loyalty_discount_total ?? 0),
-        [pricingPreview]
-    );
-    const taxTotal = useMemo(
-        () => Number(pricingPreview?.summary?.tax_total ?? 0),
         [pricingPreview]
     );
     const subtotal = useMemo(
@@ -280,6 +274,7 @@ export default function Index({
                 shipping_cost: shipping,
                 redeem_points: Number(redeemPointsInput || 0),
                 customer_voucher_id: selectedVoucherId || null,
+                order_type: orderType,
             })
             .then((response) => {
                 if (!cancelled) {
@@ -307,6 +302,7 @@ export default function Index({
         shipping,
         redeemPointsInput,
         selectedVoucherId,
+        orderType,
     ]);
 
     useEffect(() => {
@@ -364,6 +360,10 @@ export default function Index({
         [activeSplitTenders]
     );
     const splitRemaining = payable - splitTotal;
+    // The change due: in split mode it is summed over every cash tender (#501).
+    const cashTenders = activeSplitTenders.filter((t) => t.method === "cash");
+    const change = splitMode ? cashTenders.reduce((sum, t) => sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0), 0) : Math.max(cash - payable, 0);
+    const showsChange = splitMode ? change > 0 : cash >= payable && payable > 0;
     const updateSplitTender = (index, patch) =>
         setSplitTenders((prev) =>
             prev.map((tender, i) =>
@@ -511,25 +511,11 @@ export default function Index({
         if (flushPromiseRef.current) return flushPromiseRef.current;
 
         flushPromiseRef.current = (async () => {
-            const pending = await getPendingTransactions(offlineScopeKey);
             // Conflicts require user intervention and must not be retried
             // automatically. Failed rows are retryable; the API remains the
             // source of truth for duplicate detection.
-            const sendable = pending.filter((row) =>
-                ["pending", "failed"].includes(row.status)
-            );
+            const sendable = await claimSendable(offlineScopeKey);
             if (sendable.length === 0) return;
-
-            const attemptAt = new Date().toISOString();
-            await Promise.all(
-                sendable.map((row) =>
-                    updatePendingTransaction(row.id, {
-                        status: "syncing",
-                        attempts: (row.attempts ?? 0) + 1,
-                        last_attempt_at: attemptAt,
-                    })
-                )
-            );
 
             let data;
             try {
@@ -548,56 +534,25 @@ export default function Index({
                 const reason =
                     error?.response?.data?.message ||
                     "Server tidak tersedia. Transaksi akan dicoba lagi.";
-                await Promise.all(
-                    sendable.map((row) =>
-                        updatePendingTransaction(row.id, {
-                            status: "failed",
-                            last_error: reason,
-                            last_attempt_at: new Date().toISOString(),
-                        })
-                    )
-                );
+                await Promise.all(sendable.map((row) => markFailed(row, reason)));
                 await refreshPendingCount();
                 return;
             }
 
             const results = data?.data?.results || [];
             let synced = 0;
-            let failed = 0;
 
             for (let i = 0; i < sendable.length; i++) {
                 const result = results[i];
                 const row = sendable[i];
 
                 if (!result) {
-                    failed++;
-                    await updatePendingTransaction(row.id, {
-                        status: "failed",
-                        last_error: "Server mengembalikan hasil sync yang tidak lengkap.",
-                        last_attempt_at: new Date().toISOString(),
-                    });
-                    continue;
-                }
-
-                if (["synced", "pending_approval", "duplicate"].includes(result.status)) {
-                    await updatePendingTransaction(row.id, {
-                        status: result.status === "pending_approval" ? "synced" : result.status,
-                        synced_at: new Date().toISOString(),
-                        last_attempt_at: new Date().toISOString(),
-                        last_error: null,
-                    });
-                    await removePendingTransaction(row.id);
+                    await markFailed(row, "Server mengembalikan hasil sync yang tidak lengkap.");
+                } else if (["synced", "pending_approval", "duplicate"].includes(result.status)) {
+                    await markSynced(row, result.status);
                     synced++;
                 } else {
-                    failed++;
-                    await updatePendingTransaction(row.id, {
-                        status: result.status === "conflict" ? "conflict" : "failed",
-                        last_error: result.reason || "kesalahan tidak diketahui",
-                        last_attempt_at: new Date().toISOString(),
-                    });
-                    toast.error(
-                        `Sync gagal: ${result.reason || "kesalahan tidak diketahui"}`
-                    );
+                    toast.error(`Sync gagal: ${await markRefused(row, result)}`);
                 }
             }
 
@@ -749,13 +704,8 @@ export default function Index({
                 toast.error("Pilih rekening bank tujuan untuk tender transfer");
                 return;
             }
-            const cashTender = activeSplitTenders.find(
-                (t) => t.method === "cash"
-            );
-            if (
-                cashTender &&
-                Number(cashTender.cash_received || cashTender.amount) < Number(cashTender.amount)
-            ) {
+            // Any cash tender paid with less than its amount is refused; blank falls back to the amount (#497, #501).
+            if (cashTenders.some((t) => Number(t.cash_received || t.amount) < Number(t.amount))) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
             }
@@ -856,8 +806,8 @@ export default function Index({
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.add_on_to || errors?.pay_later || errors?.note || errors?.order_name || "Gagal menyimpan transaksi");
+                    // The credit rules, the add-on, the pay-later gate, the guest note rule and the order name answer with their own message.
+                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || errors?.order_name || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1068,6 +1018,7 @@ export default function Index({
                         />
                     </div>
 
+                    <OfflineQueuePanel scopeKey={offlineScopeKey} count={pendingSyncCount} products={products} onRetry={flushPendingTransactions} onChange={refreshPendingCount} />
                     <AddOnBanner />
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 
@@ -1720,7 +1671,7 @@ export default function Index({
                                     </div>
 
                                     <div className={`flex items-center justify-between rounded-xl p-3 ${
-                                        cash >= payable && payable > 0
+                                        showsChange
                                             ? "bg-success-100/70 dark:bg-success-950/30"
                                             : "bg-white/70 dark:bg-slate-900/50"
                                     }`}>
@@ -1728,11 +1679,11 @@ export default function Index({
                                             Kembalian
                                         </span>
                                         <span className={`text-lg font-bold ${
-                                            cash >= payable && payable > 0
+                                            showsChange
                                                 ? "text-success-600 dark:text-success-400"
                                                 : "text-slate-400"
                                         }`}>
-                                            {formatPrice(Math.max(cash - payable, 0))}
+                                            {formatPrice(change)}
                                         </span>
                                     </div>
                                 </div>
@@ -1883,48 +1834,14 @@ export default function Index({
                                 </div>
                             </div>
                         )}
-                        {voucherDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Voucher</span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(voucherDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {loyaltyDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">
-                                    Redeem Poin
-                                </span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(loyaltyDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {discount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Diskon Manual</span>
-                                <span className="text-danger-500">
-                                    -{formatPrice(discount)}
-                                </span>
-                            </div>
-                        )}
-                        {shipping > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Ongkir</span>
-                                <span className="font-medium">
-                                    +{formatPrice(shipping)}
-                                </span>
-                            </div>
-                        )}
-                        {taxTotal > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">PPN</span>
-                                <span className="font-medium">
-                                    +{formatPrice(taxTotal)}
-                                </span>
-                            </div>
-                        )}
+                        <CheckoutSummaryRows
+                            voucher={voucherDiscount}
+                            loyalty={loyaltyDiscount}
+                            discount={discount}
+                            shipping={shipping}
+                            bill={pricingPreview?.summary ?? {}}
+                            format={formatPrice}
+                        />
                         <div className="flex justify-between items-center mb-3">
                             <span className="font-semibold text-slate-800 dark:text-white">
                                 Total
@@ -1934,19 +1851,16 @@ export default function Index({
                             </span>
                         </div>
 
-                        {paymentMethod === "cash" &&
-                            !payLater &&
-                            cash >= payable &&
-                            payable > 0 && (
-                                <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
-                                    <span className="text-sm text-success-700 dark:text-success-400">
-                                        Kembalian
-                                    </span>
-                                    <span className="font-bold text-success-600">
-                                        {formatPrice(cash - payable)}
-                                    </span>
-                                </div>
-                            )}
+                        {(splitMode || paymentMethod === "cash") && !payLater && showsChange && (
+                            <div className="flex justify-between items-center mb-3 p-2 rounded-lg bg-success-50 dark:bg-success-950/30">
+                                <span className="text-sm text-success-700 dark:text-success-400">
+                                    Kembalian
+                                </span>
+                                <span className="font-bold text-success-600">
+                                    {formatPrice(change)}
+                                </span>
+                            </div>
+                        )}
 
                         {/* Submit Button - Always visible */}
                         <button

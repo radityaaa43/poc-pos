@@ -1,5 +1,6 @@
 {
     "common": {
+        "soldOut": "Habis",
         "buttons": {
             "add": "Tambah",
             "edit": "Edit",
@@ -292,6 +293,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "wasteReport": "Laporan Waste",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -311,7 +313,8 @@
             "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp",
             "modifiers": "Modifier",
-            "dineReservations": "Reservasi"
+            "dineReservations": "Reservasi",
+            "stockWaste": "Waste"
         },
         "menu": {
             "overview": "Overview",
@@ -349,6 +352,7 @@
             "reports": "Laporan",
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
+            "wasteReport": "Laporan Waste",
             "operations": "Operasional",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
@@ -525,7 +529,11 @@
         "lateRefund": {
             "badge": "Bayar ganda — refund manual",
             "filter": "Perlu refund",
-            "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual"
+            "notice": "Pembayaran gateway diterima tapi tidak dibukukan — perlu refund manual",
+            "overpaid": "Kelebihan bayar Rp {{amount}} setelah retur — refund manual.",
+            "checkHistory": "Perlu refund manual — cek riwayat pembayaran",
+            "cashOpen": "Kembalikan Rp {{cash}} tunai dari laci — jangan catat kas keluar.",
+            "cashClosed": "Shift sudah ditutup — kembalikan Rp {{cash}} dan catat sebagai kas keluar di shift berjalan."
         },
         "paidAfterClose": {
             "badge": "Dibayar setelah shift ditutup",
@@ -592,13 +600,15 @@
             "title": "Belum selesai",
             "item": "Belum diserahkan",
             "bill": "Belum lunas",
-            "syncFirst": "Sinkronkan transaksi offline dulu"
+            "syncFirst": "Sinkronkan transaksi offline dulu",
+            "split": "Split pembayaran belum lunas — sisa {{amount}}"
         },
         "forced": {
             "submit": "Tutup paksa",
             "note": "Catatan tutup paksa",
             "warning": "Item yang belum diserahkan ditandai tidak diambil, dan tagihan belum lunas masuk selisih kas.",
-            "unpaidBooked": "Tagihan belum lunas dibukukan"
+            "unpaidBooked": "Tagihan belum lunas dibukukan",
+            "splitNote": "Split pembayaran yang belum lunas tetap bisa dibayar."
         }
     },
     "stock": {
@@ -1155,7 +1165,8 @@
             "wakeLockOff": "Layar bisa tidur — jaga perangkat tetap menyala",
             "reprint": "CETAK ULANG",
             "reprintButton": "Cetak ulang",
-            "reprintFailed": "Gagal mencetak ulang"
+            "reprintFailed": "Gagal mencetak ulang",
+            "addon": "TAMBAHAN"
         },
         "actions": {
             "start": "Mulai buat",
@@ -1193,6 +1204,12 @@
             "pay": "Bayar",
             "due": "Sisa tagihan"
         },
+        "bill": {
+            "serviceCharge": "Service charge",
+            "taxPpn": "PPN",
+            "taxPb1": "PB1 {{rate}}%",
+            "offlineOrderTypeLocked": "Tipe pesanan tidak bisa diubah saat offline di outlet ini"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
@@ -1229,6 +1246,28 @@
             "label": "Nama pesanan",
             "placeholder": "Nama / nomor buzzer (opsional)",
             "limit": "Maksimal 20 karakter"
+        },
+        "offlineQueue": {
+            "button": "Transaksi offline tertunda ({{count}})",
+            "retryNow": "Coba sinkron sekarang",
+            "remove": "Hapus",
+            "confirm": "Hapus transaksi offline ini dari perangkat? Penghapusan dicatat di audit log.",
+            "confirmFailed": "Transaksi ini belum tercatat di server. Catat ulang secara online dulu, lalu hapus dari sini.",
+            "conflict": "Transaksi ini sudah tercatat di server.",
+            "onlineOnly": "Hapus hanya bisa saat online.",
+            "changed": "Status berubah, coba lagi.",
+            "empty": "Tidak ada transaksi offline yang tertunda.",
+            "product": "Produk #{{id}}",
+            "loadError": "Gagal membaca antrean di perangkat ini.",
+            "retryError": "Gagal menyinkronkan. Coba lagi.",
+            "removeError": "Gagal menghapus. Transaksi tetap tersimpan di perangkat.",
+            "status": {
+                "pending": "Menunggu dikirim",
+                "syncing": "Sedang dikirim",
+                "failed": "Gagal",
+                "conflict": "Konflik",
+                "discarding": "Sedang dihapus"
+            }
         }
     },
     "outlets": {
@@ -1285,6 +1324,7 @@
     },
     "addOn": {
         "add": "Tambah pesanan",
+        "label": "Tambahan",
         "banner": "Pesanan tambahan untuk {{invoice}}",
         "receipt": "Tambahan untuk {{invoice}}",
         "completed": "Pesanan sebelumnya sudah selesai. Dibuat sebagai pesanan baru.",
@@ -1399,5 +1439,78 @@
     },
     "receipt": {
         "orderName": "Nama pesanan"
+    },
+    "waste": {
+        "title": "Waste",
+        "subtitle": "Bahan baku dan menu yang dibuang.",
+        "create": "Catat waste",
+        "back": "Kembali ke daftar waste",
+        "status": "Status",
+        "allStatuses": "Semua status",
+        "warehouse": "Gudang",
+        "allWarehouses": "Semua gudang",
+        "reason": "Alasan",
+        "chooseReason": "Pilih alasan",
+        "item": "Item",
+        "itemNumber": "Item {{number}}",
+        "chooseItem": "Pilih bahan baku atau menu",
+        "addItem": "Tambah item",
+        "removeItem": "Hapus item {{number}}",
+        "qty": "Jumlah",
+        "stockLeft": "Stok: {{stock}}",
+        "menuStock": "Stok: — (bahan resep diperiksa saat disimpan)",
+        "noteOptional": "Catatan (opsional)",
+        "note": "Catatan",
+        "total": "Perkiraan nilai waste: {{value}}",
+        "estimateNote": "Dari HPP rata-rata saat ini; nilai akhir dihitung saat disimpan.",
+        "save": "Simpan waste",
+        "empty": "Belum ada catatan waste",
+        "recordedBy": "Dicatat oleh {{name}}",
+        "lines": "Item yang dicatat",
+        "moves": "Stok yang keluar",
+        "unitCost": "HPP satuan",
+        "value": "Nilai",
+        "notTaken": "Stok belum dipotong.",
+        "takenAt": "Stok dipotong {{date}}",
+        "statuses": {
+            "pending": "Menunggu persetujuan",
+            "recorded": "Tercatat",
+            "rejected": "Ditolak",
+            "cancelled": "Dibatalkan"
+        },
+        "reasons": {
+            "expired": "Kedaluwarsa",
+            "damaged": "Rusak",
+            "wrong_made": "Salah buat",
+            "not_collected": "Tidak diambil",
+            "other": "Lainnya"
+        }
+    },
+    "profitReport": {
+        "waste": {
+            "cost": "Biaya waste",
+            "costDescription": "Tidak termasuk HPP penjualan",
+            "afterWaste": "Profit setelah waste",
+            "afterWasteDescription": "Setelah dikurangi waste",
+            "hiddenNote": "Biaya waste tidak ditampilkan saat filter faktur, kasir atau pelanggan aktif",
+            "link": "Lihat laporan waste"
+        }
+    },
+    "wasteReport": {
+        "title": "Laporan Waste",
+        "outlet": "Outlet",
+        "startDate": "Tanggal Mulai",
+        "endDate": "Tanggal Akhir",
+        "apply": "Terapkan",
+        "total": "Total biaya waste",
+        "items": "Waste per Item",
+        "item": "Item",
+        "qty": "Jumlah",
+        "value": "Nilai",
+        "menuTag": "Menu",
+        "reasons": "Waste per Alasan",
+        "reason": "Alasan",
+        "records": "Jumlah catatan",
+        "empty": "Tidak ada waste pada periode ini"
     }
 }

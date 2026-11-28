@@ -105,7 +105,8 @@ class DineIn
             // a warehouse, a table, a cashier with an open shift there, one product (10000, stock 20) and a submitted
             // order of --arg=qty (default 2). --arg=accepted=1 (default) accepts it through the real service, 0 leaves it submitted.
             // --arg=gateway=midtrans (default) | xendit | none; --arg=needs_prep=0|1 flags the product for the kitchen;
-            // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only).
+            // --arg=staff=1 lets that cashier sign in (POS, her shift, history, sales report; this outlet only), and
+            // --arg=returns=1 lets her record and complete sales returns too.
             // --arg=pay_later=1 makes it a Bayar Belakangan order: accepting puts it in the kitchen while unpaid.
             // Returns access_token, table_token (the table's menu), invoice (null until accepted), grand_total, her shift_id and cashier_email, and the keys that sign the gateway's webhooks.
             'dine.bill' => function (array $options): array {
@@ -147,6 +148,9 @@ class DineIn
                         $cashier->update(['completed_tours' => TourController::TOURS]); // else a tour overlay blocks clicks
                         $cashier->syncPermissions(['dashboard-access', 'transactions-access', 'dine-orders-process', 'cashier-shifts-access', 'cashier-shifts-close', 'reports-access']);
                         $cashier->outlets()->sync([$outlet->id => ['is_default' => true]]);
+                    }
+                    if (($options['returns'] ?? '0') === '1') {
+                        $cashier->givePermissionTo(['sales-returns-access', 'sales-returns-create', 'sales-returns-complete']);
                     }
 
                     $product = Product::create([
@@ -236,6 +240,7 @@ class DineIn
                     'payment_reference' => $transaction?->payment_reference,
                     'late_superseded_payment_at' => $transaction?->late_superseded_payment_at?->toIso8601String(),
                     'paid_after_close_at' => $transaction?->paid_after_close_at?->toIso8601String(),
+                    'overpaid_amount' => $transaction?->overpaid_amount,
                     'shift_id' => $transaction?->cashier_shift_id,
                     // How many audit entries of each event the bill has (a step checks "once", not "some").
                     'audit' => $transaction

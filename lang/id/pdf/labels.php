@@ -86,6 +86,8 @@ return [
         'total_discount' => 'Total Diskon',
         'before_tax' => 'Sebelum PPN',
         'tax_rate' => 'PPN :rate%',
+        'service_charge' => 'Service charge',
+        'pb1_rate' => 'PB1 :rate%',
         'grand_total' => 'TOTAL',
         'amount_due' => 'SISA TAGIHAN',
         'payment_method' => 'Bayar via',

@@ -95,7 +95,7 @@
         $promoDiscount = $transaction->details->sum('discount_total');
         $voucherDiscount = $transaction->customer_voucher_discount ?? 0;
         $loyaltyDiscount = $transaction->loyalty_discount_total ?? 0;
-        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
+        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0) + $promoDiscount + $voucherDiscount + $loyaltyDiscount;
         $discount = $transaction->discount ?? 0;
         $total = $transaction->grand_total ?? 0;
         $shipping = $transaction->shipping_cost ?? 0;
@@ -141,9 +141,15 @@
                 <span>{{ $formatPrice($shipping) }}</span>
             </div>
         @endif
+        @if($transaction->service_charge > 0)
+            <div style="display:flex; justify-content:space-between;">
+                <span>{{ $l('receipt.service_charge') }}</span>
+                <span>{{ $formatPrice($transaction->service_charge) }}</span>
+            </div>
+        @endif
         @if($taxTotal > 0)
             <div style="display:flex; justify-content:space-between;">
-                <span>{{ str_replace(':rate', number_format($taxRate, 0), $l('receipt.tax_rate')) }}</span>
+                <span>{{ $transaction->pb1Label() ?? str_replace(':rate', number_format($taxRate, 0), $l('receipt.tax_rate')) }}</span>
                 <span>{{ $formatPrice($taxTotal) }}</span>
             </div>
         @endif

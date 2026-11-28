@@ -21,6 +21,7 @@ use App\Services\AddOnOrderService;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
+use App\Services\CheckoutPreviewService;
 use App\Services\CheckoutService;
 use App\Services\LoyaltyService;
 use App\Services\OpenBillListService;
@@ -54,6 +55,7 @@ class TransactionController extends Controller
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
         protected readonly TransactionPaymentRetryService $paymentRetryService,
+        protected readonly CheckoutPreviewService $checkoutPreviewService,
     ) {}
 
     public function index()
@@ -71,9 +73,8 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $initialPricingPreview = $this->loyaltyService->previewCheckout(
-            $this->pricingService->previewCart($carts, null, null, $outlet)
-        );
+        // The POS opens on Di Tempat, so the first paint already carries the dine-in bill.
+        $initialPricingPreview = $this->checkoutPreviewService->checkout(auth()->user(), null, ['order_type' => 'in_store'], $carts);
 
         // Get held carts grouped by hold_id
         $heldCarts = Cart::with('product:id,title,sell_price,image')
@@ -109,7 +110,7 @@ class TransactionController extends Controller
             ->forPos($warehouseId)
             ->orderBy('title')
             ->get()
-            ->filter(fn (Product $product) => $product->stockIn($warehouseId) > 0)
+            ->filter(fn (Product $product) => $product->is_composite || $product->stockIn($warehouseId) > 0)
             ->values();
         $pricingBadges = $this->pricingService->previewProducts($products, null, null, $outlet);
         $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId) {
@@ -117,7 +118,7 @@ class TransactionController extends Controller
 
             return [
                 ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
-                'stock' => $product->stockIn($warehouseId),
+                'stock' => ($stock = $product->stockIn($warehouseId)), 'sold_out' => $product->is_composite && $stock < 1,
                 'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
                 'units' => $product->units->map(fn ($u) => [
                     'unit_id' => $u->id,
@@ -231,6 +232,7 @@ class TransactionController extends Controller
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
+            'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
         ]);
 
         $customer = isset($validated['customer_id'])
@@ -239,8 +241,6 @@ class TransactionController extends Controller
         $voucher = isset($validated['customer_voucher_id'])
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
 
         $carts = Cart::with('product.category')
             ->where('cashier_id', $request->user()->id)
@@ -248,16 +248,15 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $pricingPreview = $this->pricingService->previewCart($carts, $customer, null, $activeShift?->warehouse?->outlet);
-
         return response()->json([
             'success' => true,
-            'data' => $this->loyaltyService->previewCheckout($pricingPreview, $customer, [
+            'data' => $this->checkoutPreviewService->checkout($request->user(), $customer, [
                 'manual_discount' => (int) ($validated['discount'] ?? 0),
                 'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
                 'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
                 'voucher' => $voucher,
-            ], null, $activeShift?->warehouse?->outlet),
+                'order_type' => $validated['order_type'] ?? null,
+            ], $carts),
         ]);
     }
 
@@ -764,7 +763,7 @@ class TransactionController extends Controller
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
-        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue()]);
+        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue(), ...$transaction->cashRefundNotice()]);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [
@@ -862,7 +861,7 @@ class TransactionController extends Controller
             })
             // sales whose superseded attempt was paid after a retry: money to refund by hand
             ->when($filters['late_payment'], fn (Builder $builder) => $builder->whereNotNull('late_superseded_payment_at'))
-            // gateway sales paid after their shift closed: the closed recap was left as it was
+            // sales of any method paid after their shift closed: the closed recap was left as it was
             ->when($filters['paid_after_close'], fn (Builder $builder) => $builder->whereNotNull('paid_after_close_at'));
 
         $transactions = $query->paginate($this->perPage())->withQueryString();

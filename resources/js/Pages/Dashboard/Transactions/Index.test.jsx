@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, fireEvent, act } from "@testing-library/react";
+import { render, fireEvent, act, waitFor } from "@testing-library/react";
 import { router } from "@inertiajs/react";
 import toast from "react-hot-toast";
+import i18n from "@/i18n";
 import Index from "./Index";
 
 const page = vi.hoisted(() => ({ props: {} }));
@@ -75,5 +76,27 @@ describe("POS checkout toast", () => {
 
         expect(toast.error).toHaveBeenCalledExactlyOnceWith("Gagal menyimpan transaksi");
         expect(toast.success).not.toHaveBeenCalled();
+    });
+});
+
+describe("POS barcode scan", () => {
+    // BR-4: every new text is in both languages; the sold-out toast must not stay Indonesian in the English UI.
+    it("toasts Sold out in English for a scanned product with no stock", async () => {
+        await i18n.changeLanguage("en");
+        try {
+            render(
+                <Index
+                    carts={[]}
+                    initialPricingPreview={pricing}
+                    products={[{ id: 9, title: "Kopi", barcode: "111", stock: 0 }]}
+                />
+            );
+            for (const key of "111") fireEvent.keyDown(window, { key });
+            fireEvent.keyDown(window, { key: "Enter" });
+
+            await waitFor(() => expect(toast.error).toHaveBeenCalledWith("Kopi Sold out"));
+        } finally {
+            await i18n.changeLanguage("id");
+        }
     });
 });

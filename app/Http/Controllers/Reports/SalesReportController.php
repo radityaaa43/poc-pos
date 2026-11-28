@@ -66,7 +66,7 @@ class SalesReportController extends Controller
             ')
             ->first();
 
-        // Gateway sales paid after their shift closed: a breakdown inside the totals above, by the sale's own date.
+        // Sales paid after their shift closed, whatever the method: a breakdown inside the totals above, by the sale's own date.
         $paidAfterClose = (clone $aggregateQuery)
             ->where('payment_status', 'paid')
             ->whereNotNull('paid_after_close_at')
@@ -93,6 +93,8 @@ class SalesReportController extends Controller
                 ? (int) round($totals->revenue_total / $totals->orders_count)
                 : 0,
             'paid_after_close_count' => (int) ($paidAfterClose->bills_count ?? 0),
+            // shortcut: the whole bill, also when only a split part arrived after the close; the part amount is on the
+            // payment.paid_after_close audit entry (#396 Q1). Sum that if owners need the late money alone.
             'paid_after_close_total' => (int) ($paidAfterClose->bills_total ?? 0),
         ];
 

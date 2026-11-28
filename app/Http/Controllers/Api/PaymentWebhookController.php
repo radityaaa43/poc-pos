@@ -12,7 +12,6 @@ use App\Models\ReceivablePayment;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Services\AuditLogService;
-use App\Services\CashierShiftService;
 use App\Services\TransactionTenderService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -590,30 +589,36 @@ class PaymentWebhookController extends Controller
         }
 
         // The owning shift closed first: its recap is a stored snapshot and stays as it was; the payment is only flagged.
-        $afterClose = $values['payment_status'] === 'paid' && $shift && ! $shift->isOpen()
-            && ! CashierShiftService::countedInClosedRecap($bill->payment_method);
+        // A bill settled at the till has moved to an open shift: the forced close that booked it still counts. Called
+        // before the payment_method rewrite below, which needs the method as it was (#469).
+        $closedShift = app(TransactionTenderService::class)->flagPaidAfterClose(
+            $bill, $shift, $values['payment_status'], (int) $amount, $bill->payment_method,
+            ['source' => 'webhook', 'gateway' => $gateway, 'order_id' => $providerId],
+        );
 
         // Paid while still open_bill (a failed charge had put it back): name the gateway, or the shift's non-cash total
-        // leaves the money out. Set after the check above, which needs the method as it was.
+        // leaves the money out.
         if ($values['payment_status'] === 'paid' && $bill->payment_method === Transaction::METHOD_OPEN_BILL) {
             $values['payment_method'] = $gateway;
         }
 
-        $bill->update($afterClose ? [...$values, 'paid_after_close_at' => now()] : $values);
+        $bill->update($values);
 
         // The gateway took more than the receivable owed: the balance is booked, the rest must be refunded by hand.
         if ($excess > 0) {
             $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} melebihi sisa piutang; kelebihan perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'excess' => $excess], $reference);
         }
 
-        if ($afterClose) {
-            app(AuditLogService::class)->log(
-                event: 'payment.paid_after_close',
-                module: 'transactions',
-                auditable: $bill,
-                description: "Invoice {$bill->invoice} dibayar setelah shift ditutup; rekap shift tidak berubah.",
-                meta: ['shift_id' => $shift->id, 'gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
+        // A return completed while this payment waited may have lowered the bill. A late booking already matched what is owed.
+        if ($values['payment_status'] === 'paid' && ! $late) {
+            app(TransactionTenderService::class)->flagOverpayment(
+                $bill,
+                is_numeric($amount) ? (int) round((float) $amount) : null,
+                ['source' => 'gateway', 'order_id' => $providerId],
             );
+        }
+
+        if ($closedShift) {
             Log::info(ucfirst($gateway).' Webhook: paid after shift close', ['provider' => $gateway, 'order_id' => $providerId, 'transaction_id' => $bill->id]);
         }
 

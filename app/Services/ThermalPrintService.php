@@ -49,13 +49,16 @@ class ThermalPrintService
         }
 
         $lines[] = $this->line($maxWidth);
-        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0);
+        $subtotal = ($transaction->grand_total ?? 0) + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0);
         $lines[] = $this->leftRight('Subtotal', number_format($subtotal, 0, ',', '.'), $maxWidth);
         if (($transaction->discount ?? 0) > 0) {
             $lines[] = $this->leftRight('Diskon', '-'.number_format((int) $transaction->discount, 0, ',', '.'), $maxWidth);
         }
+        if ($transaction->service_charge > 0) {
+            $lines[] = $this->leftRight(__('pdf/labels.receipt.service_charge'), number_format($transaction->service_charge, 0, ',', '.'), $maxWidth);
+        }
         if (($transaction->tax_total ?? 0) > 0) {
-            $lines[] = $this->leftRight('PPN', number_format((int) $transaction->tax_total, 0, ',', '.'), $maxWidth);
+            $lines[] = $this->leftRight($transaction->pb1Label() ?? 'PPN', number_format((int) $transaction->tax_total, 0, ',', '.'), $maxWidth);
         }
         if (($transaction->shipping_cost ?? 0) > 0) {
             $lines[] = $this->leftRight('Ongkir', number_format((int) $transaction->shipping_cost, 0, ',', '.'), $maxWidth);

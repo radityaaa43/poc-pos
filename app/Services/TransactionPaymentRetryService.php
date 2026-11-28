@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Exceptions\PaymentGatewayException;
+use App\Models\CashierShift;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
@@ -98,7 +99,7 @@ class TransactionPaymentRetryService
                 'bank_account_id' => $input['bank_account_id'] ?? null,
             ]], $total, allowEmpty: false, outlet: $outlet)[0];
 
-            $before = ['payment_method' => $sale->payment_method, 'payment_status' => $sale->payment_status, 'payment_attempt' => $sale->payment_attempt];
+            $before = ['payment_method' => $sale->payment_method, 'payment_status' => $sale->payment_status, 'payment_attempt' => $sale->payment_attempt, 'cashier_shift_id' => $sale->cashier_shift_id];
 
             // A retry is a single method: the failed attempt's tenders never held money, so they are replaced.
             $sale->tenders()->delete();
@@ -115,6 +116,14 @@ class TransactionPaymentRetryService
                 'qr_string' => null,
             ]);
 
+            // The retry moved the sale to the paying shift: mark a payment its old shift's recap lacks. A cash retry is
+            // paid at once; a gateway retry is still pending, so its webhook marks it (#469 BR-2).
+            $this->tenderService->flagPaidAfterClose(
+                $sale, CashierShift::find($before['cashier_shift_id']), $sale->payment_status,
+                $total, $before['payment_method'], ['source' => 'retry'],
+            );
+            $sale->save();
+
             $this->auditLogService->log(
                 event: 'transaction.payment_retried',
                 module: 'transactions',
@@ -122,7 +131,8 @@ class TransactionPaymentRetryService
                 description: "Pembayaran invoice {$sale->invoice} diulang dengan metode {$method}.",
                 before: $before,
                 after: ['payment_method' => $sale->payment_method, 'payment_status' => $sale->payment_status, 'payment_attempt' => $sale->payment_attempt],
-                meta: ['invoice' => $sale->invoice],
+                // amount: what this attempt asks, read when a transfer without tenders is confirmed (#444).
+                meta: ['invoice' => $sale->invoice, 'amount' => $total],
                 actor: $user,
             );
 

@@ -7,6 +7,7 @@ use App\Http\Controllers\Apps\ProductController;
 use App\Http\Controllers\Apps\RawMaterialController;
 use App\Http\Controllers\Apps\StockMutationController;
 use App\Http\Controllers\Apps\StockOpnameController;
+use App\Http\Controllers\Apps\StockWasteController;
 use Illuminate\Support\Facades\Route;
 
 // Required by routes/web.php inside its /dashboard group, so the prefix and `auth` apply.
@@ -54,3 +55,6 @@ Route::post('stock-opnames/{stockOpname}/items', [StockOpnameController::class, 
 Route::patch('stock-opnames/{stockOpname}/items/{item}', [StockOpnameController::class, 'updateItem'])->middleware('permission:stock-opnames-create')->name('stock-opnames.items.update');
 Route::post('stock-opnames/{stockOpname}/finalize', [StockOpnameController::class, 'finalize'])->middleware('permission:stock-opnames-finalize')->name('stock-opnames.finalize');
 Route::get('stock-mutations', [StockMutationController::class, 'index'])->middleware('permission:stock-mutations-access')->name('stock-mutations.index');
+Route::get('stock-waste', [StockWasteController::class, 'index'])->middleware('permission:stock-waste-create|stock-waste-approve')->name('stock-waste.index');
+Route::get('stock-waste/create', [StockWasteController::class, 'create'])->middleware('permission:stock-waste-create')->name('stock-waste.create');
+Route::post('stock-waste', [StockWasteController::class, 'store'])->middleware('permission:stock-waste-create')->name('stock-waste.store');

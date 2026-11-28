@@ -169,7 +169,7 @@ class OutletController extends Controller
 
         foreach ([
             'transactions', 'carts', 'stock_mutations', 'cashier_shifts', 'purchase_orders',
-            'goods_receivings', 'supplier_returns', 'stock_opnames', 'product_batches',
+            'goods_receivings', 'supplier_returns', 'stock_opnames', 'product_batches', 'stock_wastes',
         ] as $table) {
             if (Schema::hasTable($table) && Schema::hasColumn($table, 'warehouse_id')
                 && DB::table($table)->whereIn('warehouse_id', $warehouseIds)->exists()) {

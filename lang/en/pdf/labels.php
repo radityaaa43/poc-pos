@@ -86,6 +86,8 @@ return [
         'total_discount' => 'Total Discount',
         'before_tax' => 'Before Tax',
         'tax_rate' => 'TAX :rate%',
+        'service_charge' => 'Service charge',
+        'pb1_rate' => 'PB1 :rate%',
         'grand_total' => 'TOTAL',
         'amount_due' => 'AMOUNT DUE',
         'payment_method' => 'Payment via',

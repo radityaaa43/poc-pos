@@ -33,7 +33,7 @@ One screen for the kitchen: every paid order that still has something to prepare
 
 ## Add-on orders
 
-An add-on order (#251, REQ-003 AC-21; see `docs/features/pos-transactions.md` and `docs/features/dine-in.md`) is a sale of its own: it reaches the display by the payment rule of any sale and shows as its own card, under its own invoice number or the table name.
+An add-on order (#251, REQ-003 AC-21; see `docs/features/pos-transactions.md` and `docs/features/dine-in.md`) is a sale of its own, linked to the original by `transactions.parent_transaction_id` (always the root order). The display shows them inside the original order's card, which keeps the original's table name or invoice number: the original's lines first, then each add-on's under **Tambahan** / "Add-on" with its own age and, when it is unpaid, its own **Belum lunas** chip. The card's age is its oldest line. An add-on follows the payment rule of any sale, so it appears when it is paid (at once for pay later). **Semua siap** and **Serahkan semua** on the card cover the original and its add-ons (within the chosen stations); each sale's dine-in order still follows its own lines. The grouping is display only (`app/Support/Kitchen/KitchenOrderGroups.php`): kitchen tickets and DIBATALKAN tickets stay one per sale. An add-on's tickets carry the original's number (see "Add-on tickets" below).
 
 ## Cancelled items
 
@@ -70,6 +70,17 @@ A device that has the kitchen display open can print a ticket for every new orde
 - Printing never changes the order: it is still "Diterima" / accepted on the screen until the kitchen moves it.
 - Needs: Chrome or Edge with WebUSB (a secure `https://` address, or `localhost`), a USB ESC/POS printer, and the page kept open. See `docs/features/thermal-printer.md` for printer setup. Printer failures, reprint and the Windows driver steps are under "Printer problems" below.
 - Routes: `kitchen.print-devices.store`, `kitchen.print-devices.tickets`, `kitchen.print-devices.prints` (`/kitchen/print-devices`) (same permission as the display). Tables: `kitchen_print_devices`, `kitchen_ticket_prints` (one row per station and item).
+
+### Add-on tickets (TAMBAHAN)
+
+An add-on order (see "Add-on orders") prints its own ticket, so the kitchen sees only what was added (#314, REQ-004 AC-03).
+
+- **Content:** the original order's table name or invoice number in large type, with **TAMBAHAN** / "ADD-ON" in the same large type on the line under it (labels follow the device language), then the order type, the time and only the add-on's own lines. **BELUM LUNAS** / "UNPAID" follows the add-on's own payment status. No prices.
+- **When:** like any sale: when the add-on is paid, at once for pay later. It does not wait for the original, so an add-on to a pay-now order that is still unpaid prints first, under that order's number.
+- **Once per print device:** the same record as any ticket. The original and the add-on are two tickets, never merged, each printed once per print device.
+- **Number:** a table-QR original names its add-ons by the table, also when the add-on was made on the POS. The add-on's DIBATALKAN ticket uses the same number.
+- **Normal ticket instead:** an add-on to a finished order is not linked, so it prints as a new order. So does an add-on whose original no longer exists.
+- **Data:** the ticket endpoint sends `kind` (`order` or `addon`), `root_id` and `number` for each ticket. The rule is in `KitchenOrders::header`.
 
 ### Cancellation tickets (DIBATALKAN)
 

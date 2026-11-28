@@ -74,7 +74,7 @@ class Scenarios
                         'sell_price' => 10000,
                         'stock' => $stock,
                         'tax_type' => 'exclusive',
-                        'tax_rate' => 0,
+                        'tax_rate' => $options['tax_rate'] ?? 0,
                         'purchased_by' => $options['purchased_by'] ?? null,
                     ]);
                     $warehouse->products()->attach($product->id, ['stock' => $stock]);

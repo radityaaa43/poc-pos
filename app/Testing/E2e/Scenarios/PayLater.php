@@ -42,12 +42,13 @@ class PayLater
                 return ['customer_id' => (int) $options['customer_id']];
             },
 
-            // The customer --arg=customer_id=<id>: credit limit, receivable count and every audited limit change.
+            // The customer --arg=customer_id=<id>: credit limit, sale and receivable counts and every audited limit change.
             'paylater.credit-state' => function (array $options): array {
                 $customer = Customer::findOrFail($options['customer_id']);
 
                 return [
                     'credit_limit' => $customer->credit_limit,
+                    'sales' => Transaction::where('customer_id', $customer->id)->count(),
                     'receivables' => $customer->receivables()->count(),
                     'audits' => AuditLog::where('event', 'customer.credit_limit_updated')
                         ->where('auditable_type', $customer->getMorphClass())
