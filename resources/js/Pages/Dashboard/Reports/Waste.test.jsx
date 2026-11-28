@@ -110,7 +110,7 @@ describe("Waste report page", () => {
 
         const card = screen.getByRole("region", { name: "Waste terhadap HPP penjualan" });
         expect(within(card).getByText("—")).toBeInTheDocument();
-        expect(within(card).getByText("Belum ada penjualan pada periode ini")).toBeInTheDocument();
+        expect(within(card).getByText("Tidak ada biaya penjualan pada periode ini")).toBeInTheDocument();
     });
 
     it("mounts the per-recorder and per-day table", () => {

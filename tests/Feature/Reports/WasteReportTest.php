@@ -126,7 +126,7 @@ class WasteReportTest extends TestCase
             ['date' => '2026-05-11', 'user_id' => $this->user->id, 'user_name' => $this->user->name, 'records' => 1, 'value' => 3000, 'near_limit' => 0],
             ['date' => self::DAY, 'user_id' => $other->id, 'user_name' => 'Budi', 'records' => 1, 'value' => 2000, 'near_limit' => 0],
             ['date' => self::DAY, 'user_id' => $this->user->id, 'user_name' => $this->user->name, 'records' => 1, 'value' => 1000, 'near_limit' => 0],
-        ], $this->page()['recorder_days']);
+        ], $this->page(['end_date' => '2026-05-11'])['recorder_days']);
     }
 
     public function test_a_recorder_splitting_waste_shows_one_row_per_day(): void

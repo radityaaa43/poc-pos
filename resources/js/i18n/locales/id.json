@@ -1511,6 +1511,6 @@
         "limitNote": "Batas {{amount}} per catatan; mendekati = dalam 10%",
         "deletedUser": "Pengguna dihapus",
         "wastePercent": "Waste terhadap HPP penjualan",
-        "noSalesCost": "Belum ada penjualan pada periode ini"
+        "noSalesCost": "Tidak ada biaya penjualan pada periode ini"
     }
 }

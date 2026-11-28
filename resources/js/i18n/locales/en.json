@@ -1511,6 +1511,6 @@
         "limitNote": "Limit {{amount}} per record; near = within 10%",
         "deletedUser": "Deleted user",
         "wastePercent": "Waste as % of sales cost",
-        "noSalesCost": "No sales in this period"
+        "noSalesCost": "No sales cost in this period"
     }
 }
