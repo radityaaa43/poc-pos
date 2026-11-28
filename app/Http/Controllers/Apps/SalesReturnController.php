@@ -211,13 +211,11 @@ class SalesReturnController extends Controller
             // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
             // stock row (#241, #242). A refusal below rolls the cancellation back.
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
-
-            // Then the receivable, before the sale, as the webhook does (by id: no gap lock when there is none).
-            Receivable::whereKey(data_get($salesReturn, 'transaction.receivable.id'))->lockForUpdate()->first();
+            $sale = $this->lockSaleForReturn($salesReturn);
 
             // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice. The
-            // row lock orders this against a close that is cancelling the sale right now.
-            if (Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->first()?->wasRestocked(locking: true)) {
+            // sale lock orders this against a close that is cancelling the sale right now.
+            if ($sale->wasRestocked(locking: true)) {
                 throw ValidationException::withMessages([
                     'sales_return' => 'Penjualan ini sudah dibatalkan dan stoknya sudah dikembalikan.',
                 ]);
@@ -703,6 +701,28 @@ class SalesReturnController extends Controller
             })
             ->groupBy('transaction_detail_id')
             ->pluck('total_qty', 'transaction_detail_id');
+    }
+
+    /**
+     * Locks the sale a return is completed against, so the return and a payment of that sale are serialised: the second
+     * one waits, and the settlement is worked out on the locked sale and receivable. The returned-quantity check is still a
+     * plain read (an older MySQL snapshot), so two returns of one sale completed together can both pass it: that older race
+     * is not closed here. Call it after cancelForReturn (kitchen and dine-order locks) and before any stock row. pay()
+     * takes the dine order, then the sale (a dine bill has no receivable); the payment webhook and the receivable payments
+     * take a receivable before its sale; a shift close takes kitchen items, dine orders, then sales; transactions:expire
+     * takes the sale before stock.
+     */
+    protected function lockSaleForReturn(SalesReturn $salesReturn): Transaction
+    {
+        // A sale gets its receivable at checkout, never later: locking only a known one, by key, takes no gap lock.
+        $receivableId = Receivable::where('transaction_id', $salesReturn->transaction_id)->value('id');
+        $receivable = $receivableId ? Receivable::whereKey($receivableId)->lockForUpdate()->first() : null;
+        $sale = Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->firstOrFail();
+
+        // The copy loaded before the lock may predate a payment: the settlement is worked out on the locked rows.
+        $salesReturn->setRelation('transaction', $sale->setRelation('receivable', $receivable));
+
+        return $sale;
     }
 
     protected function ensureDraft(SalesReturn $salesReturn): void

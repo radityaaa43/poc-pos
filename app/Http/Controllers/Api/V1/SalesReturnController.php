@@ -9,7 +9,6 @@ use App\Http\Traits\ApiResponder;
 use App\Models\CustomerCredit;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
-use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Services\KitchenItemService;
@@ -207,12 +206,11 @@ class SalesReturnController extends AppsSalesReturnController
             // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
             // stock row (#241, #242). A refusal below rolls the cancellation back.
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
+            $sale = $this->lockSaleForReturn($salesReturn);
 
-            // Then the receivable, before the sale, as the webhook does (by id: no gap lock when there is none).
-            Receivable::whereKey(data_get($salesReturn, 'transaction.receivable.id'))->lockForUpdate()->first();
-
-            // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice.
-            if (Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->first()?->wasRestocked(locking: true)) {
+            // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice. The
+            // sale lock orders this against a close that is cancelling the sale right now.
+            if ($sale->wasRestocked(locking: true)) {
                 throw ValidationException::withMessages([
                     'sales_return' => 'Penjualan ini sudah dibatalkan dan stoknya sudah dikembalikan.',
                 ]);

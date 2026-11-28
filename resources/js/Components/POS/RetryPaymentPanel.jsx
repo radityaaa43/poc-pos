@@ -48,7 +48,8 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
         return errorAlert || null;
     }
 
-    const total = Number(transaction.grand_total || 0);
+    // From the server: a sale with returns is asked less than its grand total.
+    const total = Number(transaction.retry_amount ?? transaction.grand_total ?? 0);
     const change = Math.max(Number(cashReceived || 0) - total, 0);
 
     const submit = (payload) =>
@@ -76,6 +77,12 @@ export default function RetryPaymentPanel({ transaction, retryable, bankAccounts
             <p className="text-sm font-semibold text-danger-700 dark:text-danger-400">
                 {t(`pos.retryPayment.${transaction.payment_status === "expired" ? "expired" : "failed"}`)}
             </p>
+
+            {total < Number(transaction.grand_total || 0) && (
+                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                    {t("pos.retryPayment.due")}: {formatPrice(total)}
+                </p>
+            )}
 
             <div className="flex flex-wrap gap-2">
                 {/* Split and bank-transfer sales need more than the method (tenders, an account): they go through "other way". */}

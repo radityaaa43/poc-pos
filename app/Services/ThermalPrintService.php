@@ -59,6 +59,9 @@ class ThermalPrintService
         }
         $lines[] = $this->line($maxWidth);
         $lines[] = $this->leftRight('TOTAL', number_format((int) $transaction->grand_total, 0, ',', '.'), $maxWidth);
+        if (($due = $transaction->reducedAmountDue()) !== null) {
+            $lines[] = $this->leftRight('SISA TAGIHAN', number_format($due, 0, ',', '.'), $maxWidth);
+        }
 
         $tenders = $transaction->relationLoaded('tenders')
             ? $transaction->tenders

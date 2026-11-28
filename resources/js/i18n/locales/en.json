@@ -1178,7 +1178,8 @@
             "cashReceived": "Cash received",
             "change": "Change",
             "bankAccount": "Destination account",
-            "pay": "Pay"
+            "pay": "Pay",
+            "due": "Amount due"
         },
         "payLater": {
             "label": "Bayar Belakangan",

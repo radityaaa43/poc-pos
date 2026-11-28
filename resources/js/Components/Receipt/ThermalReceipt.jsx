@@ -216,6 +216,12 @@ export default function ThermalReceipt({
                     <span>TOTAL</span>
                     <span>{formatPrice(total)}</span>
                 </div>
+                {transaction?.amount_due != null && (
+                    <div className="flex justify-between font-bold text-sm">
+                        <span>SISA TAGIHAN</span>
+                        <span>{formatPrice(transaction.amount_due)}</span>
+                    </div>
+                )}
             </div>
 
             <pre className="whitespace-pre-wrap">{dashLine}</pre>
@@ -428,6 +434,12 @@ export function ThermalReceipt58mm({
                 <span>TOTAL</span>
                 <span>{formatPrice(transaction?.grand_total)}</span>
             </div>
+            {transaction?.amount_due != null && (
+                <div className="flex justify-between font-bold">
+                    <span>SISA TAGIHAN</span>
+                    <span>{formatPrice(transaction.amount_due)}</span>
+                </div>
+            )}
             {transaction?.tenders?.length > 0 ? (
                 transaction.tenders.map((tender) => (
                     <div key={tender.id} className="flex justify-between">

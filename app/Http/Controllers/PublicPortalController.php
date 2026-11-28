@@ -25,6 +25,7 @@ class PublicPortalController extends Controller
                 'payment_method' => $transaction->payment_method,
                 'payment_status' => $transaction->payment_status,
                 'grand_total' => (int) $transaction->grand_total,
+                'amount_due' => $transaction->reducedAmountDue(),
                 'discount' => (int) $transaction->discount,
                 'shipping_cost' => (int) $transaction->shipping_cost,
                 'tax_total' => (int) $transaction->tax_total,

@@ -145,6 +145,12 @@
             <span>{{ $l('receipt.grand_total') }}</span>
             <span>{{ $formatPrice($total) }}</span>
         </div>
+        @if(($due = $transaction->reducedAmountDue()) !== null)
+            <div style="display:flex; justify-content:space-between; font-weight:700; font-size:13px;">
+                <span>{{ $l('receipt.amount_due') }}</span>
+                <span>{{ $formatPrice($due) }}</span>
+            </div>
+        @endif
     </div>
 
     <pre style="margin:4px 0;">{{ $dash }}</pre>
