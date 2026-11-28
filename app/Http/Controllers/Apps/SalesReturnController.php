@@ -9,6 +9,7 @@ use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
 use App\Models\ProductWarehouse;
 use App\Models\Profit;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\SalesReturnItem;
 use App\Models\Transaction;
@@ -207,8 +208,20 @@ class SalesReturnController extends Controller
             // The state that is actually completed, for the audit: the locked row, before anything changes.
             $before = $this->salesReturnAuditPayload($salesReturn);
 
-            // Before any stock row is locked: the kitchen item lock comes first, as in a start tap (#241).
+            // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
+            // stock row (#241, #242). A refusal below rolls the cancellation back.
             app(KitchenItemService::class)->cancelForReturn($salesReturn);
+
+            // Then the receivable, before the sale, as the webhook does (by id: no gap lock when there is none).
+            Receivable::whereKey(data_get($salesReturn, 'transaction.receivable.id'))->lockForUpdate()->first();
+
+            // A cancelled sale already returned its stock (expiry or shift close): completing would return it twice. The
+            // row lock orders this against a close that is cancelling the sale right now.
+            if (Transaction::whereKey($salesReturn->transaction_id)->lockForUpdate()->first()?->wasRestocked(locking: true)) {
+                throw ValidationException::withMessages([
+                    'sales_return' => 'Penjualan ini sudah dibatalkan dan stoknya sudah dikembalikan.',
+                ]);
+            }
 
             if ($salesReturn->items->isEmpty()) {
                 throw ValidationException::withMessages([
@@ -419,7 +432,9 @@ class SalesReturnController extends Controller
     {
         $draftItems = collect($salesReturn?->items ?? [])
             ->keyBy('transaction_detail_id');
-        $kitchenStatuses = KitchenItem::where('transaction_id', $transaction->id)->pluck('status', 'transaction_detail_id');
+        $kitchenItems = KitchenItem::where('transaction_id', $transaction->id)
+            ->get(['transaction_detail_id', 'status', 'preparing_at'])
+            ->keyBy('transaction_detail_id');
 
         return [
             'id' => $transaction->id,
@@ -445,14 +460,18 @@ class SalesReturnController extends Controller
                 'status' => $transaction->receivable->status,
                 'remaining' => (int) $transaction->receivable->remaining,
             ] : null,
-            'details' => $transaction->details->map(function (TransactionDetail $detail) use ($draftItems, $kitchenStatuses) {
+            'details' => $transaction->details->map(function (TransactionDetail $detail) use ($draftItems, $kitchenItems) {
                 $completedReturnedQty = (int) $detail->salesReturnItems
                     ->filter(fn (SalesReturnItem $item) => $item->salesReturn?->status === 'completed')
                     ->sum('qty_return');
 
                 $draftItem = $draftItems->get($detail->id);
                 $qtySold = (int) $detail->qty;
-                $kitchenStatus = $kitchenStatuses->get($detail->id);
+                $kitchenItem = $kitchenItems->get($detail->id);
+                $kitchenStatus = $kitchenItem?->status;
+                // Being made or made: preparing, ready, or Tidak diambil after the kitchen had started it.
+                $cooked = in_array($kitchenStatus, [KitchenItem::STATUS_PREPARING, KitchenItem::STATUS_READY], true)
+                    || ($kitchenStatus === KitchenItem::STATUS_NOT_COLLECTED && $kitchenItem->preparing_at !== null);
 
                 return [
                     'id' => $detail->id,
@@ -468,8 +487,8 @@ class SalesReturnController extends Controller
                     'returned_completed_qty' => $completedReturnedQty,
                     'remaining_returnable_qty' => max(0, $qtySold - $completedReturnedQty),
                     'kitchen_status' => $kitchenStatus,
-                    // Already being made (preparing, ready): not put back on the shelf by default (BR-4); the person can change it.
-                    'restock_default' => ! in_array($kitchenStatus, [KitchenItem::STATUS_PREPARING, KitchenItem::STATUS_READY], true),
+                    // Already cooked: not put back on the shelf by default (BR-4); the person can change it.
+                    'restock_default' => ! $cooked,
                     'draft_item' => $draftItem ? [
                         'qty_return' => (int) $draftItem->qty_return,
                         'return_reason' => $draftItem->return_reason,

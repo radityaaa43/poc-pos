@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\ShiftCloseBlockedException;
 use App\Http\Controllers\Apps\CashierShiftController as AppsCashierShiftController;
 use App\Http\Requests\CloseCashierShiftRequest;
 use App\Http\Requests\StoreCashierShiftRequest;
@@ -101,7 +102,8 @@ class CashierShiftController extends AppsCashierShiftController
     public function closeShift(CloseCashierShiftRequest $request, CashierShift $cashierShift): JsonResponse
     {
         $cashierShift = $this->resolveVisibleShift($request, $cashierShift);
-        $forceClose = $cashierShift->user_id !== $request->user()->id;
+        // Someone else's shift, or the owner forcing their own held shift (BR-14): both need the permission.
+        $forceClose = $cashierShift->user_id !== $request->user()->id || $request->boolean('force');
 
         if ($forceClose && ! ($request->user()->isSuperAdmin() || $request->user()->can('cashier-shifts-force-close'))) {
             return $this->forbidden();
@@ -109,13 +111,18 @@ class CashierShiftController extends AppsCashierShiftController
 
         $before = $this->shiftAuditPayload($cashierShift);
 
-        $closedShift = $this->cashierShiftService->closeShift(
-            shift: $cashierShift,
-            actor: $request->user(),
-            actualCash: (int) $request->validated('actual_cash'),
-            closeNotes: $request->validated('close_notes'),
-            forceClose: $forceClose,
-        );
+        try {
+            $closedShift = $this->cashierShiftService->closeShift(
+                shift: $cashierShift,
+                actor: $request->user(),
+                actualCash: (int) $request->validated('actual_cash'),
+                closeNotes: $request->validated('close_notes'),
+                forceClose: $forceClose,
+                overrideHold: $request->boolean('force'),
+            );
+        } catch (ShiftCloseBlockedException $e) {
+            return $this->error($e->getMessage(), 422, [...$e->errors(), 'blockers' => $e->blockers]);
+        }
 
         $this->auditLogService->log(
             event: $forceClose ? 'cashier_shift.force_closed' : 'cashier_shift.closed',

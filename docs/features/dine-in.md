@@ -262,6 +262,7 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
+- Closing a shift never cancels a dine-in bill: an unpaid one holds the close (see `cashier-shifts.md`).
 
 ### Guest online payment (REQ-005)
 

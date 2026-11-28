@@ -30,23 +30,18 @@ class DineOrderService
     public function accept(DineOrder $order): void
     {
         $cashierId = $order->cashier_id ?? auth()->id();
-        $shift = CashierShift::with('warehouse.outlet')
-            ->where('user_id', $cashierId)
-            ->open()
-            ->first();
+        DB::transaction(function () use ($order, $cashierId) {
+            // The shift lock comes first, as in a close: a bill never lands on a shift that is closing (#242).
+            $shift = CashierShift::where('user_id', $cashierId)->open()->lockForUpdate()->first();
 
-        // ponytail: without an open shift there is no warehouse context to take stock from — refuse instead of accepting an order whose stock is never decremented
-        if (! $shift) {
-            throw ValidationException::withMessages([
-                'shift' => 'Tidak ada shift kasir aktif. Buka shift terlebih dahulu sebelum menerima pesanan.',
-            ]);
-        }
+            // ponytail: without an open shift there is no warehouse context to take stock from — refuse instead of accepting an order whose stock is never decremented
+            if (! $shift) {
+                throw ValidationException::withMessages([
+                    'shift' => 'Tidak ada shift kasir aktif. Buka shift terlebih dahulu sebelum menerima pesanan.',
+                ]);
+            }
 
-        $warehouseId = $shift->warehouse_id;
-
-        DB::transaction(function () use ($order, $shift, $warehouseId, $cashierId) {
-            // Shift, then orders, then sales, as pay() and the checkout lock them: the new sale references this shift.
-            $this->cashierShiftService->requireActiveShiftForUser($cashierId, lockForUpdate: true);
+            $warehouseId = $shift->warehouse_id;
 
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
@@ -235,7 +230,7 @@ class DineOrderService
                     $this->kitchenItemService->serveIfNoKitchenItems($transaction); // BR-10: nothing to make is served now, completed once paid
                 }));
             }
-        });
+        }, 3); // retried on a deadlock with a close of another shift; kitchen intake runs only after the commit
     }
 
     /**

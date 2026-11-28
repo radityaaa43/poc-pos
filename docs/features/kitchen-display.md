@@ -39,6 +39,8 @@ Items added to an order that is already in the kitchen are an add-on order (#251
 
 An item whose sale line was returned (a completed sales return, #241) shows **Dibatalkan**, struck through and without buttons, for 2 minutes after the return (`KitchenItem::onDisplay()`, measured on `updated_at`), then leaves the queue on a later poll. A partial return only lowers the quantity shown. A start or ready tap on a cancelled item answers "Sudah dibatalkan".
 
+**Not collected items.** When a shift is force-closed over food that was not handed over (see `cashier-shifts.md`), those items become `not_collected` (Tidak diambil). The status is final: the items leave the queue, no step button applies, and they stay out of the speed report. A dine-in order whose remaining items are all served or not collected counts as served, so it completes once paid.
+
 ## Outlet scope
 
 The screen shows the current outlet only: the outlet of the user's open shift, otherwise the outlet picked in the outlet switcher. Items of other outlets never appear. Order within the queue: the oldest accepted item first.
