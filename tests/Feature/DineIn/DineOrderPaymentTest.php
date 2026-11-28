@@ -433,7 +433,7 @@ class DineOrderPaymentTest extends TestCase
         $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
 
         // Midtrans settles it: now the kitchen can start, and serving completes the order
-        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction->invoice, 'settlement'))->assertOk();
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload("{$transaction->invoice}-r1", 'settlement'))->assertOk();
         $this->assertEquals('paid', $transaction->fresh()->payment_status);
         $this->assertEquals(DineOrder::STATUS_ACCEPTED, $order->fresh()->status);
 
@@ -445,6 +445,7 @@ class DineOrderPaymentTest extends TestCase
     {
         $this->enableMidtrans();
         $order = $this->acceptedOrder();
+        $shiftId = $order->transaction->cashier_shift_id;
         $this->mock(PaymentGatewayManager::class)
             ->shouldReceive('createTenderPayment')->once()->andThrow(new PaymentGatewayException('Gateway down'));
 
@@ -455,6 +456,9 @@ class DineOrderPaymentTest extends TestCase
         $this->assertEquals('unpaid', $transaction->payment_status);
         $this->assertEquals(Transaction::METHOD_OPEN_BILL, $transaction->payment_method);
         $this->assertEquals(0, $transaction->tenders()->count());
+        $this->assertSame($shiftId, $transaction->cashier_shift_id);
+        $this->assertSame($this->cashier->id, $transaction->cashier_id);
+        $this->assertSame(1, $transaction->payment_attempt);
     }
 
     public function test_an_expired_or_failed_gateway_payment_can_be_replaced_by_cash(): void
@@ -467,7 +471,7 @@ class DineOrderPaymentTest extends TestCase
             ->andReturn(['reference' => 'ref-1', 'payment_url' => null, 'qr_string' => 'QR']);
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->qrisTender())->assertSessionHasNoErrors();
 
-        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($transaction->invoice, 'expire'))->assertOk();
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload("{$transaction->invoice}-r1", 'expire'))->assertOk();
         $this->assertEquals('failed', $transaction->fresh()->payment_status);
 
         $this->actingAs($this->cashier)->post(route('dine-orders.pay', $order), $this->cashTender())->assertSessionHasNoErrors();
@@ -504,15 +508,15 @@ class DineOrderPaymentTest extends TestCase
         $this->assertEquals('unpaid', $order->transaction->fresh()->payment_status);
     }
 
-    private function midtransPayload(string $invoice, string $status): array
+    private function midtransPayload(string $orderId, string $status): array
     {
         return [
-            'order_id' => $invoice,
+            'order_id' => $orderId,
             'status_code' => '200',
             'gross_amount' => '20000.00',
             'transaction_status' => $status,
             'transaction_id' => 'mt-1',
-            'signature_key' => hash('sha512', $invoice.'200'.'20000.00'.'sk-test'),
+            'signature_key' => hash('sha512', $orderId.'200'.'20000.00'.'sk-test'),
         ];
     }
 

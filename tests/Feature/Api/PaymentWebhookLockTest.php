@@ -234,6 +234,12 @@ class PaymentWebhookLockTest extends TestCase
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());
     }
 
+    /** A cashier charge made before #358: attempt 0, so the gateway knows it by the bare invoice. */
+    private function cashierChargeAtAttemptZero(DineOrder $order): void
+    {
+        $this->cashierPays($order, 'qris')->update(['payment_attempt' => 0]);
+    }
+
     // ---- who wins ------------------------------------------------------------------------------------
 
     #[DataProvider('gateways')]
@@ -464,7 +470,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris'); // attempt 0: the order id is the bare invoice
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
         $tender = $bill->tenders()->sole();
         $this->assertSame('failed', $bill->fresh()->payment_status);
@@ -489,7 +495,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'expired')->assertOk();
         $this->cashierPays($order); // cash instead: attempt 0 stays, the failed QR tender is replaced by a paid cash tender
         $this->assertSame(0, $bill->fresh()->payment_attempt);
@@ -510,7 +516,7 @@ class PaymentWebhookLockTest extends TestCase
         $this->useGateway($gateway);
         $order = $this->acceptedOrder();
         $bill = $this->bill($order);
-        $this->cashierPays($order, 'qris');
+        $this->cashierChargeAtAttemptZero($order);
         $this->notify($gateway, $bill->invoice, 'paid', reference: 'first')->assertOk();
         // Only the tender holds the settlement's reference; the bill keeps the one its charge was created with.
         $this->assertSame('first', $bill->tenders()->sole()->payment_reference);
