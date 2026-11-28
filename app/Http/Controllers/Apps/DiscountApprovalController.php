@@ -13,6 +13,7 @@ use App\Services\AuditLogService;
 use App\Services\BillTotalService;
 use App\Services\LoyaltyService;
 use App\Services\OutletAccessService;
+use App\Services\ProfitLedgerService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -149,6 +150,11 @@ class DiscountApprovalController extends Controller
                 if ($loyaltyDelta > 0) {
                     app(LoyaltyService::class)->awardAfterDenial($transaction, $oldGrandTotal, (int) $updates['grand_total']);
                 }
+            }
+
+            // The customer never got that discount: rebuild the sale's recorded profit from the restored bill (#570 BR-6).
+            if ($status === 'denied') {
+                app(ProfitLedgerService::class)->rebuildFor($transaction);
             }
 
             DiscountApprovalLog::where('transaction_id', $transaction->id)
