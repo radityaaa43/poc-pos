@@ -45,6 +45,8 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     if (data.store_phone) center(`Telp: ${data.store_phone}`);
     line();
     leftRight(`#${data.invoice}`, data.created_at || "");
+    // Cashier-typed and already translated by the caller.
+    wrapLines(printable(data.order_name_line), width).forEach((l) => bytes.push(...textBytes(l + "\n")));
     if (data.cashier) leftRight("Kasir", data.cashier);
     if (data.customer_name) leftRight("Pelanggan", data.customer_name);
     if (data.order_type_label) leftRight("Tipe", data.order_type_label);

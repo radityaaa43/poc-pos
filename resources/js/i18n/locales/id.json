@@ -1224,6 +1224,11 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "orderName": {
+            "label": "Nama pesanan",
+            "placeholder": "Nama / nomor buzzer (opsional)",
+            "limit": "Maksimal 20 karakter"
         }
     },
     "outlets": {
@@ -1359,5 +1364,8 @@
         "saved": "Reservasi disimpan",
         "marked": "Status reservasi diubah",
         "failed": "Reservasi tidak bisa disimpan"
+    },
+    "receipt": {
+        "orderName": "Nama pesanan"
     }
 }

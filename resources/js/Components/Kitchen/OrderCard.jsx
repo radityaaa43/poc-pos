@@ -14,7 +14,12 @@ export default function OrderCard({
         >
             <header className="border-b border-slate-100 p-4 dark:border-slate-800">
                 <div className="flex items-start justify-between gap-3">
-                    <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{order.number}</h2>
+                    <div className="min-w-0">
+                        <h2 className="break-words text-2xl font-bold text-slate-900 dark:text-white">{order.number}</h2>
+                        {order.invoice && order.invoice !== order.number && (
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{order.invoice}</p>
+                        )}
+                    </div>
                     <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-slate-600 dark:text-slate-300">
                         <IconClock size={16} aria-hidden="true" />
                         {t("kitchen.minutes", {

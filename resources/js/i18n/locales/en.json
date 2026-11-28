@@ -1224,6 +1224,11 @@
             "overdue": "Overdue receivable exists",
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
+        },
+        "orderName": {
+            "label": "Order name",
+            "placeholder": "Name / buzzer number (optional)",
+            "limit": "20 characters maximum"
         }
     },
     "outlets": {
@@ -1359,5 +1364,8 @@
         "saved": "Reservation saved",
         "marked": "Reservation status changed",
         "failed": "The reservation could not be saved"
+    },
+    "receipt": {
+        "orderName": "Order name"
     }
 }

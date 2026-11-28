@@ -18,6 +18,7 @@ import HeldTransactions, {
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
+import OrderDetails from "@/Components/POS/OrderDetails";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
@@ -102,6 +103,7 @@ export default function Index({
     const [cashInput, setCashInput] = useState("");
     const [shippingInput, setShippingInput] = useState("");
     const [orderType, setOrderType] = useState("in_store");
+    const [orderName, setOrderName] = useState("");
     const [orderNote, setOrderNote] = useState("");
     const [paymentMethod, setPaymentMethod] = useState(
         defaultPaymentGateway ?? "cash"
@@ -462,6 +464,7 @@ export default function Index({
                 preserveScroll: true,
                 onSuccess: () => {
                     toast.success("Transaksi ditahan");
+                    setOrderName("");
                     setIsHolding(false);
                 },
                 onError: (errors) => {
@@ -771,6 +774,7 @@ export default function Index({
                 payment_gateway: null,
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
                 order_type: orderType,
+                order_name: orderName || null,
                 note: orderNote || null,
                 cart_ids: carts.map((item) => item.id),
                 items: carts.map((item) => ({
@@ -784,6 +788,7 @@ export default function Index({
                 setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
                 toast.success("Transaksi disimpan offline. Akan dikirim saat online.");
+                setOrderName("");
             });
             setIsSubmitting(false);
             return;
@@ -828,6 +833,7 @@ export default function Index({
                 pay_later: payLater,
                 due_date: dueDate,
                 order_type: orderType,
+                order_name: orderName || null,
                 note: orderNote || null,
             },
             {
@@ -844,6 +850,7 @@ export default function Index({
                     setPayLater(false);
                     setDueDate("");
                     setOrderType("in_store");
+                    setOrderName("");
                     setOrderNote("");
                     setIsSubmitting(false);
                     toast.success("Transaksi berhasil!");
@@ -851,7 +858,7 @@ export default function Index({
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.pay_later || errors?.note || errors?.order_name || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1270,31 +1277,12 @@ export default function Index({
                                     Detail Pesanan
                                 </p>
 
-                                <div>
-                                    <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                                        Tipe Pesanan
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { value: "in_store", label: "Di Tempat" },
-                                            { value: "takeaway", label: "Bawa Pulang" },
-                                            { value: "delivery", label: "Diantar" },
-                                        ].map((type) => (
-                                            <button
-                                                key={type.value}
-                                                type="button"
-                                                onClick={() => handleOrderTypeChange(type.value)}
-                                                className={`min-h-10 rounded-lg px-1 py-2 text-xs font-semibold transition-all ${
-                                                    orderType === type.value
-                                                        ? "bg-primary-500 text-white"
-                                                        : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-                                                }`}
-                                            >
-                                                {type.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+                                <OrderDetails
+                                    orderType={orderType}
+                                    onOrderTypeChange={handleOrderTypeChange}
+                                    orderName={orderName}
+                                    onOrderNameChange={setOrderName}
+                                />
 
                                 {isDelivery && (
                                     <div>
