@@ -109,17 +109,18 @@ class CashierShiftService
     }
 
     /**
-     * The shift whose forced close booked this pay-later sale as a shortfall, if one did. A payment at the till moves the
-     * sale to the paying shift while a transfer or gateway charge still waits, so the sale's own shift is open when the
-     * money arrives: the booking is what says it is paid after a close (#396 TC-8). Never a dine-in bill (a till payment
-     * after a close is not marked, REQ-005) or a credit sale. A plain read: call it after the caller's row locks.
+     * The shift whose forced close booked this sale as a shortfall, if one did. A payment at the till moves the sale to
+     * the paying shift while a transfer or gateway charge still waits, so the sale's own shift is open when the money
+     * arrives: the booking is what says it is paid after a close (#396 TC-8). Covers every bill in the forced-close list,
+     * dine-in included (#469); a credit sale is collected through its receivable and is not marked. A plain read: call it
+     * after the caller's row locks.
      *
      * shortcut: the link is the invoice list of the forced close's audit entry, so a bill booked before #242 has none and
      * gets no mark; store the booking shift's id on the sale if that matters.
      */
     public static function forcedCloseThatBooked(Transaction $sale): ?CashierShift
     {
-        if (! $sale->is_pay_later || $sale->dineOrder()->exists() || $sale->receivable()->exists()) {
+        if ($sale->receivable()->exists()) {
             return null;
         }
 

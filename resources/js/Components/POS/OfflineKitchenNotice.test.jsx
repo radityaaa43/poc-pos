@@ -27,6 +27,15 @@ describe("needsKitchen", () => {
 });
 
 describe("queueOfflineSale", () => {
+    it("keeps each line's product title on the queue record, not in the payload", async () => {
+        const carts = [{ product_id: 12, product: { title: "Kopi Susu" } }, { product_id: 13, product: {} }];
+        await act(() => queueOfflineSale({ client_uuid: "t" }, "5:3", carts));
+
+        const [row] = await getPendingTransactions("5:3");
+        expect(row.product_titles).toEqual({ 12: "Kopi Susu" });
+        expect(row.data).toEqual({ client_uuid: "t" });
+    });
+
     it("queues a shelf-only sale without notice or marker", async () => {
         mount();
         await act(() => queueOfflineSale({ client_uuid: "a" }, "5:3", shelfCart));
