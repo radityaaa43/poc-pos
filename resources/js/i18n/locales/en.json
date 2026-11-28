@@ -1224,6 +1224,26 @@
             "overdue": "Overdue receivable exists",
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
+        },
+        "tableOrder": {
+            "button": "Table order",
+            "loading": "Loading tables...",
+            "loadFailed": "The table list could not be loaded.",
+            "retry": "Try again",
+            "empty": "No active tables.",
+            "offline": "Table orders need an internet connection.",
+            "capacity": "Seats: {{total}}",
+            "cartEmpty": "The cart is empty. Add items first.",
+            "total": "Bill total",
+            "order": "Order",
+            "newOrder": "New order",
+            "addTo": "Add to order #{{order}} (items: {{total}})",
+            "payment": "Payment",
+            "payAtCounter": "Pay at the counter",
+            "cancel": "Cancel",
+            "submit": "Send order",
+            "sending": "Sending...",
+            "failed": "The order was not sent. Your cart is kept."
         }
     },
     "outlets": {
@@ -1312,6 +1332,12 @@
         "menu": {
             "submitOnline": "Order",
             "submitOnlineHint": "You can pay online after your order is accepted"
+        },
+        "tableStatus": {
+            "free": "Free",
+            "occupied": "Occupied",
+            "reserved": "Reserved",
+            "openBills": "Unpaid bills: {{total}}"
         }
     },
     "modifiers": {

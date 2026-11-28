@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\Api\PosApiController;
 use App\Http\Controllers\Apps\CrmCampaignController;
+use App\Http\Controllers\Apps\PosTableListController;
+use App\Http\Controllers\Apps\PosTableOrderController;
 use App\Http\Controllers\Apps\TransactionController;
 use App\Http\Controllers\Apps\TransactionSettleController;
 use Illuminate\Support\Facades\Route;
@@ -43,3 +45,8 @@ Route::get('/transactions/{invoice}/qr', [TransactionController::class, 'qrisIma
 Route::get('/transactions/{invoice}/print', [TransactionController::class, 'print'])->middleware('permission:transactions-access')->name('transactions.print');
 Route::get('/transactions/history', [TransactionController::class, 'history'])->middleware('permission:transactions-access')->name('transactions.history');
 Route::post('/transactions/{transaction}/share-campaign', [CrmCampaignController::class, 'shareTransaction'])->middleware('permission:crm-campaigns-create')->name('transactions.share-campaign');
+
+// table orders taken on the POS (#426); the list is asked for on page load, before any shift is open
+Route::get('/transactions/tables', PosTableListController::class)->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.tables');
+// No active_shift: it refuses with a redirect that Inertia reads as success. The service requires the shift under lock.
+Route::post('/transactions/table-orders', PosTableOrderController::class)->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.table-orders.store');

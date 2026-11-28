@@ -6,6 +6,7 @@ use App\Http\Controllers\Apps\DineTableController as AppsDineTableController;
 use App\Http\Traits\ApiResponder;
 use App\Models\DineArea;
 use App\Models\DiningTable;
+use App\Services\TableStatusService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -85,7 +86,7 @@ class DineTableController extends AppsDineTableController
     /**
      * PATCH /api/v1/dine-tables/{dineTable}
      */
-    public function updateTable(Request $request, DiningTable $dineTable): JsonResponse
+    public function updateTable(Request $request, DiningTable $dineTable, TableStatusService $tableStatus): JsonResponse
     {
         abort_unless($this->ownsTable($dineTable, $request), 404);
         $validated = $request->validate([
@@ -100,7 +101,9 @@ class DineTableController extends AppsDineTableController
         ]);
         $this->validateAreaAccess($validated['dine_area_id'] ?? null, $request);
 
-        $this->reservations->updateTable($dineTable, $validated, $request->user(), $this->outletAccess->activeOutlet($request));
+        // AC-23: only switching a table off is refused; a busy one can still be edited.
+        $switchesOff = $dineTable->is_active && ! ($validated['is_active'] ?? true);
+        $tableStatus->retire($dineTable, fn () => $this->reservations->updateTable($dineTable, $validated, $request->user(), $this->outletAccess->activeOutlet($request)), when: $switchesOff);
 
         return $this->ok($dineTable->fresh('area'));
     }
@@ -108,10 +111,10 @@ class DineTableController extends AppsDineTableController
     /**
      * DELETE /api/v1/dine-tables/{dineTable}
      */
-    public function destroyTable(Request $request, DiningTable $dineTable): JsonResponse
+    public function destroyTable(Request $request, DiningTable $dineTable, TableStatusService $tableStatus): JsonResponse
     {
         abort_unless($this->ownsTable($dineTable, $request), 404);
-        $this->reservations->deleteTable($dineTable, $request->user(), $this->outletAccess->activeOutlet($request));
+        $tableStatus->retire($dineTable, fn () => $this->reservations->deleteTable($dineTable, $request->user(), $this->outletAccess->activeOutlet($request)));
 
         return $this->noContent();
     }

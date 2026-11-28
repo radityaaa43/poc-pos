@@ -14,6 +14,7 @@ import {
 import Table from "@/Components/Dashboard/Table";
 import Modal from "@/Components/Dashboard/Modal";
 import Input from "@/Components/Dashboard/Input";
+import TableStatusBadge from "@/Components/Dine/TableStatusBadge";
 import { useAuthorization } from "@/Utils/authorization";
 import toast from "react-hot-toast";
 
@@ -185,7 +186,7 @@ export default function Index({ tables, areas, filters }) {
             toast.success(editingTable ? "Meja berhasil diperbarui." : "Meja berhasil ditambahkan.");
             setModalOpen(false);
         };
-        // `table`: the server says why, e.g. an unmarked reservation blocks switching it off.
+        // `table`: the server says why, e.g. a running order or an unmarked reservation keeps the table on.
         const onError = (errs) => toast.error(errs.table ?? "Gagal menyimpan meja.");
 
         if (editingTable) {
@@ -380,6 +381,7 @@ export default function Index({ tables, areas, filters }) {
                             <div>
                                 <p className="font-medium text-slate-800 dark:text-slate-200">{selectedTable.name}</p>
                                 <p className="text-sm text-slate-500 dark:text-slate-400">{selectedTable.area?.name ?? "Tanpa area"} · {selectedTable.capacity} orang · {selectedTable.is_active ? "Aktif" : "Nonaktif"}</p>
+                                <TableStatusBadge status={selectedTable.status} openBills={selectedTable.open_bills} />
                             </div>
                             <div className="flex gap-2">
                                 {canAccess && (
@@ -439,6 +441,7 @@ export default function Index({ tables, areas, filters }) {
                                         >
                                             {table.is_active ? "Aktif" : "Nonaktif"}
                                         </span>
+                                        <TableStatusBadge status={table.status} openBills={table.open_bills} />
                                     </Table.Td>
                                     <Table.Td>
                                         <div className="flex gap-2 justify-end">

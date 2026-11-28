@@ -1224,6 +1224,26 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "tableOrder": {
+            "button": "Pesanan meja",
+            "loading": "Memuat meja...",
+            "loadFailed": "Daftar meja gagal dimuat.",
+            "retry": "Coba lagi",
+            "empty": "Belum ada meja aktif.",
+            "offline": "Pesanan meja memerlukan koneksi internet.",
+            "capacity": "{{total}} orang",
+            "cartEmpty": "Keranjang kosong. Tambahkan item dulu.",
+            "total": "Total tagihan",
+            "order": "Pesanan",
+            "newOrder": "Pesanan baru",
+            "addTo": "Tambah ke pesanan #{{order}} ({{total}} item)",
+            "payment": "Pembayaran",
+            "payAtCounter": "Bayar di kasir",
+            "cancel": "Batal",
+            "submit": "Kirim pesanan",
+            "sending": "Mengirim...",
+            "failed": "Pesanan belum terkirim. Keranjang tetap ada."
         }
     },
     "outlets": {
@@ -1312,6 +1332,12 @@
         "menu": {
             "submitOnline": "Pesan",
             "submitOnlineHint": "Bisa bayar online setelah pesanan diterima"
+        },
+        "tableStatus": {
+            "free": "Kosong",
+            "occupied": "Terisi",
+            "reserved": "Dipesan",
+            "openBills": "{{total}} tagihan Belum Lunas"
         }
     },
     "modifiers": {

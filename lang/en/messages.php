@@ -410,6 +410,17 @@ return [
         'name_taken' => 'A kitchen station with this name already exists.',
         'default_locked' => 'The default station (Dapur) cannot be deleted.',
     ],
+    'dine_tables' => [
+        'in_use_order' => 'This table still has order #:order. Finish or cancel it first.',
+        'in_use_reservation' => 'This table is reserved (reservation #:reservation, :time). Mark or cancel it first.',
+    ],
+    'pos_table_order' => [
+        'sent' => 'Order sent to :table',
+        'table_unavailable' => 'This table is not available.',
+        'pay_later_off' => 'Pay later is not available at this outlet. Choose pay at the counter.',
+        'cart_empty' => 'The cart is empty. Add items first.',
+        'raw_material' => ':product is a raw material and cannot be sold.',
+    ],
     'modifiers' => [
         'field_required' => 'This field is required.',
         'whole_number' => 'Enter a whole number.',

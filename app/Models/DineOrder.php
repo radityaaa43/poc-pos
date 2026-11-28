@@ -32,6 +32,9 @@ class DineOrder extends Model
 
     public const PAY_LATER = 'pay_later';
 
+    /** Who made the order: a guest from the table QR (the column default) or a cashier on the POS (#426). */
+    public const SOURCE_POS = 'pos';
+
     /** Accepted but not completed: the bill can still be open and the order is being fulfilled. */
     public const IN_PROGRESS = [self::STATUS_ACCEPTED, self::STATUS_PREPARING, self::STATUS_READY, self::STATUS_SERVED];
 
@@ -40,6 +43,7 @@ class DineOrder extends Model
         'customer_id',
         'access_token',
         'status',
+        'source',
         'notes',
         'payment_option',
         'payment_method',

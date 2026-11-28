@@ -307,6 +307,21 @@ class DineIn
 
                 return ['enabled' => $options['enabled'] ?? '1'];
             },
+
+            // The orders at the table --arg=name=<table>, oldest first, with what links each to its bill (#426).
+            'dine.table-orders' => fn (array $options): array => [
+                'orders' => DineOrder::with('transaction')
+                    ->whereHas('table', fn ($table) => $table->where('name', $options['name']))
+                    ->orderBy('id')->get()
+                    ->map(fn (DineOrder $order): array => [
+                        'order_id' => $order->id,
+                        'access_token' => $order->access_token,
+                        'source' => $order->source,
+                        'add_on_to' => $order->add_on_to_dine_order_id,
+                        'transaction_id' => $order->transaction_id,
+                        'parent_transaction_id' => data_get($order, 'transaction.parent_transaction_id'),
+                    ])->all(),
+            ],
         ];
     }
 }
