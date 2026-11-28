@@ -44,6 +44,7 @@ Setiap modul memakai permission sendiri, contohnya:
   (Mulai Buat dan Siap, dapur), `dine-orders-handover` (Serahkan ke pelanggan). Tiap langkah punya permission sendiri
   yang bisa diberikan ke role apa pun di Settings → Roles (mis. role dapur hanya `dine-orders-access` + `dine-orders-prepare`);
   `cashier` dan `manager` mendapat semuanya. Di production jalankan ulang `PermissionSeeder` lalu `RoleSeeder` (idempoten).
+- **`modifiers-manage`** — pengaturan modifier (`docs/features/modifiers.md`); default: role ber-`products-edit`.
 - Role per modul lain (mis. `products-access`, `transactions-access`) dibuat otomatis dari pola
   permission.
 

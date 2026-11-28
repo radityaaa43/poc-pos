@@ -44,6 +44,7 @@ IconRulerMeasure,
     IconWheat,
     IconStopwatch,
     IconChefHat,
+    IconAdjustments,
 } from "@tabler/icons-react";
 import hasAnyPermission from "./Permission";
 import React from "react";
@@ -461,6 +462,13 @@ export default function Menu() {
                     active: url === "/dashboard/settings/kitchen-stations",
                     icon: <IconToolsKitchen2 size={20} strokeWidth={1.5} />,
                     permissions: hasAnyPermission(["products-edit"]),
+                },
+                {
+                    title: t("sidebar.items.modifiers"),
+                    href: route("settings.modifiers.index"),
+                    active: url.startsWith("/dashboard/settings/modifiers"),
+                    icon: <IconAdjustments size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(["modifiers-manage"]),
                 },
                 {
                     title: t("sidebar.items.whatsApp"),

@@ -77,6 +77,7 @@ return [
         'import_error' => 'Gagal import pelanggan.',
         'segments_synced' => 'Segment manual pelanggan berhasil diperbarui.',
         'upgraded_to_member' => 'Pelanggan berhasil ditingkatkan menjadi member.',
+        'credit_limit_not_allowed' => 'Batas piutang hanya untuk pelanggan yang boleh piutang.',
     ],
 
     /*
@@ -408,6 +409,27 @@ return [
     'kitchen_stations' => [
         'name_taken' => 'Stasiun dapur dengan nama ini sudah ada.',
         'default_locked' => 'Dapur tidak bisa dihapus.',
+    ],
+    'modifiers' => [
+        'field_required' => 'Wajib diisi.',
+        'whole_number' => 'Isi dengan angka bulat.',
+        'too_large' => 'Nilai terlalu besar.',
+        'gone' => 'Pilihan ini sudah tidak tersedia. Muat ulang halaman.',
+        'option_needed' => 'Tambahkan minimal satu opsi.',
+        'min_negative' => 'Minimum pilihan tidak boleh negatif.',
+        'min_above_max' => 'Minimum pilihan tidak boleh lebih besar dari maksimum.',
+        'too_few_options' => 'Jumlah opsi lebih sedikit dari minimum pilihan.',
+        'max_below_one' => 'Maksimum pilihan minimal 1.',
+        'required_min' => 'Grup wajib harus punya minimum pilihan minimal 1.',
+        'price_negative' => 'Tambahan harga tidak boleh negatif.',
+        'option_name_taken' => 'Nama opsi tidak boleh sama dalam satu grup.',
+        'one_default' => 'Hanya satu opsi yang boleh menjadi default.',
+        'default_required' => 'Grup wajib harus punya satu opsi default.',
+        'component_invalid' => 'Bahan harus produk yang punya stok, bukan resep.',
+        'component_duplicate' => 'Bahan yang sama tidak boleh dipakai dua kali dalam satu opsi.',
+        'qty_below_one' => 'Jumlah bahan minimal 1.',
+        'raw_material' => 'Bahan baku tidak bisa diberi modifier.',
+        'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
     ],
 
     /*

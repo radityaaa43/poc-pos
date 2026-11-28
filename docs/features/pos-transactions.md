@@ -96,6 +96,12 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 - A retried sale expires by the age of its last retry (`updated_at`), not of the sale, so a retry late in a long shift is not restocked minutes later.
 - A retry moves the sale to the retrying cashier's shift (`cashier_shift_id`) but keeps `cashier_id`: that is who made the sale.
 - A split sale that already has a paid part is not retried (a retry replaces every tender).
+- A retry asks what the sale still owes after returns (`Transaction::remainingTotal()`), not its total, and a fully
+  returned sale is refused. A credit sale (receivable) is not covered: it keeps its total.
+- When returns put an unpaid or pending sale below its total, the amount to ask (`Transaction::amountDue()`, the rule the
+  shift recap counts by) is shown as *Sisa tagihan* on the print page, Riwayat (rows and the transfer confirmation), the
+  public invoice page, thermal receipts, the PDF invoice and receipts and the shipping label. Confirming a transfer takes
+  no amount: it only marks the sale paid. The mobile API still returns `grand_total` only.
 - Web POS only; the mobile API does not retry.
 
 ## Add-on orders

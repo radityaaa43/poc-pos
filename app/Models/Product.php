@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class Product extends Model
 {
@@ -51,6 +54,59 @@ class Product extends Model
         'kitchen_station_id',
         'purchased_by',
     ];
+
+    protected static function booted(): void
+    {
+        // A raw material never keeps modifier groups, whichever screen or API flagged it (REQ-008 AC-03).
+        static::saved(function (Product $product) {
+            if ($product->is_raw_material && $product->wasChanged('is_raw_material')) {
+                $product->modifierGroups()->detach();
+            }
+        });
+        // A new product is skipped: a null id would match the rows of deleted ingredients.
+        static::saving(function (Product $product) {
+            if ($product->exists && $product->is_composite && $product->isDirty('is_composite')) {
+                $product->refuseModifierIngredient('components');
+            }
+        });
+        static::deleting(fn (Product $product) => $product->refuseModifierIngredient('delete'));
+    }
+
+    /** A live option's ingredient can be neither deleted nor made a recipe: nothing could deduct it (REQ-008). */
+    public function refuseModifierIngredient(string $field): void
+    {
+        $option = $this->belongsToMany(ModifierOption::class, 'modifier_option_components', 'component_product_id')->first();
+
+        if ($option) {
+            throw ValidationException::withMessages([$field => __('messages.modifiers.ingredient_in_use', [
+                'option' => $option->name,
+                'group' => ModifierGroup::whereKey($option->modifier_group_id)->value('name'),
+            ])]);
+        }
+    }
+
+    /** What a recipe can deduct: stock-tracked products, raw materials first, each with its base-unit symbol. */
+    public function scopeRecipeComponents(Builder $query): void
+    {
+        $query->where('is_composite', false)
+            // One subquery, no N+1; null when the product has no units.
+            ->addSelect(['unit_symbol' => DB::table('product_units')
+                ->join('units', 'units.id', '=', 'product_units.unit_id')
+                ->select('units.symbol')
+                ->whereColumn('product_units.product_id', 'products.id')
+                ->where('product_units.is_base', true)
+                ->limit(1)])
+            ->orderByDesc('is_raw_material')
+            ->orderBy('title');
+    }
+
+    /** @return BelongsToMany<ModifierGroup, $this> */
+    public function modifierGroups(): BelongsToMany
+    {
+        return $this->belongsToMany(ModifierGroup::class, 'product_modifier_group')
+            ->withPivot('sort')
+            ->orderByPivot('sort');
+    }
 
     public function category()
     {

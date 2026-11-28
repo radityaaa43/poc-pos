@@ -246,6 +246,9 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - Stok tidak dipotong lagi (sudah dipotong saat accept).
 - Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
 - Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
+- The counter charges what the bill still owes (`Transaction::remainingTotal()`), not the grand total: a return recorded
+  while the bill was unpaid refunds nothing and lowers the amount asked (POS, Riwayat Transaksi and the gateway charge
+  alike). A fully returned bill is refused.
 - A gateway tender takes two steps (`TransactionSettlementService`, also used to settle a POS pay-later bill), so no lock or
   transaction is held during the gateway call. `claim()` writes the payment and commits; `charge()` then calls the gateway
   and stores the reference, URL and QR only while the bill is still pending on that attempt

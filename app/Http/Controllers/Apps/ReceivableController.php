@@ -28,10 +28,11 @@ class ReceivableController extends Controller
             'invoice' => $request->input('invoice'),
             'due_from' => $request->input('due_from'),
             'due_to' => $request->input('due_to'),
+            'credit' => in_array($request->input('credit'), ['near', 'over', 'none'], true) ? $request->input('credit') : null,
         ];
 
         $warehouseIds = $this->outletAccessService->warehousesFor($request->user())->pluck('id');
-        $query = $this->receivableService->scopeQuery(Receivable::with('customer:id,name'), $warehouseIds)
+        $query = $this->receivableService->scopeQuery(Receivable::with('customer:id,name,credit_limit,may_buy_on_credit'), $warehouseIds)
             ->withSum('payments as total_paid', 'amount')
             ->orderByDesc('created_at');
 
@@ -47,8 +48,17 @@ class ReceivableController extends Controller
             $q->whereDate('due_date', '<=', $date);
         });
 
+        $this->receivableService->scopeCredit($query, $filters['credit']);
+
         $receivables = $query->paginate($this->perPage())->withQueryString();
-        $receivables->getCollection()->transform(function ($item) {
+        $used = $this->receivableService->usedByCustomer($receivables->getCollection()->pluck('customer_id')->filter()->unique()->values());
+        $receivables->getCollection()->transform(function ($item) use ($used) {
+            // Nothing to show without a customer, or for one who may not buy on credit and has no limit.
+            $customer = $item->customer;
+            $item->setAttribute('credit', $customer && ($customer->may_buy_on_credit || $customer->credit_limit !== null)
+                ? $this->receivableService->creditView($customer->credit_limit, $used->get($customer->id, 0))
+                : null);
+
             if ($item->status !== 'paid' && $item->due_date && now()->gt($item->due_date)) {
                 $item->status = 'overdue';
             }

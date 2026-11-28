@@ -19,6 +19,7 @@ import ShippingLabel from "@/Components/Receipt/ShippingLabel";
 import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
 import AddOnButton, { InvoiceNumber } from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
+import InvoiceTotal from "./InvoiceTotal";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
@@ -206,6 +207,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
             tax_total: Number(transaction.tax_total || 0),
             shipping_cost: Number(transaction.shipping_cost || 0),
             grand_total: Number(transaction.grand_total || 0),
+            amount_due: transaction.amount_due,
             payment_method_label: paymentMethodLabel,
             cash_received: isNonCash ? null : Number(transaction.cash || 0),
             change: Number(transaction.change || 0),
@@ -859,14 +861,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                             </span>
                                         </div>
                                     )}
-                                    <div className="flex justify-between text-lg font-bold text-slate-900 dark:text-white pt-2 border-t border-slate-200 dark:border-slate-700">
-                                        <span>Total</span>
-                                        <span>
-                                            {formatPrice(
-                                                transaction.grand_total
-                                            )}
-                                        </span>
-                                    </div>
+                                    <InvoiceTotal transaction={transaction} />
                                     {paymentMethodKey === "cash" && (
                                         <>
                                             <div className="flex justify-between text-slate-600 dark:text-slate-400 pt-2">
@@ -969,11 +964,11 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                 </div>
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-slate-500 dark:text-slate-400">
-                                        Total
+                                        {transaction.amount_due != null ? "Sisa tagihan" : "Total"}
                                     </span>
                                     <span className="text-lg font-bold text-primary-600 dark:text-primary-400">
                                         {formatPrice(
-                                            transaction.grand_total ?? 0
+                                            transaction.amount_due ?? transaction.grand_total ?? 0
                                         )}
                                     </span>
                                 </div>

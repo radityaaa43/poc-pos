@@ -309,7 +309,8 @@
             "outlets": "Outlet",
             "units": "Satuan",
             "kitchenStations": "Stasiun dapur",
-            "whatsApp": "WhatsApp"
+            "whatsApp": "WhatsApp",
+            "modifiers": "Modifier"
         },
         "menu": {
             "overview": "Overview",
@@ -468,7 +469,14 @@
             "no": "Tidak",
             "confirmGrant": "Izinkan pelanggan ini membeli dengan piutang?",
             "confirmRevoke": "Cabut izin piutang pelanggan ini?",
-            "cancel": "Batal"
+            "cancel": "Batal",
+            "limitLabel": "Batas piutang",
+            "noLimit": "Tanpa batas",
+            "used": "Terpakai",
+            "limitHelp": "Kosongkan untuk Tanpa batas",
+            "save": "Simpan",
+            "overdue": "Ada piutang lewat jatuh tempo",
+            "limitSaved": "Batas piutang disimpan"
         }
     },
     "transactions": {
@@ -539,6 +547,17 @@
             "days31to60": "31-60 Hari",
             "days61to90": "61-90 Hari",
             "over90": ">90 Hari"
+        },
+        "credit": {
+            "limit": "Batas",
+            "usedPercent": "Terpakai %",
+            "usedScope": "Terpakai (di semua outlet)",
+            "noLimit": "Tanpa batas",
+            "near": "Mendekati batas (≥ 80%)",
+            "over": "Melewati batas",
+            "filterLabel": "Batas piutang",
+            "filterAll": "Semua batas piutang",
+            "usedAria": "Terpakai {{percent}}% dari batas {{limit}}"
         }
     },
     "salesReturns": {
@@ -1159,7 +1178,8 @@
             "cashReceived": "Uang diterima",
             "change": "Kembalian",
             "bankAccount": "Rekening tujuan",
-            "pay": "Bayar"
+            "pay": "Bayar",
+            "due": "Sisa tagihan"
         },
         "payLater": {
             "label": "Bayar Belakangan",
@@ -1178,6 +1198,15 @@
             "awaitingOnline": "Menunggu pembayaran online",
             "takeoverNotice": "Tamu sedang membayar online. Tanyakan dulu apakah tamu sudah membayar. Kalau Anda menerima pembayaran sekarang, pembayaran online tamu tidak berlaku dan uangnya harus dikembalikan manual.",
             "billGone": "Tagihan ini sudah tidak ada di daftar Belum Lunas (sudah dibayar atau dibatalkan). Tutup jendela ini dan periksa Riwayat Transaksi."
+        },
+        "credit": {
+            "limit": "Batas",
+            "used": "Terpakai",
+            "remaining": "Sisa",
+            "noLimit": "Tanpa batas",
+            "overdue": "Ada piutang lewat jatuh tempo",
+            "loadError": "Gagal memuat batas piutang",
+            "retry": "Coba lagi"
         }
     },
     "outlets": {
@@ -1245,5 +1274,49 @@
             "submitOnline": "Pesan",
             "submitOnlineHint": "Bisa bayar online setelah pesanan diterima"
         }
+    },
+    "modifiers": {
+        "title": "Modifier",
+        "add": "Tambah grup",
+        "edit": "Ubah grup",
+        "empty": "Belum ada grup modifier",
+        "type": "Jenis grup",
+        "required": "Wajib",
+        "optional": "Opsional",
+        "name": "Nama grup",
+        "min": "Minimum pilihan",
+        "max": "Maksimum pilihan",
+        "hintRequired": "Grup wajib: minimum 1 dan tidak lebih dari maksimum.",
+        "hintOptional": "Grup opsional: minimum boleh 0.",
+        "range": "Pilih {{min}}–{{max}}",
+        "optionCount": "Opsi: {{total}}",
+        "menuCount": "Menu: {{total}}",
+        "editLabel": "Ubah grup {{name}}",
+        "deleteLabel": "Hapus grup {{name}}",
+        "deleteTitle": "Hapus grup {{name}}?",
+        "deleteConfirm": "Menu yang memakai grup ini: {{menus}}. Grup dilepas dari menu tersebut; penjualan lama tidak berubah.",
+        "options": "Opsi",
+        "optionNumber": "Opsi {{number}}",
+        "addOption": "Tambah opsi",
+        "removeOption": "Hapus opsi",
+        "optionName": "Nama opsi",
+        "price": "Tambahan harga (Rp)",
+        "default": "Opsi default",
+        "recipe": "Resep (opsional)",
+        "ingredient": "Bahan",
+        "chooseIngredient": "Pilih bahan",
+        "qty": "Jumlah",
+        "qtyUnit": "Jumlah ({{unit}})",
+        "addIngredient": "Tambah bahan",
+        "removeIngredient": "Hapus bahan {{number}}",
+        "saved": "Grup modifier disimpan",
+        "failed": "Grup modifier tidak bisa disimpan",
+        "deleted": "Grup modifier dihapus",
+        "deleteFailed": "Grup modifier tidak bisa dihapus",
+        "attach": "Pasang grup modifier",
+        "chooseGroup": "Pilih grup",
+        "moveUp": "Naikkan {{name}}",
+        "moveDown": "Turunkan {{name}}",
+        "detach": "Lepas {{name}}"
     }
 }

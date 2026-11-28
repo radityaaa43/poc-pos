@@ -45,7 +45,7 @@ class TransactionPaymentRetryService
     {
         $method = $input['payment_method'];
 
-        $sale = DB::transaction(function () use ($transaction, $user, $input, $method) {
+        [$sale, $total] = DB::transaction(function () use ($transaction, $user, $input, $method) {
             // Lock order shift, then sale (the webhook and the cashier's payment take them the same way), so no cycle:
             // the sale is read only after both locks, never before.
             $shift = $this->cashierShiftService->requireActiveShiftForUser($user->id, lockForUpdate: true);
@@ -79,7 +79,12 @@ class TransactionPaymentRetryService
                 throw ValidationException::withMessages(['payment' => 'Buka shift di outlet penjualan ini']);
             }
 
-            $total = (int) $sale->grand_total;
+            $total = $sale->amountDue(); // failed or expired: what is still owed (a credit sale: its total)
+
+            if (! $sale->receivable()->exists() && (! Transaction::whereKey($sale->id)->notFullyReturned()->exists() || $total < 1)) {
+                throw ValidationException::withMessages(['payment' => 'Penjualan ini sudah diretur penuh, tidak ada yang perlu dibayar.']);
+            }
+
             $tender = $this->tenderService->normalize([[
                 'method' => $method,
                 'amount' => $total,
@@ -115,26 +120,26 @@ class TransactionPaymentRetryService
                 actor: $user,
             );
 
-            return $sale;
+            return [$sale, $total];
         });
 
         // The charge goes out only after the new attempt is committed, so a webhook can never beat the attempt number.
         if (in_array($method, TransactionTenderService::GATEWAY_METHODS, true)) {
-            $this->charge($sale, $method);
+            $this->charge($sale, $method, $total);
         }
 
         return $sale;
     }
 
-    private function charge(Transaction $sale, string $method): void
+    private function charge(Transaction $sale, string $method, int $amount): void
     {
         $setting = PaymentSetting::forOutlet($sale->warehouse?->outlet);
         $orderId = "{$sale->invoice}-r{$sale->payment_attempt}";
 
         try {
             $charge = $method === TransactionTender::METHOD_QRIS
-                ? $this->gatewayManager->createQrisPayment($sale, $setting, null, $orderId)
-                : $this->gatewayManager->createPayment($sale, $method, $setting, null, $orderId);
+                ? $this->gatewayManager->createQrisPayment($sale, $setting, $amount, $orderId)
+                : $this->gatewayManager->createPayment($sale, $method, $setting, $amount, $orderId);
         } catch (Throwable $exception) {
             // Any failure (also a timeout): a pending sale without a QR is not retryable, so it must end failed.
             $sale->update(['payment_status' => 'failed']);

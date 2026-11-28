@@ -8,6 +8,7 @@ use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
@@ -143,6 +144,23 @@ trait MakesDineBills
             'external_id' => $orderId, 'status' => ['paid' => 'PAID', 'failed' => 'FAILED', 'expired' => 'EXPIRED'][$state],
             'id' => $reference ?? 'xnd-'.$orderId, 'paid_amount' => $amount,
         ]);
+    }
+
+    /** The cashier records and completes a return of one bill line through the real routes (needs the sales-return permissions). */
+    private function returnFromBill(Transaction $bill, Product $product, int $qty = 1): SalesReturn
+    {
+        $this->actingAs($this->cashier)->post(route('sales-returns.store', $bill), [
+            'return_type' => 'refund_cash',
+            'items' => [[
+                'transaction_detail_id' => $bill->details()->where('product_id', $product->id)->sole()->id,
+                'qty_return' => $qty, 'return_reason' => 'Batal', 'restock_to_inventory' => false,
+            ]],
+        ])->assertSessionHasNoErrors();
+        $return = SalesReturn::latest('id')->firstOrFail();
+        $this->actingAs($this->cashier)->post(route('sales-returns.complete', $return))->assertSessionHasNoErrors();
+        $this->assertSame('completed', $return->fresh()->status);
+
+        return $return->fresh();
     }
 
     /** Closes the bill's shift and takes its recap: by force with a note, as an unpaid bill holds a plain close (REQ-003 AC-12, 13). */
