@@ -8,7 +8,7 @@ import DashboardLayout from "@/Layouts/DashboardLayout";
 import GroupForm from "@/Components/Modifiers/GroupForm";
 
 // Reachable only with modifiers-manage (the route middleware), so the buttons need no per-action check.
-export default function Modifiers({ groups = [], outlets = [], ingredients = [] }) {
+export default function Modifiers({ groups = [], ingredients = [] }) {
     const { t } = useTranslation();
     const [form, setForm] = useState(null); // null shows the list; { group: null } is a new group
 
@@ -53,7 +53,7 @@ export default function Modifiers({ groups = [], outlets = [], ingredients = [] 
             </div>
 
             {form ? (
-                <GroupForm group={form.group} outlets={outlets} ingredients={ingredients} onClose={() => setForm(null)} />
+                <GroupForm group={form.group} ingredients={ingredients} onClose={() => setForm(null)} />
             ) : (
                 <div className="max-w-4xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
                     {groups.length > 0 ? (

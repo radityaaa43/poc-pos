@@ -34,7 +34,6 @@ class ModifierGroupService
                 $option->components()->sync(collect($row['components'] ?? [])
                     ->mapWithKeys(fn (array $line) => [$line['product_id'] => ['qty' => $line['qty']]])
                     ->all());
-                $option->disabledOutlets()->sync($row['disabled_outlet_ids'] ?? []);
                 $kept[] = $option->getKey();
             }
 

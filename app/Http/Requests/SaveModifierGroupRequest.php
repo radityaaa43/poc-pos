@@ -31,8 +31,6 @@ class SaveModifierGroupRequest extends FormRequest
             // Only a product that holds stock can be deducted (not a recipe), in whole units: stock is an integer.
             'options.*.components.*.product_id' => ['required', 'integer', Rule::exists('products', 'id')->where('is_composite', 0)],
             'options.*.components.*.qty' => ['required', 'integer', 'min:1', 'max:1000000000'],
-            'options.*.disabled_outlet_ids' => ['nullable', 'array'],
-            'options.*.disabled_outlet_ids.*' => ['integer', 'exists:outlets,id'],
         ];
     }
 

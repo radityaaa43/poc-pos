@@ -7,17 +7,13 @@ import Select from "@/Components/Dashboard/Select";
 const textButton = "inline-flex items-center gap-2 min-h-11 px-3 rounded-xl text-sm font-medium transition-colors";
 
 // One option of a group. `prefix` ("options.0") is where the server puts this row's validation messages.
-export default function OptionRow({ prefix, number, option, outlets, ingredients, errors, onChange, onRemove }) {
+export default function OptionRow({ prefix, number, option, ingredients, errors, onChange, onRemove }) {
     const { t } = useTranslation();
     const set = (field, value) => onChange({ ...option, [field]: value });
     const error = (field) => errors[`${prefix}.${field}`];
     const setLine = (index, patch) =>
         set("components", option.components.map((line, i) => (i === index ? { ...line, ...patch } : line)));
-    const off = option.disabled_outlet_ids;
-    const toggleOutlet = (id) =>
-        set("disabled_outlet_ids", off.includes(id) ? off.filter((other) => other !== id) : [...off, id]);
-    const outletError = Object.entries(errors).find(([key]) => key.startsWith(`${prefix}.disabled_outlet_ids`))?.[1];
-    const rowError = error("id") ?? error("components") ?? outletError;
+    const rowError = error("id") ?? error("components");
 
     return (
         <fieldset className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 space-y-4">
@@ -103,38 +99,6 @@ export default function OptionRow({ prefix, number, option, outlets, ingredients
                     {t("modifiers.addIngredient")}
                 </button>
             </div>
-
-            {outlets.length > 0 && (
-                <div role="group" aria-label={t("modifiers.activeAt")} className="space-y-1">
-                    <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{t("modifiers.activeAt")}</p>
-                    <div className="flex flex-wrap gap-x-6">
-                        {outlets.map((outlet) => {
-                            const on = !off.includes(outlet.id);
-
-                            return (
-                                <button
-                                    key={outlet.id}
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={on}
-                                    onClick={() => toggleOutlet(outlet.id)}
-                                    className="flex min-h-11 items-center gap-3 text-sm text-slate-700 dark:text-slate-300"
-                                >
-                                    <span
-                                        aria-hidden="true"
-                                        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-primary-500" : "bg-slate-300 dark:bg-slate-600"}`}
-                                    >
-                                        <span
-                                            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "left-[22px]" : "left-0.5"}`}
-                                        />
-                                    </span>
-                                    {outlet.name}
-                                </button>
-                            );
-                        })}
-                    </div>
-                </div>
-            )}
 
             {rowError && (
                 <p role="alert" className="text-xs text-danger-500 dark:text-danger-400">

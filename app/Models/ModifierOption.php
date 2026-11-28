@@ -28,12 +28,6 @@ class ModifierOption extends Model
             ->orderBy('products.id');
     }
 
-    /** @return BelongsToMany<Outlet, $this> */
-    public function disabledOutlets(): BelongsToMany
-    {
-        return $this->belongsToMany(Outlet::class, 'modifier_option_outlet');
-    }
-
     /** @return list<array{product_id: int, qty: float}> the option's recipe */
     public function componentLines(): array
     {

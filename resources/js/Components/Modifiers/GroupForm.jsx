@@ -10,9 +10,9 @@ import OptionRow from "./OptionRow";
 let lastKey = 0;
 const withKey = (option) => ({ ...option, key: ++lastKey });
 const blankOption = () =>
-    withKey({ id: null, name: "", price_delta: 0, is_default: false, components: [], disabled_outlet_ids: [] });
+    withKey({ id: null, name: "", price_delta: 0, is_default: false, components: [] });
 
-export default function GroupForm({ group = null, outlets, ingredients, onClose }) {
+export default function GroupForm({ group = null, ingredients, onClose }) {
     const { t } = useTranslation();
     const { data, setData, post, put, processing, errors } = useForm(
         group
@@ -121,7 +121,6 @@ export default function GroupForm({ group = null, outlets, ingredients, onClose 
                         prefix={`options.${index}`}
                         number={index + 1}
                         option={option}
-                        outlets={outlets}
                         ingredients={ingredients}
                         errors={errors}
                         onChange={(next) => changeOption(index, next)}

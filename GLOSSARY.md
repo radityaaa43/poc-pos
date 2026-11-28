@@ -50,7 +50,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Waktu buat | Make time: from *preparing* to *ready* of one kitchen item; the prep target is compared with it | Waktu tunggu + buat | `kitchen_items.preparing_at` to `ready_at` |
 | Waktu tunggu + buat | Wait plus make time: from *accepted* (paid) to *ready* of one kitchen item | Waktu buat | `kitchen_items.accepted_at` to `ready_at` |
 | Modifier group ("Grup modifier") | A named set of options (a modifier: size, sugar level, topping), required ("Wajib") or optional ("Opsional"), with a minimum and a maximum number of choices; attached to sellable menus in a display order, never to a raw material; soft deleted. A menu without groups sells as before | Recipe: what the menu itself is made of | `ModifierGroup`, `modifier_groups`, `product_modifier_group`, `docs/features/modifiers.md` |
-| Option ("Opsi") | One choice in a modifier group: name, extra price (0 or more, the same at every outlet), optional recipe, default flag (at most one per group, exactly one in a required group); switched off per outlet; soft deleted | A variation sold as its own product | `ModifierOption`, `modifier_options`, `modifier_option_components`, `modifier_option_outlet` |
+| Option ("Opsi") | One choice in a modifier group: name, extra price (0 or more, the same at every outlet), optional recipe, default flag (at most one per group, exactly one in a required group); soft deleted | A variation sold as its own product | `ModifierOption`, `modifier_options`, `modifier_option_components` |
 
 ## Retired terms
 

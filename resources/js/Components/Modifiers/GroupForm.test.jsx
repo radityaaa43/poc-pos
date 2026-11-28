@@ -20,11 +20,11 @@ vi.mock("@inertiajs/react", () => ({
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
-const option = (id, name, price_delta) => ({ id, name, price_delta, is_default: id === 1, components: [], disabled_outlet_ids: [] });
+const option = (id, name, price_delta) => ({ id, name, price_delta, is_default: id === 1, components: [] });
 const options = [option(1, "Regular", 0), option(2, "Large", 5000)];
 const group = { id: 7, name: "Ukuran", is_required: true, min_select: 1, max_select: 1, options };
 
-const mount = (props = {}) => render(<GroupForm outlets={[]} ingredients={[]} onClose={vi.fn()} {...props} />);
+const mount = (props = {}) => render(<GroupForm ingredients={[]} onClose={vi.fn()} {...props} />);
 const defaults = () => screen.getAllByRole("checkbox", { name: "Opsi default" });
 
 beforeEach(async () => {
@@ -88,8 +88,8 @@ describe("GroupForm", () => {
         await vi.waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
     });
 
-    it("builds a recipe in the ingredient's unit, and switches an outlet off and back on", async () => {
-        mount({ outlets: [{ id: 2, name: "Cabang" }], ingredients: [{ id: 9, title: "Susu", unit_symbol: "ml" }] });
+    it("builds a recipe in the ingredient's unit", async () => {
+        mount({ ingredients: [{ id: 9, title: "Susu", unit_symbol: "ml" }] });
 
         await userEvent.click(screen.getByRole("button", { name: "Tambah bahan" }));
         await userEvent.selectOptions(screen.getByLabelText("Bahan"), "Susu");
@@ -97,10 +97,5 @@ describe("GroupForm", () => {
         expect(data.options[0].components).toEqual([{ product_id: "9", qty: "50" }]);
         await userEvent.click(screen.getByRole("button", { name: "Hapus bahan 1" }));
         expect(data.options[0].components).toEqual([]);
-
-        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
-        expect(data.options[0].disabled_outlet_ids).toEqual([2]);
-        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
-        expect(screen.getByRole("switch", { name: "Cabang" })).toBeChecked();
     });
 });

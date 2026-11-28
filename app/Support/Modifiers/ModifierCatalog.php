@@ -7,7 +7,6 @@ use App\Models\ModifierOption;
 use App\Models\Outlet;
 use App\Models\Product;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Collection;
 
 /** The one read path for what a menu offers (REQ-008): POS, checkout, offline cache and QR menu all use it. */
@@ -15,6 +14,7 @@ class ModifierCatalog
 {
     /**
      * Output shape and rules (the contract for the selling channels): docs/features/modifiers.md.
+     * Returns every live option for now: callers already pass the outlet, the per-outlet filter arrives with #440.
      *
      * @param  Collection<int, int>  $productIds
      * @return Collection<int, array<int, array{id: int, name: string, is_required: bool, min_select: int,
@@ -26,8 +26,6 @@ class ModifierCatalog
             ->whereKey($productIds->all())
             ->whereHas('modifierGroups')
             ->with([
-                'modifierGroups.options' => fn (HasMany $options) => $options->when($outlet, fn ($query) => $query
-                    ->whereDoesntHave('disabledOutlets', fn ($disabled) => $disabled->whereKey($outlet->getKey()))),
                 // Only the id and the pivot quantity: callers must not get the ingredient's prices.
                 'modifierGroups.options.components' => fn (BelongsToMany $components) => $components->select('products.id'),
             ])

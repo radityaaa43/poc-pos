@@ -38,14 +38,13 @@ class ModifierGroup extends Model
      */
     public function snapshot(): array
     {
-        $this->loadMissing('options.components', 'options.disabledOutlets');
+        $this->loadMissing('options.components');
 
         return [
             ...$this->only(['name', 'is_required', 'min_select', 'max_select']),
             'options' => $this->options->map(fn (ModifierOption $option) => [
                 ...$option->only(['id', 'name', 'price_delta', 'is_default']),
                 'components' => $option->componentLines(),
-                'disabled_outlet_ids' => $option->disabledOutlets->pluck('id')->sort()->values()->all(),
             ])->all(),
         ];
     }
