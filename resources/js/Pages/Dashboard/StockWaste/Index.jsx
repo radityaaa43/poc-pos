@@ -50,7 +50,10 @@ export default function Index({ wastes, filters, warehouses }) {
     // Approving takes the stock, so confirm first; reject and cancel ask for a reason in the modal.
     const approve = (id) => {
         if (!window.confirm(t("waste.actions.confirmApprove"))) return;
-        router.post(route("stock-waste.approve", id), {}, { preserveScroll: true });
+        router.post(route("stock-waste.approve", id), {}, {
+            preserveScroll: true,
+            onError: (errors) => toast.error(errors?.stock || errors?.waste || Object.values(errors)[0] || t("waste.actions.approveFailed")),
+        });
     };
     const openReason = (id, action) => setReason({ open: true, id, action, text: "", error: "" });
     const closeReason = () => setReason({ open: false, id: null, action: null, text: "", error: "" });
@@ -58,8 +61,8 @@ export default function Index({ wastes, filters, warehouses }) {
         if (!reason.text.trim()) return;
         router.post(route(`stock-waste.${reason.action}`, reason.id), { reason: reason.text }, {
             preserveScroll: true,
-            onError: () => setReason((current) => ({ ...current, error: t("waste.reasonModal.reason") })),
-            onFinish: () => closeReason(),
+            onSuccess: () => closeReason(),
+            onError: (errors) => setReason((current) => ({ ...current, error: errors?.reason || errors?.waste || Object.values(errors)[0] || t("waste.actions.rejectFailed") })),
         });
     };
 

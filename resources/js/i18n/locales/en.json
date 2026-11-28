@@ -1445,7 +1445,9 @@
             "approve": "Approve",
             "reject": "Reject",
             "cancel": "Cancel waste",
-            "confirmApprove": "Take the stock for this waste now?"
+            "confirmApprove": "Take the stock for this waste now?",
+            "approveFailed": "Could not approve the waste.",
+            "rejectFailed": "Could not save."
         },
         "reasonModal": {
             "reject": "Reject waste",

@@ -104,6 +104,7 @@ class OutletController extends AppsOutletController
             'is_sales_enabled' => $isSalesEnabled,
         ]);
         $this->updatePayLater($outlet, $data);
+        $this->updateWasteLimit($outlet, $data);
         $this->billSettings->update($outlet, $data);
 
         return $this->ok($outlet->fresh()->load(['warehouses' => fn ($query) => $query->orderBy('sort_order')->orderBy('code')]));

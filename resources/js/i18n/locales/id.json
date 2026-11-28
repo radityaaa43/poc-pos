@@ -1445,7 +1445,9 @@
             "approve": "Setujui",
             "reject": "Tolak",
             "cancel": "Batalkan waste",
-            "confirmApprove": "Potong stok untuk waste ini sekarang?"
+            "confirmApprove": "Potong stok untuk waste ini sekarang?",
+            "approveFailed": "Waste tidak bisa disetujui.",
+            "rejectFailed": "Gagal menyimpan."
         },
         "reasonModal": {
             "reject": "Tolak waste",

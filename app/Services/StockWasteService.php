@@ -198,16 +198,16 @@ class StockWasteService
     {
         [$rows, $products] = $locked;
         $this->assertAvailable($moves, $rows->map(fn (?ProductWarehouse $row) => $row?->stock));
-        // Receiving into this warehouse waits for the row locks, so this cost holds until commit.
-        $priced = $this->priced(
-            array_map(fn (array $move) => ['product' => $products[$move['product']->id]] + $move, $moves),
-            $waste->warehouse_id,
-        );
 
-        foreach ($priced as $move) {
-            $product = $move['product'];
+        $total = 0;
+        foreach ($moves as $move) {
+            $product = $products[$move['product']->id];
             $row = $rows[$product->id];
             $before = (int) $row->stock;
+            // The cost of that moment, from the locked warehouse row: a plain re-read inside the transaction would fix
+            // the MySQL snapshot and could price it stale (record() reads its estimate before the transaction).
+            $unitCost = (float) $row->avg_cost;
+            $value = (int) round($unitCost * $move['qty']);
 
             $row->decrement('stock', $move['qty']);
             $product->decrement('stock', $move['qty']);
@@ -215,16 +215,17 @@ class StockWasteService
                 'line_id' => $lineIds[$move['line']],
                 'product_id' => $product->id,
                 'qty' => $move['qty'],
-                'unit_cost' => $move['unit_cost'],
-                'value' => $move['value'],
+                'unit_cost' => $unitCost,
+                'value' => $value,
             ]);
             $this->stockMutationService->recordWasteMovement($product, $waste, 'out', $move['qty'], $before, $before - $move['qty'], userId: $user->id);
+            $total += $value;
         }
 
         $waste->update([
             'status' => StockWaste::STATUS_RECORDED,
             'recorded_at' => now(),
-            'total_value' => array_sum(array_column($priced, 'value')),
+            'total_value' => $total,
         ]);
     }
 
