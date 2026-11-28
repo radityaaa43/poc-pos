@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
+use App\Models\TransactionDetailModifier;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -131,8 +133,11 @@ class UnpaidSaleCancellationService
     {
         $ids = $lines
             ->flatMap(fn ($line) => [$line->product_id, ...($line->product ? $line->product->components->modelKeys() : [])])
-            ->merge($lines->filter(fn ($line) => method_exists($line, 'modifiers'))
-                ->flatMap->modifiers->flatMap->components->pluck('product_id'))
+            ->merge($lines
+                ->filter(fn ($line) => $line instanceof TransactionDetail)
+                ->flatMap(fn ($line) => $line->modifiers->flatMap(
+                    fn (TransactionDetailModifier $modifier) => collect($modifier->components)->pluck('product_id'),
+                )))
             ->unique()->sort()->values();
 
         DB::table('product_warehouse')->where('warehouse_id', $warehouseId)->whereIn('product_id', $ids)
