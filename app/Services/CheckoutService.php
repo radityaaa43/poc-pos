@@ -33,11 +33,17 @@ class CheckoutService
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
-        return DB::transaction(function () use ($ctx) {
+        // Looked up outside the transaction: its first plain read fixes MySQL's snapshot, and that must follow the locks.
+        $original = $ctx->addOnTo ? Transaction::where('invoice', $ctx->addOnTo)->first() : null;
+
+        return DB::transaction(function () use ($ctx, $original) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,
                 lockForUpdate: true,
             );
+
+            // Under a lock on the original, which is only read (BR-5), so a cancellation that committed meanwhile is seen.
+            $parentId = $ctx->addOnTo ? $this->addOnOrderService->resolveForPos($original, $activeShift) : null;
 
             $carts = Cart::with('product')
                 ->where('cashier_id', $ctx->userId)
@@ -90,9 +96,6 @@ class CheckoutService
             $tenderBankAccountId = $ctx->useTenders
                 ? (collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null)
                 : ($ctx->paymentGateway === 'bank_transfer' ? $ctx->bankAccountId : null);
-
-            // Resolved inside this transaction, under a lock on the original, which is only read (BR-5).
-            $parentId = $ctx->addOnTo ? $this->addOnOrderService->resolveForPos($ctx->addOnTo, $activeShift) : null;
 
             $transaction = Transaction::create([
                 'cashier_id' => $ctx->userId,

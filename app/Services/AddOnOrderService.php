@@ -21,13 +21,14 @@ class AddOnOrderService
 
     /**
      * POS: the root sale id a new sale links to, or null when the order is finished and a new one starts (BR-6).
-     * Call it inside the checkout's DB::transaction, so the check and the sale are atomic; $lock is false outside one.
+     * Call it inside the checkout's DB::transaction, before its first plain read, with $original looked up outside it;
+     * $lock is false outside one.
      *
      * @throws ValidationException an unknown order, another outlet's order, or a cancelled one (BR-11)
      */
-    public function resolveForPos(string $invoice, CashierShift $shift, bool $lock = true): ?int
+    public function resolveForPos(?Transaction $original, CashierShift $shift, bool $lock = true): ?int
     {
-        $original = Transaction::where('invoice', $invoice)->first() ?? $this->refuse('Pesanan asal tidak ditemukan');
+        $original ??= $this->refuse('Pesanan asal tidak ditemukan');
         $root = $this->root($original, $lock);
 
         // Any warehouse of the same outlet, as on the kitchen display and the payment retry.
@@ -49,7 +50,7 @@ class AddOnOrderService
     public function preview(string $invoice, CashierShift $shift): array
     {
         try {
-            $state = $this->resolveForPos($invoice, $shift, false) ? 'linked' : 'completed';
+            $state = $this->resolveForPos(Transaction::where('invoice', $invoice)->first(), $shift, false) ? 'linked' : 'completed';
             $reason = null;
         } catch (ValidationException $e) {
             $reason = $e->getMessage();
@@ -114,8 +115,13 @@ class AddOnOrderService
         );
     }
 
+    /** Locks the sale referred to, then its root: an add-on before its original, as the kitchen's group taps do. */
     private function root(Transaction $sale, bool $lock): Transaction
     {
+        if ($lock) {
+            Transaction::whereKey($sale->id)->lockForUpdate()->value('id');
+        }
+
         return Transaction::with('warehouse')->when($lock, fn ($query) => $query->lockForUpdate())->findOrFail($sale->orderRootId());
     }
 

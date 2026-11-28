@@ -3,6 +3,7 @@
 namespace Tests\Feature\DineIn;
 
 use App\Models\AuditLog;
+use App\Models\Cart;
 use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
@@ -187,9 +188,20 @@ class AddOnQrTest extends TestCase
     // The POS checkout and pay() take the shift first; accept the other way round would deadlock with them.
     public function test_accept_and_checkout_lock_in_order_before_their_first_plain_read(): void
     {
-        $addOn = $this->order(from: $this->accept($this->order()));
+        $original = $this->accept($this->order());
+        DB::enableQueryLog();
+        $addOn = $this->order(from: $original);
+        $this->assertEmpty(preg_grep('/for update/i', array_column(DB::getQueryLog(), 'query')), 'a guest submit takes no lock');
 
-        $this->assertLeadingReads(['cashier_shifts', 'dine_orders'], fn () => $this->accept($addOn));
+        // A cancellation committed before these locks is seen; one that comes later waits for them.
+        $this->assertLeadingReads(
+            ['cashier_shifts', 'dine_orders', 'dine_orders', 'transactions', 'transactions', 'transactions'],
+            fn () => $this->accept($addOn),
+        );
+        Cart::create(['cashier_id' => $this->cashier->id, 'product_id' => $this->nasi->id, 'qty' => 1, 'price' => 10000]);
+        $this->assertLeadingReads(['cashier_shifts', 'transactions', 'transactions'], fn () => $this->post(
+            route('transactions.store'), ['cash' => 100000, 'add_on_to' => $original->transaction->invoice],
+        )->assertSessionHasNoErrors());
     }
 
     /**

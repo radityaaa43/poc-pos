@@ -48,10 +48,13 @@ class DineOrderService
             $this->cashierShiftService->requireActiveShiftForUser($cashierId, lockForUpdate: true);
 
             // ponytail: lock the order row so accept cannot race with a second accept/reject
-            $order = DineOrder::with(['items.product.components', 'table.area.outlet'])
-                ->whereKey($order->id)
-                ->lockForUpdate()
-                ->firstOrFail();
+            $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+
+            // #251: locked, and ahead of every plain read (the first one fixes MySQL's snapshot), so a cancellation that
+            // committed meanwhile is seen. A refusal rolls the whole accept back.
+            $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
+
+            $order->load(['items.product.components', 'table.area.outlet']);
 
             $tableOutletId = $order->table?->area?->outlet_id;
             $shiftOutletId = $shift->warehouse?->outlet_id;
@@ -63,9 +66,6 @@ class DineOrderService
             }
 
             $userId = $cashierId;
-
-            // #251: re-checked under a lock here; a refusal rolls the whole accept back.
-            $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo);
 
             // ponytail: accepting a dine order is a sale — record a Transaction so revenue, profit, stock ledger and stock mutations all stay in sync with the POS path
             $transaction = Transaction::create([
