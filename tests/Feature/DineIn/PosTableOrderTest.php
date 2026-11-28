@@ -4,6 +4,7 @@ namespace Tests\Feature\DineIn;
 
 use App\Models\AuditLog;
 use App\Models\Cart;
+use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
 use App\Models\Outlet;
@@ -33,6 +34,7 @@ class PosTableOrderTest extends TestCase
     public function test_a_pos_table_order_becomes_an_open_bill_and_takes_stock(): void
     {
         $order = $this->sentOrder();
+        $this->assertSame(__('messages.pos_table_order.sent', ['table' => 'Meja 7'], 'id'), session('success'));
 
         $this->assertSame(
             ['pos', DineOrder::STATUS_ACCEPTED, $this->cashier->id, 20000, 2],
@@ -131,6 +133,17 @@ class PosTableOrderTest extends TestCase
 
         $this->assertSame(1, DineOrder::count());
         $this->assertSame(1, Cart::count());
+    }
+
+    // A redirect that only flashes a message reads as success to Inertia: the refusal has to be a validation error.
+    public function test_without_an_open_shift_the_order_is_refused_as_an_error(): void
+    {
+        CashierShift::query()->update(['status' => CashierShift::STATUS_CLOSED, 'closed_at' => now()]);
+        $this->cart();
+
+        $this->send()->assertSessionHasErrors('shift')->assertSessionMissing('success');
+
+        $this->assertNothingSent(carts: 1);
     }
 
     public function test_a_raw_material_in_the_cart_is_refused(): void

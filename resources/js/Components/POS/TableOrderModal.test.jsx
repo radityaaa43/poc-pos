@@ -73,9 +73,26 @@ describe("TableOrderModal", () => {
             "/transactions.table-orders.store",
             { dine_table_id: 1, payment_option: "pay_at_counter", add_on_to_dine_order_id: null },
         ]);
-        act(() => router.post.mock.calls[0][2].onSuccess());
-        expect(toast.success).toHaveBeenCalledWith("Pesanan terkirim ke Meja 1");
+        // The POS page itself shows the server's confirmation.
+        act(() => router.post.mock.calls[0][2].onSuccess({ props: { flash: { success: "Pesanan terkirim ke Meja 1" } } }));
+        expect(toast.error).not.toHaveBeenCalled();
         expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    });
+
+    // Inertia calls onSuccess for any page without validation errors: a login redirect, an error page, a flashed refusal.
+    it.each([
+        ["a redirect that only flashes a refusal", { success: null, error: "Sesi Anda sudah berakhir." }],
+        ["an error page", { success: null, error: null }],
+    ])("never claims success after %s", async (_, flash) => {
+        await open();
+        await pick("Meja 1");
+        await userEvent.click(send());
+
+        act(() => router.post.mock.calls[0][2].onSuccess({ props: { flash } }));
+
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith("Pesanan belum terkirim. Keranjang tetap ada.");
+        expect(screen.getByRole("dialog")).toBeInTheDocument();
     });
 
     it("asks again on every opening, so the total is the current one", async () => {
