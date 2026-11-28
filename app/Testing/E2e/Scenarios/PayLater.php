@@ -16,8 +16,8 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\TransactionTenderService;
 use Database\Seeders\E2eSeeder;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 /**
  * Arrange scenarios for Bayar Belakangan (`paylater.*`): the per-outlet setting, a credit customer, and the receivable
