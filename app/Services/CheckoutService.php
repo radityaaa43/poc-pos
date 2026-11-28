@@ -51,7 +51,6 @@ class CheckoutService
                 abort(422, 'Keranjang kosong.');
             }
 
-            // Checked again with today's options, prices and stock; a refusal writes nothing (REQ-008 AC-13).
             $selections = ModifierSelection::forCheckout($carts, $ctx->outlet, $activeShift->warehouse_id);
 
             $pricingPreview = $this->pricingService->previewCart($carts, $ctx->customer, null, $ctx->outlet);
@@ -241,7 +240,8 @@ class CheckoutService
             $detail->modifiers()->createMany(ModifierSelection::snapshot($options, $recipes));
 
             foreach ($options as $option) {
-                $this->componentStock->deduct($transaction, $recipes[$option['id']]->components, 1, (int) $cart->qty, $warehouseId, "opsi {$option['name']} {$product->title}", $userId);
+                $refusal = __('messages.modifiers.option_sold_out', ['menu' => $product->title, 'option' => $option['name']]);
+                $this->componentStock->deduct($transaction, $recipes[$option['id']]->components, 1, (int) $cart->qty, $warehouseId, "opsi {$option['name']} {$product->title}", $userId, $refusal);
             }
 
             $lineShare = $subtotalAfterPromo > 0 ? $lineTotal / $subtotalAfterPromo : 0;

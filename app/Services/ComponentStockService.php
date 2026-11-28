@@ -8,7 +8,6 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use Illuminate\Validation\ValidationException;
 
-/** Stock taken by composite and option recipes (REQ-008 BR-3). Call inside the sale's DB::transaction. */
 class ComponentStockService
 {
     public function __construct(private readonly StockMutationService $stockMutationService) {}
@@ -26,7 +25,7 @@ class ComponentStockService
     }
 
     /** @param  iterable<Product>  $components  each with pivot->qty per portion; takes $qty units' worth or refuses */
-    public function deduct(Transaction $sale, iterable $components, float $perUnitQty, int $qty, ?int $warehouseId, string $label, int $userId): void
+    public function deduct(Transaction $sale, iterable $components, float $perUnitQty, int $qty, ?int $warehouseId, string $label, int $userId, ?string $refusal = null): void
     {
         foreach (collect($components)->sortBy('id') as $component) {
             $componentQty = (int) round((float) $component->getRelationValue('pivot')?->qty * $perUnitQty * $qty);
@@ -40,7 +39,7 @@ class ComponentStockService
             $available = (int) ($pw ? $pw->stock : Product::lockForUpdate()->findOrFail($component->id)->stock);
             if ($available < $componentQty) {
                 throw ValidationException::withMessages([
-                    'stock' => "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
+                    'stock' => $refusal ?? "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
                 ]);
             }
             if ($pw) {
@@ -63,12 +62,7 @@ class ComponentStockService
         }
     }
 
-    /**
-     * Gives back what the options of $qty sold units of a line took, in product_id order, from the recipe saved with
-     * the sale. An ingredient deleted since is skipped. The caller records the stock mutations.
-     *
-     * @return list<array{product: Product, qty: int, stock_before: int}>
-     */
+    /** @return list<array{product: Product, qty: int, stock_before: int}> from the sale's recipe; caller records mutations */
     public function restockOptions(TransactionDetail $detail, int $qty, ?int $warehouseId): array
     {
         $taken = $detail->modifiers->flatMap->components->groupBy('product_id')

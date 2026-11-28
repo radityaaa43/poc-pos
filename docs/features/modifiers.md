@@ -28,22 +28,18 @@ grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `c
 
 ## Penjualan di POS (online)
 
-- Menu bergrup membuka panel: default terpilih, harga porsi = menu + opsi, catatan maks. 100 karakter (tidak mengubah
-  harga atau stok). Opsi yang bahannya kurang untuk satu porsi di gudang shift berlabel **Habis**.
-- Menu **Habis** dan ditolak server bila grup wajib punya opsi tersedia (aktif di outlet, bahan cukup) kurang dari
-  minimumnya. Bila opsi aktifnya saja kurang, penolakan menyebut grupnya; default yang dimatikan tidak terpilih.
-- Pilihan divalidasi dan dihargai server (`ModifierSelection`) saat masuk keranjang dan lagi saat checkout; harga dari
-  client diabaikan. Opsi yang sejak itu dihapus, dimatikan atau habis menolak checkout (menyebut menu dan opsi).
-- Baris keranjang digabung hanya bila opsi dan catatannya sama (`carts.line_key`).
-- Diskon persen/nominal, voucher, pajak dan poin atas baris penuh; harga tetap, qty break dan bundle hanya mengganti
-  harga menu; "gratis" pada beli X gratis Y hanya harga menu.
-- Qty break menghitung semua baris menu yang sama (opsi dan catatan apa pun; satuan non-dasar tidak ikut).
+- Menu bergrup membuka panel: default terpilih, harga porsi = menu + opsi, catatan maks. 100 karakter. Opsi yang
+  bahannya kurang di gudang shift berlabel **Habis**; menu juga bila grup wajib tak bisa mencapai minimumnya.
+- Server (`ModifierSelection`) memvalidasi dan menghargai pilihan saat masuk keranjang dan saat checkout; harga client
+  diabaikan; penolakan menyebut menu dan opsi atau grupnya. Baris digabung hanya bila opsi dan catatan sama.
+- Diskon, voucher, pajak dan poin atas baris penuh; harga tetap, qty break (menghitung semua baris menu yang sama,
+  satuan non-dasar tidak), bundle dan "gratis" beli X gratis Y hanya mengenai harga menu.
 - Checkout menyimpan opsi per baris (`transaction_detail_modifiers`: nama, harga, `components` =
-  `[{product_id, qty_per_unit}]`) serta `note` dan `modifier_total`; struk membaca salinan ini. Bahan opsi diambil dalam
-  transaksi yang sama dengan stok menu (`ComponentStockService`, kunci urut `product_id`).
+  `[{product_id, qty_per_unit}]`), `note`, `modifier_total`; struk membaca salinan ini. Bahan opsi diambil satu transaksi
+  dengan stok menu (`ComponentStockService`, kunci urut `product_id`).
 - Pembayaran kedaluwarsa dan pembatalan saat tutup shift mengembalikan bahan sesuai `components`; yang terhapus dilewati.
-- Belum: retur penjualan **tidak** mengembalikan bahan opsi; baris beropsi atau bercatatan tidak bisa diantre offline;
-  API mobile tidak memeriksa pilihan; layar dapur dan tiket belum menampilkannya (dirilis bersama #419).
+- Belum: retur **tidak** mengembalikan bahan opsi; baris beropsi/bercatatan tak bisa diantre offline; baris tanpa
+  pilihan (API mobile, sinkron offline) hanya diperiksa BR-6; dapur dan tiket belum menampilkannya (#419).
 
 ## Deploy
 

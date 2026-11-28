@@ -5,6 +5,7 @@ namespace Tests\Feature\Modifiers;
 use App\Models\Cart;
 use App\Models\CashierShift;
 use App\Models\ModifierGroup;
+use App\Models\ModifierOption;
 use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -52,6 +53,11 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(8000, $cart->modifier_total);
         $this->assertSame('less ice', $cart->note);
         $this->assertSame([$this->option('Large')->id, $this->option('Boba')->id], $cart->modifier_option_ids);
+
+        // Another request adds a portion between this one's read of the line and its write: both count.
+        Cart::retrieved(fn (Cart $line) => DB::table('carts')->where('id', $line->id)->increment('qty'));
+        $this->add(['Large', 'Boba'], 1, 'less ice');
+        $this->assertSame(4, (int) DB::table('carts')->value('qty'));
     }
 
     public function test_selection_rules_are_enforced_on_the_server(): void
@@ -66,6 +72,12 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             ->assertSessionHasErrors(['modifiers' => $this->refusal('option_unavailable', ['option' => 'Jelly'])]);
 
         $this->assertSame(0, Cart::count());
+
+        // BR-6 also holds for a line without any selection, as the mobile API and offline sync add it.
+        Cart::create(['cashier_id' => $this->cashier->id, 'product_id' => $this->menu->id, 'qty' => 1, 'price' => 20000]);
+        ModifierOption::whereIn('name', ['Regular', 'Large'])->get()->each->delete();
+        $this->checkout()->assertSessionHasErrors(['modifiers' => $this->refusal('group_unavailable', ['group' => 'Size'])]);
+        $this->assertSame(0, Transaction::count());
     }
 
     public function test_option_without_ingredients_is_refused(): void
@@ -73,7 +85,6 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->setStock($this->milk, 3);
         $this->add(['Large'])->assertSessionHasNoErrors();
 
-        // The second portion needs 4 milk.
         $this->add(['Large'])->assertSessionHasErrors(['modifiers' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
 
         $this->assertSame(1, (int) Cart::sole()->qty);
@@ -141,12 +152,10 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             [['Size', 'Large', 5000, $this->option('Large')->id], ['Topping', 'Boba', 3000, $this->option('Boba')->id]],
             $detail->modifiers->map(fn ($row) => [$row->group_name, $row->option_name, $row->price_delta, (int) $row->modifier_option_id])->all()
         );
-        // The recipe as sold, per unit.
         $this->assertEquals(
             [[['product_id' => $this->milk->id, 'qty_per_unit' => 2]], [['product_id' => $this->boba->id, 'qty_per_unit' => 1]]],
             $detail->modifiers->pluck('components')->all()
         );
-        // Menu HPP 2 x 5.000, plus 4 milk x 700 and 2 boba x 900.
         $this->assertSame(14600, (int) $detail->cost_total);
         $this->assertSame([[48, 48], [6, 6], [8, 8]], [$this->stockOf($this->menu), $this->stockOf($this->milk), $this->stockOf($this->boba)]);
         $mutation = StockMutation::where('product_id', $this->milk->id)->sole();
@@ -156,11 +165,10 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
     public function test_option_shortage_rolls_back_the_sale(): void
     {
-        // Two lines that each pass on their own but need 12 milk of the 10.
         $this->add(['Large'], 3);
         $this->add(['Large'], 3, 'less ice');
 
-        $this->checkout()->assertSessionHasErrors('stock');
+        $this->checkout()->assertSessionHasErrors(['stock' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
 
         $this->assertSame([0, 2], [Transaction::count(), Cart::count()]);
         $this->assertSame([[50, 50], [10, 10]], [$this->stockOf($this->menu), $this->stockOf($this->milk)]);
@@ -169,7 +177,6 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
     public function test_checkout_uses_latest_option_price_and_takes_both_recipes(): void
     {
-        // A composite menu keeps its stored menu price; its recipe and Large both use milk.
         $this->menu->update(['is_composite' => true]);
         $this->menu->components()->attach($this->milk->id, ['qty' => 3]);
         $this->add(['Large']);
@@ -204,14 +211,12 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
     public function test_component_locks_are_taken_in_product_order(): void
     {
-        // Added so the sale meets the higher ingredient id first.
         $this->add(['Regular', 'Boba']);
         $this->add(['Large']);
         DB::enableQueryLog();
 
         $this->checkout()->assertSessionHasNoErrors();
 
-        // The deductions read their rows again, so the first three reads are the locks.
         $locked = $this->stockReadsBeforeTheFirstWrite()->take(3)->map(fn (array $query) => $query['bindings'][0])->values()->all();
         $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], $locked);
     }
@@ -308,8 +313,10 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->get(route('transactions.print', $sale->invoice))->assertInertia(fn (Assert $page) => $page
             ->where('transaction.details.0.note', 'less ice')
             ->where('transaction.details.0.modifiers.0.option_name', 'Large'));
+        $this->get(route('portal.transaction', [$sale->invoice, 'token' => $sale->access_token]))->assertInertia(fn (Assert $page) => $page
+            ->where('transaction.details.0.note', 'less ice')
+            ->where('transaction.details.0.modifiers.0.option_name', 'Large'));
 
-        // The PDF receipts and invoice: render their view instead of building a PDF.
         $html = '';
         Pdf::shouldReceive('loadView')->andReturnUsing(function (string $view, array $data) use (&$html) {
             $html .= view($view, $data)->render();

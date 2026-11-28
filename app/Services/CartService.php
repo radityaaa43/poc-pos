@@ -12,7 +12,6 @@ class CartService
 {
     public function __construct(private readonly UnitConversionService $unitConversion) {}
 
-    /** Adds validated cart input to the active cart. A line merges only with the same unit, options and note. */
     public function add(int $cashierId, ?int $warehouseId, ?Outlet $outlet, array $data): void
     {
         $product = Product::find($data['product_id']);
@@ -44,7 +43,6 @@ class CartService
         } else {
             $unitId = (int) (($data['unit_id'] ?? null) ?: $product->baseUnit()?->id ?: 1);
 
-            // Reject an explicitly provided unit that does not belong to this product
             if (! empty($data['unit_id'] ?? null) && ! $product->units()->whereKey($unitId)->exists()) {
                 $this->refuse('Satuan tidak valid untuk produk ini.');
             }
@@ -79,6 +77,7 @@ class CartService
         // shortcut: counts this line only, not other lines sharing an ingredient; checkout re-checks under lock.
         ModifierSelection::assertStock($product, $selection['options'], (int) ceil($qty), $warehouseId);
 
+        $cart?->increment('qty', $data['qty']);
         $cart ??= new Cart([
             'cashier_id' => $cashierId,
             'warehouse_id' => $warehouseId,
@@ -87,12 +86,12 @@ class CartService
             'conversion_factor' => $conversionFactor,
             'note' => $note,
             'line_key' => $lineKey,
+            'qty' => $qty,
         ]);
         $cart->fill([
-            'qty' => $qty,
             'modifier_option_ids' => $selection['has_groups'] ? $optionIds : null,
             'modifier_total' => $selection['unit_total'],
-            'price' => ($sellPrice + $selection['unit_total']) * $qty,
+            'price' => ($sellPrice + $selection['unit_total']) * $cart->qty,
         ])->save();
     }
 

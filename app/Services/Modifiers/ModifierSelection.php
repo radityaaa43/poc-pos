@@ -12,10 +12,7 @@ use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
-/**
- * The one rule set for the options picked on a menu (REQ-008), at add-to-cart and again at checkout. Only option
- * ids come from the client: names, prices and recipes are read from the catalog.
- */
+/** Rules for a menu's picked options (REQ-008). Only ids come from the client; the rest is read from the catalog. */
 class ModifierSelection
 {
     /** @return array{has_groups: bool, unit_total: int, options: list<array<string, mixed>>} options in display order */
@@ -23,7 +20,6 @@ class ModifierSelection
     {
         $groups = ModifierCatalog::forOutlet($outlet, collect([$product->getKey()]))->get($product->id)['groups'] ?? [];
 
-        // Before the options: no other choice would make this menu orderable here (BR-6).
         if ($short = ModifierCatalog::shortGroup($groups)) {
             self::refuse('group_unavailable', $product, ['group' => $short['name']]);
         }
@@ -66,7 +62,6 @@ class ModifierSelection
         ];
     }
 
-    /** Refuses an option whose recipe cannot cover $qty portions. */
     public static function assertStock(Product $product, array $options, int $qty, ?int $warehouseId): void
     {
         $stock = self::stockOf($options, $warehouseId);
@@ -78,10 +73,19 @@ class ModifierSelection
         }
     }
 
-    /** Every cart line with a selection, checked again with today's options, prices and stock; keyed by cart id. */
     public static function forCheckout(Collection $carts, ?Outlet $outlet, ?int $warehouseId): array
     {
         $selections = [];
+
+        // A line without a selection (mobile API, offline sync, added before its groups) still obeys BR-6.
+        $unpicked = $carts->whereNull('modifier_option_ids');
+
+        foreach (ModifierCatalog::forOutlet($outlet, $unpicked->pluck('product_id')) as $id => $menu) {
+            if ($short = ModifierCatalog::shortGroup($menu['groups'])) {
+                $product = $unpicked->firstWhere('product_id', $id)->getRelationValue('product');
+                self::refuse('group_unavailable', $product, ['group' => $short['name']]);
+            }
+        }
 
         foreach ($carts->whereNotNull('modifier_option_ids') as $cart) {
             $product = $cart->getRelationValue('product');
@@ -93,7 +97,6 @@ class ModifierSelection
         return $selections;
     }
 
-    /** The sale line's own copy of its options (REQ-008 decision 11). $recipes: by option id, as deducted. */
     public static function snapshot(array $options, Collection $recipes): array
     {
         return array_map(fn (array $option) => [
@@ -147,7 +150,6 @@ class ModifierSelection
         );
     }
 
-    /** Product id => stock of the options' ingredients in the warehouse (all stock without one). */
     private static function stockOf(array $options, ?int $warehouseId): Collection
     {
         $ids = collect($options)->flatMap(fn (array $option) => array_column($option['components'], 'product_id'))
