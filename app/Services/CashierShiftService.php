@@ -186,6 +186,18 @@ class CashierShiftService
                 ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
                 ->orWhere('payment_status', 'paid')));
 
+        // A split's excess came off the non-cash sales above: what exceeds its non-cash tenders is cash in the drawer.
+        // One query per overpaid split of the shift, a handful at most.
+        $cashExcess = (int) (clone $transactions)
+            ->whereKeyNot($bookedBillIds)
+            ->where('payment_method', 'split')
+            ->where('overpaid_amount', '>', 0)
+            ->get()
+            ->sum(fn (Transaction $sale) => max(0, $sale->overpaid_amount
+                - (int) $sale->tenders()->where('method', '!=', TransactionTender::METHOD_CASH)->sum('amount')));
+        $cashSalesTotal -= $cashExcess;
+        $nonCashSalesTotal += $cashExcess;
+
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')
             ->sum('refund_amount');
