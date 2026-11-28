@@ -48,7 +48,7 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 - Hanya bahan baku dan menu resep. Menu memotong bahan resepnya: jumlah resep x jumlah menu, dibulatkan ke satuan stok (sama seperti penjualan); bahan yang jadi 0 dilewati.
 - Nilai = HPP rata-rata saat stok dipotong x jumlah. Stok yang tidak cukup ditolak.
 - Sampai batas outlet (`settings.waste_approval_limit`, default Rp 100.000) status *Tercatat* dan `product_warehouse.stock` serta `products.stock` dipotong dalam satu transaksi (mutasi `stock_waste`). Di atas batas status *Menunggu persetujuan* dan stok tidak berubah; belum ada layar persetujuan (#459).
-- Produk atau gudang yang punya catatan waste tidak bisa dihapus.
+- Produk, gudang, atau outlet yang punya catatan waste tidak bisa dihapus.
 - Setelah deploy: `php artisan migrate`, lalu `db:seed --class=PermissionSeeder` dan `--class=RoleSeeder`.
 
 ## Integrasi Data
