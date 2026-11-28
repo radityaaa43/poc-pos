@@ -354,6 +354,9 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   A failed bill of attempt 0 takes the late path above when it has a gateway charge of its own (a gateway tender row, a single-method gateway sale, or a
   credit sale with a receivable, #380; any gateway tender in any status counts, a pending or paid one then blocks the booking); one without any stays failed. A bill settled by cash or transfer at attempt 0 flags a later gateway payment as a second payment. A late payment of a sale that was restocked is flagged, not booked.
   When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
+  A booked payment of the current attempt that is more than the bill owes after a return completed while it waited is
+  flagged too, with the excess in `overpaid_amount` and the audit `payment.overpaid_after_return` (#444, see
+  [`pos-transactions.md`](pos-transactions.md)); a transfer confirmation applies the same rule.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
   charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::claim`), so the guest's charge is

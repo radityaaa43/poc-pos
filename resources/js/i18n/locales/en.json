@@ -525,7 +525,11 @@
         "lateRefund": {
             "badge": "Paid twice — manual refund",
             "filter": "Needs refund",
-            "notice": "A gateway payment was received but not booked — manual refund needed"
+            "notice": "A gateway payment was received but not booked — manual refund needed",
+            "overpaid": "Overpaid by Rp {{amount}} after a return — refund manually.",
+            "checkHistory": "Manual refund needed — check the payment history",
+            "cashOpen": "Return Rp {{cash}} in cash from the drawer — don't record a cash out.",
+            "cashClosed": "The shift is closed — return Rp {{cash}} and record it as a cash out in the current shift."
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
