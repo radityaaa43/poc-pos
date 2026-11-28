@@ -7,7 +7,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 
 // REQ-009 J1.1, J1.2: the cashier picks a table and sends the cart; it is an unpaid bill of that table and, as pay
 // later, goes to the kitchen at once.
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('a table order picked on the POS joins the table bill and reaches the kitchen', { tag: ['@REQ-009-AC-01', '@REQ-009-AC-02'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });

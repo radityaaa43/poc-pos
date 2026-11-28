@@ -5,7 +5,7 @@ import { sendToTable } from '../../support/table-order.js';
 const role = (key) => roles.find((item) => item.key === key);
 
 // REQ-009 decision 19: a table with a running order stays, and stays on; the refusal names the order.
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('a Terisi table can be neither switched off nor deleted', { tag: ['@REQ-009-AC-23'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });

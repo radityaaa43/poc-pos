@@ -6,7 +6,7 @@ const role = (key) => roles.find((item) => item.key === key);
 
 // REQ-009 J2: the table list shows the computed status and the number of unpaid bills; paying the last order (nothing
 // to cook, so it is already served) frees the table with nothing typed. Dipesan needs #443's reservations.
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('a table is Terisi with its unpaid bills and Kosong again once the last order finishes', { tag: ['@REQ-009-AC-04', '@REQ-009-AC-05'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });

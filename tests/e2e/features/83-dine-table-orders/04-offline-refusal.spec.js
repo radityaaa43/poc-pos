@@ -8,7 +8,7 @@ const cashier = roles.find((role) => role.key === 'cashier');
 const refusal = 'Pesanan meja memerlukan koneksi internet.';
 
 // REQ-009: a table bill lives on the server, so offline the POS refuses table orders and queues nothing.
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('offline, a table order is refused with a message and nothing is queued', { tag: ['@REQ-009-AC-21'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });

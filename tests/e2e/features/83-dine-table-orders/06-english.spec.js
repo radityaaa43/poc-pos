@@ -3,7 +3,7 @@ import { roles } from '../../support/roles.js';
 
 const role = (key) => roles.find((item) => item.key === key);
 
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('the table order dialog and the table status read in English too', { tag: ['@REQ-009-AC-22'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });

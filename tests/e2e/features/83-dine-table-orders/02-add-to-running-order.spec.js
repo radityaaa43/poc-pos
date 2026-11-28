@@ -5,7 +5,7 @@ import { sendToTable } from '../../support/table-order.js';
 const cashier = roles.find((role) => role.key === 'cashier');
 
 // REQ-009 J1.3 (REQ-003 AC-21): items added from the POS to a running table order are their own sale, linked to it.
-test.describe('82-dine-table-orders', () => {
+test.describe('83-dine-table-orders', () => {
     test('adding to a running table order links the new sale to it', { tag: ['@REQ-009-AC-03'] }, async ({ asRole, arrange, uniq }) => {
         test.setTimeout(180_000);
         const { table_name } = arrange('dine.table', { area: uniq('Area'), name: uniq('M') });
