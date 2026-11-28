@@ -223,7 +223,7 @@
                     <div><strong>Status:</strong> {{ $transaction->payment_status }}</div>
                     <div><strong>Metode:</strong> {{ $transaction->payment_method }}</div>
                     @if ($transaction->receivable && $transaction->receivable->due_date)
-                        <div><strong>Jatuh tempo:</strong> {{ $transaction->receivable->due_date }}</div>
+                        <div><strong>Jatuh tempo:</strong> {{ $transaction->receivable->due_date->format('d/m/Y') }}</div>
                     @endif
                 </div>
             </td>

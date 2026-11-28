@@ -61,6 +61,13 @@ describe("RetryPaymentPanel", () => {
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
     });
 
+    it("offers no Coba lagi for a failed credit sale, which the server sends as not retryable", () => {
+        renderPanel({ retryable: false, transaction: { ...failed, receivable: { id: 1, status: "unpaid" } } });
+
+        expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Bayar dengan cara lain" })).not.toBeInTheDocument();
+    });
+
     it("renders nothing without the transactions-access permission", () => {
         auth = { super: false, permissions: {} };
         renderPanel();
