@@ -443,8 +443,9 @@ class PaymentWebhookController extends Controller
 
     /**
      * A paid notification for an older attempt, or for a failed one, on a bill that is not paid. Booked as the payment
-     * when nothing else holds the bill (no pending or paid tender rows, see hasBlockingTenders) and the amount is what is
-     * still owed; flagged for a manual refund otherwise. The event is audited either way.
+     * when the bill still owes it and no paid tender already covers the rest (a split's failed part compares against
+     * what the sale owes, #530 A4; a pending rest tender stays and flags the excess later). Flagged for a manual refund
+     * otherwise. The event is audited either way.
      *
      * @param  array<string, mixed>  $extra  more meta for the booking's audit row
      */
@@ -453,7 +454,7 @@ class PaymentWebhookController extends Controller
         $priorStatus = $bill->payment_status;
         $meta = ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'order_attempt' => $attempt, 'bill_attempt' => $bill->payment_attempt, 'prior_status' => $priorStatus];
 
-        if ($this->lateRefusal($bill, $amount) === null) {
+        if ($this->lateRefusal($bill, $amount, $this->replacedSplitPart($bill, $providerId) !== null) === null) {
             $this->record($bill, $shift, $gateway, $providerId, 'paid', false, $reference, $amount, late: true);
 
             // An earlier flag of this same payment (a tender was pending then) is reversed by the booking, and stays in the
@@ -477,20 +478,63 @@ class PaymentWebhookController extends Controller
         $this->markLatePayment($bill, 'payment.late_after_failed', "Pembayaran terlambat invoice {$bill->invoice} tidak dicatat; perlu refund manual.", [...$meta, 'booked' => false], $reference);
     }
 
-    /** Why a late payment of this amount cannot be booked (still_held, amount_mismatch, restocked), or null when it can. */
-    private function lateRefusal(Transaction $bill, mixed $amount): ?string
+    /**
+     * Why a late payment of this amount cannot be booked (still_held, amount_mismatch, restocked), or null when it can.
+     * A split's failed gateway part is judged against what the sale still owes, not its remaining total: a paid part for
+     * another portion never blocks booking it (#530 BR-7/A4), and a pending rest tender is left to flag any excess later.
+     */
+    private function lateRefusal(Transaction $bill, mixed $amount, bool $splitPart = false): ?string
     {
         // A credit sale is charged what its receivable still owes (it may be partly paid), any other sale its remaining total.
         $receivable = $bill->receivable()->first();
-        $owed = $receivable ? (int) round($receivable->remaining) : $bill->remainingTotal();
+        $owed = $receivable
+            ? (int) round($receivable->remaining)
+            : ($splitPart ? $bill->unpaidAmount() : $bill->remainingTotal());
 
         return match (true) {
-            $bill->hasBlockingTenders() => 'still_held',
+            ! $splitPart && $bill->hasBlockingTenders() => 'still_held',
             ! is_numeric($amount) || (int) round((float) $amount) !== $owed => 'amount_mismatch',
             // A sale that expired and was restocked has no goods left to pay for: refund, do not book.
             $bill->wasRestocked() => 'restocked',
             default => null,
         };
+    }
+
+    /**
+     * The split's failed gateway part a late payment settles, or null for any other payment. Found by order id: the
+     * failed tender while it still exists, else what a collected rest replaced (its audit keeps the order id). #530 A4.
+     *
+     * @return array{method: string, amount: int, tender: TransactionTender|null}|null
+     */
+    private function replacedSplitPart(Transaction $bill, string $providerId): ?array
+    {
+        if ($bill->payment_method !== 'split' || $this->baseInvoice($providerId) !== $bill->invoice) {
+            return null;
+        }
+
+        $failed = $bill->tenders()->where('payment_status', TransactionTender::STATUS_FAILED)->get()
+            ->first(fn (TransactionTender $tender) => in_array($tender->method, TransactionTenderService::GATEWAY_METHODS, true));
+
+        if ($failed) {
+            return ['method' => $failed->method, 'amount' => (int) $failed->amount, 'tender' => $failed];
+        }
+
+        $logs = AuditLog::where('event', 'transaction.split_rest_collected')
+            ->where('auditable_type', $bill->getMorphClass())
+            ->where('auditable_id', $bill->id)
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($logs as $log) {
+            foreach ($log->meta['replaced'] ?? [] as $replaced) {
+                if (in_array($replaced['method'] ?? null, TransactionTenderService::GATEWAY_METHODS, true)
+                    && $this->baseInvoice((string) ($replaced['order_id'] ?? '')) === $bill->invoice) {
+                    return ['method' => $replaced['method'], 'amount' => (int) $replaced['amount'], 'tender' => null];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -560,6 +604,22 @@ class PaymentWebhookController extends Controller
                 ->whereIn('method', [$gateway, TransactionTender::METHOD_QRIS])
                 ->get()
                 ->filter(fn (TransactionTender $t) => $providerId === $t->order_reference);
+
+        // A collected rest deleted the failed part's tender; the audit remembers it, so its late success is booked as the
+        // part's own paid tender (#530 BR-7/A4). A pending rest tender is left untouched and flags the excess later.
+        if ($late && $tenders->isEmpty()) {
+            $part = $this->replacedSplitPart($bill, $providerId);
+
+            if ($part) {
+                $tenders = collect([$bill->tenders()->create([
+                    'method' => $part['method'],
+                    'amount' => $part['amount'],
+                    'payment_status' => TransactionTender::STATUS_PAID,
+                    'payment_reference' => $reference,
+                    'paid_at' => now(),
+                ])]);
+            }
+        }
 
         if ($tenders->isNotEmpty()) {
             foreach ($tenders as $tender) {
