@@ -27,8 +27,10 @@ export default function Outlets({ outlets = [] }) {
 
     const submit = (event) => {
         event.preventDefault();
+        // A bill field goes only when changed in this form: an old form must not write back what someone else has since changed.
+        const changes = Object.fromEntries(Object.entries(form).filter(([key, value]) => String(value) !== String(editing?.bill_settings?.[key])));
         const action = editing
-            ? router.put(route("settings.outlets.update", editing.id), form, {
+            ? router.put(route("settings.outlets.update", editing.id), changes, {
                 onError: setErrors,
                 onSuccess: () => { setShowForm(false); setEditing(null); setForm(emptyForm); },
             })

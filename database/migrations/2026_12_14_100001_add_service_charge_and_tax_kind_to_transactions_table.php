@@ -12,7 +12,7 @@ return new class extends Migration
         Schema::table('transactions', function (Blueprint $table) {
             $table->bigInteger('service_charge')->default(0)->after('tax_total');
             $table->string('tax_kind', 8)->nullable()->after('service_charge'); // null reads as PPN
-            $table->unsignedInteger('tax_base')->nullable()->after('tax_kind'); // amount the tax was computed on
+            $table->unsignedBigInteger('tax_base')->nullable()->after('tax_kind'); // amount the tax was computed on
         });
     }
 

@@ -37,6 +37,7 @@ REQ-010. Edited in the outlet form (Settings → Outlets → edit, section **Tag
 | `cash_rounding_unit` | `0` (Tanpa), `100`, `500` | `0` |
 
 - An absent or `null` request field is unchanged. Global rows (left behind by a deleted outlet) are ignored.
+- The outlet edit form sends a bill field only when it was changed there, so a form opened earlier does not write an old value back.
 - Each effective change writes one `outlet.bill_settings_updated` audit row with the changed keys, before and after.
 - The outlet list (web and `GET /api/v1/settings/outlets`) returns them as `bill_settings`.
 - No total uses them yet (#450). They apply to new bills only; stored sales are never recalculated. `transactions.service_charge`, `tax_kind` (`null` = PPN) and `tax_base` hold what a sale was computed with, and stay `0` / `null` until #450 writes them.
