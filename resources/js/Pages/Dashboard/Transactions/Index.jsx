@@ -843,8 +843,8 @@ export default function Index({
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The credit rules, the pay-later gate and the guest note rule answer with their own message.
+                    toast.error(errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
