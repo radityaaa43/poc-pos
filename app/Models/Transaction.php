@@ -42,6 +42,7 @@ class Transaction extends Model
     protected $fillable = [
         'cashier_id',
         'cashier_shift_id',
+        'parent_transaction_id',
         'warehouse_id',
         'customer_id',
         'invoice',
@@ -64,6 +65,7 @@ class Transaction extends Model
         'payment_failure_reason',
         'late_superseded_payment_at',
         'paid_after_close_at',
+        'overpaid_amount',
         'is_pay_later',
         'payment_reference',
         'payment_url',
@@ -73,6 +75,9 @@ class Transaction extends Model
         'bank_account_id',
         'tax_rate',
         'tax_total',
+        'service_charge',
+        'tax_kind',
+        'tax_base',
         'customer_npwp',
         'price_list_id',
         'discount_approved_by',
@@ -86,6 +91,7 @@ class Transaction extends Model
         'cashier_id' => 'integer',
         'cashier_shift_id' => 'integer',
         'customer_id' => 'integer',
+        'parent_transaction_id' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
         'cash' => 'integer',
@@ -100,10 +106,13 @@ class Transaction extends Model
         'bank_account_id' => 'integer',
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
+        'service_charge' => 'integer',
+        'tax_base' => 'integer',
         'discount_approved_at' => 'datetime',
         'payment_attempt' => 'integer',
         'late_superseded_payment_at' => 'datetime',
         'paid_after_close_at' => 'datetime',
+        'overpaid_amount' => 'integer',
     ];
 
     /** @return HasMany<TransactionDetail, $this> */
@@ -135,6 +144,18 @@ class Transaction extends Model
     public function cashierShift()
     {
         return $this->belongsTo(CashierShift::class);
+    }
+
+    /** @return BelongsTo<Transaction, $this> the root order of an add-on sale (#251); null for a normal sale */
+    public function parent(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_transaction_id');
+    }
+
+    /** The order a sale belongs to: the link always points at the root, so no recursion. */
+    public function orderRootId(): int
+    {
+        return $this->parent_transaction_id ?? $this->id;
     }
 
     /** @return BelongsTo<Warehouse, $this> */
@@ -254,6 +275,7 @@ class Transaction extends Model
                 .' < (select coalesce(sum(td.qty), 0) from transaction_details td where td.transaction_id = transactions.id)'));
     }
 
+    /** @return HasMany<SalesReturn, $this> */
     public function salesReturns(): HasMany
     {
         return $this->hasMany(SalesReturn::class);
@@ -264,6 +286,55 @@ class Transaction extends Model
     {
         return max(0, (int) $this->grand_total
             - (int) $this->salesReturns()->where('status', 'completed')->sum('total_return_amount'));
+    }
+
+    /**
+     * What a sale owes after the returns that handed nothing back, those completed before it was paid: a payment beyond
+     * it is an overpayment (#444). The shift recap takes off the same returns.
+     */
+    public function owedAfterReturns(): int
+    {
+        return max(0, (int) $this->grand_total
+            - (int) $this->salesReturns()->nothingRefunded()->sum('total_return_amount'));
+    }
+
+    /**
+     * The part of overpaid_amount taken in cash (#444): what a split's excess is beyond its paid non-cash tenders. The
+     * cashier hands it back in cash, and the shift recap takes it off the cash sales.
+     */
+    public function cashExcess(): int
+    {
+        // Only a split holds both: any other overpaid sale was paid without cash.
+        if ($this->payment_method !== 'split' || $this->overpaid_amount < 1) {
+            return 0;
+        }
+
+        return max(0, (int) $this->overpaid_amount - (int) $this->tenders()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->where('method', '!=', TransactionTender::METHOD_CASH)
+            ->sum('amount'));
+    }
+
+    /**
+     * For the refund notice of the sale page, as the overpayment audit row kept it: the cash to hand back, and whether the
+     * sale's shift was open when the excess was flagged. That picks the instruction, and a later close does not change it
+     * (BR-6). A row without that fact gives no cash line.
+     *
+     * @return array{cash_excess: int, flagged_shift_open: bool}
+     */
+    public function cashRefundNotice(): array
+    {
+        $meta = $this->overpaid_amount > 0
+            ? AuditLog::where('event', 'payment.overpaid_after_return')
+                ->where('auditable_type', $this->getMorphClass())
+                ->where('auditable_id', $this->id)
+                ->latest('id')
+                ->first()?->meta
+            : null;
+
+        return isset($meta['shift_open'])
+            ? ['cash_excess' => $meta['cash_excess'], 'flagged_shift_open' => $meta['shift_open']]
+            : ['cash_excess' => 0, 'flagged_shift_open' => false];
     }
 
     /**

@@ -182,10 +182,12 @@ class CashierShiftService
             ->sum('amount');
 
         // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
-        // open bill (pay-later or dine-in) or a retried payment is asked for less than its grand total.
+        // open bill (pay-later or dine-in) or a retried payment is asked for less than its grand total. What a payment took
+        // beyond what the sale owed after a return (overpaid_amount) is not a sale either: it is to be refunded (#444).
         $neverAsked = function ($sales) use ($bookedBillIds): int {
+            $sales->whereKeyNot($bookedBillIds); // booked by a forced close: not counted above, so nothing to take off
+            $overpaid = (int) (clone $sales)->sum('overpaid_amount');
             $askedLater = $sales
-                ->whereKeyNot($bookedBillIds) // booked by a forced close: not counted above, so nothing to take off
                 ->where(fn ($later) => $later->where('is_pay_later', true)->orWhere('payment_attempt', '>', 0)->orWhereHas('dineOrder'))
                 ->doesntHave('receivable');
 
@@ -193,13 +195,10 @@ class CashierShiftService
             $tenderedShort = (int) (clone $askedLater)->whereHas('tenders')->sum('grand_total')
                 - (int) TransactionTender::query()->whereIn('transaction_id', (clone $askedLater)->select('id'))->sum('amount');
 
-            // Without tenders (guest online, retry) the asked amount is the total less the returns that refunded nothing.
-            // shortcut: a return made while a no-tender payment (guest online, retry) is waiting under-counts the recap;
-            // exact fix = store the asked amount on the bill.
+            // Without tenders (guest online, retry) a sale counts its total less the returns that refunded nothing: what it
+            // owes. A payment of more, after a return made while it waited, is flagged and the excess stays out (#444).
             $unrefunded = SalesReturn::query()
-                ->where('status', 'completed')
-                ->where('refund_amount', 0)
-                ->where('credited_amount', 0)
+                ->nothingRefunded()
                 ->groupBy('transaction_id')
                 ->selectRaw('transaction_id, sum(total_return_amount) as unrefunded_total');
             // Capped per sale: returns are priced before a bill discount, and a sale must not take off more than it added.
@@ -207,7 +206,10 @@ class CashierShiftService
                 ->joinSub($unrefunded, 'unrefunded', 'unrefunded.transaction_id', '=', 'transactions.id')
                 ->sum(DB::raw('case when unrefunded_total > grand_total then grand_total else unrefunded_total end'));
 
-            return $tenderedShort + $returnedShort;
+            // Those sales already count only what they owe, so their excess is off with the returns.
+            $overpaid -= (int) (clone $askedLater)->doesntHave('tenders')->sum('overpaid_amount');
+
+            return $tenderedShort + $returnedShort + $overpaid;
         };
 
         $cashSalesTotal -= $neverAsked((clone $transactions)
@@ -215,6 +217,23 @@ class CashierShiftService
             ->where('payment_status', 'paid'));
         // The same sales as added above, so nothing comes off that never went in (no split, no unpaid pay later).
         $nonCashSalesTotal -= $neverAsked(clone $nonCashSales);
+
+        // A split is counted by its paid tenders, not its grand total, so #464's overpaid part (a return recorded while a
+        // transfer waited) is off here too; its cash part is cashExcess below.
+        $nonCashSalesTotal -= (int) (clone $transactions)
+            ->whereKeyNot($bookedBillIds)
+            ->where('payment_method', 'split')
+            ->sum('overpaid_amount');
+
+        // A split's excess came off the non-cash sales above: its cash part (see cashExcess) is cash in the drawer.
+        // One query per overpaid sale of the shift, a handful at most.
+        $cashExcess = (int) (clone $transactions)
+            ->whereKeyNot($bookedBillIds)
+            ->where('overpaid_amount', '>', 0)
+            ->get()
+            ->sum(fn (Transaction $sale) => $sale->cashExcess());
+        $cashSalesTotal -= $cashExcess;
+        $nonCashSalesTotal += $cashExcess;
 
         $cashRefundTotal = (int) (clone $salesReturns)
             ->where('return_type', 'refund_cash')

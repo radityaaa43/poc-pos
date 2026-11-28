@@ -69,7 +69,7 @@ class ExpirePendingTransactionsCommand extends Command
                     );
 
                     $expired++;
-                });
+                }, 3);
             } catch (\Throwable $e) {
                 report($e);
                 $this->error("Failed to expire {$transaction->invoice}: {$e->getMessage()}");

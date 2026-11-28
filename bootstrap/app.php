@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureNotInstalled;
 use App\Http\Middleware\EnsurePublicRegistrationEnabled;
 use App\Http\Middleware\EnsureRecentPasswordConfirmation;
 use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\KeepFlashForPolls;
 use App\Http\Middleware\SecureHeaders;
 use App\Http\Middleware\SetLocale;
 use Illuminate\Auth\AuthenticationException;
@@ -54,6 +55,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'step_up' => EnsureRecentPasswordConfirmation::class,
             'api_step_up' => EnsureApiStepUp::class,
             'abilities' => CheckAbilities::class,
+            'keep_flash' => KeepFlashForPolls::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

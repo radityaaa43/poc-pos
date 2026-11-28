@@ -32,8 +32,9 @@ Nothing goes directly to `main`. Workflow skills come from
 For a `ready-for-agent` issue, `/ship-issue <n>` runs steps 3–7 in order.
 
 Five roles carry an issue across the project board (Backlog → Planning → Todo → In progress →
-Technical review → Business review → Done): **Business / PM** (steps 1–2 and the criteria check), **Tech Lead** (step 2b and
-the risk review of high-risk PRs), **Developer** (steps 3–7), **Verifier** (verifies every PR, merges, runs the board) and the
+Technical review → Business review → Done): **Business / PM** (steps 1–2), **Tech Lead** (step 2b and
+the pre-review of every developer PR against its plan), **Developer** (steps 3–7), **Verifier** (all technical review, high risk
+included, and the business review of every PR; merges after posting the `Verifier` status; runs the board) and the
 **maintainer** (decides, owns the Standards, overrules). The board is the channel between them: a card move is the hand-off.
 Columns, Definition of Ready and Effort: [`docs/agents/issue-tracker.md` → Board and roles](docs/agents/issue-tracker.md#board-and-roles).
 Flow rules (developers pull their own work, column limits, finish before starting): [`docs/agents/handoff.md` → 0](docs/agents/handoff.md#0-flow-rules-pull-limits-priorities).

@@ -48,6 +48,7 @@ class DineOrder extends Model
         'payment_url',
         'cashier_id',
         'transaction_id',
+        'add_on_to_dine_order_id',
         'subtotal',
         'item_count',
         'submitted_at',
@@ -106,6 +107,12 @@ class DineOrder extends Model
         return $this->belongsTo(Transaction::class);
     }
 
+    /** @return BelongsTo<DineOrder, $this> the order whose status page this one was ordered from (#251) */
+    public function addOnTo(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'add_on_to_dine_order_id');
+    }
+
     public function items(): HasMany
     {
         return $this->hasMany(DineOrderItem::class, 'dine_order_id');
@@ -134,7 +141,9 @@ class DineOrder extends Model
     /** Safety net: completed once the order is served and paid. Payment comes first (the kitchen waits for it), so serving normally completes it. */
     public function completeIfSettled(): void
     {
-        if ($this->status === self::STATUS_SERVED && $this->isPaid()) {
+        // Locking reads, order then bill (#251): a loaded model or a snapshot misses a payment or hand-over beside it.
+        if (static::whereKey($this->id)->lockForUpdate()->value('status') === self::STATUS_SERVED
+            && Transaction::whereKey($this->transaction_id)->lockForUpdate()->value('payment_status') === 'paid') {
             $this->update(['status' => self::STATUS_COMPLETED, 'completed_at' => now()]);
         }
     }

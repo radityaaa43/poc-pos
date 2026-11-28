@@ -30,6 +30,7 @@ class CheckoutContext
         public readonly ?string $clientUuid = null,
         public readonly ?string $syncFingerprint = null,
         public readonly ?array $onlyCartIds = null,
+        public readonly ?string $addOnTo = null, // invoice of the order this sale adds to (#251)
     ) {}
 
     public function isSplit(): bool
