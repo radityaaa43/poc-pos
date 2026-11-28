@@ -54,11 +54,12 @@ class CustomerCreditLimitTest extends TestCase
     public function test_limit_refused_for_customer_who_may_not_buy_on_credit(): void
     {
         $customer = $this->customer(mayBuyOnCredit: false);
+        $approver = tap($this->userWith('customers-credit-approve'))->update(['locale' => 'en']);
 
-        $this->actingAs($this->userWith('customers-credit-approve'))
+        $this->actingAs($approver)
             ->patchJson(route('customers.credit-limit', $customer), ['credit_limit' => 100000])
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('credit_limit');
+            ->assertJsonValidationErrors(['credit_limit' => 'A credit limit is only for a customer who may buy on credit.']);
 
         $this->assertNull($customer->fresh()->credit_limit);
         $this->assertSame(0, AuditLog::where('event', self::EVENT)->count());
@@ -148,8 +149,15 @@ class CustomerCreditLimitTest extends TestCase
                 'name' => 'Budi',
                 'no_telp' => '62811',
                 'address' => 'Jl. Satu',
+                // Required by the form: without them validation fails before anything could be written.
+                'province_id' => '11',
+                'regency_id' => '1101',
+                'district_id' => '110101',
+                'village_id' => '1101012001',
                 'credit_limit' => 9000000,
-            ]);
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('customers.index'));
 
         $this->assertSame(500000, $customer->fresh()->credit_limit);
     }

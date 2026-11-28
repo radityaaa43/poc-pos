@@ -359,7 +359,7 @@ class CustomerController extends Controller
             $locked = Customer::lockForUpdate()->findOrFail($customer->id);
 
             if (! $locked->may_buy_on_credit) {
-                throw ValidationException::withMessages(['credit_limit' => 'Batas piutang hanya untuk pelanggan yang boleh piutang.']);
+                throw ValidationException::withMessages(['credit_limit' => __('messages.customers.credit_limit_not_allowed')]);
             }
 
             $old = $locked->credit_limit;
@@ -491,6 +491,7 @@ class CustomerController extends Controller
                     'member_code' => $customer->member_code,
                     'loyalty_tier' => $customer->loyalty_tier,
                     'loyalty_points' => (int) $customer->loyalty_points,
+                    'may_buy_on_credit' => (bool) $customer->may_buy_on_credit,
                 ],
             ]);
         }
