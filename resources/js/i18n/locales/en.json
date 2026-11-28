@@ -468,7 +468,14 @@
             "no": "No",
             "confirmGrant": "Allow this customer to buy on credit?",
             "confirmRevoke": "Revoke this customer's credit permission?",
-            "cancel": "Cancel"
+            "cancel": "Cancel",
+            "limitLabel": "Credit limit",
+            "noLimit": "No limit",
+            "used": "Used",
+            "limitHelp": "Leave empty for No limit",
+            "save": "Save",
+            "overdue": "Overdue receivable exists",
+            "limitSaved": "Credit limit saved"
         }
     },
     "transactions": {
@@ -539,6 +546,17 @@
             "days31to60": "31-60 Days",
             "days61to90": "61-90 Days",
             "over90": ">90 Days"
+        },
+        "credit": {
+            "limit": "Credit limit",
+            "usedPercent": "Used %",
+            "usedScope": "Used (across all outlets)",
+            "noLimit": "No limit",
+            "near": "Near limit (≥ 80%)",
+            "over": "Over limit",
+            "filterLabel": "Credit limit",
+            "filterAll": "All credit limits",
+            "usedAria": "Used {{percent}}% of the {{limit}} limit"
         }
     },
     "salesReturns": {
@@ -1178,6 +1196,15 @@
             "awaitingOnline": "Waiting for online payment",
             "takeoverNotice": "The guest is paying online. Ask whether they have already paid. If you take payment now, the guest's online payment won't count and must be refunded by hand.",
             "billGone": "This bill is no longer in the Unpaid list (it was paid or cancelled). Close this window and check Transaction History."
+        },
+        "credit": {
+            "limit": "Limit",
+            "used": "Used",
+            "remaining": "Remaining",
+            "noLimit": "No limit",
+            "overdue": "Overdue receivable exists",
+            "loadError": "Could not load the credit limit",
+            "retry": "Try again"
         }
     },
     "outlets": {

@@ -77,6 +77,7 @@ return [
         'import_error' => 'Failed to import customers.',
         'segments_synced' => 'Customer manual segments updated successfully.',
         'upgraded_to_member' => 'Customer upgraded to member successfully.',
+        'credit_limit_not_allowed' => 'A credit limit is only for a customer who may buy on credit.',
     ],
 
     /*

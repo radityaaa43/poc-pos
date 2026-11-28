@@ -77,6 +77,7 @@ return [
         'import_error' => 'Gagal import pelanggan.',
         'segments_synced' => 'Segment manual pelanggan berhasil diperbarui.',
         'upgraded_to_member' => 'Pelanggan berhasil ditingkatkan menjadi member.',
+        'credit_limit_not_allowed' => 'Batas piutang hanya untuk pelanggan yang boleh piutang.',
     ],
 
     /*

@@ -35,11 +35,11 @@ test.describe('29-receivables', () => {
 
         await page.goto('/dashboard/receivables');
         await page.getByPlaceholder('Cari invoice / nomor nota').fill(partial.invoice);
-        await page.getByRole('combobox').selectOption('partial');
+        await page.getByRole('combobox', { name: 'Status' }).selectOption('partial');
         await page.getByRole('button', { name: 'Terapkan' }).click();
         await expect(page.getByRole('link').filter({ hasText: partial.invoice })).toHaveCount(1);
 
-        await page.getByRole('combobox').selectOption('paid');
+        await page.getByRole('combobox', { name: 'Status' }).selectOption('paid');
         await page.getByRole('button', { name: 'Terapkan' }).click();
         await expect(page.getByText('Belum ada data nota barang.')).toBeVisible();
         await expect(page.getByRole('link').filter({ hasText: partial.invoice })).toHaveCount(0);
@@ -51,7 +51,7 @@ test.describe('29-receivables', () => {
 
         await page.goto('/dashboard/receivables');
         await page.getByPlaceholder('Cari invoice / nomor nota').fill(late.invoice);
-        await page.getByRole('combobox').selectOption('overdue');
+        await page.getByRole('combobox', { name: 'Status' }).selectOption('overdue');
         await page.getByRole('button', { name: 'Terapkan' }).click();
         await expect(page.getByRole('link').filter({ hasText: late.invoice })).toHaveCount(1);
     });
