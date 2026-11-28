@@ -18,19 +18,16 @@ beforeAll(() => i18n.changeLanguage("id"));
 
 describe("DineOrderStatus", () => {
     // A completed order only while the server would still link an add-on to it (BR-13).
-    it.each([["accepted"], ["preparing"], ["ready"], ["served"], ["completed", true]])("offers Tambah pesanan while the order is %s", (status, add_on_open) => {
+    it.each([
+        ["accepted", true], ["preparing", true], ["ready", true], ["served", true], ["completed", true, true],
+        ["submitted", false], ["completed", false], ["rejected", false], ["cancelled", false],
+    ])("offers Tambah pesanan for a %s order: %s", (status, offered, add_on_open) => {
         const route = vi.spyOn(globalThis, "route");
         render(<DineOrderStatus order={{ ...base, status, add_on_open }} table={table} storeName="Toko" />);
 
-        expect(screen.getByRole("link", { name: "Tambah pesanan" })).toBeInTheDocument();
-        expect(route).toHaveBeenCalledWith("dine.menu", { token: "t", add_on_to: "tok" });
+        expect(screen.queryAllByRole("link", { name: "Tambah pesanan" })).toHaveLength(offered ? 1 : 0);
+        if (offered) expect(route).toHaveBeenCalledWith("dine.menu", { token: "t", add_on_to: "tok" });
         route.mockRestore();
-    });
-
-    it.each(["submitted", "completed", "rejected", "cancelled"])("offers no add-on for a %s order", (status) => {
-        render(<DineOrderStatus order={{ ...base, status }} table={table} storeName="Toko" />);
-
-        expect(screen.queryByRole("link", { name: "Tambah pesanan" })).not.toBeInTheDocument();
     });
 
     it.each([

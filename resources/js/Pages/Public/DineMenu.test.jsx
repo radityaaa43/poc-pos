@@ -51,9 +51,8 @@ describe("DineMenu order feedback", () => {
 
         expect(router.post.mock.calls[0][1].add_on_to).toBe("tok-1");
         expect(await screen.findByText(refusal)).toBeTruthy();
-        // "Buat pesanan baru": the next submit is a normal order, with no rescan.
         await user.click(pesan());
-        expect(router.post.mock.calls[1][1].add_on_to).toBeUndefined();
+        expect(router.post.mock.calls[1][1].add_on_to).toBeUndefined(); // "Buat pesanan baru": a normal order, no rescan
         window.history.pushState({}, "", "/");
     });
 

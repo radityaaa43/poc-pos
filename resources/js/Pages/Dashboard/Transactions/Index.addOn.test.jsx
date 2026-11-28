@@ -7,8 +7,7 @@ import i18n from "@/i18n";
 import { queueTransaction } from "@/Utils/offlineDb";
 import Index from "./Index";
 
-// Only the add-on parts of the POS page (#251): what a pinned add-on adds to the checkout. The panels have own tests.
-// Props the page's effects depend on must keep their identity between renders, as Inertia's do.
+// Only what a pinned add-on adds to the POS checkout (#251). Page props keep their identity between renders, as Inertia's do.
 vi.mock("@inertiajs/react", () => {
     const page = { props: { auth: { user: { id: 1 }, super: true }, errors: {}, flash: {}, lowStockNotifications: [], activeCashierShift: { warehouse_id: 1 } } };
 
@@ -21,18 +20,13 @@ vi.mock("axios", () => ({
 vi.mock("@/Layouts/POSLayout", () => ({ default: ({ children }) => children }));
 vi.mock("@/Components/POS/ProductGrid", () => ({ default: () => null }));
 vi.mock("@/Components/POS/CartPanel", () => ({ default: () => null }));
-vi.mock("@/Components/POS/CustomerSelect", () => ({ default: () => null }));
-vi.mock("@/Components/POS/NumpadModal", () => ({ default: () => null }));
 vi.mock("@/Components/POS/HeldTransactions", () => ({ default: () => null, HoldButton: () => null }));
 vi.mock("@/Components/POS/OpenBills", () => ({ default: () => null }));
 vi.mock("@/Hooks/useBarcodeScanner", () => ({ default: () => ({ isScanning: false }) }));
-vi.mock("@/Utils/offlineDb", () => ({
-    queueTransaction: vi.fn(() => Promise.resolve()),
-    getPendingTransactions: vi.fn(() => Promise.resolve([])),
-    getPendingCount: vi.fn(() => Promise.resolve(0)),
-    updatePendingTransaction: vi.fn(),
-    removePendingTransaction: vi.fn(),
-}));
+vi.mock("@/Utils/offlineDb", () => {
+    const none = () => vi.fn(() => Promise.resolve([]));
+    return { queueTransaction: none(), getPendingTransactions: none(), getPendingCount: none(), updatePendingTransaction: none(), removePendingTransaction: none() };
+});
 
 const carts = [{ id: 1, product_id: 1, qty: 1, price: 10000, product: { id: 1, title: "Kopi", sell_price: 10000 } }];
 const pageProps = {
@@ -43,8 +37,7 @@ const pageProps = {
 const checkOut = async (query = "") => {
     window.history.pushState({}, "", `/${query}`); // the pinned order is the page's own ?add_on_to
     render(<Index {...pageProps} />);
-    // The button shows a spinner until the price preview is back.
-    await userEvent.click(await screen.findByRole("button", { name: /Selesaikan Transaksi/ }));
+    await userEvent.click(await screen.findByRole("button", { name: /Selesaikan Transaksi/ })); // after the price preview
 };
 const offline = () => vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
 

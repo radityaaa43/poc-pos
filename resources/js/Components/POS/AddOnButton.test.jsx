@@ -25,16 +25,11 @@ beforeEach(() => {
 });
 
 describe("AddOnButton", () => {
-    it("opens the POS with this order pinned", async () => {
-        render(<AddOnButton transaction={sale} allowed />);
-
-        await userEvent.click(button());
-
-        expect(router.get).toHaveBeenCalledWith("/transactions.index", { add_on_to: "TRX-1" });
-    });
-
-    it("pins the original order from an add-on's own receipt", async () => {
-        render(<AddOnButton transaction={{ ...sale, invoice: "TRX-2", parent: { id: 7, invoice: "TRX-1" } }} allowed />);
+    it.each([
+        ["this order", sale],
+        ["the original order, from an add-on's own receipt", { ...sale, invoice: "TRX-2", parent: { id: 7, invoice: "TRX-1" } }],
+    ])("opens the POS with %s pinned", async (name, transaction) => {
+        render(<AddOnButton transaction={transaction} allowed />);
 
         await userEvent.click(button());
 
@@ -47,15 +42,12 @@ describe("AddOnButton", () => {
         expect(button()).toBeEnabled();
     });
 
-    it("is hidden when the server says the order is cancelled", () => {
-        render(<AddOnButton transaction={sale} allowed={false} />);
-
-        expect(button()).not.toBeInTheDocument();
-    });
-
-    it("is hidden without transactions-access", () => {
-        auth = { super: false, permissions: {} };
-        render(<AddOnButton transaction={sale} allowed />);
+    it.each([
+        ["the server says the order is cancelled", false, { "transactions-access": true }],
+        ["the user lacks transactions-access", true, {}],
+    ])("is hidden when %s", (name, allowed, permissions) => {
+        auth = { super: false, permissions };
+        render(<AddOnButton transaction={sale} allowed={allowed} />);
 
         expect(button()).not.toBeInTheDocument();
     });
