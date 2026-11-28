@@ -293,6 +293,7 @@
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Kitchen Speed Report",
+            "wasteReport": "Waste Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
             "permissions": "Permissions",
@@ -351,6 +352,7 @@
             "reports": "Reports",
             "salesReport": "Sales Report",
             "profitReport": "Profit Report",
+            "wasteReport": "Waste Report",
             "operations": "Operations",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
@@ -1475,5 +1477,32 @@
             "not_collected": "Not collected",
             "other": "Other"
         }
+    },
+    "profitReport": {
+        "waste": {
+            "cost": "Waste Cost",
+            "costDescription": "Not included in sales HPP",
+            "afterWaste": "Profit After Waste",
+            "afterWasteDescription": "Profit minus waste cost",
+            "hiddenNote": "Waste cost is hidden while an invoice, cashier or customer filter is active",
+            "link": "View waste report"
+        }
+    },
+    "wasteReport": {
+        "title": "Waste Report",
+        "outlet": "Outlet",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "apply": "Apply",
+        "total": "Total waste cost",
+        "items": "Waste per Item",
+        "item": "Item",
+        "qty": "Quantity",
+        "value": "Value",
+        "menuTag": "Menu",
+        "reasons": "Waste per Reason",
+        "reason": "Reason",
+        "records": "Records",
+        "empty": "No waste in this period"
     }
 }

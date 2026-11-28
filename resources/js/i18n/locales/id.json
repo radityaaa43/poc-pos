@@ -293,6 +293,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "wasteReport": "Laporan Waste",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
             "permissions": "Hak Akses",
@@ -351,6 +352,7 @@
             "reports": "Laporan",
             "salesReport": "Laporan Penjualan",
             "profitReport": "Laporan Keuntungan",
+            "wasteReport": "Laporan Waste",
             "operations": "Operasional",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
@@ -1475,5 +1477,32 @@
             "not_collected": "Tidak diambil",
             "other": "Lainnya"
         }
+    },
+    "profitReport": {
+        "waste": {
+            "cost": "Biaya waste",
+            "costDescription": "Tidak termasuk HPP penjualan",
+            "afterWaste": "Profit setelah waste",
+            "afterWasteDescription": "Setelah dikurangi waste",
+            "hiddenNote": "Biaya waste tidak ditampilkan saat filter faktur, kasir atau pelanggan aktif",
+            "link": "Lihat laporan waste"
+        }
+    },
+    "wasteReport": {
+        "title": "Laporan Waste",
+        "outlet": "Outlet",
+        "startDate": "Tanggal Mulai",
+        "endDate": "Tanggal Akhir",
+        "apply": "Terapkan",
+        "total": "Total biaya waste",
+        "items": "Waste per Item",
+        "item": "Item",
+        "qty": "Jumlah",
+        "value": "Nilai",
+        "menuTag": "Menu",
+        "reasons": "Waste per Alasan",
+        "reason": "Alasan",
+        "records": "Jumlah catatan",
+        "empty": "Tidak ada waste pada periode ini"
     }
 }

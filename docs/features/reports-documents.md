@@ -9,7 +9,8 @@ Menyediakan visibilitas operasional melalui laporan dan dokumen siap cetak / sha
 ## Fitur Saat Ini
 
 - laporan penjualan
-- laporan profit
+- laporan profit (termasuk biaya waste dan profit setelah waste)
+- laporan waste
 - Advanced Sales Insights
 - invoice transaksi publik dan internal
 - receipt thermal 58mm / 80mm
@@ -21,6 +22,7 @@ Menyediakan visibilitas operasional melalui laporan dan dokumen siap cetak / sha
 
 - `dashboard/reports/sales`
 - `dashboard/reports/profits`
+- `dashboard/reports/waste`
 - `dashboard/reports/insights`
 - `pdf.transactions.invoice`
 - `pdf.transactions.receipt`
@@ -47,6 +49,7 @@ Menyediakan visibilitas operasional melalui laporan dan dokumen siap cetak / sha
 - `transactions`
 - `transaction_details`
 - `profits`
+- `stock_wastes` untuk biaya waste (lihat bagian Waste di bawah)
 - `receivables`
 - `payables`
 - `settings` untuk identitas toko
@@ -68,6 +71,12 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 - One card with the average time from payment to the last item served, over orders whose live items are all served. It is order level, so the station filter does not narrow it; with a station chosen the card carries the caption *Semua pesanan dari semua stasiun*.
 - Medians are computed in PHP (`KitchenSpeedReportService`); minutes show with one decimal ("4,5 mnt"). An empty period says so instead of showing zeros.
 
+## Profit Report: Biaya Waste dan Waste Report
+
+Laporan profit menampilkan **Biaya waste** sebagai baris sendiri dan **Profit setelah waste** (profit penjualan dikurangi biaya waste), dihitung dari `stock_wastes` yang berstatus `recorded`/`cancelled` pada `recorded_at` di periode itu, dikurangi nilai yang dibatalkan pada `cancelled_at` di periode itu. Jadi pembatalan mengurangi periodenya sendiri; `pending` dan `rejected` tidak pernah dihitung. Nilai waste tidak masuk ke HPP penjualan: `profit_total` dan `margin` tetap penjualan saja. Kedua baris disembunyikan (dengan catatan penjelasan) saat filter faktur, kasir atau pelanggan aktif, karena waste tidak punya ketiganya. Nilainya juga ada di `GET /api/v1/reports/profits` (`summary.waste_cost_total`, `summary.profit_after_waste`).
+
+**Laporan Waste** (`reports.waste.index`, menu Reports, permission `profits-access`) menampilkan satu outlet dan satu periode (default bulan berjalan di zona waktu aplikasi): total biaya waste, jumlah dan nilai per item (menu tampil sebagai menu, nilainya dari harga pokok bahan resep) dan jumlah catatan serta nilai per alasan. Pembatalan mengurangi nilainya; sebuah item yang bersih nol pada periode itu tidak ditampilkan.
+
 ## Efek Bisnis Penting
 
 - laporan sales dan profit bergantung pada kualitas data transaksi
@@ -83,4 +92,6 @@ Read-only report **Laporan Kecepatan Dapur** (`reports.kitchen-speed.index`, men
 
 - `app/Http/Controllers/Reports/SalesReportController.php`
 - `app/Http/Controllers/Reports/ProfitReportController.php`
+- `app/Http/Controllers/Reports/WasteReportController.php`
+- `app/Services/StockWasteReportService.php`
 - `app/Http/Controllers/DocumentController.php`

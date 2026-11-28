@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
 use App\Services\OutletAccessService;
+use App\Services\StockWasteReportService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -79,6 +80,18 @@ class ProfitReportController extends Controller
             'best_invoice' => $bestTransaction?->invoice,
             'best_profit' => (int) ($bestTransaction?->total_profit ?? 0),
         ];
+
+        // Waste has no invoice, cashier or customer: under those filters the line would be a wrong number.
+        $wasteHidden = filled($filters['invoice']) || filled($filters['cashier_id']) || filled($filters['customer_id']);
+        $waste = $wasteHidden ? null : app(StockWasteReportService::class)->costTotal(
+            $warehouseIds->all(),
+            $filters['warehouse_id'] !== null ? (int) $filters['warehouse_id'] : null,
+            $filters['start_date'],
+            $filters['end_date'],
+        );
+        // Kept out of profit_total and margin: waste is its own line, never part of sales cost.
+        $summary['waste_cost_total'] = $waste;
+        $summary['profit_after_waste'] = $waste === null ? null : $summary['profit_total'] - $waste;
 
         return [
             'transactions' => $transactions,
