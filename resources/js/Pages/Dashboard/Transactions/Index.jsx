@@ -19,16 +19,13 @@ import HeldTransactions, {
 import OpenBills from "@/Components/POS/OpenBills";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
+import OfflineQueuePanel from "@/Components/POS/OfflineQueuePanel";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
-import {
-    getPendingTransactions,
-    getPendingCount,
-    updatePendingTransaction,
-    removePendingTransaction,
-} from "@/Utils/offlineDb";
+import { getPendingCount } from "@/Utils/offlineDb";
+import { claimSendable, markFailed, markRefused, markSynced } from "@/Utils/offlineQueue";
 import {
     IconUser,
     IconShoppingCart,
@@ -486,25 +483,11 @@ export default function Index({
         if (flushPromiseRef.current) return flushPromiseRef.current;
 
         flushPromiseRef.current = (async () => {
-            const pending = await getPendingTransactions(offlineScopeKey);
             // Conflicts require user intervention and must not be retried
             // automatically. Failed rows are retryable; the API remains the
             // source of truth for duplicate detection.
-            const sendable = pending.filter((row) =>
-                ["pending", "failed"].includes(row.status)
-            );
+            const sendable = await claimSendable(offlineScopeKey);
             if (sendable.length === 0) return;
-
-            const attemptAt = new Date().toISOString();
-            await Promise.all(
-                sendable.map((row) =>
-                    updatePendingTransaction(row.id, {
-                        status: "syncing",
-                        attempts: (row.attempts ?? 0) + 1,
-                        last_attempt_at: attemptAt,
-                    })
-                )
-            );
 
             let data;
             try {
@@ -523,56 +506,25 @@ export default function Index({
                 const reason =
                     error?.response?.data?.message ||
                     "Server tidak tersedia. Transaksi akan dicoba lagi.";
-                await Promise.all(
-                    sendable.map((row) =>
-                        updatePendingTransaction(row.id, {
-                            status: "failed",
-                            last_error: reason,
-                            last_attempt_at: new Date().toISOString(),
-                        })
-                    )
-                );
+                await Promise.all(sendable.map((row) => markFailed(row, reason)));
                 await refreshPendingCount();
                 return;
             }
 
             const results = data?.data?.results || [];
             let synced = 0;
-            let failed = 0;
 
             for (let i = 0; i < sendable.length; i++) {
                 const result = results[i];
                 const row = sendable[i];
 
                 if (!result) {
-                    failed++;
-                    await updatePendingTransaction(row.id, {
-                        status: "failed",
-                        last_error: "Server mengembalikan hasil sync yang tidak lengkap.",
-                        last_attempt_at: new Date().toISOString(),
-                    });
-                    continue;
-                }
-
-                if (["synced", "pending_approval", "duplicate"].includes(result.status)) {
-                    await updatePendingTransaction(row.id, {
-                        status: result.status === "pending_approval" ? "synced" : result.status,
-                        synced_at: new Date().toISOString(),
-                        last_attempt_at: new Date().toISOString(),
-                        last_error: null,
-                    });
-                    await removePendingTransaction(row.id);
+                    await markFailed(row, "Server mengembalikan hasil sync yang tidak lengkap.");
+                } else if (["synced", "pending_approval", "duplicate"].includes(result.status)) {
+                    await markSynced(row, result.status);
                     synced++;
                 } else {
-                    failed++;
-                    await updatePendingTransaction(row.id, {
-                        status: result.status === "conflict" ? "conflict" : "failed",
-                        last_error: result.reason || "kesalahan tidak diketahui",
-                        last_attempt_at: new Date().toISOString(),
-                    });
-                    toast.error(
-                        `Sync gagal: ${result.reason || "kesalahan tidak diketahui"}`
-                    );
+                    toast.error(`Sync gagal: ${await markRefused(row, result)}`);
                 }
             }
 
@@ -1061,6 +1013,8 @@ export default function Index({
                             tierOptions={loyaltyTierOptions}
                         />
                     </div>
+
+                    <OfflineQueuePanel scopeKey={offlineScopeKey} count={pendingSyncCount} onRetry={flushPendingTransactions} onChange={refreshPendingCount} />
 
                     <OpenBills openBills={openBills} bankAccounts={bankAccounts} paymentGateways={paymentGateways} />
 
