@@ -11,6 +11,7 @@ use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Product;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\StockMutation;
 use App\Models\Transaction;
@@ -630,6 +631,30 @@ class PaymentRetryTest extends TestCase
             ->assertSessionHasNoErrors();
 
         $this->assertSame(20000, app(CashierShiftService::class)->calculateSummary($this->shift)['non_cash_sales_total']);
+    }
+
+    /** #441: a credit sale is collected through its receivable; a retry would charge the customer a second time. */
+    public function test_retry_is_refused_for_a_credit_sale(): void
+    {
+        Http::fake();
+        $sale = $this->makeSale('midtrans', ['is_pay_later' => true]);
+        $receivable = Receivable::create([
+            'transaction_id' => $sale->id, 'invoice' => $sale->invoice, 'total' => 20000, 'paid' => 0, 'status' => 'unpaid',
+        ]);
+
+        $this->actingAs($this->cashier)
+            ->get(route('transactions.print', $sale->invoice))
+            ->assertInertia(fn (Assert $page) => $page->where('retryable', false));
+
+        foreach ([['payment_method' => 'cash', 'cash_amount' => 20000], ['payment_method' => 'midtrans']] as $payload) {
+            $this->actingAs($this->cashier)
+                ->post(route('transactions.retry-payment', $sale), $payload)
+                ->assertSessionHasErrors(['payment' => 'Penjualan kredit dibayar lewat piutang']);
+        }
+
+        $this->assertSame(['failed', 0], [$sale->fresh()->payment_status, $sale->fresh()->payment_attempt]);
+        $this->assertSame(['unpaid', 0.0], [$receivable->fresh()->status, $receivable->fresh()->paid]);
+        Http::assertNothingSent();
     }
 
     /** @return array<string, array<int, bool>> */
