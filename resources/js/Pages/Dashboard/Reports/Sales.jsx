@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Head, router } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import InputSelect from "@/Components/Dashboard/InputSelect";
@@ -64,6 +65,7 @@ const castFilterString = (value) =>
     typeof value === "number" ? String(value) : value ?? "";
 
 const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses = [] }) => {
+    const { t } = useTranslation();
     const [showFilters, setShowFilters] = useState(false);
     const [filterData, setFilterData] = useState({
         ...defaultFilterState,
@@ -169,6 +171,8 @@ const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses
         average_order: summary?.average_order ?? 0,
         paid_after_close_count: summary?.paid_after_close_count ?? 0,
         paid_after_close_total: summary?.paid_after_close_total ?? 0,
+        paid_after_close_estimated_count:
+            summary?.paid_after_close_estimated_count ?? 0,
     };
 
     const summaryCards = [
@@ -249,18 +253,36 @@ const Sales = ({ transactions, summary, filters, cashiers, customers, warehouses
                     ))}
                 </div>
 
-                {/* Part of the revenue above: gateway sales paid after their shift closed (the closed recap stays as it was) */}
+                {/* Part of the revenue above: money received after a sale's shift closed (the closed recap stays as it was) */}
                 {safeSummary.paid_after_close_count > 0 && (
-                    <p
-                        data-testid="paid-after-close-line"
-                        className="text-sm text-slate-600 dark:text-slate-400"
-                    >
-                        Dibayar setelah shift ditutup:{" "}
-                        <span className="font-semibold text-slate-900 dark:text-white">
-                            {safeSummary.paid_after_close_count} transaksi ·{" "}
-                            {formatCurrency(safeSummary.paid_after_close_total)}
-                        </span>
-                    </p>
+                    <div>
+                        <p
+                            data-testid="paid-after-close-line"
+                            className="text-sm text-slate-600 dark:text-slate-400"
+                        >
+                            <span className="font-semibold text-slate-900 dark:text-white">
+                                {t("transactions.paidAfterClose.line", {
+                                    count: safeSummary.paid_after_close_count,
+                                    amount: formatCurrency(
+                                        safeSummary.paid_after_close_total
+                                    ),
+                                })}
+                            </span>
+                        </p>
+                        {safeSummary.paid_after_close_estimated_count > 0 && (
+                            <p
+                                data-testid="paid-after-close-estimated-note"
+                                className="text-sm text-slate-600 dark:text-slate-400"
+                            >
+                                {t(
+                                    "transactions.paidAfterClose.estimatedNote",
+                                    {
+                                        count: safeSummary.paid_after_close_estimated_count,
+                                    }
+                                )}
+                            </p>
+                        )}
+                    </div>
                 )}
 
                 {/* Filters Panel */}

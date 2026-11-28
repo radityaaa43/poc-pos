@@ -40,5 +40,13 @@ describeShiftClose(() => {
         const till = await asRole(cashier);
         await till.goto(`/dashboard/transactions/history?invoice=${split.invoice}`);
         await expect(till.getByRole('row').filter({ hasText: split.invoice })).toContainText(AFTER_CLOSE);
+
+        // #531 BR-1: the report line is the money that arrived late, not the 20000 split. Its invoice filter keeps the
+        // period to this sale.
+        await page.goto(`/dashboard/reports/sales?invoice=${split.invoice}`);
+        const line = page.getByTestId('paid-after-close-line');
+        await expect(line).toContainText('1 transaksi');
+        await expect(line).toContainText(/Rp\s*15\.000/);
+        await expect(line).not.toContainText(/Rp\s*20\.000/);
     });
 });

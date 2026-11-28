@@ -548,6 +548,8 @@ class ShiftCloseHoldTest extends TestCase
         $split->refresh();
         $this->assertSame('paid', $split->payment_status);
         $this->assertNotNull($split->paid_after_close_at);
+        // The late money is the transfer, not the 20000 sale (#531 BR-1).
+        $this->assertSame(15000, $split->paid_after_close_amount);
         $this->assertSame($this->shift->id, $split->cashier_shift_id);
         $meta = AuditLog::where('event', 'payment.paid_after_close')->sole()->meta;
         $this->assertSame([$this->shift->id, 15000], [$meta['shift_id'], $meta['amount']]);
@@ -566,6 +568,18 @@ class ShiftCloseHoldTest extends TestCase
         app(TransactionTenderService::class)->confirmTransfer($split);
 
         $this->assertSame(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
+        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
+    }
+
+    public function test_two_late_parts_of_a_split_are_both_counted(): void
+    {
+        // Both transfers are marked paid by the confirmation, after the close: the stored amount is their sum. The cash
+        // taken at checkout has no paid_at, so it never counts, even though the sale is partly paid before the close.
+        $split = $this->splitSale($this->shift, tenders: [['cash', 'paid', 5000], ['bank_transfer', 'pending', 6000], ['bank_transfer', 'pending', 9000]]);
+        $this->forceClose($this->shift, $this->cashier);
+        app(TransactionTenderService::class)->confirmTransfer($split);
+
+        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
     }
 
     public function test_split_gateway_part_paid_after_force_close_is_flagged(): void
@@ -578,6 +592,7 @@ class ShiftCloseHoldTest extends TestCase
 
         $this->assertSame('paid', $split->fresh()->payment_status);
         $this->assertNotNull($split->fresh()->paid_after_close_at);
+        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
         $this->assertEquals(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
         $this->assertSame(0, $this->shift->fresh()->non_cash_sales_total);
     }

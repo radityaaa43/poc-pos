@@ -537,7 +537,9 @@
         },
         "paidAfterClose": {
             "badge": "Paid after shift closed",
-            "filter": "Paid after shift closed"
+            "filter": "Paid after shift closed",
+            "line": "Paid after shift closed: {{count}} transactions · {{amount}}",
+            "estimatedNote": "Includes {{count}} older transactions counted at their sale total (estimate)."
         }
     },
     "receivables": {

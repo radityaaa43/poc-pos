@@ -67,10 +67,11 @@ class SalesReportController extends Controller
             ->first();
 
         // Sales paid after their shift closed, whatever the method: a breakdown inside the totals above, by the sale's own date.
+        // The late amount is stored per sale (#531); an older row without it counts at its grand total and is an estimate.
         $paidAfterClose = (clone $aggregateQuery)
             ->where('payment_status', 'paid')
             ->whereNotNull('paid_after_close_at')
-            ->selectRaw('COUNT(*) as bills_count, COALESCE(SUM(grand_total), 0) as bills_total')
+            ->selectRaw('COUNT(*) as bills_count, COALESCE(SUM(COALESCE(paid_after_close_amount, grand_total)), 0) as bills_total, COALESCE(SUM(CASE WHEN paid_after_close_amount IS NULL THEN 1 ELSE 0 END), 0) as estimated_count')
             ->first();
 
         $transactionIds = (clone $aggregateQuery)->pluck('id');
@@ -93,9 +94,8 @@ class SalesReportController extends Controller
                 ? (int) round($totals->revenue_total / $totals->orders_count)
                 : 0,
             'paid_after_close_count' => (int) ($paidAfterClose->bills_count ?? 0),
-            // shortcut: the whole bill, also when only a split part arrived after the close; the part amount is on the
-            // payment.paid_after_close audit entry (#396 Q1). Sum that if owners need the late money alone.
             'paid_after_close_total' => (int) ($paidAfterClose->bills_total ?? 0),
+            'paid_after_close_estimated_count' => (int) ($paidAfterClose->estimated_count ?? 0),
         ];
 
         return [

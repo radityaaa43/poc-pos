@@ -164,6 +164,7 @@ class DineOrderPaymentTest extends TestCase
         $bill->refresh();
         $this->assertSame('paid', $bill->payment_status);
         $this->assertNotNull($bill->paid_after_close_at);
+        $this->assertSame(20000, $bill->paid_after_close_amount);
         $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
         $this->assertSame([$closed->id, 'till'], [$log->meta['shift_id'], $log->meta['source']]);
         // BR-3: the closed recap is a snapshot and does not move.

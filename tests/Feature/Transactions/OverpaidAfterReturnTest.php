@@ -331,6 +331,8 @@ class OverpaidAfterReturnTest extends TestCase
 
         $this->assertFlagged($this->bill($order), 5000);
         $this->assertNotNull($this->bill($order)->paid_after_close_at);
+        // The money that arrived (25000), not the 20000 still owed after the return: the 5000 excess is refunded by hand.
+        $this->assertSame(25000, $this->bill($order)->paid_after_close_amount);
         $this->assertSame($snapshot, CashierShift::findOrFail($closed->id)->only($recap));
     }
 
