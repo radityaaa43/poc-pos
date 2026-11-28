@@ -293,6 +293,7 @@
             "profitReport": "Laporan Keuntungan",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Laporan Kecepatan Dapur",
+            "qrPaymentReport": "Pembayaran Online QR",
             "wasteReport": "Laporan Waste",
             "cashierShifts": "Shift Kasir",
             "auditLogs": "Audit Log",
@@ -883,6 +884,20 @@
         }
     },
     "reports": {
+        "qrPayment": {
+            "title": "Pembayaran Online QR",
+            "outlet": "Outlet",
+            "month": "Bulan",
+            "apply": "Terapkan",
+            "cardTitle": "Pembayaran online QR meja",
+            "paid": "Tagihan QR lunas",
+            "paidOnline": "Dibayar online",
+            "onlineShare": "Porsi online",
+            "median": "Sampai masuk dapur",
+            "fromBills": "{{count}} tagihan",
+            "doublePaid": "Bayar ganda - refund manual",
+            "empty": "Belum ada tagihan QR lunas bulan ini"
+        },
         "title": "Laporan",
         "sales": {
             "title": "Laporan Penjualan",

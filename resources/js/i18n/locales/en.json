@@ -293,6 +293,7 @@
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Kitchen Speed Report",
+            "qrPaymentReport": "QR Online Payment",
             "wasteReport": "Waste Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
@@ -883,6 +884,20 @@
         }
     },
     "reports": {
+        "qrPayment": {
+            "title": "QR Online Payment",
+            "outlet": "Outlet",
+            "month": "Month",
+            "apply": "Apply",
+            "cardTitle": "Table QR online payment",
+            "paid": "QR bills paid",
+            "paidOnline": "Paid online",
+            "onlineShare": "Online share",
+            "median": "Until it reached the kitchen",
+            "fromBills": "{{count}} bills",
+            "doublePaid": "Bayar ganda - refund manual",
+            "empty": "No paid QR bills this month"
+        },
         "title": "Reports",
         "sales": {
             "title": "Sales Report",
