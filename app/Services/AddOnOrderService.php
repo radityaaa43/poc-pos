@@ -128,7 +128,8 @@ class AddOnOrderService
     private function isCancelled(Transaction $sale): bool
     {
         return $sale->wasRestocked()
-            || in_array($sale->dineOrder?->status, [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)
+            // Read without setting the relation: the receipt page serialises this sale, and the dine order carries the guest's access_token.
+            || in_array($sale->dineOrder()->value('status'), [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)
             || ! Transaction::whereKey($sale->id)->notFullyReturned()->exists();
     }
 

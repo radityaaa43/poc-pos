@@ -186,7 +186,7 @@ export default function Index({ tables, areas, filters }) {
             toast.success(editingTable ? "Meja berhasil diperbarui." : "Meja berhasil ditambahkan.");
             setModalOpen(false);
         };
-        // `table`: the server says why, e.g. a running order keeps the table on.
+        // `table`: the server says why, e.g. a running order or an unmarked reservation keeps the table on.
         const onError = (errs) => toast.error(errs.table ?? "Gagal menyimpan meja.");
 
         if (editingTable) {

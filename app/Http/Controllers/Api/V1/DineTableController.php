@@ -103,7 +103,7 @@ class DineTableController extends AppsDineTableController
 
         // AC-23: only switching a table off is refused; a busy one can still be edited.
         $switchesOff = $dineTable->is_active && ! ($validated['is_active'] ?? true);
-        $tableStatus->retire($dineTable, fn () => $dineTable->update($validated), when: $switchesOff);
+        $tableStatus->retire($dineTable, fn () => $this->reservations->updateTable($dineTable, $validated, $request->user(), $this->outletAccess->activeOutlet($request)), when: $switchesOff);
 
         return $this->ok($dineTable->fresh('area'));
     }
@@ -114,7 +114,7 @@ class DineTableController extends AppsDineTableController
     public function destroyTable(Request $request, DiningTable $dineTable, TableStatusService $tableStatus): JsonResponse
     {
         abort_unless($this->ownsTable($dineTable, $request), 404);
-        $tableStatus->retire($dineTable, fn () => $dineTable->delete());
+        $tableStatus->retire($dineTable, fn () => $this->reservations->deleteTable($dineTable, $request->user(), $this->outletAccess->activeOutlet($request)));
 
         return $this->noContent();
     }

@@ -62,11 +62,28 @@ class DiningTable extends Model
         return $query->where('is_active', true);
     }
 
-    /** The tables an outlet uses: its own areas', plus the shared ones (no area, or an area without an outlet). */
+    /** Tables an outlet may use: its own areas, areas without an outlet, and tables without an area. */
     public function scopeForOutlet($query, ?Outlet $outlet)
     {
-        return $query->where(fn ($tables) => $tables->whereNull('dine_area_id')->orWhereHas('area', fn ($area) => $area
-            ->where(fn ($owner) => $owner->whereNull('outlet_id')
-                ->when($outlet, fn ($query) => $query->orWhere('outlet_id', $outlet->id)))));
+        return $query->where(function ($query) use ($outlet) {
+            $query->whereNull('dine_area_id')->orWhereHas('area', function ($query) use ($outlet) {
+                $query->whereNull('outlet_id');
+                if ($outlet) {
+                    $query->orWhere('outlet_id', $outlet->id);
+                }
+            });
+        });
+    }
+
+    /** @return HasMany<DineReservation, $this> */
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(DineReservation::class, 'dine_table_id');
+    }
+
+    /** The earliest booked reservation of any date: what keeps this table from being removed (REQ-009 AC-23). */
+    public function blockingReservation(): ?DineReservation
+    {
+        return $this->reservations()->where('status', 'booked')->orderBy('reserved_at')->first();
     }
 }

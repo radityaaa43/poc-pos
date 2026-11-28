@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Models\DineArea;
 use App\Models\DiningTable;
+use App\Services\DineReservationService;
 use App\Services\OutletAccessService;
 use App\Services\TableStatusService;
 use Illuminate\Http\Request;
@@ -16,7 +17,10 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
 class DineTableController extends Controller
 {
-    public function __construct(protected readonly OutletAccessService $outletAccess) {}
+    public function __construct(
+        protected readonly OutletAccessService $outletAccess,
+        protected readonly DineReservationService $reservations,
+    ) {}
 
     public function index(Request $request, TableStatusService $tableStatus)
     {
@@ -87,7 +91,7 @@ class DineTableController extends Controller
 
         // AC-23: only switching a table off is refused; a busy one can still be edited.
         $switchesOff = $dineTable->is_active && ! ($validated['is_active'] ?? true);
-        $tableStatus->retire($dineTable, fn () => $dineTable->update($validated), when: $switchesOff);
+        $tableStatus->retire($dineTable, fn () => $this->reservations->updateTable($dineTable, $validated, request()->user(), $this->outletAccess->activeOutlet(request())), when: $switchesOff);
 
         return back()->with('success', 'Meja berhasil diperbarui.');
     }
@@ -95,7 +99,7 @@ class DineTableController extends Controller
     public function destroy(DiningTable $dineTable, TableStatusService $tableStatus)
     {
         abort_unless($this->ownsTable($dineTable, request()), 404);
-        $tableStatus->retire($dineTable, fn () => $dineTable->delete());
+        $tableStatus->retire($dineTable, fn () => $this->reservations->deleteTable($dineTable, request()->user(), $this->outletAccess->activeOutlet(request())));
 
         return back()->with('success', 'Meja berhasil dihapus.');
     }

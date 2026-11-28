@@ -135,6 +135,20 @@ Item-item dalam pesanan.
 | `price` | integer | Harga saat pemesanan |
 | `note` | string | Catatan item (nullable) |
 
+### Table: `dine_reservations`
+One table booking (see "Reservasi").
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `outlet_id` | foreignId | The outlet that took the booking (a table without an area is shared by every outlet) |
+| `dine_table_id` | foreignId, nullable | The booked table; null once the table is deleted (marked reservations stay as history) |
+| `guest_name` | string(100) | Guest's name |
+| `phone` | string(30) | Personal data: shown only on the reservations page, never printed or written to the audit log |
+| `party_size` | smallint | Number of guests, 1 to 100 |
+| `reserved_at` | datetime | Date and time of the booking, wall time in `APP_TIMEZONE` |
+| `note` | string(500) | Optional note |
+| `status` | string | `booked` (Dicatat), `arrived` (Datang), `cancelled` (Batal), `no_show` (Tidak datang) |
+
 ## Pengaturan
 
 Dikontrol via `Setting` table:
@@ -169,6 +183,10 @@ Dikontrol via `Setting` table:
 | POST | `/dashboard/dine-orders/{order}/reject` | permission:dine-orders-process |
 | GET | `/dashboard/transactions/tables` | permission:transactions-access (JSON: the POS table list) |
 | POST | `/dashboard/transactions/table-orders` | permission:transactions-access (the open shift is checked by the service, so a refusal is a validation error) |
+| GET | `/dashboard/dine-reservations?date=Y-m-d` | permission:dine-reservations-manage |
+| POST | `/dashboard/dine-reservations` | permission:dine-reservations-manage |
+| PATCH | `/dashboard/dine-reservations/{reservation}` | permission:dine-reservations-manage |
+| POST | `/dashboard/dine-reservations/{reservation}/mark` | permission:dine-reservations-manage |
 
 ### Publik
 
@@ -192,8 +210,9 @@ Dikontrol via `Setting` table:
 | `dine-orders-process` | Terima/tolak pesanan dan terima pembayaran tagihan (Bayar) |
 | `dine-orders-prepare` | Dapur: "Mulai Buat" dan "Siap" |
 | `dine-orders-handover` | "Serahkan": verifikasi pesanan sudah diserahkan ke pelanggan |
+| `dine-reservations-manage` | Reservations: see the list with phone numbers, record, change and mark |
 
-**Role cashier dan manager** mendapat semuanya (toko kecil: satu orang menjalankan semua langkah). Toko lain memberi `dine-orders-prepare` ke role dapur dan `dine-orders-handover` ke role yang menyerahkan pesanan lewat Settings → Roles; tidak ada role tetap. Production: jalankan ulang `PermissionSeeder` lalu `RoleSeeder` (idempoten).
+**Role cashier dan manager** mendapat semua permission pesanan (toko kecil: satu orang menjalankan semua langkah). `dine-reservations-manage` is seeded to `manager`, `super-admin` and `dine-tables-access`, not to `cashier`; grant it in Settings → Roles to whoever takes bookings. Toko lain memberi `dine-orders-prepare` ke role dapur dan `dine-orders-handover` ke role yang menyerahkan pesanan lewat Settings → Roles; tidak ada role tetap. Production: jalankan ulang `PermissionSeeder` lalu `RoleSeeder` (idempoten).
 
 ## Fitur Utama
 
@@ -228,6 +247,22 @@ Dikontrol via `Setting` table:
 - Mulai Buat / Siap (dapur) dan Serahkan: langkah berurutan, masing-masing dengan permission sendiri (lihat Alur Kerja). Mulai Buat hanya muncul dan hanya diterima server untuk tagihan yang sudah lunas
 - Kitchen steps live on the kitchen display (`docs/features/kitchen-display.md`): an order with kitchen items has no Mulai Buat, Siap or Serahkan on the Orders page; its `preparing` / `ready` / `served` status and trail follow its items, and the old `dine-orders.prepare` / `ready` / `serve` routes delegate to the item steps. An order without kitchen items (accepted before the display existed, or a sale the intake could not record) keeps those buttons on the Orders page, by permission and with the same pay-first gate, so it can still finish (#238, #382)
 - Bayar: lihat "Pembayaran tagihan belum lunas" di bawah
+
+## Reservasi
+
+Page **Reservasi** (`/dashboard/dine-reservations`, permission `dine-reservations-manage`; REQ-009 J5). It needs the server: nothing is queued offline.
+
+- A booking has a name, phone number, number of guests, date, time, table (an active table the active outlet may use) and an optional note.
+- Two bookings of one table less than 2 hours apart are refused, naming the booking in the way (see the guest-name rule below); exactly 2 hours apart is allowed. `booked` and `arrived` hold the table, `cancelled` and `no_show` free it. The table row is locked during the check, so of two staff taking the same slot one is refused. A table shared by outlets is checked across them.
+- Only a `booked` reservation can be changed or marked **Datang**, **Tidak datang** or **Batal**; a mark cannot be undone, and of two staff the first wins. There is no delete.
+- A table with a reservation not yet marked (any date, past days too) cannot be deleted or deactivated, on the web or the API (`DineReservationService::deleteTable` / `updateTable`, under the same table-row lock as a booking): "Meja ini punya reservasi <nama> <tanggal jam> — tandai atau batalkan dulu". A table shared by outlets is held by a booking of any outlet, and only that outlet can mark it.
+- **Guest name:** this refusal and the 2-hour clash name the guest only to someone with `dine-reservations-manage` whose active outlet owns that booking. Anyone else reads the outlet and the time ("Meja ini punya reservasi outlet <outlet> pada <tanggal jam> — tandai atau batalkan dulu").
+- A booking stays editable on its own table after that table moves to another outlet; only a newly chosen table must be one the outlet may book. Deleting a table never deletes reservations: marked ones stay on the list as **Meja sudah dihapus**.
+- An outlet with any reservation, booked or marked, cannot be deleted, on the web or the API, even without a warehouse or a sale (`OutletController::hasOperationalHistory`): deactivate it instead.
+- The list is per outlet and date. Today's list also shows unmarked bookings of earlier days, so they can be released.
+- The phone number is only on this page: `DineReservation` hides it from serialisation, no print path or guest page reads a reservation, and the audit log (`dine_reservation.created`, `.updated`, `.marked`, module `dine_reservations`) records neither the number nor the guest's name, only the flags `phone_changed` and `guest_name_changed`. Old reservations keep their number: there is no retention rule yet.
+- Set `APP_TIMEZONE` to the outlet's zone (`Asia/Jakarta` for WIB) before the first booking: dates and times are stored and compared as wall time in it.
+- Not built yet (waits for the table status of #426): a table showing **Dipesan** and the warning when it is used. The seam is `DineReservation::bookedSoon()` / `bookedSoonByTable()` (booked, from 30 minutes before until marked). Refusing to remove a table with an open order is also still open (#426); the reservation half above is done.
 
 ## Pembayaran
 
