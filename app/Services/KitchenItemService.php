@@ -45,6 +45,7 @@ class KitchenItemService
     public function allReady(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
+            $this->lockDineOrder($transaction->id);
             $now = now();
 
             $items = KitchenItem::where('transaction_id', $transaction->id)
@@ -82,6 +83,7 @@ class KitchenItemService
     public function handOverAll(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
+            $this->lockDineOrder($transaction->id);
             $now = now();
 
             KitchenItem::where('transaction_id', $transaction->id)
@@ -119,10 +121,23 @@ class KitchenItemService
         DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds)));
     }
 
-    /** @return Collection<int, Transaction> the sale and, when it is an original order, its add-ons */
+    /**
+     * Newest first: an add-on is locked before its original, as at checkout and accept, so they cannot deadlock.
+     *
+     * @return Collection<int, Transaction> the sale and, when it is an original order, its add-ons
+     */
     private function orderGroup(Transaction $root): Collection
     {
-        return Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderBy('id')->get();
+        return Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
+    }
+
+    /**
+     * Lock order of every kitchen write: the dine order, then its items, then (when it settles) its bill. Taps on one order
+     * queue here, so syncDineOrder can lock all of its items without two taps deadlocking on each other's.
+     */
+    public function lockDineOrder(int $transactionId): void
+    {
+        DineOrder::where('transaction_id', $transactionId)->lockForUpdate()->value('id');
     }
 
     /**
@@ -157,6 +172,7 @@ class KitchenItemService
      */
     public function cancelForReturn(SalesReturn $return): void
     {
+        $this->lockDineOrder($return->transaction_id);
         // items() and a query, not the property: Larastan cannot see the untyped SalesReturn relations.
         $lines = $return->items()->get();
         $items = KitchenItem::whereIn('transaction_detail_id', $lines->pluck('transaction_detail_id'))
@@ -184,6 +200,7 @@ class KitchenItemService
     private function step(KitchenItem $item, string $from, string $to, User $user): void
     {
         DB::transaction(function () use ($item, $from, $to, $user) {
+            $this->lockDineOrder($item->transaction_id);
             $item = KitchenItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
 
             // BR-7: a return that won the race has already cancelled the item
@@ -240,7 +257,8 @@ class KitchenItemService
             return;
         }
 
-        $all = KitchenItem::where('transaction_id', $transaction->id)->get();
+        // A locking read: the snapshot misses a tap of another station that committed while this one waited.
+        $all = KitchenItem::where('transaction_id', $transaction->id)->lockForUpdate()->get();
         $items = $all->where('status', '!=', KitchenItem::STATUS_CANCELLED); // a cancelled item no longer holds the order back
 
         // BR-11: nothing left to make. Every item cancelled cancels the order; a served one means it was fulfilled, so it completes as usual.

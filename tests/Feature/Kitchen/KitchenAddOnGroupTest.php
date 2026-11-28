@@ -10,12 +10,17 @@ use App\Models\KitchenPrintDevice;
 use App\Models\KitchenStation;
 use App\Models\Outlet;
 use App\Models\Product;
+use App\Models\SalesReturn;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
+use App\Services\DineOrderService;
+use App\Services\KitchenItemService;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
@@ -134,6 +139,62 @@ class KitchenAddOnGroupTest extends TestCase
         $this->assertSame(KitchenItem::STATUS_READY, $drink->fresh()->status);
         $this->assertSame(KitchenItem::STATUS_READY, $addedDrink->fresh()->status);
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $food->fresh()->status);
+    }
+
+    // Two stations at once: taps on one order queue on its lock, taken newest sale first as a checkout does. SQLite
+    // ignores FOR UPDATE, so this pins the statement order; CI's MySQL job also sees the clause.
+    public function test_every_kitchen_tap_locks_the_dine_order_before_reading_its_items(): void
+    {
+        $root = $this->sale('INV-ROOT', table: 'Meja 4');
+        $item = $this->item($root);
+        $addOn = $this->sale('INV-ADD', parent: $root, table: 'Meja 4');
+        $this->item($addOn);
+        $return = SalesReturn::create([
+            'code' => 'RET-1', 'transaction_id' => $root->id, 'cashier_id' => $this->staff->id,
+            'status' => 'draft', 'return_type' => 'refund_cash', 'total_return_amount' => 0,
+        ]);
+        $this->actingAs($this->staff);
+        $kitchen = app(KitchenItemService::class);
+        $log = [];
+        DB::listen(function (QueryExecuted $query) use (&$log) {
+            if (DB::transactionLevel() > 1 && preg_match('/^select .* from .(dine_orders|kitchen_items|transactions)./', $query->sql)) {
+                $log[] = $query;
+            }
+        });
+
+        foreach ([
+            'start preparing' => [fn () => app(DineOrderService::class)->startPreparing($root->dineOrder), $root],
+            'one item' => [fn () => $kitchen->ready($item->fresh(), $this->staff), $root],
+            'all ready' => [fn () => $kitchen->allReadyOrderGroup($root, $this->staff), $addOn],
+            'hand over all' => [fn () => $kitchen->handOverOrderGroup($root, $this->staff), $addOn],
+            'return' => [fn () => DB::transaction(fn () => $kitchen->cancelForReturn($return)), $root],
+        ] as $tap => [$run, $first]) {
+            $log = [];
+            $run();
+            $locks = array_values(array_filter($log, fn ($query) => ! str_contains($query->sql, 'parent_transaction_id')));
+            $this->assertStringContainsString('dine_orders', $locks[0]->sql, $tap);
+            $this->assertSame([$first->id], array_slice($locks[0]->bindings, -1), $tap);
+            if (DB::getDriverName() === 'mysql') {
+                // Every read of the items, and the bill's payment status, sees the latest committed rows.
+                foreach (preg_grep('/from .kitchen_items.|^select .payment_status./', array_column($log, 'sql')) as $sql) {
+                    $this->assertStringContainsString('for update', $sql, $tap);
+                }
+            }
+        }
+        $this->assertSame(DineOrder::STATUS_COMPLETED, $root->dineOrder->fresh()->status);
+    }
+
+    // A payment and a hand-over can commit side by side: neither side may decide from what it loaded earlier.
+    public function test_settling_reads_the_current_order_and_payment(): void
+    {
+        $sale = $this->sale('INV-ROOT', status: 'unpaid', table: 'Meja 4', dineStatus: DineOrder::STATUS_READY);
+        $loadedEarlier = $sale->dineOrder()->with('transaction')->first();
+        DB::table('dine_orders')->update(['status' => DineOrder::STATUS_SERVED]);
+        DB::table('transactions')->update(['payment_status' => 'paid']);
+
+        $loadedEarlier->completeIfSettled();
+
+        $this->assertSame(DineOrder::STATUS_COMPLETED, $sale->dineOrder->fresh()->status);
     }
 
     // Tech Lead note on #251: grouping is display only

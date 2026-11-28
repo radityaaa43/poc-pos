@@ -145,7 +145,10 @@ class DineOrder extends Model
     /** Safety net: completed once the order is served and paid. Payment comes first (the kitchen waits for it), so serving normally completes it. */
     public function completeIfSettled(): void
     {
-        if ($this->status === self::STATUS_SERVED && $this->isPaid()) {
+        // Locking reads, the order then its bill (#251): a hand-over and a payment can commit side by side, and neither
+        // this model, its loaded bill nor the transaction's snapshot shows the other one's write.
+        if (static::whereKey($this->id)->lockForUpdate()->value('status') === self::STATUS_SERVED
+            && Transaction::whereKey($this->transaction_id)->lockForUpdate()->value('payment_status') === 'paid') {
             $this->update(['status' => self::STATUS_COMPLETED, 'completed_at' => now()]);
         }
     }
