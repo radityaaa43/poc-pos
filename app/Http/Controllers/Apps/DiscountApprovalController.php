@@ -106,11 +106,15 @@ class DiscountApprovalController extends Controller
 
             // ponytail: approval only settles the approval state — payment stays tied to the actual method.
             // grand_total already excludes the manual discount (LoyaltyService), so denying restores the bill.
-            $paymentStatus = match ($transaction->payment_method) {
-                'cash' => 'paid',
-                'pay_later' => 'unpaid',
-                default => 'pending',
-            };
+            // A confirmed payment is never undone (#567): the status below describes what is still owed, so a sale the
+            // money already reached keeps `paid`; only a sale still waiting for it takes its method's status.
+            $paymentStatus = $transaction->payment_status === 'paid'
+                ? 'paid'
+                : match ($transaction->payment_method) {
+                    'cash' => 'paid',
+                    'pay_later' => 'unpaid',
+                    default => 'pending',
+                };
 
             $updates = [
                 'discount_approval_status' => $status,
