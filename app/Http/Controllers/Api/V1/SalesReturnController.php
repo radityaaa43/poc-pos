@@ -109,6 +109,8 @@ class SalesReturnController extends AppsSalesReturnController
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
                 'credited_amount' => $payload['credited_amount'],
+                'service_refunded' => $payload['service_refunded'],
+                'tax_refunded' => $payload['tax_refunded'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -152,6 +154,8 @@ class SalesReturnController extends AppsSalesReturnController
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
                 'credited_amount' => $payload['credited_amount'],
+                'service_refunded' => $payload['service_refunded'],
+                'tax_refunded' => $payload['tax_refunded'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -253,6 +257,12 @@ class SalesReturnController extends AppsSalesReturnController
                 }
             }
 
+            // The draft's stored figures are display only: recompute what this return gives back from the locked sale
+            // and the returns already completed, before any stock row (TC-5).
+            $itemValue = (int) $salesReturn->items->sum('subtotal');
+            $share = $this->returnBillShareService->forReturn($sale, $itemValue, $salesReturn->id, lock: true);
+            $totalReturnAmount = $itemValue + $share['service_refunded'] + $share['tax_refunded'];
+
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
@@ -269,7 +279,7 @@ class SalesReturnController extends AppsSalesReturnController
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
                 $salesReturn->transaction,
-                (int) $salesReturn->total_return_amount,
+                $totalReturnAmount,
                 $salesReturn->return_type
             );
 
@@ -279,6 +289,9 @@ class SalesReturnController extends AppsSalesReturnController
                 'return_type' => $settlement['return_type'],
                 'refund_amount' => $settlement['refund_amount'],
                 'credited_amount' => $settlement['credited_amount'],
+                'service_refunded' => $share['service_refunded'],
+                'tax_refunded' => $share['tax_refunded'],
+                'total_return_amount' => $totalReturnAmount,
                 'status' => 'completed',
                 'completed_at' => now(),
             ]);

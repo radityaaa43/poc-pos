@@ -369,6 +369,9 @@ class BillTotalCheckoutTest extends TestCase
 
         $this->sell($tenders(13310))->assertSessionHasNoErrors();
         $this->assertBill(Transaction::sole(), $this->dineInBill());
+        // AC-09: the split parts add up to the bill, service and tax included.
+        $this->assertSame(23310, (int) Transaction::sole()->tenders()->sum('amount'));
+        $this->assertSame(2, Transaction::sole()->tenders()->count());
     }
 
     public function test_pay_later_includes_service(): void
