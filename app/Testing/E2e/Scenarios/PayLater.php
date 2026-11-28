@@ -3,7 +3,10 @@
 namespace App\Testing\E2e\Scenarios;
 
 use App\Models\AuditLog;
+use App\Models\CashierShift;
+use App\Models\CreditApprovalRequest;
 use App\Models\Customer;
+use App\Models\KitchenItem;
 use App\Models\Outlet;
 use App\Models\Receivable;
 use App\Models\SalesReturn;
@@ -12,6 +15,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
 use Database\Seeders\E2eSeeder;
+use Illuminate\Support\Str;
 
 /**
  * Arrange scenarios for Bayar Belakangan (`paylater.*`): the per-outlet setting, a credit customer, and the receivable
@@ -42,12 +46,13 @@ class PayLater
                 return ['customer_id' => (int) $options['customer_id']];
             },
 
-            // The customer --arg=customer_id=<id>: credit limit, receivable count and every audited limit change.
+            // The customer --arg=customer_id=<id>: credit limit, sale and receivable counts and every audited limit change.
             'paylater.credit-state' => function (array $options): array {
                 $customer = Customer::findOrFail($options['customer_id']);
 
                 return [
                     'credit_limit' => $customer->credit_limit,
+                    'sales' => Transaction::where('customer_id', $customer->id)->count(),
                     'receivables' => $customer->receivables()->count(),
                     'audits' => AuditLog::where('event', 'customer.credit_limit_updated')
                         ->where('auditable_type', $customer->getMorphClass())
@@ -60,6 +65,53 @@ class PayLater
                             'after' => $log->after['credit_limit'],
                         ])->all(),
                 ];
+            },
+
+            // The credit exceptions of the customer --arg=customer_id=<id>: each request and the sale it became, how many
+            // kitchen items their sales have, and the audit rows.
+            'paylater.credit-requests' => function (array $options): array {
+                $customer = Customer::findOrFail($options['customer_id']);
+
+                return [
+                    'requests' => CreditApprovalRequest::where('customer_id', $customer->id)->orderBy('id')->get()
+                        ->map(fn (CreditApprovalRequest $request): array => [
+                            'status' => $request->status,
+                            'amount' => $request->amount,
+                            'invoice' => Transaction::whereKey($request->transaction_id)->value('invoice'),
+                        ])->all(),
+                    'kitchen_items' => KitchenItem::whereIn('transaction_id', Transaction::where('customer_id', $customer->id)->select('id'))->count(),
+                    'audits' => AuditLog::where('event', 'like', 'credit_approval.%')
+                        ->where('auditable_type', $customer->getMorphClass())
+                        ->where('auditable_id', $customer->id)
+                        ->orderBy('id')->get()
+                        ->map(fn (AuditLog $log): array => [
+                            'event' => $log->event,
+                            'user' => User::whereKey($log->user_id)->value('email'),
+                            'amount' => $log->after['amount'],
+                            'reason' => $log->after['reason'] ?? null,
+                        ])->all(),
+                ];
+            },
+
+            // A pending credit exception for a new credit customer, asked in the cashier's open shift (open one first).
+            'paylater.pending-credit-request' => function (): array {
+                $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
+                $shift = CashierShift::query()->open()->where('user_id', $cashier->id)->firstOrFail();
+                $customer = Customer::create(['name' => 'Menunggu '.Str::upper(Str::random(5)), 'no_telp' => '08'.random_int(100000000, 999999999), 'address' => 'Jl. Uji E2E 1']);
+                $customer->forceFill(['may_buy_on_credit' => true, 'credit_limit' => 0])->save();
+                $request = CreditApprovalRequest::create([
+                    'customer_id' => $customer->id,
+                    'cashier_id' => $cashier->id,
+                    'cashier_shift_id' => $shift->id,
+                    'warehouse_id' => $shift->warehouse_id,
+                    'hold_id' => 'HOLD-'.Str::upper(Str::random(12)),
+                    'amount' => 10000,
+                    'reason_code' => 'credit_limit_exceeded',
+                    'remaining_limit' => 0,
+                    'payload' => [],
+                ]);
+
+                return ['request_id' => $request->id, 'customer_id' => $customer->id];
             },
 
             // The setting of the outlet --arg=code=<outlet code> (default the E2E outlet) and how many audit rows its changes left.

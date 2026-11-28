@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Apps\CreditApprovalController;
 use App\Http\Controllers\Apps\DiscountApprovalController;
 use App\Http\Controllers\Apps\TransactionController;
 use App\Http\Controllers\Apps\TransactionRetryController;
@@ -14,6 +15,10 @@ Route::patch('/transactions/{transaction}/confirm-payment', [TransactionControll
 Route::post('/transactions/{transaction}/retry-payment', TransactionRetryController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.retry-payment');
 
 // discount approval
-Route::get('/discount-approvals', [DiscountApprovalController::class, 'pending'])->middleware('permission:discounts-approve')->name('discount-approvals.pending');
+Route::get('/discount-approvals', [DiscountApprovalController::class, 'pending'])->middleware('permission:discounts-approve|customers-credit-approve')->name('discount-approvals.pending');
 Route::post('/discount-approvals/{transaction}/approve', [DiscountApprovalController::class, 'approve'])->middleware('permission:discounts-approve')->name('discount-approvals.approve');
 Route::post('/discount-approvals/{transaction}/deny', [DiscountApprovalController::class, 'deny'])->middleware('permission:discounts-approve')->name('discount-approvals.deny');
+
+// credit exception (listed on the discount approval page)
+Route::post('/discount-approvals/credit/{creditApprovalRequest}/approve', [CreditApprovalController::class, 'approve'])->middleware('permission:customers-credit-approve')->name('credit-approvals.approve');
+Route::post('/discount-approvals/credit/{creditApprovalRequest}/deny', [CreditApprovalController::class, 'deny'])->middleware('permission:customers-credit-approve')->name('credit-approvals.deny');

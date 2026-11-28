@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { router } from "@inertiajs/react";
+import { useTranslation } from "react-i18next";
 import {
     IconClock,
     IconPlayerPlay,
@@ -7,6 +8,7 @@ import {
     IconChevronDown,
     IconChevronUp,
     IconX,
+    IconAlertTriangle,
 } from "@tabler/icons-react";
 import toast from "react-hot-toast";
 
@@ -16,6 +18,9 @@ const formatPrice = (value = 0) =>
         currency: "IDR",
         minimumFractionDigits: 0,
     });
+
+// Parked for a credit exception (REQ-007 J4): untouchable while an approver decides.
+const awaiting = (hold) => hold.credit_status === "pending";
 
 /**
  * HeldTransactions - Compact badge with expandable panel
@@ -28,6 +33,7 @@ export default function HeldTransactions({
     const [isExpanded, setIsExpanded] = useState(false);
     const [resumingId, setResumingId] = useState(null);
     const [deletingId, setDeletingId] = useState(null);
+    const { t } = useTranslation();
 
     if (!heldCarts || heldCarts.length === 0) {
         return null;
@@ -138,9 +144,19 @@ export default function HeldTransactions({
                         className="px-3 py-2 border-b border-amber-100/50 dark:border-amber-900/30 last:border-0 flex items-center justify-between gap-2"
                     >
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium text-amber-800 dark:text-amber-200 truncate">
-                                {hold.label}
-                            </p>
+                            {hold.credit_status ? (
+                                <p className="flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                    <IconAlertTriangle size={12} className="shrink-0" aria-hidden="true" />
+                                    {t(`pos.credit.${awaiting(hold) ? "awaiting" : hold.credit_status}`)}
+                                </p>
+                            ) : (
+                                <p className="text-xs font-medium text-amber-800 dark:text-amber-200 truncate">
+                                    {hold.label}
+                                </p>
+                            )}
+                            {hold.credit_status === "denied" && (
+                                <p className="text-xs text-amber-800 dark:text-amber-200 break-words">{hold.credit_note}</p>
+                            )}
                             <p className="text-xs text-amber-600 dark:text-amber-400">
                                 {hold.items_count} item •{" "}
                                 {formatPrice(hold.total)}
@@ -150,13 +166,15 @@ export default function HeldTransactions({
                             <button
                                 onClick={() => handleResume(hold.hold_id)}
                                 disabled={
-                                    resumingId === hold.hold_id || hasActiveCart
+                                    awaiting(hold) || resumingId === hold.hold_id || hasActiveCart
                                 }
                                 className="px-2 py-1 rounded bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium disabled:opacity-50 flex items-center gap-1"
                                 title={
-                                    hasActiveCart
-                                        ? "Kosongkan keranjang dulu"
-                                        : "Lanjutkan"
+                                    awaiting(hold)
+                                        ? t("pos.credit.awaiting")
+                                        : hasActiveCart
+                                          ? "Kosongkan keranjang dulu"
+                                          : "Lanjutkan"
                                 }
                             >
                                 {resumingId === hold.hold_id ? (
@@ -167,7 +185,7 @@ export default function HeldTransactions({
                             </button>
                             <button
                                 onClick={() => handleDelete(hold.hold_id)}
-                                disabled={deletingId === hold.hold_id}
+                                disabled={awaiting(hold) || deletingId === hold.hold_id}
                                 aria-label="Hapus transaksi ditahan"
                                 title="Hapus transaksi ditahan"
                                 className="p-1 rounded hover:bg-amber-200 dark:hover:bg-amber-900/50 text-amber-600 disabled:opacity-50"

@@ -3,10 +3,11 @@ import { Head, Link, router, usePage } from "@inertiajs/react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { IconCheck, IconX, IconAlertCircle, IconEye } from "@tabler/icons-react";
 import toast from "react-hot-toast";
+import CreditApprovalList from "@/Components/Approvals/CreditApprovalList";
 
 const formatCurrency = (v = 0) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 
-export default function DiscountApprovals({ pendingTransactions }) {
+export default function DiscountApprovals({ pendingTransactions, creditRequests = null }) {
     const confirm = (action, tx) => {
         if (!window.confirm(`${action === "approve" ? "Setujui" : "Tolak"} diskon transaksi ${tx.invoice}?`)) return;
         router.post(route(`discount-approvals.${action}`, tx.id), {}, {
@@ -14,6 +15,16 @@ export default function DiscountApprovals({ pendingTransactions }) {
             onError: () => toast.error("Gagal"),
         });
     };
+
+    // Each list is null when the viewer may not decide it.
+    if (!pendingTransactions) {
+        return (
+            <>
+                <Head title="Approval Kredit" />
+                <CreditApprovalList requests={creditRequests} heading="h1" />
+            </>
+        );
+    }
 
     return (
         <>
@@ -64,6 +75,7 @@ export default function DiscountApprovals({ pendingTransactions }) {
                         <p className="text-slate-500 dark:text-slate-400">Semua transaksi sudah diverifikasi.</p>
                     </div>
                 )}
+                {creditRequests && <CreditApprovalList requests={creditRequests} />}
             </div>
         </>
     );

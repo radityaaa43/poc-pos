@@ -42,6 +42,7 @@ use App\Http\Controllers\Api\V1\TransactionController as V1TransactionController
 use App\Http\Controllers\Api\V1\UnitController as V1UnitController;
 use App\Http\Controllers\Api\V1\UserController as V1UserController;
 use App\Http\Controllers\Api\WarehouseController;
+use App\Http\Middleware\EnsureHoldNotAwaitingCredit;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -162,8 +163,8 @@ Route::prefix('v1')->group(function () {
             // Hold / resume
             Route::post('/hold', [PosApiController::class, 'holdCart'])->name('api.pos.hold');
             Route::get('/holds', [PosApiController::class, 'heldCarts'])->name('api.pos.holds');
-            Route::post('/holds/{holdId}/resume', [PosApiController::class, 'resumeHold'])->name('api.pos.holds.resume');
-            Route::delete('/holds/{holdId}', [PosApiController::class, 'deleteHold'])->name('api.pos.holds.delete');
+            Route::post('/holds/{holdId}/resume', [PosApiController::class, 'resumeHold'])->middleware(EnsureHoldNotAwaitingCredit::class)->name('api.pos.holds.resume');
+            Route::delete('/holds/{holdId}', [PosApiController::class, 'deleteHold'])->middleware(EnsureHoldNotAwaitingCredit::class)->name('api.pos.holds.delete');
 
             // Checkout & transactions
             Route::post('/checkout', [PosApiController::class, 'checkout'])->name('api.pos.checkout');

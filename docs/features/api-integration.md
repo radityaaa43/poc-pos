@@ -17,6 +17,23 @@ API v1 menyediakan akses token-based untuk aplikasi mobile, perangkat kasir, dan
 - Bill totals: `GET /api/v1/transactions/pricing-preview` and `GET /api/v1/pos/cart` take an optional `order_type` (`in_store`, `takeaway`, `delivery`) and return `service_charge` and `tax_kind` (`ppn` or `pb1`) in `summary`; only `in_store` carries a service charge, so send it as checkout will. A sale returns the same two fields. Checkout and sync compute every total from the outlet's settings and ignore totals sent by the client.
 - Payment webhooks: `/api/webhooks/midtrans` dan `/api/webhooks/xendit`.
 
+## Penolakan Piutang
+
+`POST /api/v1/pos/checkout` dengan `payment_method: pay_later` menjawab `422` bila pelanggan berbatas piutang ditolak:
+
+```json
+{ "success": false, "message": "Melebihi batas piutang — sisa Rp 200.000",
+  "errors": { "code": "credit_limit_exceeded", "remaining_limit": 200000 } }
+```
+
+`errors.code` bernilai `credit_limit_exceeded` (total melewati sisa batas) atau `credit_overdue` (ada piutang lewat
+jatuh tempo; `message`: "Lunasi piutang yang lewat jatuh tempo dulu"). `remaining_limit` adalah sisa batas dalam
+rupiah bulat. Pelanggan tanpa batas tidak pernah ditolak. Tidak ada penjualan yang tersimpan: terima pembayaran
+sekarang. Persetujuan pengecualian hanya lewat web.
+
+Keranjang yang ditahan dari web untuk menunggu persetujuan kredit tidak bisa diubah lewat API: `resume` dan hapus hold,
+serta ubah dan hapus barisnya, menjawab `422` dengan `errors.hold` sampai pengajuan diputuskan.
+
 ## Dokumentasi API
 
 Pada instalasi aktif, dokumentasi Scramble tersedia di `/docs/api` dan OpenAPI JSON di `/docs/api.json`.

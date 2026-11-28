@@ -1237,7 +1237,13 @@
             "noLimit": "Tanpa batas",
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
-            "retry": "Coba lagi"
+            "retry": "Coba lagi",
+            "payNow": "Bayar sekarang",
+            "requestException": "Minta pengecualian",
+            "cancel": "Batal",
+            "awaiting": "Menunggu persetujuan kredit",
+            "denied": "Pengecualian kredit ditolak",
+            "cancelled": "Shift ditutup"
         }
     },
     "outlets": {
@@ -1372,6 +1378,16 @@
         "moveUp": "Naikkan {{name}}",
         "moveDown": "Turunkan {{name}}",
         "detach": "Lepas {{name}}"
+    },
+    "creditApprovals": {
+        "title": "Menunggu persetujuan kredit",
+        "customer": "Pelanggan",
+        "cashier": "Kasir",
+        "amount": "Jumlah",
+        "reasonLabel": "Alasan",
+        "approve": "Setujui",
+        "deny": "Tolak",
+        "empty": "Tidak ada pengajuan kredit."
     },
     "dineReservations": {
         "title": "Reservasi",
