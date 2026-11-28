@@ -581,7 +581,10 @@
         "exchangeItem": "Tukar Barang",
         "cashRefund": "Refund Tunai",
         "storeCredit": "Saldo Toko",
-        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok"
+        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok",
+        "serviceRefund": "Service charge dikembalikan",
+        "taxRefund": "Pajak dikembalikan",
+        "roundingNotRefunded": "Pembulatan tunai tidak dikembalikan."
     },
     "cashierShifts": {
         "title": "Shift Kasir",
