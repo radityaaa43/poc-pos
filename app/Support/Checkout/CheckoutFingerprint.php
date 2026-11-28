@@ -28,7 +28,10 @@ class CheckoutFingerprint
             'cash' => isset($payload['cash']) ? round((float) $payload['cash'], 2) : null,
         ];
 
-        return hash('sha256', json_encode($normalized));
+        // Added only when set, so a sale queued without a name keeps the hash it had before the field existed.
+        $orderName = trim((string) ($payload['order_name'] ?? ''));
+
+        return hash('sha256', json_encode($orderName === '' ? $normalized : $normalized + ['order_name' => $orderName]));
     }
 
     private static function normalizeItems(array $items): array

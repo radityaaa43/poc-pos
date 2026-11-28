@@ -156,6 +156,18 @@ describe("OpenBills pay-later bills", () => {
         expect(screen.getByText("Meja 3 · TRX-ABC")).toBeInTheDocument();
         expect(screen.getByText(/20\.000 · Menunggu Pembayaran/)).toBeInTheDocument();
     });
+
+    // #445 BR-3
+    it("shows a bill's order name before its label, or alone without one", async () => {
+        const user = userEvent.setup();
+        const named = { id: 2, order_id: null, invoice: "TRX-DEF", label: "Titip", order_name: "Budi 7", grand_total: 20000, pending: false };
+        render(<OpenBills openBills={[named, { ...named, id: 3, invoice: "TRX-GHI", label: null, order_name: "0" }]} />);
+
+        await user.click(screen.getByRole("button", { name: /Belum Lunas/ }));
+
+        expect(screen.getByText("Budi 7 · Titip · TRX-DEF")).toBeInTheDocument();
+        expect(screen.getByText("0 · TRX-GHI")).toBeInTheDocument();
+    });
 });
 
 describe("OpenBills while the guest pays online", () => {

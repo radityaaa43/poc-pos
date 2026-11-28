@@ -123,7 +123,7 @@ export default function OpenBills({ openBills: initialBills = NO_BILLS, bankAcco
                             >
                                 <div className="min-w-0 flex-1">
                                     <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-200">
-                                        {bill.label ?? "Meja"} · {bill.invoice}
+                                        {[bill.order_name, bill.label].filter(Boolean).join(" · ") || "Meja"} · {bill.invoice}
                                     </p>
                                     <p className="text-xs text-slate-500 dark:text-slate-400">
                                         {formatPrice(bill.amount ?? bill.grand_total)}

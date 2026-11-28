@@ -46,6 +46,12 @@
             <span>{{ $l('receipt.transaction_no') }}:</span>
             <span>{{ $transaction->invoice }}</span>
         </div>
+        @if(filled($transaction->order_name))
+        <div style="display:flex; justify-content:space-between;">
+            <span>{{ $l('receipt.order_name') }}:</span>
+            <span>{{ $transaction->order_name }}</span>
+        </div>
+        @endif
         <div style="display:flex; justify-content:space-between;">
             <span>{{ $l('receipt.transaction_date') }}:</span>
             <span>{{ \Carbon\Carbon::parse($transaction->created_at)->format('d/m/Y H:i') }}</span>

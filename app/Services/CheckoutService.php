@@ -128,6 +128,7 @@ class CheckoutService
                 'is_pay_later' => $ctx->isPayLater,
                 'bank_account_id' => $tenderBankAccountId,
                 'order_type' => $ctx->orderType,
+                'order_name' => $ctx->orderName,
                 'note' => $ctx->note,
                 'tax_rate' => data_get($checkoutPreview, 'summary.tax_rate'),
                 'tax_total' => data_get($checkoutPreview, 'summary.tax_total', 0),

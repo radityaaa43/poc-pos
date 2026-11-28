@@ -1,4 +1,5 @@
 import React from "react";
+import OrderNameLine from "./OrderName";
 
 import { useTranslation } from "react-i18next";
 import { billSubtotal, taxLabel } from "@/Utils/billTotals";
@@ -129,6 +130,7 @@ export default function ThermalReceipt({
                     <span>No:</span>
                     <span>{transaction?.invoice}</span>
                 </div>
+                <OrderNameLine name={transaction?.order_name} />
                 <div className="flex justify-between">
                     <span>Tgl:</span>
                     <span>{formatDate(transaction?.created_at)}</span>
@@ -365,6 +367,7 @@ export function ThermalReceipt58mm({
 
             <pre>{line}</pre>
             <p>#{transaction?.invoice}</p>
+            <OrderNameLine name={transaction?.order_name} />
             <p>{formatTime(transaction?.created_at)}</p>
             <pre>{line}</pre>
 

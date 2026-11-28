@@ -80,6 +80,19 @@ describe("Kitchen/Index", () => {
         expect(within(cards[1]).getByText("Bawa pulang")).toBeInTheDocument();
     });
 
+    it("shows the invoice under a number that is not the invoice", () => {
+        const named = [
+            { ...orders[0], number: "Budi 7", invoice: "INV-0007" },
+            { ...orders[1], invoice: "INV-0009" },
+        ];
+        render(<Index orders={named} outlet={outlet} />);
+
+        const [first, second] = screen.getAllByRole("article");
+        expect(within(first).getByRole("heading", { name: "Budi 7" })).toBeInTheDocument();
+        expect(within(first).getByText("INV-0007")).toBeInTheDocument();
+        expect(within(second).getAllByText("INV-0009")).toHaveLength(1);
+    });
+
     it("marks only the unpaid order", () => {
         render(<Index orders={orders} outlet={outlet} />);
 

@@ -71,6 +71,7 @@ class Transaction extends Model
         'payment_url',
         'qr_string',
         'order_type',
+        'order_name',
         'note',
         'bank_account_id',
         'tax_rate',

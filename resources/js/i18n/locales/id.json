@@ -1245,6 +1245,11 @@
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
         },
+        "orderName": {
+            "label": "Nama pesanan",
+            "placeholder": "Nama / nomor buzzer (opsional)",
+            "limit": "Maksimal 20 karakter"
+        },
         "offlineQueue": {
             "button": "Transaksi offline tertunda ({{count}})",
             "retryNow": "Coba sinkron sekarang",
@@ -1434,6 +1439,9 @@
         "saved": "Reservasi disimpan",
         "marked": "Status reservasi diubah",
         "failed": "Reservasi tidak bisa disimpan"
+    },
+    "receipt": {
+        "orderName": "Nama pesanan"
     },
     "waste": {
         "title": "Waste",

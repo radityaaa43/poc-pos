@@ -85,6 +85,16 @@ class KitchenTicketTest extends TestCase
         $this->assertSame('takeaway', $ticket['type']);
     }
 
+    // REQ-009 AC-20 (#445)
+    public function test_a_named_order_uses_its_name_as_the_number(): void
+    {
+        $sale = $this->sale('INV-NAMED', orderType: 'takeaway');
+        $sale->update(['order_name' => '0']); // a buzzer number, which PHP would treat as empty
+        $this->kitchenItem($sale, acceptedAt: now()->subMinute());
+
+        $this->assertSame('0', $this->tickets($this->device())[0]['number']);
+    }
+
     // AC-02, BR-6
     public function test_only_a_pay_later_order_is_marked_unpaid(): void
     {
