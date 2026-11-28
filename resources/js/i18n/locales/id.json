@@ -591,6 +591,7 @@
             "title": "Belum selesai",
             "item": "Belum diserahkan",
             "bill": "Belum lunas",
+            "syncFirst": "Sinkronkan transaksi offline dulu",
             "split": "Split pembayaran belum lunas — sisa {{amount}}"
         },
         "forced": {
@@ -1150,7 +1151,12 @@
             "notPrinted": "Belum tercetak",
             "retry": "Coba lagi",
             "unsupported": "Perangkat ini tidak mendukung printer USB",
-            "unsupportedInsecure": "Cetak USB perlu koneksi aman (HTTPS)"
+            "unsupportedInsecure": "Cetak USB perlu koneksi aman (HTTPS)",
+            "stale": "Printer dapur offline atau tab tidur",
+            "wakeLockOff": "Layar bisa tidur — jaga perangkat tetap menyala",
+            "reprint": "CETAK ULANG",
+            "reprintButton": "Cetak ulang",
+            "reprintFailed": "Gagal mencetak ulang"
         },
         "actions": {
             "start": "Mulai buat",
@@ -1166,6 +1172,11 @@
             "progress": "{{ready}} dari {{total}} siap",
             "removed": "Stasiun yang dipilih sudah dihapus. Menampilkan Semua stasiun.",
             "emptyForSelection": "Belum ada pesanan untuk stasiun ini"
+        },
+        "pickup": {
+            "title": "Siap diambil ({{count}})",
+            "all": "Lihat semua ({{count}})",
+            "less": "Tampilkan lebih sedikit"
         }
     },
     "pos": {
@@ -1200,6 +1211,11 @@
             "awaitingOnline": "Menunggu pembayaran online",
             "takeoverNotice": "Tamu sedang membayar online. Tanyakan dulu apakah tamu sudah membayar. Kalau Anda menerima pembayaran sekarang, pembayaran online tamu tidak berlaku dan uangnya harus dikembalikan manual.",
             "billGone": "Tagihan ini sudah tidak ada di daftar Belum Lunas (sudah dibayar atau dibatalkan). Tutup jendela ini dan periksa Riwayat Transaksi."
+        },
+        "offlineKitchen": {
+            "notice": "Dapur belum menerima pesanan ini. Sampaikan langsung ke dapur.",
+            "close": "Tutup",
+            "pending": "Pesanan offline yang belum diterima dapur: {{count}}"
         },
         "credit": {
             "limit": "Batas",

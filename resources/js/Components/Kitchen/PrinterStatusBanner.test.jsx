@@ -12,6 +12,8 @@ const TEXT = {
     driver_locked: "Printer tidak bisa dipakai dari browser — ganti driver ke WinUSB",
     not_connected: "Printer dapur tidak terhubung",
     failed: "Gagal mencetak — coba lagi",
+    stale: "Printer dapur offline atau tab tidur",
+    wake_lock_off: "Layar bisa tidur — jaga perangkat tetap menyala",
 };
 
 describe("PrinterStatusBanner", () => {
@@ -30,7 +32,7 @@ describe("PrinterStatusBanner", () => {
     });
 
     it("shows only the one banner it is given", () => {
-        render(<PrinterStatusBanner status="not_connected" />);
+        render(<PrinterStatusBanner status="stale" />);
 
         expect(screen.getByRole("alert")).not.toHaveTextContent(TEXT.failed);
         expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -42,6 +44,8 @@ describe("PrinterStatusBanner", () => {
             driver_locked: "Printer cannot be used from the browser — switch the driver to WinUSB",
             not_connected: "Kitchen printer is not connected",
             failed: "Print failed — try again",
+            stale: "Kitchen printer offline or tab asleep",
+            wake_lock_off: "The screen may sleep — keep the device awake",
         };
         for (const [status, text] of Object.entries(wording)) {
             const { unmount } = render(<PrinterStatusBanner status={status} />);
@@ -63,7 +67,7 @@ describe("PrinterStatusBanner", () => {
     });
 
     it("offers no Coba lagi for the other statuses", () => {
-        for (const status of ["not_connected", "driver_locked"]) {
+        for (const status of ["not_connected", "driver_locked", "stale", "wake_lock_off"]) {
             const { unmount } = render(<PrinterStatusBanner status={status} onRetry={() => {}} />);
             expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
             unmount();

@@ -38,6 +38,7 @@ class KitchenOrders
                     'qty' => $item->qty,
                     'note' => $item->note ?? null, // the column arrives with a later #236 change
                     'status' => $item->status,
+                    'ready_at' => $item->ready_at,
                     'station_id' => $item->kitchen_station_id,
                     'station' => $item->kitchenStation?->name,
                 ])->values(),

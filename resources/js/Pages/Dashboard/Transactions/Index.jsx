@@ -18,12 +18,12 @@ import HeldTransactions, {
 } from "@/Components/POS/HeldTransactions";
 import OpenBills from "@/Components/POS/OpenBills";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
+import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
 import {
-    queueTransaction,
     getPendingTransactions,
     getPendingCount,
     updatePendingTransaction,
@@ -779,7 +779,7 @@ export default function Index({
                     qty: Number(item.qty),
                 })),
             };
-            queueTransaction(payload, offlineScopeKey).then(() => {
+            queueOfflineSale(payload, offlineScopeKey, carts).then(() => {
                 refreshPendingCount();
                 setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
