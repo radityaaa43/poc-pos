@@ -224,6 +224,7 @@ class ProductController extends Controller
 
         if ($request->boolean('is_composite')) {
             $this->validateComponentProducts($request, $product);
+            $product->refuseModifierIngredient('components'); // before the old image is removed
         } elseif ($product->is_composite && $product->components()->exists()) {
             return back()->withErrors([
                 'components' => 'Produk komposit harus memiliki minimal satu komponen.',
@@ -320,11 +321,9 @@ class ProductController extends Controller
         $product = Product::findOrFail($id);
         $before = $this->productAuditPayload($product);
 
-        // remove image
-        Storage::disk('local')->delete('public/products/'.basename($product->image));
-
-        // delete
+        // delete first: a refused delete keeps the image
         $product->delete();
+        Storage::disk('local')->delete('public/products/'.basename($product->image));
 
         $this->auditLogService->log(
             event: 'product.deleted',
@@ -346,12 +345,10 @@ class ProductController extends Controller
             : [];
     }
 
-    /** Without modifiers-manage the field is ignored, not refused: the rest of the product still saves. */
+    /** Sending the field takes modifiers-manage (REQ-008 AC-05): refused here, before anything is written. */
     private function modifierGroupRules(Request $request): array
     {
-        if (! $request->user()->can('modifiers-manage')) {
-            return [];
-        }
+        abort_if($request->has('modifier_group_ids') && ! $request->user()->can('modifiers-manage'), 403);
 
         return [
             'modifier_group_ids' => ['nullable', 'array', Rule::prohibitedIf($request->boolean('is_raw_material'))],
@@ -370,7 +367,7 @@ class ProductController extends Controller
     /** The array order is the display order. A request without the field leaves the menu's groups as they are. */
     private function syncModifierGroups(Request $request, Product $product): void
     {
-        if ($request->user()->can('modifiers-manage') && $request->has('modifier_group_ids')) {
+        if ($request->has('modifier_group_ids')) {
             $product->modifierGroups()->sync(collect($request->input('modifier_group_ids'))
                 ->values()
                 ->mapWithKeys(fn ($id, int $sort) => [$id => ['sort' => $sort]])

@@ -1,14 +1,29 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import i18n from "@/i18n";
 import ModifierGroupsField from "./ModifierGroupsField";
+import Create from "../Create";
+import Edit from "../Edit";
 
 let permissions;
+let posted; // what a product page sends
+vi.mock("@/Layouts/DashboardLayout", () => ({ default: ({ children }) => children }));
 vi.mock("@inertiajs/react", () => ({
+    Head: () => null,
     Link: ({ children, href }) => <a href={href}>{children}</a>,
-    usePage: () => ({ props: { auth: { permissions } } }),
+    usePage: () => ({ props: { auth: { permissions }, errors: {} } }),
+    useForm: (initial) => {
+        const [data, setAll] = useState(initial);
+        const transform = useRef((same) => same);
+        return {
+            data,
+            setData: (key, value) => setAll((prev) => ({ ...prev, [key]: value })),
+            transform: (callback) => (transform.current = callback),
+            post: () => (posted = transform.current(data)),
+        };
+    },
 }));
 
 const groups = [
@@ -31,13 +46,6 @@ beforeEach(async () => {
 });
 
 describe("ModifierGroupsField", () => {
-    it("is hidden without modifiers-manage", () => {
-        permissions = { "products-edit": true };
-        const { container } = render(<Harness />);
-
-        expect(container).toBeEmptyDOMElement();
-    });
-
     it("attaches groups and orders them with up and down buttons", async () => {
         render(<Harness />);
         const picker = screen.getByLabelText("Pasang grup modifier");
@@ -71,5 +79,40 @@ describe("ModifierGroupsField", () => {
 
         expect(screen.getByRole("alert")).toHaveTextContent("Pesan server");
         expect(screen.getByRole("link", { name: "Tambah grup" })).toHaveAttribute("href", "/settings.modifiers.index");
+    });
+});
+
+describe.each([
+    ["Create", <Create categories={[]} products={[]} modifier_groups={groups} />],
+    ["Edit", <Edit categories={[]} modifier_groups={groups} product={{ id: 1, units: [], modifier_groups: [groups[0]] }} />],
+])("%s product page: the groups it sends", (_name, page) => {
+    const tickRawMaterial = () => userEvent.click(screen.getByRole("checkbox", { name: /Bahan baku/ }));
+    const save = () => {
+        fireEvent.submit(document.querySelector("form"));
+        return posted;
+    };
+
+    // The server answers 403 to the field without the permission.
+    it("hides the field and never sends it without modifiers-manage", async () => {
+        permissions = { "products-edit": true };
+        render(page);
+        expect(screen.queryByLabelText("Pasang grup modifier")).not.toBeInTheDocument();
+        expect(save()).not.toHaveProperty("modifier_group_ids");
+
+        await tickRawMaterial();
+        expect(save()).not.toHaveProperty("modifier_group_ids");
+    });
+
+    it("keeps the groups when raw material is ticked and unticked, and sends none for a raw material", async () => {
+        render(page);
+        await userEvent.selectOptions(screen.getByLabelText("Pasang grup modifier"), "Gula");
+        const chosen = save().modifier_group_ids;
+
+        await tickRawMaterial();
+        expect(save()).not.toHaveProperty("modifier_group_ids");
+
+        await tickRawMaterial();
+        expect(chosen).toContain(2);
+        expect(save().modifier_group_ids).toEqual(chosen);
     });
 });

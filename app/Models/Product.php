@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class Product extends Model
 {
@@ -62,6 +63,26 @@ class Product extends Model
                 $product->modifierGroups()->detach();
             }
         });
+        // A new product is skipped: a null id would match the rows of deleted ingredients.
+        static::saving(function (Product $product) {
+            if ($product->exists && $product->is_composite && $product->isDirty('is_composite')) {
+                $product->refuseModifierIngredient('components');
+            }
+        });
+        static::deleting(fn (Product $product) => $product->refuseModifierIngredient('delete'));
+    }
+
+    /** A live option's ingredient can be neither deleted nor made a recipe: nothing could deduct it (REQ-008). */
+    public function refuseModifierIngredient(string $field): void
+    {
+        $option = $this->belongsToMany(ModifierOption::class, 'modifier_option_components', 'component_product_id')->first();
+
+        if ($option) {
+            throw ValidationException::withMessages([$field => __('messages.modifiers.ingredient_in_use', [
+                'option' => $option->name,
+                'group' => ModifierGroup::whereKey($option->modifier_group_id)->value('name'),
+            ])]);
+        }
     }
 
     /** What a recipe can deduct: stock-tracked products, raw materials first, each with its base-unit symbol. */
@@ -79,11 +100,7 @@ class Product extends Model
             ->orderBy('title');
     }
 
-    /**
-     * In the menu's display order.
-     *
-     * @return BelongsToMany<ModifierGroup, $this>
-     */
+    /** @return BelongsToMany<ModifierGroup, $this> */
     public function modifierGroups(): BelongsToMany
     {
         return $this->belongsToMany(ModifierGroup::class, 'product_modifier_group')

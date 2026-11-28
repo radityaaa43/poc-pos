@@ -428,6 +428,7 @@ return [
         'component_duplicate' => 'An option cannot use the same ingredient twice.',
         'qty_below_one' => 'The ingredient quantity must be at least 1.',
         'raw_material' => 'A raw material cannot take modifiers.',
+        'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
     ],
 
     /*

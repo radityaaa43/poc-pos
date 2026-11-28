@@ -5,7 +5,7 @@ import Button from "@/Components/Dashboard/Button";
 import Input from "@/Components/Dashboard/Input";
 import Select, { PurchasedBySelect } from "@/Components/Dashboard/Select";
 import UnitRow from "./Partials/UnitRow";
-import ModifierGroupsField from "./Partials/ModifierGroupsField";
+import ModifierGroupsField, { useModifierGroupsPayload } from "./Partials/ModifierGroupsField";
 import { updateUnitRows } from "@/Utils/productUnits";
 import Textarea from "@/Components/Dashboard/TextArea";
 import InputSelect from "@/Components/Dashboard/InputSelect";
@@ -35,7 +35,7 @@ export default function Create({
     const { errors } = usePage().props;
     const { t } = useTranslation();
 
-    const { data, setData, post, processing } = useForm({
+    const { data, setData, post, processing, transform } = useForm({
         image: "",
         barcode: "",
         sku: "",
@@ -59,6 +59,7 @@ export default function Create({
         units: [],
         modifier_group_ids: [],
     });
+    transform(useModifierGroupsPayload());
 
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [imagePreview, setImagePreview] = useState(null);
@@ -361,7 +362,6 @@ export default function Create({
                                         );
                                         if (!e.target.checked)
                                             setData("purchased_by", "");
-                                        if (e.target.checked) setData("modifier_group_ids", "");
                                     }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />

@@ -20,7 +20,7 @@ import {
     IconPackages,
     IconRulerMeasure,
 } from "@tabler/icons-react";
-import ModifierGroupsField from "./Partials/ModifierGroupsField";
+import ModifierGroupsField, { useModifierGroupsPayload } from "./Partials/ModifierGroupsField";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 
 export default function Edit({
@@ -35,7 +35,7 @@ export default function Edit({
     const { errors } = usePage().props;
     const { t } = useTranslation();
 
-    const { data, setData, post, processing } = useForm({
+    const { data, setData, post, processing, transform } = useForm({
         image: "",
         barcode: product.barcode,
         sku: product.sku,
@@ -70,6 +70,7 @@ export default function Edit({
         modifier_group_ids: (product.modifier_groups ?? []).map((g) => g.id),
         _method: "PUT",
     });
+    transform(useModifierGroupsPayload());
 
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [imagePreview, setImagePreview] = useState(
@@ -430,7 +431,6 @@ export default function Edit({
                                         );
                                         if (!e.target.checked)
                                             setData("purchased_by", "");
-                                        if (e.target.checked) setData("modifier_group_ids", "");
                                     }}
                                     className="rounded border-slate-300 text-primary-600 focus:ring-primary-500"
                                 />

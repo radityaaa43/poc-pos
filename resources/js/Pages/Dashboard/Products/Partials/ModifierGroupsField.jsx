@@ -8,7 +8,13 @@ import hasAnyPermission from "@/Utils/Permission";
 const iconButton =
     "size-11 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30";
 
-// The product form's Modifier section: which groups this menu offers, in display order.
+// The field leaves the form only for a menu, with modifiers-manage: otherwise the server answers 403, and a raw
+// material loses its groups on save anyway. The form keeps the choice, so unticking raw material restores it.
+export function useModifierGroupsPayload() {
+    const allowed = hasAnyPermission(["modifiers-manage"]);
+    return ({ modifier_group_ids, ...data }) => (allowed && !data.is_raw_material ? { ...data, modifier_group_ids } : data);
+}
+
 export default function ModifierGroupsField({ groups = [], value, onChange, errors = {} }) {
     const { t } = useTranslation();
     if (!hasAnyPermission(["modifiers-manage"])) return null;

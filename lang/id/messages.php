@@ -428,6 +428,7 @@ return [
         'component_duplicate' => 'Bahan yang sama tidak boleh dipakai dua kali dalam satu opsi.',
         'qty_below_one' => 'Jumlah bahan minimal 1.',
         'raw_material' => 'Bahan baku tidak bisa diberi modifier.',
+        'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
     ],
 
     /*

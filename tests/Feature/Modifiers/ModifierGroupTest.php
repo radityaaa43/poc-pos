@@ -13,8 +13,11 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
+use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
@@ -25,33 +28,23 @@ class ModifierGroupTest extends TestCase
 
     private User $manager;
 
-    private User $cashier;
-
-    private Category $category;
-
-    private int $seq = 0;
-
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->seed([PermissionSeeder::class, RoleSeeder::class, UserSeeder::class]);
 
-        $this->manager = User::where('email', 'manager@gmail.com')->firstOrFail();
-        $this->manager->markEmailAsVerified();
-        $this->cashier = User::where('email', 'cashier@gmail.com')->firstOrFail();
-        $this->cashier->markEmailAsVerified();
-        $this->category = Category::create(['name' => 'Kategori', 'image' => 'categories/t.jpg', 'description' => 'x']);
+        $this->manager = tap(User::where('email', 'manager@gmail.com')->firstOrFail())->markEmailAsVerified();
     }
 
     private function product(array $attributes = []): Product
     {
-        $n = ++$this->seq;
+        $n = Product::count() + 1;
 
         return Product::create($attributes + [
             'title' => "Menu $n", 'sku' => "SKU-MOD-$n", 'barcode' => "BC-MOD-$n", 'description' => 'x',
             'image' => 'products/t.jpg', 'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 20,
-            'tax_rate' => 0, 'category_id' => $this->category->id,
+            'tax_rate' => 0, 'category_id' => Category::firstOrCreate(['name' => 'Kategori'], ['image' => 't.jpg', 'description' => 'x'])->id,
         ]);
     }
 
@@ -75,9 +68,7 @@ class ModifierGroupTest extends TestCase
 
     private function createGroup(array $overrides = []): ModifierGroup
     {
-        $this->actingAs($this->manager)
-            ->post(route('settings.modifiers.store'), $this->payload($overrides))
-            ->assertSessionHasNoErrors();
+        $this->actingAs($this->manager)->post(route('settings.modifiers.store'), $this->payload($overrides))->assertSessionHasNoErrors();
 
         return ModifierGroup::latest('id')->firstOrFail();
     }
@@ -97,8 +88,7 @@ class ModifierGroupTest extends TestCase
         ];
 
         foreach ($cases as [$overrides, $field, $message]) {
-            $this->actingAs($this->manager)
-                ->post(route('settings.modifiers.store'), $this->payload($overrides))
+            $this->actingAs($this->manager)->post(route('settings.modifiers.store'), $this->payload($overrides))
                 ->assertSessionHasErrors([$field => __("messages.modifiers.$message")]);
         }
 
@@ -158,7 +148,6 @@ class ModifierGroupTest extends TestCase
         $this->put(route('products.update', $product), $this->productPayload($product, ['modifier_group_ids' => []]));
         $this->assertSame(0, $product->modifierGroups()->count());
 
-        // A new menu takes its groups too.
         $this->post(route('products.store'), $this->productPayload($product, [
             'sku' => 'SKU-NEW', 'barcode' => 'BC-NEW', 'stock' => 0, 'modifier_group_ids' => [$size->id],
         ]))->assertSessionHasNoErrors();
@@ -221,16 +210,35 @@ class ModifierGroupTest extends TestCase
         $this->assertTrue(ModifierCatalog::forOutlet(null, collect([$menu->id]))->isEmpty());
     }
 
-    public function test_deleted_options_keep_their_recipe(): void
+    // TC-9 and BR-2: a live option holds its ingredient; a deleted one keeps its recipe and holds nothing.
+    public function test_an_option_holds_its_ingredient_only_while_live(): void
     {
+        Storage::fake('local')->put('public/products/t.jpg', 'x');
         [$milk, $syrup] = [$this->product(['is_raw_material' => true]), $this->product(['is_raw_material' => true])];
         $recipe = fn (Product $product) => ['components' => [['product_id' => $product->id, 'qty' => 1]]];
         $group = $this->createGroup(['options' => [
             $this->option('Regular', ['is_default' => true] + $recipe($milk)),
             $this->option('Large', $recipe($syrup)),
         ]]);
-
         [$regular, $large] = $group->options()->get()->all();
+
+        $names = ['option' => 'Large', 'group' => 'Ukuran'];
+        foreach (['id', 'en'] as $locale) {
+            $this->assertMatchesRegularExpression('/"Large".*"Ukuran"/', __('messages.modifiers.ingredient_in_use', $names, $locale));
+        }
+        $refusal = __('messages.modifiers.ingredient_in_use', $names);
+        $this->delete(route('raw-materials.destroy', $syrup))->assertSessionHasErrors(['delete' => $refusal]);
+        $this->delete(route('products.destroy', $syrup))->assertSessionHasErrors(['delete' => $refusal]);
+        $this->put(route('products.update', $syrup), $this->productPayload($syrup, [
+            'is_composite' => true, 'components' => [['component_product_id' => $milk->id, 'qty' => 1]],
+            'image' => UploadedFile::fake()->create('new.jpg', 1, 'image/jpeg'),
+        ]))->assertSessionHasErrors(['components' => $refusal]);
+        Sanctum::actingAs($this->manager, ['*']);
+        $this->deleteJson(route('api.products.destroy', $syrup))->assertJsonValidationErrors(['delete' => $refusal]);
+        $this->putJson(route('api.products.update', $syrup), ['is_composite' => true])->assertJsonValidationErrors(['components' => $refusal]);
+        $this->assertDatabaseHas('products', ['id' => $syrup->id, 'is_composite' => false]);
+        $this->assertSame(['public/products/t.jpg'], Storage::disk('local')->allFiles());
+        $this->actingAs($this->manager);
 
         // The save keeps the id it sends, adds the new option and soft-deletes the one left out.
         $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [
@@ -286,21 +294,27 @@ class ModifierGroupTest extends TestCase
         $group = $this->createGroup();
         $menu = $this->product();
 
-        $this->actingAs($this->cashier);
+        $this->actingAs(tap(User::where('email', 'cashier@gmail.com')->firstOrFail())->markEmailAsVerified());
         $this->get(route('settings.modifiers.index'))->assertForbidden();
         $this->post(route('settings.modifiers.store'), $this->payload())->assertForbidden();
         $this->put(route('settings.modifiers.update', $group), $this->payload())->assertForbidden();
         $this->delete(route('settings.modifiers.destroy', $group))->assertForbidden();
 
-        // products-edit alone saves the product; the groups it sends are ignored and none are listed.
+        // products-edit alone: no groups are listed, and a save that sends the field, even empty, changes nothing.
+        $menu->modifierGroups()->attach($group->id);
         $editor = User::factory()->create();
-        $editor->givePermissionTo(['products-access', 'products-edit']);
+        $editor->givePermissionTo(['products-access', 'products-create', 'products-edit']);
         $this->actingAs($editor)->get(route('products.edit', $menu))
             ->assertInertia(fn (Assert $page) => $page->where('modifier_groups', []));
-        $this->put(route('products.update', $menu), $this->productPayload($menu, ['modifier_group_ids' => [$group->id]]))
-            ->assertSessionHasNoErrors()
-            ->assertRedirect(route('products.index'));
-        $this->assertSame(0, $menu->modifierGroups()->count());
+        foreach ([[$group->id], ''] as $ids) {
+            $sent = $this->productPayload($menu, ['title' => 'Baru', 'modifier_group_ids' => $ids]);
+            $this->put(route('products.update', $menu), $sent)->assertForbidden();
+            $this->post(route('products.store'), ['sku' => 'SKU-NEW', 'barcode' => 'BC-NEW', 'stock' => 0] + $sent)->assertForbidden();
+        }
+        $this->assertSame([$menu->title, 1, 1], [$menu->fresh()->title, $menu->modifierGroups()->count(), Product::count()]);
+        // Without the field the product saves and keeps its groups.
+        $this->put(route('products.update', $menu), $this->productPayload($menu))->assertRedirect(route('products.index'));
+        $this->assertSame(1, $menu->modifierGroups()->count());
     }
 
     public function test_the_seeder_grants_modifiers_manage_to_roles_that_edit_products(): void
