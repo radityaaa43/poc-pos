@@ -112,7 +112,7 @@ Switching **Cetak otomatis** off stops what still waits to print; switching it o
 - **Sleeping tab and Wake Lock:** while Cetak otomatis is on, the page asks the browser to keep the screen awake and asks again when the tab becomes visible. The browser still stops timers of a hidden tab or a sleeping device, so a device that slept prints nothing meanwhile; on waking, the poll returns the waiting orders, which print oldest first behind the offline-or-asleep warning. Orders are never lost: printing is recorded only after the ticket was sent.
 - **Devices without WebUSB** (iPad, Firefox, Safari, or a page not on HTTPS): the printer settings say **Perangkat ini tidak mendukung printer USB** / "This device does not support USB printers", and **Hubungkan printer** and **Cetak otomatis** are disabled. The display itself works as usual and shows no printer warning.
 - **Paper out is not detected** (WebUSB cannot report it): use **Cetak ulang**. See `docs/features/thermal-printer.md`.
-- **For the owner:** orders that never got a ticket are the kitchen items with no `kitchen_ticket_prints` row older than a few minutes; there is no report for it.
+- **For the owner:** orders that never got a ticket are the kitchen items with no `kitchen_ticket_prints` row older than a few minutes; the **Unprinted tickets report** below lists them per outlet and period.
 - Code: `resources/js/Utils/printerStatus.js` (error codes and the one status), `resources/js/Components/Kitchen/PrinterStatusBanner.jsx`, `resources/js/Hooks/useWakeLock.js`.
 
 ### Unprinted tickets report
