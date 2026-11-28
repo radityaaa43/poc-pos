@@ -17,7 +17,7 @@ class BillSettingsService
     public const CASH_ROUNDING_UNITS = [0, 100, 500];
 
     // No row means the default, and the defaults compute a bill as before these settings existed.
-    private const DEFAULTS = [
+    public const DEFAULTS = [
         'service_charge_rate' => 0.0,
         'tax_kind' => 'ppn',
         'pb1_rate' => 10.0,
