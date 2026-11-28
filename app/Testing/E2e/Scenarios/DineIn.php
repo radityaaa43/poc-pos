@@ -8,6 +8,7 @@ use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\DineArea;
 use App\Models\DineOrder;
+use App\Models\DineReservation;
 use App\Models\DiningTable;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
@@ -57,6 +58,23 @@ class DineIn
                     'area_id' => $area->id, 'area_name' => $area->name,
                     'table_id' => $table->id, 'table_name' => $table->name, 'token' => $table->token,
                 ];
+            },
+
+            // A reservation in the E2E outlet, bypassing the clash check: --arg=table_id=<id> --arg=name=<guest>,
+            // --arg=days=<offset from today> --arg=time=<H:i> --arg=phone=<number>.
+            'dine.reservation' => function (array $options): array {
+                $at = now()->addDays((int) ($options['days'] ?? 0))->setTimeFromTimeString($options['time'] ?? '12:00');
+                $reservation = DineReservation::create([
+                    'outlet_id' => Outlet::where('code', E2eSeeder::OUTLET_CODE)->firstOrFail()->id,
+                    'dine_table_id' => $options['table_id'],
+                    'guest_name' => $options['name'],
+                    'phone' => $options['phone'] ?? '0812 0000 0000',
+                    'party_size' => 2,
+                    'reserved_at' => $at,
+                    'status' => 'booked',
+                ]);
+
+                return ['reservation_id' => $reservation->id, 'date' => $at->format('Y-m-d')];
             },
 
             // A submitted guest order: --arg=token=<table token> --arg=product_id=<id> --arg=qty=<n> --arg=notes=<text>

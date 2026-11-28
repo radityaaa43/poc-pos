@@ -374,6 +374,8 @@ export function useKitchenPrintDevice(outlet) {
                     queueRef.current = null;
                     leaving = Promise.all([leaving, queue.drain()]);
                     setEnded(true);
+                    // No publish follows a halt: a failed ticket must not keep every Cetak ulang disabled.
+                    setQueueState((state) => ({ ...state, headFailed: false }));
                 }
             }
             if (halted) return;
@@ -388,6 +390,7 @@ export function useKitchenPrintDevice(outlet) {
         return () => {
             halted = true;
             queue.stop();
+            dropReprints(); // switching auto-print off must not drop a waiting reprint without saying so
             leaving = Promise.all([leaving, queue.drain()]); // settles once a send in flight is over
             clearInterval(timer);
             clearInterval(clockTimer);
