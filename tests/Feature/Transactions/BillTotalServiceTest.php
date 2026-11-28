@@ -8,8 +8,11 @@ use App\Models\CustomerVoucher;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\BillTotalService;
 use App\Services\LoyaltyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class BillTotalServiceTest extends TestCase
@@ -76,6 +79,101 @@ class BillTotalServiceTest extends TestCase
                 'points_earned_preview' => $summary['points_earned_preview'],
             ]);
         }
+    }
+
+    /** The same table drives the offline mirror, computeBill in billTotals.js (TC-9). */
+    #[DataProvider('billCases')]
+    public function test_compute_matches_the_shared_table(array $case): void
+    {
+        foreach ($case['settings'] as $key => $value) {
+            Setting::setForOutlet($key, (string) $value, $this->outlet);
+        }
+
+        $bill = app(BillTotalService::class)->compute(
+            $this->outlet, $case['lines'], $case['after_discount'], $case['shipping'], $case['dine_in'],
+        );
+
+        $expected = $case['expected'];
+        $expected['tax_rate'] = $expected['tax_rate'] === null ? null : (float) $expected['tax_rate'];
+        $expected['bill_basis']['effective_rate'] = (float) $expected['bill_basis']['effective_rate'];
+        ksort($expected);
+        ksort($bill);
+
+        $this->assertSame($expected, $bill);
+    }
+
+    public static function billCases(): array
+    {
+        $table = json_decode(file_get_contents(__DIR__.'/../../fixtures/bill-totals.json'), true);
+
+        return array_column(array_map(fn (array $case) => [$case['name'], [$case]], $table['cases']), 1, 0);
+    }
+
+    public function test_compute_reads_only_the_bill_settings(): void
+    {
+        $service = app(BillTotalService::class);
+        $lines = [['product_id' => 1, 'line_total' => 20000, 'tax_rate' => 11, 'tax_type' => 'exclusive']];
+
+        DB::enableQueryLog();
+        $service->compute($this->outlet, $lines, 20000, 0, true);
+
+        $this->assertCount(1, DB::getQueryLog());
+        $this->assertStringContainsString('settings', DB::getQueryLog()[0]['query']);
+    }
+
+    public function test_only_in_store_is_charged(): void
+    {
+        Setting::setForOutlet('service_charge_rate', '5', $this->outlet);
+        $pricing = $this->pricing([[$this->product(0, 'exclusive'), 20000]]);
+
+        foreach (['in_store' => 1000, 'takeaway' => 0, 'delivery' => 0, '' => 0] as $orderType => $service) {
+            $summary = app(LoyaltyService::class)->previewCheckout(
+                $pricing, null, ['order_type' => $orderType ?: null], null, $this->outlet,
+            )['summary'];
+
+            $this->assertSame($service, $summary['service_charge'], "order type '{$orderType}'");
+            $this->assertSame(20000 + $service, $summary['grand_total']);
+        }
+    }
+
+    public function test_service_charge_is_on_subtotal_after_all_discounts_and_points_keep_their_base(): void
+    {
+        Setting::setForOutlet('service_charge_rate', '5', $this->outlet);
+        $member = Customer::create([
+            'name' => 'Member', 'no_telp' => 628120000002, 'address' => 'a',
+            'is_loyalty_member' => true, 'loyalty_points' => 20,
+        ]);
+        $voucher = CustomerVoucher::create([
+            'customer_id' => $member->id, 'code' => 'VCR-SVC', 'name' => 'Service',
+            'discount_type' => CustomerVoucher::TYPE_FIXED_AMOUNT, 'discount_value' => 5000,
+            'minimum_order' => 0, 'is_active' => true,
+        ]);
+
+        $summary = app(LoyaltyService::class)->previewCheckout(
+            $this->pricing([[$this->product(0, 'exclusive'), 50000]]),
+            $member,
+            ['voucher' => $voucher, 'redeem_points' => 20, 'manual_discount' => 3000, 'shipping_cost' => 12000, 'order_type' => 'in_store'],
+            null,
+            $this->outlet,
+        )['summary'];
+
+        // 50,000 - 5,000 - 2,000 - 3,000 = 40,000; 5 % of it. Points: floor((54,000 - 12,000) / 10,000), as before.
+        $this->assertSame(2000, $summary['service_charge']);
+        $this->assertSame(54000, $summary['grand_total']);
+        $this->assertSame(4, $summary['points_earned_preview']);
+    }
+
+    public function test_tax_lines_take_the_product_rate_and_fall_back_to_the_outlet_default(): void
+    {
+        Setting::setForOutlet('tax_default_rate', '7', $this->outlet);
+        $product = $this->product(5, 'inclusive');
+
+        $lines = app(BillTotalService::class)->taxLines([
+            ['product_id' => $product->id, 'line_total' => 1000],
+            ['product_id' => $product->id + 1000, 'line_total' => 2000],
+        ], $this->outlet);
+
+        $this->assertSame([[5.0, 'inclusive'], [7.0, 'exclusive']], array_map(fn (array $line) => [$line['tax_rate'], $line['tax_type']], $lines));
     }
 
     private function product(float $taxRate, string $taxType): Product

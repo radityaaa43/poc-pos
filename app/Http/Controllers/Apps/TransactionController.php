@@ -20,6 +20,7 @@ use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
+use App\Services\CheckoutPreviewService;
 use App\Services\CheckoutService;
 use App\Services\LoyaltyService;
 use App\Services\OpenBillListService;
@@ -53,6 +54,7 @@ class TransactionController extends Controller
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
         protected readonly TransactionPaymentRetryService $paymentRetryService,
+        protected readonly CheckoutPreviewService $checkoutPreviewService,
     ) {}
 
     /**
@@ -75,9 +77,8 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $initialPricingPreview = $this->loyaltyService->previewCheckout(
-            $this->pricingService->previewCart($carts, null, null, $outlet)
-        );
+        // The POS opens on Di Tempat, so the first paint already carries the dine-in bill.
+        $initialPricingPreview = $this->checkoutPreviewService->checkout(auth()->user(), null, ['order_type' => 'in_store'], $carts);
 
         // Get held carts grouped by hold_id
         $heldCarts = Cart::with('product:id,title,sell_price,image')
@@ -234,6 +235,7 @@ class TransactionController extends Controller
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
+            'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
         ]);
 
         $customer = isset($validated['customer_id'])
@@ -242,25 +244,16 @@ class TransactionController extends Controller
         $voucher = isset($validated['customer_voucher_id'])
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
-
-        $carts = Cart::with('product.category')
-            ->where('cashier_id', $request->user()->id)
-            ->active()
-            ->latest()
-            ->get();
-
-        $pricingPreview = $this->pricingService->previewCart($carts, $customer, null, $activeShift?->warehouse?->outlet);
 
         return response()->json([
             'success' => true,
-            'data' => $this->loyaltyService->previewCheckout($pricingPreview, $customer, [
+            'data' => $this->checkoutPreviewService->checkout($request->user(), $customer, [
                 'manual_discount' => (int) ($validated['discount'] ?? 0),
                 'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
                 'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
                 'voucher' => $voucher,
-            ], null, $activeShift?->warehouse?->outlet),
+                'order_type' => $validated['order_type'] ?? null,
+            ]),
         ]);
     }
 

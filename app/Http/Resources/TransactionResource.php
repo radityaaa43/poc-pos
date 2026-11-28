@@ -30,6 +30,8 @@ class TransactionResource extends JsonResource
             'shipping_cost' => (float) $this->shipping_cost,
             'tax_rate' => (float) $this->tax_rate,
             'tax_total' => (float) $this->tax_total,
+            'service_charge' => (int) $this->service_charge,
+            'tax_kind' => $this->tax_kind,
             'loyalty_discount_total' => (float) $this->loyalty_discount_total,
             'customer_voucher_discount' => (float) $this->customer_voucher_discount,
             'grand_total' => (float) $this->grand_total,

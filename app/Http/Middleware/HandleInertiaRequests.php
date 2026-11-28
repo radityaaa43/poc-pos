@@ -11,6 +11,7 @@ use App\Models\ProductBatch;
 use App\Models\Receivable;
 use App\Models\Setting;
 use App\Models\Transaction;
+use App\Services\BillSettingsService;
 use App\Services\CashierShiftService;
 use App\Services\OutletAccessService;
 use App\Services\PayableAgingService;
@@ -197,6 +198,11 @@ class HandleInertiaRequests extends Middleware
 
             if ($activeShift) {
                 $activeCashierShift = app(CashierShiftService::class)->summarizeForDisplay($activeShift);
+                // The POS recomputes a bill offline from these (REQ-010, BR-3).
+                $shiftOutlet = $activeShift->warehouse?->outlet;
+                $activeCashierShift['outlet'] = $shiftOutlet
+                    ? ['id' => $shiftOutlet->id, 'bill_settings' => app(BillSettingsService::class)->get($shiftOutlet)]
+                    : null;
             }
 
             $securityWarnings = ProductionSecurityBaseline::issues();
