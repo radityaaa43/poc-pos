@@ -41,8 +41,9 @@ class Waste
                 $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
                 $category = Category::firstOrCreate(['name' => 'E2E Waste Report']);
                 $prefix = 'WST'.strtoupper(Str::random(6));
-                // A random day in 2027-2036: no other scenario uses it, and MySQL TIMESTAMP stops in 2038.
-                $day = Carbon::create(2027, 1, 1)->addDays(random_int(0, 3600));
+                // A random past day: the report's date filter sees only this run, and the sale does not top the
+                // (newest-first) transaction history where other specs take their first row.
+                $day = Carbon::create(2023, 1, 1)->addDays(random_int(0, 700));
                 $at = $day->toDateString();
                 $before = $day->copy()->subDay()->toDateString();
 
