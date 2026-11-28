@@ -4,6 +4,7 @@ namespace App\Services\Payments;
 
 use App\Exceptions\PaymentGatewayException;
 use App\Models\Transaction;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 
 class XenditGateway
@@ -24,6 +25,30 @@ class XenditGateway
             ...$result,
             'qr_string' => $result['raw']['qr_string'] ?? null,
         ];
+    }
+
+    /**
+     * Expire an unpaid invoice, by the invoice id Xendit returned (the external id is not enough).
+     *
+     * @return string expired, not_pending, not_found, transient or permanent
+     */
+    public function expireInvoice(array $config, string $invoiceId): string
+    {
+        try {
+            $response = Http::timeout(10)->withBasicAuth($config['secret_key'], '')
+                ->send('POST', 'https://api.xendit.co/invoices/'.rawurlencode($invoiceId).'/expire!');
+        } catch (ConnectionException) {
+            return 'transient';
+        }
+
+        // A paid or already expired invoice is refused with a 4xx; only an answer saying EXPIRED counts as done by us.
+        return match (true) {
+            $response->successful() => $response->json('status') === 'EXPIRED' ? 'expired' : 'not_pending',
+            in_array($response->status(), [401, 403], true) => 'permanent',
+            $response->status() === 404 => 'not_found',
+            in_array($response->status(), [408, 429], true), $response->serverError() => 'transient',
+            default => 'not_pending',
+        };
     }
 
     private function createInvoiceRequest(Transaction $transaction, array $config, ?array $channels = null, ?int $amount = null, ?string $externalId = null, ?string $returnUrl = null, ?int $expiresInMinutes = null): array

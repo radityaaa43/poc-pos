@@ -18,7 +18,7 @@ vi.mock("@/Utils/escpos", () => ({
     buildKitchenTicketBytes: vi.fn(() => new Uint8Array([1])),
 }));
 vi.mock("@/Utils/printQueue", () => ({
-    createPrintQueue: () => ({ enqueue: vi.fn(), drain: vi.fn(), jobs: [], status: "idle" }),
+    createPrintQueue: () => ({ enqueue: vi.fn(), drain: vi.fn(), stop: vi.fn(), jobs: [], status: "idle" }),
 }));
 
 // The page owns the hook and hands it to the panel; this wrapper does the same with the real hook.
@@ -253,6 +253,16 @@ describe("PrintDevicePanel: no WebUSB and driver lock (REQ-004 K2)", () => {
         expect(screen.getByRole("switch", { name: "Cetak otomatis" })).toBeDisabled();
         expect(screen.getByLabelText("Nama perangkat cetak")).toBeEnabled();
         expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("does not call a saved printer ready when it is not among the connected ones (#410 D5)", async () => {
+        navigator.usb.getDevices = vi.fn().mockResolvedValue([]);
+        withDevice();
+        localStorage.setItem("kitchen.printerKey", "1:2:abc");
+        localStorage.setItem("kitchen.autoPrint", "true");
+        render(<Harness />);
+
+        await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("Printer belum terhubung"));
     });
 
     it("never calls a saved printer ready on a device without USB, and offers no test print", () => {

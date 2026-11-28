@@ -227,12 +227,16 @@ satu metode per tagihan:
 - **Transfer bank** → `pending` sampai kasir mengonfirmasi di Riwayat Transaksi (aturan #153), lalu `paid`.
 - **QRIS / Midtrans / Xendit** → tagihan dicharge lewat `PaymentGatewayManager::createTenderPayment` terhadap transaksi
   yang sama, status `pending`, lalu halaman struk menampilkan QR. Tagihan tetap "Belum Lunas" sampai webhook
-  (`PaymentWebhookController`) menandainya `paid`. Charge gagal = tagihan tetap `unpaid` dan kasir bisa memilih metode lain.
+  (`PaymentWebhookController`) menandainya `paid`.
+  A failed charge (refused or timed out) shows the gateway's message, or "Gagal menghubungi gateway pembayaran. Coba lagi.":
+  nothing is taken, the bill stays payable and the cashier can pick any method.
   Percobaan gateway yang `failed`/`expired` boleh diganti metode lain (tender lamanya diganti).
 - Tender gateway tidak boleh digabung (split) dengan tender lain pada tagihan dine-in.
 - Selama pembayaran gateway/transfer masih `pending`, membayar lagi ditolak (tidak ada charge kedua, tidak ada tender
   kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
   (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
+  Another exception: a gateway tender with no reference after 120 s belongs to a request that died before storing its charge.
+  The POS "Belum Lunas" row then offers **Bayar** again and paying replaces it (Riwayat Transaksi still shows "Lihat QR").
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
@@ -242,6 +246,19 @@ Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan
 - Stok tidak dipotong lagi (sudah dipotong saat accept).
 - Membayar ulang tagihan yang sudah lunas ditolak (`order` error), jadi tidak ada pembayaran ganda.
 - Kasir harus punya shift aktif di outlet yang sama dengan transaksi.
+- A gateway tender takes two steps (`TransactionSettlementService`, also used to settle a POS pay-later bill), so no lock or
+  transaction is held during the gateway call. `claim()` writes the payment and commits; `charge()` then calls the gateway
+  and stores the reference, URL and QR only while the bill is still pending on that attempt
+  (`Transaction::storeChargeResult()`, shared with the guest's online payment). A result that comes too late is dropped and
+  logged with its reference. Every gateway claim moves `payment_attempt`, so each charge has the order id `{invoice}-r{n}`
+  and a retry never reuses one. A failed charge restores the cashier, shift, method, cash and status of before (`failed` with
+  `gateway_error` if a charge was pending), deletes only the tender it created, keeps the attempt and writes the audit event
+  `transaction.gateway_charge_failed`. If that charge is paid after all and the bill is still `open_bill`, the webhook
+  records the gateway as its payment method, so the shift's non-cash total includes it.
+- When a cashier's gateway charge fails (at once, or by the gateway's failure or expiry notification), the payments flagged
+  while that charge was pending are checked again (`recheckFlaggedPayments`): the oldest that is still due is booked (bill unpaid, no pending
+  or paid tender, the amount equals what is owed, not restocked; audit `payment.late_after_failed` with `rechecked`), and any
+  other keeps its refund flag, audited `payment.late_rechecked` with the reason.
 - Pesanan `completed` pada saat "Serahkan" karena tagihan sudah `paid`. Jaring pengaman: `Transaction` memanggil
   `DineOrder::completeIfSettled()` saat `payment_status` berubah ke `paid` (jalur apa pun), yang menyelesaikan pesanan `served`.
 - Perintah `transactions:expire` tidak menyentuh tagihan dine-in: usia transaksi (dibuat saat accept) tidak berarti ditinggalkan.
@@ -300,10 +317,24 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   When a flagged payment is later booked (the same reference redelivered after the blocking tender failed), `late_superseded_payment_at` is cleared, unless another reference was flagged; the earlier flag stays in the audit trail next to the `booked: true` entry.
 - **Cashier takeover**: the cashier can always take the money. `DineOrderService::pay` accepts a bill whose guest charge is
   pending (`Transaction::isAwaitingGuestPayment()`: pending, attempt above 0, no tender rows) and still refuses the cashier's own pending
-  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::collect`), so the guest's charge is
-  superseded in the same transaction; a failed takeover changes nothing. Nothing is cancelled at the gateway (refund of a guest
-  payment that still arrives stays manual). Audit `dine_order.online_payment_taken_over`. The cashier's own gateway charge on such a
-  bill uses the order id `{invoice}[-{method}]-r{attempt}`, so its settlement is booked.
+  charge. Every settlement of a bill with attempts moves the counter (`TransactionSettlementService::claim`), so the guest's charge is
+  superseded in the same transaction; invalid input changes nothing. The cashier's own gateway call comes after that commit: if it
+  fails, the bill is `failed` / `gateway_error` with no tender, the guest's charge stays superseded, and a guest payment that still
+  arrives is booked by the late-payment rule above. The guest's charge is expired at the gateway (next bullet); the refund of a
+  second payment that still arrives stays manual.
+  Audit `dine_order.online_payment_taken_over`. The cashier's gateway charge uses the order id `{invoice}-r{attempt}`, so its
+  settlement is booked.
+- **Superseded guest charges are expired.** When a guest charge that is still pending is superseded (a newer press, or a
+  cashier takeover, whether or not her own charge then succeeds), `ExpireSupersededGatewayCharge` is queued after the commit,
+  so neither request waits for the gateway. A charge still being created is queued when its answer finds it superseded. The job
+  asks the gateway to expire it (Midtrans Core API `/v2/{order_id}/expire`, Xendit `/invoices/{id}/expire!`, never Midtrans
+  `cancel`), with no lock held. It writes audit rows only (`payment.superseded_charge_expired`,
+  `payment.superseded_charge_not_expired`, `payment.superseded_charge_cancel_error`) and never changes the bill: a settlement
+  that wins the race follows the late-payment rule above and is audited as not expired (`reason: settled_during_call`).
+  A temporary failure is tried 5 times over about 11 minutes; the last try is audited, an unexpected error included. If it
+  fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
+  never expired. A Midtrans page with no method picked is unknown to the Core API (404): the job then cancels the Snap session
+  by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).

@@ -259,6 +259,21 @@ class Transaction extends Model
     }
 
     /**
+     * Store a gateway charge's outcome only while its attempt is still the bill's current one and still pending: a
+     * newer claim or a webhook that already settled the bill wins. One guarded UPDATE, so no lock is needed.
+     *
+     * @param  array<string, mixed>  $values
+     * @return int affected rows: 0 means the attempt is no longer current and nothing was written
+     */
+    public static function storeChargeResult(int $id, int $attempt, array $values): int
+    {
+        return self::whereKey($id)
+            ->where('payment_attempt', $attempt)
+            ->where('payment_status', 'pending')
+            ->update($values);
+    }
+
+    /**
      * The guest's online charge is in flight: pending, charged at least once, and no tender rows. A guest charge
      * never writes tenders; a cashier's own charge or transfer always does (whatever its attempt number, since a
      * cashier's gateway charge after a guest attempt also carries one).

@@ -6,8 +6,8 @@ const manager = roles.find((role) => role.key === 'manager');
 // Issue #128: an accepted dine order is an open bill and payment comes first. The kitchen (Mulai Buat) only works a
 // paid order; then Siap and Serahkan (on the kitchen display, #238), and serving completes it. The transaction made at accept is the one paid. An
 // order of unflagged products has no kitchen step: it is served when paid and completes at once (BR-1, #237). A
-// pending transfer, QRIS, Midtrans or Xendit payment is not paid either; those need a live gateway or bank, so they are
-// covered by tests/Feature/DineIn/DineOrderPaymentTest.php instead.
+// pending transfer, QRIS, Midtrans or Xendit payment is not paid either: QRIS runs against the faked gateway in
+// 09-settle-by-qris-then-webhook-books.spec.js, the rest in tests/Feature/DineIn/DineOrderPaymentTest.php.
 test.describe('38-dine-orders-queue', () => {
     test.describe.configure({ timeout: 90_000 }); // the kitchen display adds page loads to a long end-to-end walk
 
