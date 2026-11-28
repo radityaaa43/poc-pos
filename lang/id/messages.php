@@ -434,6 +434,7 @@ return [
         'option_sold_out' => 'Opsi :option untuk :menu habis.',
         'group_min' => 'Grup :group untuk :menu belum lengkap (pilih minimal :min).',
         'group_max' => 'Grup :group untuk :menu maksimal :max pilihan.',
+        'group_unavailable' => ':menu tidak bisa dipesan di outlet ini: opsi grup :group di sini kurang dari minimum.',
         'note_line' => 'Catatan: :note',
     ],
 

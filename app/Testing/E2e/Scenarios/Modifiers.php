@@ -91,8 +91,8 @@ class Modifiers
             // After a line is in the cart: --arg=product=<menu id> --arg=option=<name> is switched off at the E2E
             // outlet, or renamed and repriced with --arg=rename=<text>.
             'modifier-change' => function (array $options): array {
-                $option = ModifierOption::where('name', $options['option'])
-                    ->whereHas('group.products', fn ($products) => $products->whereKey($options['product']))->firstOrFail();
+                $groups = Product::findOrFail($options['product'])->modifierGroups->modelKeys();
+                $option = ModifierOption::where('name', $options['option'])->whereIn('modifier_group_id', $groups)->firstOrFail();
 
                 if (isset($options['rename'])) {
                     $option->update(['name' => $options['rename'], 'price_delta' => 9000]);
@@ -112,7 +112,7 @@ class Modifiers
             // The option names the selling channels get for --arg=product=<id> at --arg=outlet=<code>.
             'modifier-catalog' => function (array $options): array {
                 $outlet = Outlet::where('code', $options['outlet'])->firstOrFail();
-                $groups = ModifierCatalog::forOutlet($outlet, collect([(int) $options['product']]))->get((int) $options['product'], []);
+                $groups = ModifierCatalog::forOutlet($outlet, collect([(int) $options['product']]))->get((int) $options['product'])['groups'] ?? [];
 
                 return ['options' => collect($groups)->pluck('options.*.name')->flatten()->all()];
             },

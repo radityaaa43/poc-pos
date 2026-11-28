@@ -434,6 +434,7 @@ return [
         'option_sold_out' => 'Option :option for :menu is sold out.',
         'group_min' => 'Group :group for :menu is incomplete (pick at least :min).',
         'group_max' => 'Group :group for :menu takes at most :max.',
+        'group_unavailable' => ':menu cannot be ordered at this outlet: group :group has too few options here.',
         'note_line' => 'Note: :note',
     ],
 

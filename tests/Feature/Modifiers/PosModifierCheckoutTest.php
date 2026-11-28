@@ -10,8 +10,10 @@ use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Services\ModifierGroupService;
 use App\Services\ThermalPrintService;
+use App\Support\Modifiers\ModifierCatalog;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Barryvdh\DomPDF\PDF as PdfDocument;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
@@ -30,6 +32,15 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
             ->where("modifierGroups.{$this->menu->id}.0.options.1.available", false)
             ->missing("modifierGroups.{$this->menu->id}.0.options.1.components")
             ->where('products.0.menu_price', 20000));
+
+        // Switched off at the outlet, the default is not offered, so nothing is preselected; the menu still sells.
+        $this->option('Regular')->disabledOutlets()->attach($this->outlet->id);
+        $this->setStock($this->milk, 10);
+        $this->get(route('transactions.index'))->assertInertia(fn (Assert $page) => $page
+            ->where('products.0.modifiers_sold_out', false)
+            ->has("modifierGroups.{$this->menu->id}.0.options", 1)
+            ->where("modifierGroups.{$this->menu->id}.0.options.0.is_default", false));
+        $this->add(['Large'])->assertSessionHasNoErrors();
     }
 
     public function test_line_price_is_menu_plus_options_and_ignores_the_client(): void
@@ -68,10 +79,10 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(1, (int) Cart::sole()->qty);
     }
 
-    // Short of ingredients or switched off at the outlet: either way the group cannot reach its minimum (AC-09).
+    // Short of ingredients (AC-09) or switched off at the outlet (BR-6): the group cannot reach its minimum.
     public function test_required_group_with_too_few_options_at_an_outlet_blocks_the_menu(): void
     {
-        $this->option('Large')->group->update(['min_select' => 2, 'max_select' => 2]);
+        ModifierGroup::where('name', 'Size')->update(['min_select' => 2, 'max_select' => 2]);
         $soldOut = fn (bool $expected) => $this->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page->where('products.0.modifiers_sold_out', $expected));
         $soldOut(false);
@@ -81,10 +92,17 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->add(['Regular', 'Large'])->assertSessionHasErrors(['modifiers' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
 
         $this->setStock($this->milk, 10);
+        $this->add(['Regular', 'Large'])->assertSessionHasNoErrors();
+        $orderable = fn () => ModifierCatalog::forOutlet($this->outlet, collect([$this->menu->id]))[$this->menu->id]['orderable'];
+        $this->assertTrue($orderable());
+
         $this->option('Large')->disabledOutlets()->attach($this->outlet->id);
+        $this->assertFalse($orderable());
         $soldOut(true);
-        $this->add(['Regular'])->assertSessionHasErrors(['modifiers' => $this->refusal('group_min', ['group' => 'Size', 'min' => 2])]);
-        $this->assertSame(0, Cart::count());
+        $refused = ['modifiers' => $this->refusal('group_unavailable', ['group' => 'Size'])];
+        $this->add(['Regular'])->assertSessionHasErrors($refused);
+        $this->checkout()->assertSessionHasErrors($refused);
+        $this->assertSame([1, 0], [Cart::count(), Transaction::count()]);
     }
 
     public function test_cart_lines_merge_only_on_same_options_and_note(): void
@@ -102,11 +120,13 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
     {
         $this->add(['Large']);
         $this->patch(route('transactions.updateCart', Cart::sole()->id), ['qty' => 2])->assertSessionHasNoErrors();
+        $this->add(['Large', 'Boba']);
         Sanctum::actingAs($this->cashier, ['*']);
+        $this->putJson(route('api.pos.cart.update', Cart::max('id')), ['qty' => 2])->assertOk();
 
         $this->postJson('/api/v1/pos/cart', ['product_id' => $this->menu->id, 'qty' => 1])->assertOk();
 
-        $this->assertSame([50000, 20000], Cart::orderBy('id')->pluck('price')->map(fn ($price) => (int) $price)->all());
+        $this->assertSame([50000, 56000, 20000], Cart::orderBy('id')->pluck('price')->map(fn ($price) => (int) $price)->all());
     }
 
     public function test_checkout_snapshots_the_options_and_takes_their_stock(): void
@@ -192,7 +212,8 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->checkout()->assertSessionHasNoErrors();
 
         // The deductions read their rows again, so the first three reads are the locks.
-        $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], array_slice($this->rowsReadBeforeTheFirstStockWrite(), 0, 3));
+        $locked = $this->stockReadsBeforeTheFirstWrite()->take(3)->map(fn (array $query) => $query['bindings'][0])->values()->all();
+        $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], $locked);
     }
 
     // SQLite shows the order only; that a second transaction waits on these rows is MySQL behaviour.
@@ -210,24 +231,20 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->artisan('transactions:expire')->assertSuccessful();
 
         // One locking read, ordered by product_id, covers the menu, its recipe and the option's before any write.
-        $lock = collect(DB::getQueryLog())
-            ->map(fn (array $query) => ['query' => strtr($query['query'], '`', '"')] + $query)
-            ->takeUntil(fn (array $query) => str_starts_with($query['query'], 'update "product'))
-            ->sole(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse"'));
+        $lock = $this->stockReadsBeforeTheFirstWrite()->sole();
         $this->assertStringEndsWith('order by "product_id" asc', $lock['query']);
         $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], array_slice($lock['bindings'], 1));
         $this->assertSame([[10, 10], [10, 10]], [$this->stockOf($this->boba), $this->stockOf($this->milk)]);
     }
 
-    /** @return list<int> products whose warehouse row was read one by one (the locks) before any stock was written */
-    private function rowsReadBeforeTheFirstStockWrite(): array
+    /** @return Collection<int, array<string, mixed>> whole warehouse stock rows read (the locks) before any write */
+    private function stockReadsBeforeTheFirstWrite(): Collection
     {
         return collect(DB::getQueryLog())
             // MySQL quotes names with backticks, SQLite with double quotes.
             ->map(fn (array $query) => ['query' => strtr($query['query'], '`', '"')] + $query)
             ->takeUntil(fn (array $query) => str_starts_with($query['query'], 'update "product'))
-            ->filter(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse" where ("product_id" = ?'))
-            ->map(fn (array $query) => $query['bindings'][0])->values()->all();
+            ->filter(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse"'));
     }
 
     public function test_menu_used_by_its_own_option_cannot_go_below_zero(): void

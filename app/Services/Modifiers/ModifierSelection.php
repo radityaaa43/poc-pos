@@ -21,7 +21,13 @@ class ModifierSelection
     /** @return array{has_groups: bool, unit_total: int, options: list<array<string, mixed>>} options in display order */
     public static function resolve(Product $product, array $optionIds, ?Outlet $outlet, ?int $warehouseId): array
     {
-        $groups = ModifierCatalog::forOutlet($outlet, collect([$product->getKey()]))->get($product->id, []);
+        $groups = ModifierCatalog::forOutlet($outlet, collect([$product->getKey()]))->get($product->id)['groups'] ?? [];
+
+        // Before the options: no other choice would make this menu orderable here (BR-6).
+        if ($short = ModifierCatalog::shortGroup($groups)) {
+            self::refuse('group_unavailable', $product, ['group' => $short['name']]);
+        }
+
         $ids = collect($optionIds)->map(fn ($id) => (int) $id)->unique();
 
         // First, so a deleted or switched-off option is named instead of its group looking incomplete.
@@ -121,15 +127,16 @@ class ModifierSelection
     public static function forPos(Collection $productIds, ?Outlet $outlet, ?int $warehouseId): Collection
     {
         $catalog = ModifierCatalog::forOutlet($outlet, $productIds);
-        $stock = self::stockOf($catalog->flatten(1)->flatMap(fn (array $group) => $group['options'])->all(), $warehouseId);
+        $options = $catalog->pluck('groups')->flatten(1)->flatMap(fn (array $group) => $group['options']);
+        $stock = self::stockOf($options->all(), $warehouseId);
 
-        return $catalog->map(fn (array $groups) => array_map(fn (array $group) => [
+        return $catalog->map(fn (array $menu) => array_map(fn (array $group) => [
             ...$group,
             'options' => array_map(fn (array $option) => [
                 ...Arr::except($option, 'components'),
                 'available' => self::covers($stock, $option['components'], 1),
             ], $group['options']),
-        ], $groups));
+        ], $menu['groups']));
     }
 
     /** @param  array<int, array<string, mixed>>  $groups  from forPos(); true when a group cannot reach its minimum */

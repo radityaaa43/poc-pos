@@ -21,17 +21,17 @@ online di POS (J2); retur stok opsi, QR menu, dapur dan laporan menyusul. Menu t
 ## Kontrak untuk penjualan
 
 `ModifierCatalog::forOutlet(?Outlet, $productIds)` satu-satunya jalur baca POS, checkout, cache offline dan QR menu
-(empat query). Grup urut sesuai menu, opsi sesuai grup: `product_id => [{id, name, is_required, min_select,
-max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]`. Opsi terhapus atau mati
-di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir menu bila wajib). Stok tidak diperiksa.
-`components` internal: jangan ke tamu.
+(empat query). Grup urut sesuai menu, opsi sesuai grup: `product_id => {orderable, groups: [{id, name, is_required,
+min_select, max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]}`. Opsi
+terhapus atau mati di outlet itu tidak ada; grup tanpa sisa opsi tetap ada. `orderable: false` bila opsi aktif suatu
+grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `components` internal: jangan ke tamu.
 
 ## Penjualan di POS (online)
 
 - Menu bergrup membuka panel: default terpilih, harga porsi = menu + opsi, catatan maks. 100 karakter (tidak mengubah
   harga atau stok). Opsi yang bahannya kurang untuk satu porsi di gudang shift berlabel **Habis**.
 - Menu **Habis** dan ditolak server bila grup wajib punya opsi tersedia (aktif di outlet, bahan cukup) kurang dari
-  minimumnya.
+  minimumnya. Bila opsi aktifnya saja kurang, penolakan menyebut grupnya; default yang dimatikan tidak terpilih.
 - Pilihan divalidasi dan dihargai server (`ModifierSelection`) saat masuk keranjang dan lagi saat checkout; harga dari
   client diabaikan. Opsi yang sejak itu dihapus, dimatikan atau habis menolak checkout (menyebut menu dan opsi).
 - Baris keranjang digabung hanya bila opsi dan catatannya sama (`carts.line_key`).
@@ -41,7 +41,7 @@ di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir men
 - Checkout menyimpan opsi per baris (`transaction_detail_modifiers`: nama, harga, `components` =
   `[{product_id, qty_per_unit}]`) serta `note` dan `modifier_total`; struk membaca salinan ini. Bahan opsi diambil dalam
   transaksi yang sama dengan stok menu (`ComponentStockService`, kunci urut `product_id`).
-- Pembayaran kedaluwarsa mengembalikan bahan sesuai `components`, bukan resep sekarang; bahan terhapus dilewati.
+- Pembayaran kedaluwarsa dan pembatalan saat tutup shift mengembalikan bahan sesuai `components`; yang terhapus dilewati.
 - Belum: retur penjualan **tidak** mengembalikan bahan opsi; baris beropsi atau bercatatan tidak bisa diantre offline;
   API mobile tidak memeriksa pilihan; layar dapur dan tiket belum menampilkannya (dirilis bersama #419).
 
