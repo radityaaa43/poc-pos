@@ -1,5 +1,6 @@
 import React from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
+import OverdueTrend from "@/Components/Dashboard/OverdueTrend";
 import { Head, Link, usePage } from "@inertiajs/react";
 import {
     IconAlertTriangle,
@@ -53,7 +54,7 @@ const agingBucketColor = (bucket) => {
 };
 
 export default function AgingIndex() {
-    const { payableAgingSummary, receivableAgingSummary, payableNotifications, receivableNotifications } = usePage().props;
+    const { payableAgingSummary, receivableAgingSummary, payableNotifications, receivableNotifications, overdueTrend = [] } = usePage().props;
 
     const payableTotalOutstanding = payableAgingSummary?.reduce((s, b) => s + (b.remaining || 0), 0) || 0;
     const receivableTotalOutstanding = receivableAgingSummary?.reduce((s, b) => s + (b.remaining || 0), 0) || 0;
@@ -65,6 +66,7 @@ export default function AgingIndex() {
         <>
             <Head title="Aging & Pengingat" />
             <div className="space-y-6">
+                <OverdueTrend rows={overdueTrend} />
                 <div>
                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                         <IconChartBar size={28} className="text-primary-500" />

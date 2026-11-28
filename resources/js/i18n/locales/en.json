@@ -1,4 +1,12 @@
 {
+    "overdueTrend": {
+        "title": "Overdue receivables trend",
+        "month": "Month",
+        "bills": "Bills",
+        "overdue": "Overdue",
+        "restated": "Past months can change when older sales are corrected.",
+        "empty": "No overdue receivables yet."
+    },
     "common": {
         "soldOut": "Sold out",
         "buttons": {

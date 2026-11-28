@@ -1,4 +1,12 @@
 {
+    "overdueTrend": {
+        "title": "Tren piutang macet",
+        "month": "Bulan",
+        "bills": "Tagihan",
+        "overdue": "Piutang macet",
+        "restated": "Angka bulan lalu bisa berubah bila penjualan lama dikoreksi.",
+        "empty": "Belum ada piutang macet."
+    },
     "common": {
         "soldOut": "Habis",
         "buttons": {
