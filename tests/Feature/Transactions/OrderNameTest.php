@@ -167,6 +167,17 @@ class OrderNameTest extends TestCase
         }
     }
 
+    // BR-3: not on the A4 invoice, which is also the public invoice.
+    public function test_the_a4_invoice_does_not_show_the_order_name(): void
+    {
+        $this->webCheckout(['order_name' => 'Budi 7']);
+        $store = ['name' => 'Toko', 'address' => '', 'phone' => '', 'email' => '', 'website' => '', 'logo' => null, 'logo_data' => null];
+
+        $invoice = view('pdf.invoice', ['transaction' => Transaction::sole(), 'store' => $store, 'barcode' => '', 'locale' => 'id'])->render();
+
+        $this->assertStringNotContainsString('Budi 7', $invoice);
+    }
+
     /** @return array<string, string> the two PDF receipt views and the thermal browser preview */
     private function receipts(Transaction $sale, string $locale): array
     {

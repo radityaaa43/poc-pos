@@ -167,6 +167,17 @@ class OpenBillsListTest extends TestCase
                 ->where('openBills.2.grand_total', 20000));
     }
 
+    // #445 BR-3
+    public function test_a_named_bill_carries_its_order_name_on_the_page_and_in_the_polled_list(): void
+    {
+        $this->payLaterBill(['order_name' => 'Budi 7']);
+
+        $this->actingAs($this->cashier)->get(route('transactions.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('openBills.0.order_name', 'Budi 7'));
+        $this->actingAs($this->cashier)->getJson(route('transactions.open-bills'))
+            ->assertJsonPath('openBills.0.order_name', 'Budi 7');
+    }
+
     public function test_credit_bill_with_receivable_is_not_listed(): void
     {
         $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62811', 'address' => 'Jl. Satu']);
