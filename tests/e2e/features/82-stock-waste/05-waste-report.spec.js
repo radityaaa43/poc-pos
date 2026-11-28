@@ -10,7 +10,7 @@ test.describe('82-stock-waste', () => {
         const page = await asRole(role('manager'));
 
         await page.goto('/dashboard/reports/waste');
-        await expect(page.getByRole('heading', { name: 'Laporan Waste', level: 1 })).toBeVisible();
+        await expect(page.locator('main').getByRole('heading', { name: 'Laporan Waste', level: 1 })).toBeVisible();
 
         await page.locator('input[type=date]').first().fill(date);
         await page.locator('input[type=date]').nth(1).fill(date);
