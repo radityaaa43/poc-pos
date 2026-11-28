@@ -3,6 +3,7 @@
 namespace Tests\Feature\Api;
 
 use App\Models\AuditLog;
+use App\Models\BankAccount;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
@@ -13,6 +14,8 @@ use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
 use App\Services\CashierShiftService;
+use App\Services\DineOrderService;
+use App\Services\TransactionTenderService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -170,6 +173,50 @@ class PaymentWebhookLockTest extends TestCase
         ]);
     }
 
+    public function test_a_till_qr_of_a_force_closed_dine_bill_is_marked_when_the_webhook_pays(): void
+    {
+        $this->useGateway('midtrans');
+        $order = $this->acceptedOrder();
+        $bill = $this->bill($order);
+        $closed = $this->closeShiftOf($bill);
+        $next = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+
+        $this->cashierPays($order, 'qris');
+        $bill->refresh();
+        $orderId = $bill->tenders()->sole()->order_reference;
+        $this->assertSame(['pending', $next->id, null], [$bill->payment_status, $bill->cashier_shift_id, $bill->paid_after_close_at]);
+
+        $this->notify('midtrans', $orderId, 'paid')->assertOk();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closed->id, 'webhook'], [$log->meta['shift_id'], $log->meta['source']]);
+        $this->assertSame(self::TOTAL, app(CashierShiftService::class)->calculateSummary($next)['non_cash_sales_total']);
+    }
+
+    public function test_a_dine_bill_booked_at_close_and_confirmed_by_transfer_is_marked(): void
+    {
+        $order = $this->acceptedOrder();
+        $bill = $this->bill($order);
+        $closed = $this->closeShiftOf($bill);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+
+        app(DineOrderService::class)->pay($order, $this->cashier, [['method' => 'bank_transfer', 'amount' => self::TOTAL, 'bank_account_id' => $account->id]]);
+        $bill->refresh();
+        $this->assertSame('pending', $bill->payment_status);
+
+        app(TransactionTenderService::class)->confirmTransfer($bill);
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertNotNull($bill->paid_after_close_at);
+        $log = AuditLog::where('event', 'payment.paid_after_close')->sole();
+        $this->assertSame([$closed->id, 'transfer'], [$log->meta['shift_id'], $log->meta['source']]);
+    }
+
     public function test_a_bill_moved_to_another_shift_before_the_lock_is_judged_against_the_new_shift(): void
     {
         [, $bill] = $this->guestBill('midtrans');
@@ -186,8 +233,11 @@ class PaymentWebhookLockTest extends TestCase
         $bill->refresh();
         $this->assertSame('paid', $bill->payment_status);
         $this->assertSame($current->id, $bill->cashier_shift_id);
-        $this->assertNull($bill->paid_after_close_at); // judged against the open shift it is in
-        $this->assertSame(0, $this->eventCount('payment.paid_after_close'));
+        // Business decision #469 BR-1 (plan §8 case 9 was wrong here): the payment is judged against the re-read shift for
+        // the recap, but the force close that booked this dine bill still owns the mark. shift_id = the closed shift, the
+        // money counts in the open one.
+        $this->assertNotNull($bill->paid_after_close_at);
+        $this->assertSame($stale->id, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['shift_id']);
         $this->assertSame(self::TOTAL, app(CashierShiftService::class)->calculateSummary($current)['non_cash_sales_total']);
         $this->assertSame(0, (int) $stale->fresh()->non_cash_sales_total); // the closed snapshot is untouched
         $this->assertSame(1, KitchenItem::where('transaction_id', $bill->id)->count());

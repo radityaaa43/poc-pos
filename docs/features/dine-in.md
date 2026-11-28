@@ -334,10 +334,12 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
   never expired. A Midtrans page with no method picked is unknown to the Core API (404): the job then cancels the Snap session
   by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
-- **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
+- **Paid after the shift closed**: a payment of any method that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the money (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas), a gateway sale unpaid at close,
-  an unpaid pay-later sale without a receivable or the unreceived part of a split sale; see `cashier-shifts.md`).
+  an unpaid pay-later sale without a receivable or the unreceived part of a split sale; see `cashier-shifts.md`). A dine-in bill paid at the
+  till after its shift closed — cash, takeover, transfer or gateway — is marked too, at the till or when the webhook or confirm arrives; so is a
+  pay-later sale retried in cash from the print page after its shift closed (`source` on the audit says which path).
 - **What the cashier sees** (REQ-005 AC-06, AC-08, AC-10). The POS unpaid bill (Belum Lunas) section marks a dine-in bill whose
   guest charge is pending **Menunggu pembayaran online** (`awaiting_online`, from `Transaction::isAwaitingGuestPayment()`), in place of
   "Menunggu Pembayaran"; **Bayar** stays, and **Lihat QR** stays only for the cashier's own pending charge. Opening **Bayar** on such a
