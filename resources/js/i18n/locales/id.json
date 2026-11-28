@@ -579,7 +579,10 @@
         "exchangeItem": "Tukar Barang",
         "cashRefund": "Refund Tunai",
         "storeCredit": "Saldo Toko",
-        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok"
+        "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok",
+        "serviceRefund": "Service charge dikembalikan",
+        "taxRefund": "Pajak dikembalikan",
+        "roundingNotRefunded": "Pembulatan tunai tidak dikembalikan."
     },
     "cashierShifts": {
         "title": "Shift Kasir",
@@ -1518,6 +1521,14 @@
         "reasons": "Waste per Alasan",
         "reason": "Alasan",
         "records": "Jumlah catatan",
-        "empty": "Tidak ada waste pada periode ini"
+        "empty": "Tidak ada waste pada periode ini",
+        "date": "Tanggal",
+        "recorderDays": "Waste per Pencatat dan Hari",
+        "recorder": "Pencatat",
+        "nearLimit": "Mendekati batas",
+        "limitNote": "Batas {{amount}} per catatan; mendekati = dalam 10%",
+        "deletedUser": "Pengguna dihapus",
+        "wastePercent": "Waste terhadap HPP penjualan",
+        "noSalesCost": "Tidak ada biaya penjualan pada periode ini"
     }
 }

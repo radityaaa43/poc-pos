@@ -14,8 +14,10 @@ use App\Models\SalesReturnItem;
 use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\TransactionTenderService;
 use Database\Seeders\E2eSeeder;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Arrange scenarios for Bayar Belakangan (`paylater.*`): the per-outlet setting, a credit customer, and the receivable
@@ -162,6 +164,18 @@ class PayLater
                     'tenders' => $transaction->tenders()->count(),
                     'receivables' => Receivable::where('transaction_id', $transaction->id)->count(),
                 ];
+            },
+
+            // The gateway claim of the sale --arg=invoice=<invoice> as a request that died before storing its charge
+            // leaves it: no reference, claimed over two minutes ago. A query update, so the model cannot move the age.
+            'paylater.abandon-claim' => function (array $options): array {
+                $transaction = Transaction::where('invoice', $options['invoice'])->firstOrFail();
+                DB::table('transaction_tenders')
+                    ->where('transaction_id', $transaction->id)
+                    ->whereIn('method', TransactionTenderService::GATEWAY_METHODS)
+                    ->update(['payment_reference' => null, 'created_at' => now()->subMinutes(3)]);
+
+                return ['invoice' => $transaction->invoice];
             },
         ];
     }

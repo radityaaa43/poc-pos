@@ -77,6 +77,8 @@ Laporan profit menampilkan **Biaya waste** sebagai baris sendiri dan **Profit se
 
 **Laporan Waste** (`reports.waste.index`, menu Reports, permission `profits-access`) menampilkan satu outlet dan satu periode (default bulan berjalan di zona waktu aplikasi): total biaya waste, jumlah dan nilai per item (menu tampil sebagai menu, nilainya dari harga pokok bahan resep) dan jumlah catatan serta nilai per alasan. Pembatalan mengurangi nilainya; sebuah item yang bersih nol pada periode itu tidak ditampilkan.
 
+Laporan yang sama juga menampilkan **waste per pencatat dan per hari** (jumlah catatan, nilai, dan berapa catatan yang nilainya di batas persetujuan outlet atau sampai 10% di bawahnya; batas yang dipakai adalah batas outlet saat ini, ditulis di tabel) supaya deretan catatan kecil di bawah batas terlihat, dan **persentase waste**: biaya waste bersih periode itu dibagi HPP penjualan periode itu (harga pokok `cost_total` penjualan, dikurangi retur yang barangnya dikembalikan ke stok; penjualan yang dibatalkan permanen tidak dihitung). Tanpa penjualan, persentase tidak ditampilkan.
+
 ## Efek Bisnis Penting
 
 - laporan sales dan profit bergantung pada kualitas data transaksi

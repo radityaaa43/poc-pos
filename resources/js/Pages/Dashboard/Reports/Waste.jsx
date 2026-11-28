@@ -5,6 +5,7 @@ import { IconDatabaseOff, IconSearch, IconTrash } from "@tabler/icons-react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import Input from "@/Components/Dashboard/Input";
 import Select from "@/Components/Dashboard/Select";
+import WasteRecorderDays from "@/Components/Dashboard/WasteRecorderDays";
 
 const cardClass =
     "bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800";
@@ -19,7 +20,7 @@ const formatCurrency = (value = 0) =>
         minimumFractionDigits: 0,
     }).format(value);
 
-const Waste = ({ filters, outlets = [], items = [], reasons = [], total_value = 0, errors = {} }) => {
+const Waste = ({ filters, outlets = [], items = [], reasons = [], total_value = 0, recorder_days = [], approval_limit = null, waste_percent = null, errors = {} }) => {
     const { t } = useTranslation();
     const [loading, setLoading] = useState(false);
     const [filterData, setFilterData] = useState({
@@ -97,17 +98,29 @@ const Waste = ({ filters, outlets = [], items = [], reasons = [], total_value = 
                     </div>
                 </form>
 
-                <section aria-labelledby="waste-total" className={`${cardClass} p-5`}>
-                    <h2
-                        id="waste-total"
-                        className="text-sm font-medium text-slate-500 dark:text-slate-400"
-                    >
-                        {t("wasteReport.total")}
-                    </h2>
-                    <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                        {formatCurrency(total_value)}
-                    </p>
-                </section>
+                <div className="grid gap-6 md:grid-cols-2">
+                    <section aria-labelledby="waste-total" className={`${cardClass} p-5`}>
+                        <h2 id="waste-total" className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            {t("wasteReport.total")}
+                        </h2>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                            {formatCurrency(total_value)}
+                        </p>
+                    </section>
+                    <section aria-labelledby="waste-percent" className={`${cardClass} p-5`}>
+                        <h2 id="waste-percent" className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            {t("wasteReport.wastePercent")}
+                        </h2>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                            {waste_percent === null
+                                ? "—"
+                                : `${Number(waste_percent).toLocaleString("id-ID", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}
+                        </p>
+                        {waste_percent === null && (
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">{t("wasteReport.noSalesCost")}</p>
+                        )}
+                    </section>
+                </div>
 
                 <section aria-labelledby="waste-items" className={`${cardClass} overflow-hidden`}>
                     <h2
@@ -216,6 +229,12 @@ const Waste = ({ filters, outlets = [], items = [], reasons = [], total_value = 
                         </div>
                     </section>
                 )}
+
+                <WasteRecorderDays
+                    rows={recorder_days}
+                    approvalLimit={approval_limit}
+                    formatCurrency={formatCurrency}
+                />
             </div>
         </>
     );
