@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\KitchenItem;
+use App\Models\KitchenPrintDevice;
 use App\Models\Outlet;
 use App\Models\Product;
 use App\Models\SalesReturn;
@@ -28,6 +29,8 @@ class KitchenLockOrderTest extends TestCase
 
     private User $staff;
 
+    private Outlet $outlet;
+
     private Warehouse $warehouse;
 
     private Product $nasi;
@@ -38,11 +41,11 @@ class KitchenLockOrderTest extends TestCase
 
         $this->seed([PermissionSeeder::class, RoleSeeder::class]);
 
-        $outlet = Outlet::create(['code' => 'OUT-A', 'name' => 'Outlet A', 'is_active' => true, 'is_sales_enabled' => true]);
-        $this->warehouse = Warehouse::create(['outlet_id' => $outlet->id, 'code' => 'WH-A', 'name' => 'Gudang A', 'type' => 'branch', 'is_active' => true]);
+        $this->outlet = Outlet::create(['code' => 'OUT-A', 'name' => 'Outlet A', 'is_active' => true, 'is_sales_enabled' => true]);
+        $this->warehouse = Warehouse::create(['outlet_id' => $this->outlet->id, 'code' => 'WH-A', 'name' => 'Gudang A', 'type' => 'branch', 'is_active' => true]);
         $this->staff = User::factory()->create();
         $this->staff->givePermissionTo(['dine-orders-prepare', 'dine-orders-handover']);
-        $this->staff->outlets()->attach($outlet->id, ['is_default' => true]);
+        $this->staff->outlets()->attach($this->outlet->id, ['is_default' => true]);
 
         $category = Category::create(['name' => 'Kategori', 'image' => 'categories/t.jpg', 'description' => 'x']);
         $this->nasi = Product::create([
@@ -107,10 +110,27 @@ class KitchenLockOrderTest extends TestCase
         $this->assertSame(DineOrder::STATUS_COMPLETED, $sale->dineOrder->fresh()->status);
     }
 
-    private function sale(string $invoice, string $status = 'paid', ?string $table = null, string $dineStatus = DineOrder::STATUS_ACCEPTED): Transaction
+    public function test_kitchen_tickets_stay_one_per_sale(): void
+    {
+        $device = new KitchenPrintDevice(['outlet_id' => $this->outlet->id, 'name' => 'Dapur 1']);
+        $device->created_at = now()->subHour();
+        $device->save();
+        $root = $this->sale('INV-ROOT');
+        $this->item($root, minutesAgo: 3);
+        $addOn = $this->sale('INV-ADD', parent: $root);
+        $this->item($addOn);
+
+        $response = $this->actingAs($this->staff)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk();
+
+        $this->assertSame(['t'.$root->id, 't'.$addOn->id], $response->json('tickets.*.key'));
+        $this->assertSame(['INV-ROOT', 'INV-ADD'], $response->json('tickets.*.number'));
+    }
+
+    private function sale(string $invoice, string $status = 'paid', ?string $table = null, string $dineStatus = DineOrder::STATUS_ACCEPTED, ?Transaction $parent = null): Transaction
     {
         $sale = Transaction::create([
             'cashier_id' => $this->staff->id, 'warehouse_id' => $this->warehouse->id, 'invoice' => $invoice,
+            'parent_transaction_id' => $parent?->id,
             'cash' => 0, 'change' => 0, 'discount' => 0, 'shipping_cost' => 0,
             'grand_total' => 10000, 'payment_method' => 'cash', 'payment_status' => $status,
         ]);
@@ -126,7 +146,7 @@ class KitchenLockOrderTest extends TestCase
         return $sale;
     }
 
-    private function item(Transaction $sale): KitchenItem
+    private function item(Transaction $sale, int $minutesAgo = 0): KitchenItem
     {
         $detail = $sale->details()->create([
             'transaction_id' => $sale->id, 'product_id' => $this->nasi->id, 'qty' => 1, 'conversion_factor' => 1,
@@ -136,7 +156,7 @@ class KitchenLockOrderTest extends TestCase
         return KitchenItem::create([
             'transaction_id' => $sale->id, 'transaction_detail_id' => $detail->id, 'product_id' => $this->nasi->id,
             'warehouse_id' => $this->warehouse->id, 'qty' => 1, 'status' => KitchenItem::STATUS_ACCEPTED,
-            'accepted_at' => now()->startOfSecond(),
+            'accepted_at' => now()->subMinutes($minutesAgo)->startOfSecond(),
         ]);
     }
 }
