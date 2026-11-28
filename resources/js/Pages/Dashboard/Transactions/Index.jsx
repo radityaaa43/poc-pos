@@ -362,15 +362,8 @@ export default function Index({
     );
     const splitRemaining = payable - splitTotal;
     // The change due: in split mode it is summed over every cash tender (#501).
-    const change = splitMode
-        ? activeSplitTenders.reduce(
-              (sum, t) =>
-                  t.method === "cash"
-                      ? sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0)
-                      : sum,
-              0
-          )
-        : Math.max(cash - payable, 0);
+    const cashTenders = activeSplitTenders.filter((t) => t.method === "cash");
+    const change = splitMode ? cashTenders.reduce((sum, t) => sum + Math.max(Number(t.cash_received || t.amount) - Number(t.amount), 0), 0) : Math.max(cash - payable, 0);
     const showsChange = splitMode ? change > 0 : cash >= payable && payable > 0;
     const updateSplitTender = (index, patch) =>
         setSplitTenders((prev) =>
@@ -737,8 +730,8 @@ export default function Index({
                 return;
             }
             if (
-                cashTender &&
-                Number(cashTender.cash_received || 0) < Number(cashTender.amount)
+                cashTenders[0] &&
+                Number(cashTenders[0].cash_received || 0) < Number(cashTenders[0].amount)
             ) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
