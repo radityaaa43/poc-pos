@@ -364,16 +364,18 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertSame(2, $itemLocks);
     }
 
-    // Marking a dine bill paid can complete its order, which a close locks before the bill.
-    public function test_confirming_a_transfer_locks_the_dine_order_before_the_sale(): void
+    // The webhook's order. Marking a dine bill paid can complete its order, which a close locks before the bill.
+    public function test_confirming_a_transfer_locks_shift_dine_order_receivable_then_sale(): void
     {
         $sale = $this->sale($this->shift, 'bank_transfer', 'pending');
         DB::enableQueryLog();
         app(TransactionTenderService::class)->confirmTransfer($sale);
         $queries = array_column(DB::getQueryLog(), 'query');
         DB::disableQueryLog();
-        $this->assertMatchesRegularExpression('/from [`"]dine_orders[`"] where [`"]transaction_id[`"]/', $queries[0]);
-        $this->assertMatchesRegularExpression('/from [`"]transactions[`"] where/', $queries[1]);
+        $this->assertMatchesRegularExpression('/from [`"]cashier_shifts[`"] where/', $queries[0]);
+        $this->assertMatchesRegularExpression('/from [`"]dine_orders[`"] where [`"]transaction_id[`"]/', $queries[1]);
+        $this->assertMatchesRegularExpression('/from [`"]receivables[`"] where [`"]transaction_id[`"]/', $queries[2]);
+        $this->assertMatchesRegularExpression('/from [`"]transactions[`"] where/', $queries[3]);
     }
 
     // MySQL fixes its snapshot at the first plain read, and two lock orders can deadlock: all rows are locked first.

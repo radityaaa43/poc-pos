@@ -17,15 +17,32 @@ export default function LateRefundBadge({ transaction }) {
 }
 
 export function LateRefundNotice({ transaction }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
 
     if (!transaction.late_superseded_payment_at) {
         return null;
     }
 
+    const overpaid = transaction.overpaid_amount > 0;
+    // The sentences carry "Rp" themselves: only the number is formatted.
+    const formatAmount = (value) => new Intl.NumberFormat(i18n.language).format(value);
+
     return (
         <p role="status" className="mt-3 text-sm font-medium text-danger-700 dark:text-danger-400">
-            {t("transactions.lateRefund.notice")}
+            {/* An overpaying payment was booked: "not booked" could get all of it refunded. */}
+            {t(overpaid ? "transactions.lateRefund.checkHistory" : "transactions.lateRefund.notice")}
+            {overpaid && (
+                <span className="block">
+                    {t("transactions.lateRefund.overpaid", { amount: formatAmount(transaction.overpaid_amount) })}
+                </span>
+            )}
+            {transaction.cash_excess > 0 && (
+                <span className="block">
+                    {t(`transactions.lateRefund.${transaction.flagged_shift_open ? "cashOpen" : "cashClosed"}`, {
+                        cash: formatAmount(transaction.cash_excess),
+                    })}
+                </span>
+            )}
         </p>
     );
 }

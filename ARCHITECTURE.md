@@ -267,6 +267,7 @@ Alias per route:
 | `setup.notinstalled` | `EnsureNotInstalled` | `/setup` hanya bisa diakses sebelum `app_setup_completed` |
 | `abilities` | Sanctum `CheckAbilities` | Ability token API per endpoint (nama ability = nama permission Spatie) |
 | `api_step_up` | `EnsureApiStepUp` | Versi API dari `step_up`: token harus baru saja memanggil `POST /api/v1/auth/confirm-password` (disimpan di cache, timeout 900 detik); percobaan tanpa konfirmasi dicatat di audit log. Dipakai untuk konfirmasi pembayaran, tutup shift, CRUD role/user, payment settings, rekening bank, price list, outlet |
+| `keep_flash` | `KeepFlashForPolls` | Untuk request latar belakang POS (poll tagihan belum lunas, preview promo, sinkron offline, ringkasan piutang, riwayat pelanggan, status pembayaran di struk): flash (error/sukses) tetap utuh untuk halaman hasil redirect |
 
 Middleware global lain: `SecureHeaders` (header keamanan response), `EnforceAbsoluteSessionLifetime` (logout paksa setelah 12 jam sejak login, `SECURITY_SESSION_ABSOLUTE_LIFETIME_SECONDS=43200`).
 
@@ -499,31 +500,13 @@ Webhook gateway hanya bisa bekerja jika `APP_URL` dapat diakses publik.
 
 ## 13. Menjalankan Secara Lokal
 
-Dua cara:
-
-**A. Native** (butuh PHP 8.3+, Composer, MySQL, Node): ikuti `README.md` / `AGENTS.md` (`composer run dev` menjalankan server + queue + pail + vite).
-
-**B. Docker** (tanpa PHP/MySQL di host) — memakai [docker-compose.yml](docker-compose.yml) + [docker/php/Dockerfile](docker/php/Dockerfile):
-
-```bash
-docker build -t poc-pos-php:8.4 docker/php            # sekali (compose build butuh izin bake; docker build langsung lebih mudah)
-cp .env.example .env                                    # lalu set DB_HOST=mysql, DB_PASSWORD=secret, APP_URL=http://localhost:8000
-docker compose up -d mysql
-docker compose run --rm --no-deps app composer install  # vendor/ masuk Docker volume, bukan folder host
-docker compose run --rm app php artisan key:generate
-docker compose run --rm app php artisan migrate --seed
-docker compose run --rm app ln -sfn ../storage/app/public public/storage   # storage:link --relative butuh symfony/filesystem
-docker compose up -d app queue                          # http://localhost:8000
-PUPPETEER_SKIP_DOWNLOAD=1 npm install && npm run dev    # Vite di host (HMR, port 5173)
-```
+Everything runs on the host (PHP 8.4, Composer, MySQL 8.4, Node), without containers. Setup and run commands: [`README.md`](README.md) → Local setup.
 
 Tambahkan juga variabel baru dari `.env.example` (mis. `SANCTUM_STATEFUL_DOMAINS`, `SANCTUM_TOKEN_EXPIRATION`, `WA_SERVICE_TOKEN`). SSR Inertia (`INERTIA_SSR_ENABLED=true`) otomatis dilewati selama bundle `bootstrap/ssr` belum di-build.
 
-Lalu buka `http://localhost:8000` (otomatis diarahkan ke `/setup`) untuk membuat toko, cabang, & akun admin. MySQL dapat diakses dari host di `localhost:3307` (root/secret). Perintah artisan lain: `docker compose exec app php artisan ...`. WhatsApp service opsional: `cd whatsapp-service && npm install && npm start`.
+Lalu buka `http://localhost:8000` (otomatis diarahkan ke `/setup`) untuk membuat toko, cabang, & akun admin. WhatsApp service opsional: `cd whatsapp-service && npm install && npm start`.
 
-Kenapa `vendor/` ditaruh di volume: dengan bind mount dari Windows, setiap request butuh ±2,8 detik (opcache melakukan `stat()` ke ribuan file vendor lewat filesystem Windows). Dengan volume, request turun ke ±75 ms. Konsekuensinya, IDE di host tidak melihat `vendor/` yang dipakai container.
-
-Data demo (opsional, sebagai pengganti wizard): `docker compose exec app php artisan seed:demo --force`. Perintah ini mereset dan mengisi dataset lengkap (outlet `MAL`/`TKB`/`PUT`, produk, transaksi, purchasing, CRM, dine-in), menandai setup selesai, dan ditolak di environment production. Akun: `arya@gmail.com` (super-admin, semua outlet), `manager@gmail.com` (manager, MAL + TKB), `cashier@gmail.com` (kasir, MAL), semuanya dengan password `password`. Lihat `docs/demo-data.md`.
+Data demo (opsional, sebagai pengganti wizard): `php artisan seed:demo --force`. Perintah ini mereset dan mengisi dataset lengkap (outlet `MAL`/`TKB`/`PUT`, produk, transaksi, purchasing, CRM, dine-in), menandai setup selesai, dan ditolak di environment production. Akun: `arya@gmail.com` (super-admin, semua outlet), `manager@gmail.com` (manager, MAL + TKB), `cashier@gmail.com` (kasir, MAL), semuanya dengan password `password`. Lihat `docs/demo-data.md`.
 
 ---
 

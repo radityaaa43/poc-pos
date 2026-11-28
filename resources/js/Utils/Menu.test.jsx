@@ -61,6 +61,22 @@ describe("sidebar Menu", () => {
     });
 
     it.each([
+        [["dine-reservations-manage"], 1],
+        [["dine-tables-access", "dine-orders-access"], 0],
+    ])("shows the reservations entry for %j: %i entry", (perms, count) => {
+        const granted = leaves(
+            renderMenu({
+                auth: {
+                    super: false,
+                    permissions: Object.fromEntries(perms.map((p) => [p, true])),
+                },
+            }),
+        ).filter((i) => i.href === "/dine-reservations.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
+    });
+
+    it.each([
         [["products-edit"], 1],
         [["products-access"], 0],
         [["dine-orders-prepare"], 0],
@@ -102,6 +118,18 @@ describe("sidebar Menu", () => {
         ).filter((i) => i.permissions === true);
 
         expect(granted.map((i) => i.href)).toContain("/reports.kitchen-speed.index");
+    });
+
+    it.each([
+        [["stock-waste-create"], 1],
+        [["stock-waste-approve"], 1],
+        [["stock-opnames-access"], 0],
+    ])("shows the waste entry for %j: %i entry", (perms, count) => {
+        const permissions = Object.fromEntries(perms.map((p) => [p, true]));
+        const granted = leaves(renderMenu({ auth: { super: false, permissions } }))
+            .filter((i) => i.href === "/stock-waste.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
     });
 
     it("every menu permission exists in PermissionSeeder", () => {

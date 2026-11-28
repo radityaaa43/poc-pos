@@ -17,6 +17,7 @@ use App\Models\Setting;
 use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
+use App\Services\AddOnOrderService;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
@@ -55,11 +56,6 @@ class TransactionController extends Controller
         protected readonly TransactionPaymentRetryService $paymentRetryService,
     ) {}
 
-    /**
-     * index
-     *
-     * @return void
-     */
     public function index()
     {
         $userId = auth()->user()->id;
@@ -181,6 +177,7 @@ class TransactionController extends Controller
             'warehouses' => $this->outletAccessService->salesWarehousesFor(auth()->user())->values(),
             'shiftSummary' => $this->cashierShiftService->summarizeForDisplay($activeShift),
             'loyaltyTierOptions' => $this->loyaltyService->tierOptions(),
+            'addOn' => $activeShift && is_string(request('add_on_to')) ? app(AddOnOrderService::class)->preview(request('add_on_to'), $activeShift) : null,
         ]);
     }
 
@@ -357,7 +354,7 @@ class TransactionController extends Controller
             ]);
         }
 
-        return redirect()->route('transactions.index')->with('success', 'Product Added Successfully!.');
+        return redirect()->route('transactions.index', $request->only('add_on_to'))->with('success', 'Product Added Successfully!.');
     }
 
     /**
@@ -637,7 +634,7 @@ class TransactionController extends Controller
 
             if ($customer?->may_buy_on_credit && ! $request->filled('due_date')) {
                 return redirect()
-                    ->route('transactions.index')
+                    ->route('transactions.index', $request->only('add_on_to'))
                     ->with('error', 'Tanggal jatuh tempo wajib diisi untuk nota barang.');
             }
         }
@@ -653,7 +650,7 @@ class TransactionController extends Controller
 
             if (! $gatewayReady) {
                 return redirect()
-                    ->route('transactions.index')
+                    ->route('transactions.index', $request->only('add_on_to'))
                     ->with('error', 'Gateway pembayaran belum dikonfigurasi.');
             }
         }
@@ -683,9 +680,11 @@ class TransactionController extends Controller
             tenderInput: $tenderInput,
             outlet: $outlet,
             bankAccountId: $request->input('bank_account_id'),
+            addOnTo: $request->validate(['add_on_to' => ['nullable', 'string']])['add_on_to'] ?? null,
         );
 
         $result = $this->checkoutService->execute($context);
+        $request->session()->flash('success', 'Transaksi berhasil!'); // saved: the POS toasts only this flash (#473)
 
         if ($result->needsDiscountApproval) {
             $result->transaction->update([
@@ -758,19 +757,20 @@ class TransactionController extends Controller
     public function print(Request $request, $invoice)
     {
         // get transaction
-        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders')
+        $transaction = Transaction::with('details.product', 'details.pricingRule', 'cashier', 'customer', 'receivable', 'bankAccount', 'tenders', 'parent:id,invoice')
             ->where('invoice', $invoice)
             ->firstOrFail();
         $this->ensureTransactionAccess($request, $transaction);
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
-        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue()]);
+        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue(), ...$transaction->cashRefundNotice()]);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [
             'transaction' => $transaction,
             'retryable' => $retryable,
+            'canAddOn' => app(AddOnOrderService::class)->offersAddOn($transaction),
             'bankAccounts' => $retryable ? BankAccount::active()->forOutlet($outlet)->ordered()->get(['id', 'bank_name', 'account_number', 'account_name']) : [],
             'paymentGateways' => $retryable ? PaymentSetting::forOutlet($outlet)?->enabledGateways($outlet) ?? [] : [],
         ]);

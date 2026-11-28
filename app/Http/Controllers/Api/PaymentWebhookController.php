@@ -590,7 +590,7 @@ class PaymentWebhookController extends Controller
 
         // The owning shift closed first: its recap is a stored snapshot and stays as it was; the payment is only flagged.
         // A bill settled at the till has moved to an open shift: the forced close that booked it still counts. Called
-        // before the payment_method rewrite below, which needs the method as it was.
+        // before the payment_method rewrite below, which needs the method as it was (#469).
         $closedShift = app(TransactionTenderService::class)->flagPaidAfterClose(
             $bill, $shift, $values['payment_status'], (int) $amount, $bill->payment_method,
             ['source' => 'webhook', 'gateway' => $gateway, 'order_id' => $providerId],
@@ -607,6 +607,15 @@ class PaymentWebhookController extends Controller
         // The gateway took more than the receivable owed: the balance is booked, the rest must be refunded by hand.
         if ($excess > 0) {
             $this->markLatePayment($bill, 'payment.late_superseded', "Pembayaran gateway invoice {$bill->invoice} melebihi sisa piutang; kelebihan perlu refund manual.", ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'excess' => $excess], $reference);
+        }
+
+        // A return completed while this payment waited may have lowered the bill. A late booking already matched what is owed.
+        if ($values['payment_status'] === 'paid' && ! $late) {
+            app(TransactionTenderService::class)->flagOverpayment(
+                $bill,
+                is_numeric($amount) ? (int) round((float) $amount) : null,
+                ['source' => 'gateway', 'order_id' => $providerId],
+            );
         }
 
         if ($closedShift) {

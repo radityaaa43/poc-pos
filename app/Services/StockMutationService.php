@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\SalesReturn;
 use App\Models\StockMutation;
 use App\Models\StockOpname;
+use App\Models\StockWaste;
 use App\Models\SupplierReturn;
 
 class StockMutationService
@@ -310,6 +311,49 @@ class StockMutationService
                 'supplier_return_id' => $supplierReturn->id,
                 'document_number' => $supplierReturn->document_number,
                 'mutation_type' => $mutation->mutation_type,
+                'qty' => $qty,
+            ],
+        );
+
+        return $mutation;
+    }
+
+    public function recordWasteMovement(
+        Product $product,
+        StockWaste $waste,
+        string $mutationType,
+        int $qty,
+        int $stockBefore,
+        int $stockAfter,
+        ?string $notes = null,
+        ?int $userId = null
+    ): StockMutation {
+        $notes = $notes ?: __('messages.waste.movement', ['id' => $waste->id]);
+        $mutation = $this->recordMutation(
+            product: $product,
+            warehouseId: $waste->warehouse_id,
+            referenceType: 'stock_waste',
+            referenceId: $waste->id,
+            mutationType: $mutationType,
+            qty: $qty,
+            stockBefore: $stockBefore,
+            stockAfter: $stockAfter,
+            notes: $notes,
+            userId: $userId,
+        );
+        $payload = ['product_id' => $product->id, 'stock_before' => $stockBefore, 'reference' => 'Waste #'.$waste->id];
+
+        $this->auditLogService->log(
+            event: 'stock.adjusted',
+            module: 'stock',
+            auditable: $product,
+            description: $notes,
+            before: [...$payload, 'stock_after' => $stockBefore, 'difference' => 0],
+            after: [...$payload, 'stock_after' => $stockAfter, 'difference' => $stockAfter - $stockBefore],
+            meta: [
+                'stock_mutation_id' => $mutation->id,
+                'stock_waste_id' => $waste->id,
+                'mutation_type' => $mutationType,
                 'qty' => $qty,
             ],
         );
