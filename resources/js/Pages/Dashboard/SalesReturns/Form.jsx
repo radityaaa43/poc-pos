@@ -165,7 +165,8 @@ export default function SalesReturnForm({
             serviceShare,
             taxShare,
             grossAmount,
-            hasBillShare: Boolean(billShare),
+            hasBillShare:
+                Boolean(billShare) && (serviceShare !== 0 || taxShare !== 0),
             restockQty,
             receivableAfter,
             refundAmount:
