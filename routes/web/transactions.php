@@ -22,7 +22,7 @@ Route::delete('/transactions/{cart_id}/destroyCart', [TransactionController::cla
 
 // route transaction updateCart
 Route::patch('/transactions/{cart_id}/updateCart', [TransactionController::class, 'updateCart'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.updateCart');
-Route::post('/transactions/pricing-preview', [TransactionController::class, 'previewPricing'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.pricing-preview');
+Route::post('/transactions/pricing-preview', [TransactionController::class, 'previewPricing'])->middleware(['permission:transactions-access', 'active_shift', 'keep_flash'])->name('transactions.pricing-preview');
 
 // route hold transaction
 Route::post('/transactions/hold', [TransactionController::class, 'holdCart'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.hold');
@@ -31,13 +31,13 @@ Route::delete('/transactions/{holdId}/clearHold', [TransactionController::class,
 Route::get('/transactions/held', [TransactionController::class, 'getHeldCarts'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.held');
 
 // the POS "Belum Lunas" list, polled by the browser
-Route::get('/transactions/open-bills', [TransactionController::class, 'openBills'])->middleware('permission:transactions-access')->name('transactions.open-bills');
+Route::get('/transactions/open-bills', [TransactionController::class, 'openBills'])->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.open-bills');
 
 // route transaction store
 Route::post('/transactions/store', [TransactionController::class, 'store'])->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.store');
 Route::post('/transactions/{transaction}/settle', TransactionSettleController::class)->middleware(['permission:transactions-access', 'active_shift'])->name('transactions.settle');
 // offline queue flush from the browser (session auth); the shift is checked per sale in syncOne()
-Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware('permission:transactions-access')->name('transactions.sync');
+Route::post('/transactions/sync', [PosApiController::class, 'syncTransactions'])->middleware(['permission:transactions-access', 'keep_flash'])->name('transactions.sync');
 Route::get('/transactions/{invoice}/status', [TransactionController::class, 'status'])->middleware('permission:transactions-access')->name('transactions.status');
 Route::get('/transactions/{invoice}/qr', [TransactionController::class, 'qrisImage'])->middleware('permission:transactions-access')->name('transactions.qr');
 Route::get('/transactions/{invoice}/print', [TransactionController::class, 'print'])->middleware('permission:transactions-access')->name('transactions.print');
