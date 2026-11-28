@@ -431,6 +431,12 @@ return [
         'raw_material' => 'A raw material cannot take modifiers.',
         'ingredient_in_use' => 'This product is an ingredient of option ":option" in modifier group ":group". Remove it from that option first.',
     ],
+    'outlet_bill' => [
+        'service_charge_rate' => 'Service charge must be 0 to 100, with at most 2 decimals.',
+        'tax_kind' => 'Tax type must be PPN or PB1.',
+        'pb1_rate' => 'The PB1 rate must be 0 to 100, with at most 2 decimals.',
+        'cash_rounding_unit' => 'Cash rounding must be None, 100 or 500.',
+    ],
 
     /*
     |--------------------------------------------------------------------------
