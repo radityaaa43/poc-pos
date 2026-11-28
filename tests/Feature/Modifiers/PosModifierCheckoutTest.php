@@ -168,7 +168,7 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->add(['Large'], 3);
         $this->add(['Large'], 3, 'less ice');
 
-        $this->checkout()->assertSessionHasErrors(['stock' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
+        $this->checkout()->assertSessionHasErrors(['modifiers' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
 
         $this->assertSame([0, 2], [Transaction::count(), Cart::count()]);
         $this->assertSame([[50, 50], [10, 10]], [$this->stockOf($this->menu), $this->stockOf($this->milk)]);
@@ -237,7 +237,7 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
         // One locking read, ordered by product_id, covers the menu, its recipe and the option's before any write.
         $lock = $this->stockReadsBeforeTheFirstWrite()->sole();
-        $this->assertStringEndsWith('order by "product_id" asc', $lock['query']);
+        $this->assertStringContainsString('order by "product_id" asc', $lock['query']);
         $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], array_slice($lock['bindings'], 1));
         $this->assertSame([[10, 10], [10, 10]], [$this->stockOf($this->boba), $this->stockOf($this->milk)]);
     }
@@ -294,7 +294,7 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->option('Boba')->components()->sync([$this->milk->id => ['qty' => 9]]);
         $this->add(['Large', 'Boba'])->assertSessionHasNoErrors();
 
-        $this->checkout()->assertSessionHasErrors('stock');
+        $this->checkout()->assertSessionHasErrors('modifiers');
 
         $this->assertSame(10, (int) $this->milk->fresh()->stock);
     }

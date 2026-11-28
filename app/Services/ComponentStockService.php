@@ -40,7 +40,7 @@ class ComponentStockService
             $available = (int) ($pw ? $pw->stock : Product::lockForUpdate()->findOrFail($component->id)->stock);
             if ($available < $componentQty) {
                 throw ValidationException::withMessages([
-                    'stock' => $refusal ?? "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
+                    ($refusal ? 'modifiers' : 'stock') => $refusal ?? "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
                 ]);
             }
             if ($pw) {

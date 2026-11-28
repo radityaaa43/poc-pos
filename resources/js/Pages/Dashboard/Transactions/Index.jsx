@@ -827,7 +827,7 @@ export default function Index({
                 onError: (errors) => {
                     setIsSubmitting(false);
                     // The pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.modifiers || errors?.stock || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    toast.error(errors?.modifiers || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
                 },
             }
         );
