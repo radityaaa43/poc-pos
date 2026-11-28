@@ -18,6 +18,8 @@ class DineOrderItem extends Model
         'qty',
         'price',
         'note',
+        'modifier_option_ids',
+        'modifier_snapshot',
     ];
 
     protected function casts(): array
@@ -26,6 +28,8 @@ class DineOrderItem extends Model
             'qty' => 'integer',
             'price' => 'integer',
             'conversion_factor' => 'decimal:4',
+            'modifier_option_ids' => 'array',
+            'modifier_snapshot' => 'array',
         ];
     }
 

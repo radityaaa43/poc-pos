@@ -6,10 +6,13 @@ use App\Jobs\ExpireSupersededGatewayCharge;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
+use App\Models\ModifierOption;
+use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Modifiers\ModifierSelection;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -24,6 +27,7 @@ class DineOrderService
         private CashierShiftService $cashierShiftService,
         private TransactionSettlementService $settlementService,
         private KitchenItemService $kitchenItemService,
+        private ComponentStockService $componentStock,
         private AddOnOrderService $addOnOrderService,
     ) {}
 
@@ -62,6 +66,22 @@ class DineOrderService
             }
 
             $userId = $cashierId;
+            $outlet = $order->table?->area?->outlet;
+
+            // withTrashed: an option deleted since submit still gives the recipe its snapshot row was priced with.
+            $recipes = ModifierOption::withTrashed()->with('components')
+                ->findMany($order->items->flatMap(fn ($item) => (array) ($item->getAttribute('modifier_option_ids') ?? []))->all())
+                ->keyBy('id');
+
+            // Take every stock row this accept touches in product_id order first, so it never deadlocks with a sale sharing an ingredient.
+            $lockIds = collect();
+            foreach ($order->items as $item) {
+                $lockedProduct = $item->getRelationValue('product');
+                if ($lockedProduct instanceof Product) {
+                    $lockIds = $lockIds->merge($lockedProduct->is_composite ? $lockedProduct->components->modelKeys() : [$lockedProduct->id]);
+                }
+            }
+            $this->componentStock->lock($lockIds->merge($recipes->flatMap->components->pluck('id')), $warehouseId);
 
             // ponytail: accepting a dine order is a sale — record a Transaction so revenue, profit, stock ledger and stock mutations all stay in sync with the POS path
             $transaction = Transaction::create([
@@ -89,6 +109,20 @@ class DineOrderService
             foreach ($order->items as $item) {
                 $product = $item->product;
                 $lineTotal = (int) $item->price * (int) $item->qty;
+                // The sale column is 100 wide: an order pending from before the submit cap could still carry more.
+                $note = $item->getAttribute('note');
+
+                // A line written before this ticket (or before its menu had groups) carries no options: accept writes none.
+                $itemOptionIds = $item->getAttribute('modifier_option_ids');
+                if ($itemOptionIds === null) {
+                    $options = [];
+                } else {
+                    // Re-check availability at the latest data (BR-3): an option gone or switched off refuses the accept.
+                    // Prices stay as shown to the guest: the stored snapshot, never a fresh catalog price.
+                    $resolved = ModifierSelection::resolve($product, (array) $itemOptionIds, $outlet, $warehouseId);
+                    $options = (array) ($item->getAttribute('modifier_snapshot') ?? $resolved['options']);
+                }
+                $modifierTotal = (int) array_sum(array_column($options, 'price_delta'));
 
                 // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
                 $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, (int) $item->qty, (float) ($item->conversion_factor ?? 1));
@@ -105,46 +139,36 @@ class DineOrderService
                     'discount_total' => 0,
                     'cost_total' => $costTotal,
                     'needs_preparation' => $product->needs_preparation, // the bill is paid later: freeze the flag at accept
+                    'note' => $note === null ? null : mb_substr($note, 0, 100),
+                    'modifier_total' => $modifierTotal,
                 ]);
+
+                if ($options !== []) {
+                    $detail->modifiers()->createMany(ModifierSelection::snapshot($options, $recipes));
+
+                    // Frozen HPP includes the option recipes exactly as the POS checkout snapshots them (REQ-008 decision 3).
+                    // Read from $detail->qty so the accept's $item->qty accesses (and the Larastan baseline) stay unchanged.
+                    $costTotal += $this->inventoryCostService->recipeCost(
+                        collect($options)->flatMap(fn (array $option) => $recipes[$option['id']]->components),
+                        $warehouseId,
+                        (int) $detail->qty,
+                    );
+                    $detail->update(['cost_total' => $costTotal]);
+                }
 
                 $transaction->profits()->create([
                     'transaction_id' => $transaction->id,
                     'total' => $lineTotal - $costTotal,
                 ]);
 
+                // Option recipes come out of the same warehouse and transaction as the menu (BR-2); a missing ingredient refuses the accept.
+                foreach ($options as $option) {
+                    $refusal = __('messages.modifiers.option_sold_out', ['menu' => $product->title, 'option' => $option['name']]);
+                    $this->componentStock->deduct($transaction, $recipes[$option['id']]->components, 1, (int) $detail->qty, $warehouseId, "opsi {$option['name']} {$product->title}", $userId, $refusal);
+                }
+
                 if ($product->is_composite) {
-                    foreach ($product->components as $component) {
-                        $componentQty = (int) round((float) $component->pivot->qty * (int) $item->qty);
-
-                        $pw = ProductWarehouse::where('product_id', $component->id)
-                            ->where('warehouse_id', $warehouseId)
-                            ->lockForUpdate()
-                            ->first();
-
-                        $available = $pw ? (int) $pw->stock : (int) $component->stock;
-
-                        if ($available < $componentQty) {
-                            throw ValidationException::withMessages([
-                                'stock' => "Stok komponen {$component->title} tidak mencukupi (tersedia: {$available}).",
-                            ]);
-                        }
-
-                        $pw?->decrement('stock', $componentQty);
-                        $component->decrement('stock', $componentQty);
-
-                        $this->stockMutationService->recordMutation(
-                            product: $component,
-                            warehouseId: $warehouseId,
-                            referenceType: 'dine_order',
-                            referenceId: $order->id,
-                            mutationType: 'out',
-                            qty: $componentQty,
-                            stockBefore: $available,
-                            stockAfter: $available - $componentQty,
-                            notes: "Pesanan dine-in #{$order->id} (komponen komposit {$product->title})",
-                            userId: $userId,
-                        );
-                    }
+                    $this->componentStock->deduct($transaction, $product->components, 1, (int) $item->qty, $warehouseId, "komponen komposit {$product->title}", $userId);
                 } else {
                     $baseQty = $item->baseQuantity();
 

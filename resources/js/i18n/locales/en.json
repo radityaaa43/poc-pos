@@ -1266,6 +1266,20 @@
                 "conflict": "Conflict",
                 "discarding": "Being removed"
             }
+        },
+        "modifiers": {
+            "required": "Required",
+            "optional": "Optional",
+            "range": "Pick {{min}}–{{max}}",
+            "soldOut": "Sold out",
+            "note": "Note",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Portion price",
+            "add": "Add",
+            "cancel": "Cancel",
+            "incomplete": "Complete your choices: {{group}}",
+            "noteLine": "Note: {{note}}",
+            "offline": "A sale with options or notes cannot be saved offline yet"
         }
     },
     "outlets": {
@@ -1302,6 +1316,18 @@
             "button": "Order — Pay later",
             "helper": "Your order goes straight to the kitchen. Pay at the counter before you leave.",
             "helperOnline": "Your order goes straight to the kitchen. Pay at the counter, or online from the order page, before you leave."
+        },
+        "modifiers": {
+            "required": "Required",
+            "optional": "Optional",
+            "range": "Pick {{min}}–{{max}}",
+            "soldOut": "Sold out",
+            "note": "Note",
+            "noteCount": "{{count}}/100",
+            "portionPrice": "Portion price",
+            "add": "Add to order",
+            "cancel": "Cancel",
+            "incomplete": "Complete your choices: {{group}}"
         }
     },
     "kitchenStations": {

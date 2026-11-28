@@ -109,7 +109,6 @@ class KitchenIntakeService
         // Active stations in one query; a product pointing at a deleted or no station goes to the default one.
         $stations = KitchenStation::get(['id', 'is_default']);
         $defaultStationId = $stations->firstWhere('is_default', true)->id ?? KitchenStation::defaultId();
-        // Dine-in lines carry a note ("no sugar"); match each sale line to the first unused order line of the same product and unit.
         /** @var list<DineOrderItem> $dineItems */
         $dineItems = $transaction->dineOrder?->items->all() ?? [];
 
@@ -122,14 +121,20 @@ class KitchenIntakeService
                     continue;
                 }
 
-                $note = null;
+                // The line's own note is the single source (POS checkout and dine accept both write it), so two lines
+                // of one menu never trade notes. The dine item is matched and consumed for every line, keeping the two
+                // lists aligned; the fallback to its note is only for pre-deploy dine sales, which carry no modifier data.
+                $matched = null;
+                // shortcut: pre-deploy dine sales carry the note only on the dine item; drop this fallback when none are in flight
                 foreach ($dineItems as $i => $item) {
                     if ($item->product_id == $detail->product_id && $item->unit_id == $detail->unit_id) {
-                        $note = $item->note;
+                        $matched = $item;
                         unset($dineItems[$i]);
                         break;
                     }
                 }
+                $legacyLine = $matched !== null && $matched->modifier_option_ids === null && $matched->modifier_snapshot === null;
+                $note = $detail->note ?? ($legacyLine ? $matched->note : null);
 
                 KitchenItem::createOrFirst(['transaction_detail_id' => $detail->id], [
                     'transaction_id' => $transaction->id,

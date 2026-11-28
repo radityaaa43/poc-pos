@@ -68,7 +68,7 @@ class KitchenTicketTest extends TestCase
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $ticket['since']);
         $this->assertSame([$item->id], $ticket['item_ids']);
         $this->assertSame(
-            [['id' => $item->id, 'title' => $sale->details->first()->product->title, 'qty' => 3, 'note' => 'tanpa pedas']],
+            [['id' => $item->id, 'title' => $sale->details->first()->product->title, 'qty' => 3, 'note' => 'tanpa pedas', 'modifiers' => []]],
             $ticket['items']
         );
         $this->assertStringNotContainsStringIgnoringCase('price', $response->getContent());

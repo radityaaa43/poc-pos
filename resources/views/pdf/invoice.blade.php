@@ -244,6 +244,9 @@
                 <tr style="background: {{ $index % 2 === 0 ? '#f8fafc' : '#fff' }};">
                     <td>
                         {{ $detail->product->title ?? 'Produk' }}
+                        @foreach ($detail->receiptExtras() as $extra)
+                            <div style="font-size:11px; color:#475569;">{{ $extra }}</div>
+                        @endforeach
                         @if ($detail->discount_total > 0 && ($detail->pricing_group_label || $detail->pricing_rule_name))
                             <div style="font-size:11px;color:#e11d48; margin-top:2px;">
                                 Promo: {{ $detail->pricing_group_label ?: $detail->pricing_rule_name }}

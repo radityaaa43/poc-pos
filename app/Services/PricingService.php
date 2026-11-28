@@ -9,6 +9,7 @@ use App\Models\PricingRule;
 use App\Models\PricingRuleBuyGetItem;
 use App\Models\PricingRuleQtyBreak;
 use App\Models\Product;
+use App\Services\Modifiers\ModifierSelection;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -176,18 +177,27 @@ class PricingService
 
     private function buildPreview(Collection $carts, ?Customer $customer, Collection $rules, ?Outlet $outlet = null): array
     {
-        $items = $carts->map(function (Cart $cart) use ($customer, $outlet) {
+        // Same order for every caller: it decides which lines a bundle uses. abs: rule-preview ids are -1, -2, ...
+        $carts = $carts->sortBy(fn (Cart $cart) => abs((int) $cart->id))->values();
+        $options = ModifierSelection::preview($carts);
+        $items = $carts->map(function (Cart $cart) use ($customer, $outlet, $options) {
             // ponytail: composite and non-base-unit (BOX) lines are priced at stored cart price / qty (cart price
             // comes from Product::compositeSellPrice() / the unit's own sell price); base-unit lines use the price list.
-            $baseUnitPrice = $cart->product->is_composite || $this->isUnitLine($cart)
-                ? (int) round($cart->price / max(1, (int) $cart->qty))
+            // The stored price includes the options as they cost when added; they are priced again here.
+            $menuUnitPrice = $cart->product->is_composite || $this->isUnitLine($cart)
+                ? (int) round($cart->price / max(1, (int) $cart->qty)) - (int) $cart->modifier_total
                 : $this->basePriceFor($cart->product, $customer, $outlet);
+            $optionUnitTotal = (int) array_sum(array_column($options->get($cart->id, []), 'price_delta'));
+            $baseUnitPrice = $menuUnitPrice + $optionUnitTotal;
 
             return [
                 'cart_id' => $cart->id,
                 'product_id' => $cart->product_id,
                 'product_title' => $cart->product?->title,
                 'qty' => (int) $cart->qty,
+                'menu_unit_price' => $menuUnitPrice,
+                'option_unit_total' => $optionUnitTotal,
+                'options' => $options->get($cart->id, []),
                 'base_unit_price' => $baseUnitPrice,
                 'effective_unit_price' => $baseUnitPrice,
                 'line_base_total' => $baseUnitPrice * (int) $cart->qty,
@@ -228,6 +238,10 @@ class PricingService
             $this->applyComplexStage($buyGetRules, $items, $remainingQuantities, 'buy_get')
         );
 
+        // BR-5: quantity breaks count a menu's lines together; pieces a bundle used and unit lines are already gone.
+        $menuQuantities = $items->groupBy('product_id')
+            ->map(fn (Collection $lines) => $lines->sum(fn (array $line) => $remainingQuantities[$line['cart_id']]));
+
         foreach ($items as $cartId => $item) {
             $remainingQty = max(0, (int) ($remainingQuantities[$cartId] ?? 0));
             if ($remainingQty === 0) {
@@ -244,7 +258,10 @@ class PricingService
                     PricingRule::KIND_QTY_BREAK,
                     PricingRule::KIND_STANDARD_DISCOUNT,
                 ], true))
-                ->map(fn (PricingRule $rule) => $this->calculateLineCandidate($rule, $cartProduct, $remainingQty, $customer, $outlet))
+                ->map(fn (PricingRule $rule) => $this->calculateLineCandidate(
+                    $rule, $cartProduct, $remainingQty, $customer, $outlet,
+                    $items->get($cartId)['option_unit_total'], $menuQuantities[$cartProduct->id]
+                ))
                 ->filter()
                 ->sortBy([
                     ['rule.priority', 'desc'],
@@ -506,7 +523,8 @@ class PricingService
                 'product_id' => (int) $item['product_id'],
                 'product_title' => $item['product_title'],
                 'quantity' => $take,
-                'base_total' => (int) $item['base_unit_price'] * $take,
+                // Menu price only: a rule that sets or frees a price leaves paid options charged (decisions 5, 16).
+                'base_total' => (int) $item['menu_unit_price'] * $take,
             ];
             $required -= $take;
             // Taken units are gone for the next match: a unit is never both "buy" and "get", nor two bundle items.
@@ -536,18 +554,20 @@ class PricingService
         return $allocated;
     }
 
-    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null): ?array
+    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null, int $optionUnitTotal = 0, ?int $breakQuantity = null): ?array
     {
         if (! $this->matchesTarget($rule, $product)) {
             return null;
         }
 
-        $baseUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
+        // Discounts act on menu + options; a rule that sets a price acts on the menu price only (decisions 5, 16).
+        $menuUnitPrice = $product->is_composite ? $product->compositeSellPrice() : $this->basePriceFor($product, $customer, $outlet);
+        $baseUnitPrice = $menuUnitPrice + $optionUnitTotal;
         $lineBaseTotal = $baseUnitPrice * $quantity;
 
         if ($rule->kind === PricingRule::KIND_QTY_BREAK) {
             $break = $rule->qtyBreaks
-                ->filter(fn (PricingRuleQtyBreak $break) => $quantity >= (int) $break->min_qty)
+                ->filter(fn (PricingRuleQtyBreak $break) => ($breakQuantity ?? $quantity) >= (int) $break->min_qty)
                 ->sortBy([
                     ['min_qty', 'desc'],
                     ['sort_order', 'asc'],
@@ -562,7 +582,7 @@ class PricingService
             $discount = $this->resolveLineDiscount(
                 $break->discount_type,
                 (float) $break->discount_value,
-                $baseUnitPrice,
+                $menuUnitPrice,
                 $quantity
             );
 
@@ -579,7 +599,7 @@ class PricingService
         $discount = $this->resolveLineDiscount(
             $rule->discount_type,
             (float) $rule->discount_value,
-            $baseUnitPrice,
+            $rule->discount_type === PricingRule::TYPE_FIXED_PRICE ? $menuUnitPrice : $baseUnitPrice,
             $quantity
         );
 

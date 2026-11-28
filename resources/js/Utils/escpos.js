@@ -53,6 +53,10 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     for (const item of data.items || []) {
         const name = `${item.qty}x ${item.name}`.slice(0, width);
         bytes.push(...textBytes(name + "\n"));
+        // Options and note of the line; typed by people, so printer commands are stripped.
+        for (const extra of item.extras || []) {
+            wrapLines(printable(extra), width - 2).forEach((part) => bytes.push(...textBytes(`  ${part}\n`)));
+        }
         leftRight("", data.money(item.price));
     }
 
@@ -149,6 +153,10 @@ function buildKitchenTicketBytes(ticket, paperSize = "80mm", labels = {}) {
 
     for (const item of ticket.items || []) {
         wrapLines(`${printable(item.qty)} x ${printable(item.title)}`, width).forEach(write);
+        // Options (free ones included) then the line's note, indented, never a price.
+        for (const option of item.modifiers || []) {
+            wrapLines(printable(`+ ${option}`), width - 2).forEach((l) => write(`  ${l}`));
+        }
         wrapLines(printable(item.note), width - 2).forEach((l) => write(`  ${l}`));
     }
 

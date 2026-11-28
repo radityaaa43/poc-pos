@@ -186,9 +186,23 @@ class KitchenCancellationTest extends TestCase
         $this->assertFalse($ticket['unpaid']);
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/', $ticket['since']);
         $this->assertSame([$event->id], $ticket['cancellation_ids']);
-        $this->assertSame([['id' => $event->id, 'title' => $detail->product->title, 'qty' => 2, 'note' => null]], $ticket['items']);
+        $this->assertSame([['id' => $event->id, 'title' => $detail->product->title, 'qty' => 2, 'note' => null, 'modifiers' => []]], $ticket['items']);
         $this->assertStringNotContainsStringIgnoringCase('price', json_encode($ticket));
         $this->assertStringNotContainsString('grand_total', json_encode($ticket));
+    }
+
+    // REQ-008 AC-18: the DIBATALKAN ticket carries the line's chosen options, like the original ticket.
+    public function test_the_cancellation_payload_carries_the_line_options(): void
+    {
+        [$sale, $detail, $item] = $this->sale(qty: 1, table: 'Meja 5');
+        $detail->modifiers()->create(['group_name' => 'Size', 'option_name' => 'Large', 'price_delta' => 5000, 'components' => []]);
+        $device = $this->device();
+        $this->printed($item, $device);
+        $this->completeReturn($this->draft($sale, [[$detail, 1]]));
+
+        $ticket = $this->actingAs($this->cook)->getJson(route('kitchen.print-devices.tickets', $device))->assertOk()->json('cancellations.0');
+
+        $this->assertSame(['Large'], $ticket['items'][0]['modifiers']);
     }
 
     public function test_a_takeaway_cancellation_uses_the_invoice_as_its_number(): void

@@ -79,6 +79,9 @@ export default function OrderCard({
                             <p className={`font-medium ${item.status === "cancelled" ? "text-slate-500 line-through dark:text-slate-400" : "text-slate-900 dark:text-white"}`}>
                                 {item.qty} × {item.title}
                             </p>
+                            {(item.modifiers ?? []).map((option, index) => (
+                                <p key={index} className="text-sm text-slate-600 dark:text-slate-300">+ {option}</p>
+                            ))}
                             {item.note && (
                                 <p className="text-sm italic text-slate-600 dark:text-slate-300">{item.note}</p>
                             )}

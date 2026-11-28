@@ -17,6 +17,7 @@ class KitchenOrders
         'transaction.parent.dineOrder:id,transaction_id,dine_table_id',
         'transaction.parent.dineOrder.table:id,name',
         'product:id,title',
+        'detail.modifiers:id,transaction_detail_id,option_name', // snapshot order: the options the guest or cashier picked
         'kitchenStation:id,name', // withTrashed: an item of a deleted station keeps its old name
     ];
 
@@ -36,6 +37,7 @@ class KitchenOrders
                     'title' => $item->product?->title,
                     'qty' => $item->qty,
                     'note' => $item->note ?? null, // the column arrives with a later #236 change
+                    'modifiers' => $item->detail?->modifiers->pluck('option_name')->values()->all() ?? [], // free options included
                     'status' => $item->status,
                     'ready_at' => $item->ready_at,
                     'station_id' => $item->kitchen_station_id,

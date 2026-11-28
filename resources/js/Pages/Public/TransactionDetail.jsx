@@ -3,6 +3,7 @@ import { Head } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
 import { billSubtotal, taxLabel } from "@/Utils/billTotals";
 import GuestLayout from "@/Layouts/GuestLayout";
+import LineModifiers from "@/Components/Modifiers/LineModifiers";
 
 const formatPrice = (v = 0) => Number(v || 0).toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 });
 const formatDate = (v) => v ? new Date(v).toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" }) : "-";
@@ -37,7 +38,10 @@ export default function TransactionDetail({ transaction, token, error }) {
                             <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">Item</p>
                             {transaction.details.map((item, i) => (
                                 <div key={i} className="flex justify-between py-1.5 text-sm">
-                                    <span className="text-slate-700">{item.product_title} x{item.qty}</span>
+                                    <div className="min-w-0 text-slate-700">
+                                        {item.product_title} x{item.qty}
+                                        <LineModifiers item={item} />
+                                    </div>
                                     <span className="font-medium">{formatPrice(item.price)}</span>
                                 </div>
                             ))}

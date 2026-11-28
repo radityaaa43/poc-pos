@@ -78,7 +78,7 @@ test.describe('38-dine-orders-queue', () => {
         page.once('dialog', (confirm) => confirm.accept());
         await card.getByRole('button', { name: 'Terima' }).click();
 
-        await expect(page.getByText('Gagal menerima pesanan.')).toBeVisible();
+        await expect(page.getByText(/Stok .* tidak mencukupi/)).toBeVisible();
         expect(arrange('dine.order-state', { access_token, product_id })).toMatchObject({ status: 'submitted', invoice: null, product_stock: 1, warehouse_stock: 1 });
     });
 });

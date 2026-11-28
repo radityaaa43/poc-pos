@@ -138,6 +138,14 @@ describe("ProductGrid", () => {
         expect(onAddToCart).not.toHaveBeenCalled();
     });
 
+    it("shows a menu with a required group sold out as Habis and not tappable", async () => {
+        await i18n.changeLanguage("id");
+        renderGrid({ products: [{ ...kopi, modifiers_sold_out: true }] });
+
+        expect(screen.getByText("Habis")).toBeInTheDocument();
+        expect(cardButton("Kopi Susu")).toBeDisabled();
+    });
+
     it("shows a sold-out recipe menu as Habis and does not add it", async () => {
         const user = userEvent.setup();
         const americano = {

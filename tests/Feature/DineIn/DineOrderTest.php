@@ -153,6 +153,19 @@ class DineOrderTest extends TestCase
         $this->assertEquals(0, DineOrder::count());
     }
 
+    public function test_store_rejects_an_item_note_longer_than_the_sale_column(): void
+    {
+        $product = $this->createProduct(10);
+
+        $this->from(route('dine.menu', $this->table->token))
+            ->post(route('dine-order.store', $this->table->token), $this->orderPayload([
+                ['product_id' => $product->id, 'qty' => 1, 'note' => str_repeat('a', 101)],
+            ]))
+            ->assertSessionHasErrors('items.0.note');
+
+        $this->assertEquals(0, DineOrder::count());
+    }
+
     public function test_accept_decrements_warehouse_and_global_stock(): void
     {
         $product = $this->createProduct(50);
@@ -175,6 +188,27 @@ class DineOrderTest extends TestCase
             ->first();
         $this->assertEquals(47, $pivot->stock);
         $this->assertEquals('accepted', $order->fresh()->status);
+    }
+
+    public function test_accept_cuts_a_pending_item_note_to_the_sale_column(): void
+    {
+        $product = $this->createProduct(50);
+        $this->actingAs($this->cashier);
+        app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 0, null, $this->warehouse->id);
+
+        $this->post(route('dine-order.store', $this->table->token), $this->orderPayload([
+            ['product_id' => $product->id, 'qty' => 1],
+        ]))->assertSessionHasNoErrors();
+
+        // An order pending from before the submit cap can carry a longer note than the sale column holds.
+        $order = DineOrder::firstOrFail();
+        $order->items()->first()->update(['note' => str_repeat('a', 150)]);
+
+        $this->actingAs($this->cashier);
+        $this->post(route('dine-orders.accept', $order))->assertSessionHasNoErrors();
+
+        $transaction = Transaction::findOrFail($order->fresh()->transaction_id);
+        $this->assertSame(str_repeat('a', 100), $transaction->details()->first()->note);
     }
 
     public function test_accept_records_transaction_profit_and_stock_mutation(): void

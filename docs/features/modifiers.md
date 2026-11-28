@@ -1,7 +1,7 @@
 # Modifier (REQ-008)
 
-Pilihan per menu (Size, Level gula, Topping) tanpa satu produk per variasi. Baru **pengaturan** (journey J1);
-penjualan, stok opsi, QR menu, dapur dan laporan menyusul. Menu tanpa grup terjual seperti sebelumnya.
+Pilihan per menu (Size, Level gula, Topping) tanpa satu produk per variasi: **pengaturan** (J1), penjualan
+online di POS (J2), QR menu meja (J3) dan dapur (J4); retur stok opsi dan laporan menyusul. Menu tanpa grup terjual seperti sebelumnya.
 
 - **Settings → Modifier** (`/dashboard/settings/modifiers`, `modifiers-manage`): tambah, ubah, hapus grup.
 - **Grup**: wajib atau opsional. Ditolak: minimum > maksimum, maksimum di luar 1–50, grup wajib dengan minimum 0,
@@ -21,10 +21,46 @@ penjualan, stok opsi, QR menu, dapur dan laporan menyusul. Menu tanpa grup terju
 ## Kontrak untuk penjualan
 
 `ModifierCatalog::forOutlet(?Outlet, $productIds)` satu-satunya jalur baca POS, checkout, cache offline dan QR menu
-(empat query). Grup urut sesuai menu, opsi sesuai grup: `product_id => [{id, name, is_required, min_select,
-max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]`. Opsi terhapus atau mati
-di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir menu bila wajib). Stok tidak diperiksa.
-`components` internal: jangan ke tamu.
+(empat query). Grup urut sesuai menu, opsi sesuai grup: `product_id => {orderable, groups: [{id, name, is_required,
+min_select, max_select, options: [{id, name, price_delta, is_default, components: [{product_id, qty}]}]}]}`. Opsi
+terhapus atau mati di outlet itu tidak ada; grup tanpa sisa opsi tetap ada. `orderable: false` bila opsi aktif suatu
+grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `components` internal: jangan ke tamu.
+
+## Penjualan di POS (online)
+
+- Menu bergrup membuka panel: default terpilih, harga porsi = menu + opsi, catatan maks. 100 karakter. Opsi yang
+  bahannya kurang di gudang shift berlabel **Habis**; menu juga bila grup wajib tak bisa mencapai minimumnya.
+- Server (`ModifierSelection`) memvalidasi dan menghargai pilihan saat masuk keranjang dan saat checkout; harga client
+  diabaikan; penolakan menyebut menu dan opsi atau grupnya. Baris digabung hanya bila opsi dan catatan sama.
+- Diskon, voucher, pajak dan poin atas baris penuh; harga tetap, qty break (menghitung semua baris menu yang sama,
+  satuan non-dasar tidak), bundle dan "gratis" beli X gratis Y hanya mengenai harga menu.
+- Checkout menyimpan nama, harga dan resep opsi (`transaction_detail_modifiers`), `note` dan `modifier_total`; struk
+  membaca salinan ini. Bahan opsi diambil satu transaksi dengan stok menu (`ComponentStockService`, urut `product_id`).
+- Bahan opsi kembali saat pembayaran kedaluwarsa atau tutup shift, **belum** saat retur. Baris beropsi tak bisa
+  diantre offline; baris tanpa pilihan (API mobile, sinkron offline) hanya diperiksa BR-6.
+
+## QR menu meja (tamu, J3)
+
+- Menu bergrup di QR memakai katalog, panel dan resolver yang sama dengan POS; opsi yang dimatikan di outlet itu tidak
+  tampil (BR-1) dan opsi yang bahannya kurang berlabel **Habis**.
+- Tamu memilih opsi dan menulis catatan per item; keranjang menampilkan opsi dan catatan, baris yang sama digabung dan
+  baris berbeda dipisah (keputusan 12).
+- Server menyelesaikan pilihan saat kirim (`ModifierSelection::resolve`, gudang outlet) dan **lagi saat kasir menerima**
+  (`DineOrderService::accept`) dari data terbaru; harga tamu diabaikan. Opsi yang hilang atau dimatikan di antara kirim
+  dan terima menolak penerimaan dengan pesan yang menyebut menu dan opsi (AC-16, BR-3); pesanan tetap `submitted` (kasir
+  menolak atau bicara ke tamu), dan pilihan tamu yang lain tetap di keranjang halaman.
+- Pilihan disimpan sementara di `dine_order_items.modifier_option_ids`; saat terima, detail penjualan mendapat `note`,
+  `modifier_total`, harga satuan berisi opsi dan satu baris salinan per opsi, dan bahan resep opsi diambil dari gudang
+  shift dalam transaksi yang sama (BR-2, `ComponentStockService`, urut `product_id`).
+
+## Dapur (layar dan ticket, J4)
+
+- Layar dapur menampilkan nama opsi (termasuk yang gratis) dan catatan di bawah nama menu, untuk semua stasiun dan
+  stasiun itemnya.
+- Ticket biasa, TAMBAHAN, DIBATALKAN dan CETAK ULANG mencetak `+ <opsi>` lalu catatan per item, tanpa harga, dibungkus
+  32 karakter (58 mm) atau 48 (80 mm).
+- Catatan dibaca dari baris penjualan (`transaction_details.note`), bukan dicocokkan per produk dan satuan, supaya dua
+  baris menu yang sama dengan opsi berbeda tidak tertukar catatannya.
 
 ## Deploy
 

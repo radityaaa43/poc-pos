@@ -7,6 +7,8 @@ use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Services\DineOrderOnlinePaymentService;
+use App\Services\Modifiers\ModifierSelection;
+use App\Services\OutletAccessService;
 use App\Services\PricingService;
 use Inertia\Inertia;
 
@@ -15,6 +17,7 @@ class DineMenuController extends Controller
     public function __construct(
         private PricingService $pricingService,
         private DineOrderOnlinePaymentService $onlinePayment,
+        private OutletAccessService $outletAccessService,
     ) {}
 
     public function show(string $token)
@@ -45,7 +48,12 @@ class DineMenuController extends Controller
         // ponytail: previewProducts() returns arrays keyed by product id (pricing fields only) — merge the effective price back onto model-shaped payloads the menu page expects (id/title/image/category_id/sell_price)
         $previews = $this->pricingService->previewProducts($products, null, null, $outlet);
 
-        $products = $products->map(function (Product $product) use ($previews, $outlet) {
+        // Same catalog and availability the POS shows (BR-1): options switched off at the outlet are already gone,
+        // an option short of its recipe carries available=false. One flat group list plus the ids each menu uses.
+        $catalog = ModifierSelection::forPos($products->pluck('id'), $outlet, $this->outletAccessService->outletWarehouseId($outlet));
+        $modifierGroups = $catalog->flatten(1)->unique('id')->keyBy('id');
+
+        $products = $products->map(function (Product $product) use ($previews, $catalog, $outlet) {
             $preview = $previews->get($product->id);
 
             return [
@@ -54,6 +62,7 @@ class DineMenuController extends Controller
                 'image' => $product->image,
                 'category_id' => $product->category_id,
                 'sell_price' => (int) ($preview['effective_unit_price'] ?? $product->sell_price),
+                'modifier_group_ids' => collect($catalog->get($product->id, []))->pluck('id')->sort()->values()->all(),
                 // A recipe menu short of ingredients stays on the menu, shown Habis, not hidden (REQ-001 AC-04).
                 'sold_out' => $product->is_composite && $product->stockAtOutlet($outlet) < 1,
             ];
@@ -72,6 +81,7 @@ class DineMenuController extends Controller
             ],
             'categories' => $categories,
             'products' => $products,
+            'modifierGroups' => $modifierGroups,
             'selfOrderEnabled' => $selfOrderEnabled,
             'payLaterEnabled' => $outlet ? Setting::getBoolForOutlet('pay_later_enabled', $outlet) : false,
             'onlinePayment' => $this->onlinePayment->isReadyFor($outlet),

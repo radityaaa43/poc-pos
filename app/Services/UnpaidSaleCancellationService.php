@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Product;
 use App\Models\Transaction;
+use App\Models\TransactionDetail;
+use App\Models\TransactionDetailModifier;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -14,14 +16,17 @@ use Illuminate\Support\Facades\DB;
  */
 class UnpaidSaleCancellationService
 {
-    public function __construct(private readonly StockMutationService $stockMutationService) {}
+    public function __construct(
+        private readonly StockMutationService $stockMutationService,
+        private readonly ComponentStockService $componentStock,
+    ) {}
 
     /**
      * The caller owns the DB::transaction, holds the row lock on `$sale` and has checked it may still be cancelled.
      */
     public function cancel(Transaction $sale, string $mutationNote, string $saleNote): void
     {
-        $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
+        $sale->loadMissing(['details.product.components', 'details.modifiers', 'details.batchAllocations']);
         $this->lockStockRows($sale->details, $sale->warehouse_id);
 
         // Completed, restock-ticked returns already put part of this sale back; expiry must not put it back twice.
@@ -62,6 +67,21 @@ class UnpaidSaleCancellationService
                 notes: $mutationNote,
                 userId: null,
             );
+
+            foreach ($this->componentStock->restockOptions($detail, (int) $detail->qty, $warehouseId) as $row) {
+                $this->stockMutationService->recordMutation(
+                    product: $row['product'],
+                    warehouseId: $warehouseId,
+                    referenceType: 'transaction_expire',
+                    referenceId: $sale->id,
+                    mutationType: 'in',
+                    qty: $row['qty'],
+                    stockBefore: $row['stock_before'],
+                    stockAfter: $row['stock_before'] + $row['qty'],
+                    notes: "{$mutationNote} (opsi)",
+                    userId: null,
+                );
+            }
         }
 
         $sale->update([
@@ -113,6 +133,11 @@ class UnpaidSaleCancellationService
     {
         $ids = $lines
             ->flatMap(fn ($line) => [$line->product_id, ...($line->product ? $line->product->components->modelKeys() : [])])
+            ->merge($lines
+                ->filter(fn ($line) => $line instanceof TransactionDetail)
+                ->flatMap(fn ($line) => $line->modifiers->flatMap(
+                    fn (TransactionDetailModifier $modifier) => collect($modifier->components)->pluck('product_id'),
+                )))
             ->unique()->sort()->values();
 
         DB::table('product_warehouse')->where('warehouse_id', $warehouseId)->whereIn('product_id', $ids)

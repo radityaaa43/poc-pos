@@ -34,9 +34,9 @@ const pageProps = {
     warehouses: [], loyaltyTierOptions: [], initialPricingPreview: { items: [], summary: {} },
 };
 
-const checkOut = async (query = "") => {
+const checkOut = async (query = "", cartLines = carts) => {
     window.history.pushState({}, "", `/${query}`); // the pinned order is the page's own ?add_on_to
-    render(<Index {...pageProps} />);
+    render(<Index {...pageProps} carts={cartLines} />);
     await userEvent.click(await screen.findByRole("button", { name: /Selesaikan Transaksi/ })); // after the price preview
 };
 const offline = () => vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
@@ -70,5 +70,19 @@ describe("POS checkout with an add-on", () => {
         await checkOut();
 
         expect(queueTransaction).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe("POS checkout offline with an option or note line", () => {
+    // Index.jsx:717-719: the offline payload carries no options or notes, so such a line is refused, never queued without them.
+    it("refuses an option or note line offline", async () => {
+        offline();
+        const optionLine = { ...carts[0], line_key: "a1b2", modifier_option_ids: [12], note: "tanpa gula" };
+
+        await checkOut("", [optionLine]);
+
+        expect(toast.error).toHaveBeenCalledWith("Penjualan dengan opsi atau catatan belum bisa disimpan saat offline");
+        expect(queueTransaction).not.toHaveBeenCalled();
+        expect(router.post).not.toHaveBeenCalled();
     });
 });

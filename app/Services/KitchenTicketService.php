@@ -72,6 +72,7 @@ class KitchenTicketService
                 'title' => $item['title'],
                 'qty' => $item['qty'],
                 'note' => $item['note'],
+                'modifiers' => $item['modifiers'],
             ])->all(),
         ]);
     }
@@ -142,6 +143,7 @@ class KitchenTicketService
                 'title' => $lines[$event->kitchen_item_id]['title'],
                 'qty' => $event->qty_cancelled,
                 'note' => $lines[$event->kitchen_item_id]['note'],
+                'modifiers' => $lines[$event->kitchen_item_id]['modifiers'],
             ])->values()->all(),
         ])->values();
     }
