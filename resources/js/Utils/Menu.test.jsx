@@ -104,6 +104,18 @@ describe("sidebar Menu", () => {
         expect(granted.map((i) => i.href)).toContain("/reports.kitchen-speed.index");
     });
 
+    it.each([
+        [["stock-waste-create"], 1],
+        [["stock-waste-approve"], 1],
+        [["stock-opnames-access"], 0],
+    ])("shows the waste entry for %j: %i entry", (perms, count) => {
+        const permissions = Object.fromEntries(perms.map((p) => [p, true]));
+        const granted = leaves(renderMenu({ auth: { super: false, permissions } }))
+            .filter((i) => i.href === "/stock-waste.index" && i.permissions === true);
+
+        expect(granted).toHaveLength(count);
+    });
+
     it("every menu permission exists in PermissionSeeder", () => {
         const read = (p) => readFileSync(join(process.cwd(), p), "utf8");
         const menu = read("resources/js/Utils/Menu.jsx");

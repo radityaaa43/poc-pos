@@ -16,8 +16,6 @@ class StockWaste extends Model
 
     public const STATUS_CANCELLED = 'cancelled';
 
-    public const STATUSES = [self::STATUS_PENDING, self::STATUS_RECORDED, self::STATUS_REJECTED, self::STATUS_CANCELLED];
-
     public const REASONS = ['expired', 'damaged', 'wrong_made', 'not_collected', 'other'];
 
     protected $fillable = [

@@ -310,7 +310,8 @@
             "units": "Satuan",
             "kitchenStations": "Stasiun dapur",
             "whatsApp": "WhatsApp",
-            "modifiers": "Modifier"
+            "modifiers": "Modifier",
+            "stockWaste": "Waste"
         },
         "menu": {
             "overview": "Overview",
@@ -1325,5 +1326,51 @@
         "moveUp": "Naikkan {{name}}",
         "moveDown": "Turunkan {{name}}",
         "detach": "Lepas {{name}}"
+    },
+    "waste": {
+        "title": "Waste",
+        "subtitle": "Bahan baku dan menu yang dibuang.",
+        "create": "Catat waste",
+        "back": "Kembali ke daftar waste",
+        "status": "Status",
+        "allStatuses": "Semua status",
+        "warehouse": "Gudang",
+        "allWarehouses": "Semua gudang",
+        "reason": "Alasan",
+        "chooseReason": "Pilih alasan",
+        "item": "Item",
+        "itemNumber": "Item {{number}}",
+        "chooseItem": "Pilih bahan baku atau menu",
+        "addItem": "Tambah item",
+        "removeItem": "Hapus item {{number}}",
+        "qty": "Jumlah",
+        "stockLeft": "Stok: {{stock}}",
+        "menuStock": "Stok: — (bahan resep diperiksa saat disimpan)",
+        "noteOptional": "Catatan (opsional)",
+        "note": "Catatan",
+        "total": "Perkiraan nilai waste: {{value}}",
+        "estimateNote": "Dari HPP rata-rata saat ini; nilai akhir dihitung saat disimpan.",
+        "save": "Simpan waste",
+        "empty": "Belum ada catatan waste",
+        "recordedBy": "Dicatat oleh {{name}}",
+        "lines": "Item yang dicatat",
+        "moves": "Stok yang keluar",
+        "unitCost": "HPP satuan",
+        "value": "Nilai",
+        "notTaken": "Stok belum dipotong.",
+        "takenAt": "Stok dipotong {{date}}",
+        "statuses": {
+            "pending": "Menunggu persetujuan",
+            "recorded": "Tercatat",
+            "rejected": "Ditolak",
+            "cancelled": "Dibatalkan"
+        },
+        "reasons": {
+            "expired": "Kedaluwarsa",
+            "damaged": "Rusak",
+            "wrong_made": "Salah buat",
+            "not_collected": "Tidak diambil",
+            "other": "Lainnya"
+        }
     }
 }
