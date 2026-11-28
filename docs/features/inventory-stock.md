@@ -18,18 +18,21 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 - batch/expiry tracking dan alokasi FEFO
 - composite products / kits
 - reorder point dan rekomendasi purchase order
+- waste bahan baku dan menu resep (REQ-011)
 
 ## Halaman dan Route
 
 - `dashboard/products`
 - `dashboard/stock-opnames`
 - `dashboard/stock-mutations`
+- `dashboard/stock-waste`, `dashboard/stock-waste/create`
 
 ## Permission
 
 - `products-access`, `products-create`, `products-edit`, `products-delete`
 - `stock-opnames-access`, `stock-opnames-create`, `stock-opnames-finalize`
 - `stock-mutations-access`
+- `stock-waste-create`, `stock-waste-approve` (diberikan ke `manager` dan `super-admin` oleh seeder)
 
 ## Alur User
 
@@ -40,6 +43,14 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 5. stok fisik diisi per item
 6. finalize mengubah stok produk dan membuat stock mutation adjustment
 
+## Waste
+
+- Hanya bahan baku dan menu resep. Menu memotong bahan resepnya: jumlah resep x jumlah menu, dibulatkan ke satuan stok (sama seperti penjualan); bahan yang jadi 0 dilewati.
+- Nilai = HPP rata-rata saat stok dipotong x jumlah. Stok yang tidak cukup ditolak.
+- Sampai batas outlet (`settings.waste_approval_limit`, default Rp 100.000) status *Tercatat* dan `product_warehouse.stock` serta `products.stock` dipotong dalam satu transaksi (mutasi `stock_waste`). Di atas batas status *Menunggu persetujuan* dan stok tidak berubah; belum ada layar persetujuan (#459).
+- Produk atau gudang yang punya catatan waste tidak bisa dihapus.
+- Setelah deploy: `php artisan migrate`, lalu `db:seed --class=PermissionSeeder` dan `--class=RoleSeeder`.
+
 ## Integrasi Data
 
 - `products`
@@ -47,6 +58,7 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 - `stock_opname_items`
 - `stock_mutations`
 - `product_notification_reads`
+- `stock_wastes`, `stock_waste_lines`, `stock_waste_moves`
 
 ## Efek Bisnis Penting
 
@@ -66,3 +78,4 @@ Menjaga akurasi stok melalui master produk, stock opname, dan histori mutasi sto
 - `app/Http/Controllers/Apps/StockOpnameController.php`
 - `app/Http/Controllers/Apps/StockMutationController.php`
 - `app/Services/StockMutationService.php`
+- `app/Services/StockWasteService.php`
