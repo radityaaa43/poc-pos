@@ -18,6 +18,7 @@ use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
 use App\Services\OutletAccessService;
+use App\Services\ReturnBillShareService;
 use App\Services\SalesReturnRestockService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,7 +37,8 @@ class SalesReturnController extends Controller
     public function __construct(
         protected readonly CashierShiftService $cashierShiftService,
         protected readonly AuditLogService $auditLogService,
-        protected readonly OutletAccessService $outletAccessService
+        protected readonly OutletAccessService $outletAccessService,
+        protected readonly ReturnBillShareService $returnBillShareService
     ) {}
 
     public function index(Request $request): Response
@@ -108,6 +110,8 @@ class SalesReturnController extends Controller
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
                 'credited_amount' => $payload['credited_amount'],
+                'service_refunded' => $payload['service_refunded'],
+                'tax_refunded' => $payload['tax_refunded'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -159,6 +163,8 @@ class SalesReturnController extends Controller
                 'return_type' => $payload['return_type'],
                 'refund_amount' => $payload['refund_amount'],
                 'credited_amount' => $payload['credited_amount'],
+                'service_refunded' => $payload['service_refunded'],
+                'tax_refunded' => $payload['tax_refunded'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -256,6 +262,12 @@ class SalesReturnController extends Controller
                 }
             }
 
+            // The draft's stored figures are display only: recompute what this return gives back from the locked sale
+            // and the returns already completed, before any stock row (TC-5).
+            $itemValue = (int) $salesReturn->items->sum('subtotal');
+            $share = $this->returnBillShareService->forReturn($sale, $itemValue, $salesReturn->id, lock: true);
+            $totalReturnAmount = $itemValue + $share['service_refunded'] + $share['tax_refunded'];
+
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
 
@@ -273,7 +285,7 @@ class SalesReturnController extends Controller
             $salesReturn->loadMissing('transaction.receivable');
             $settlement = $this->calculateSettlement(
                 $salesReturn->transaction,
-                (int) $salesReturn->total_return_amount,
+                $totalReturnAmount,
                 $salesReturn->return_type
             );
 
@@ -283,6 +295,9 @@ class SalesReturnController extends Controller
                 'return_type' => $settlement['return_type'],
                 'refund_amount' => $settlement['refund_amount'],
                 'credited_amount' => $settlement['credited_amount'],
+                'service_refunded' => $share['service_refunded'],
+                'tax_refunded' => $share['tax_refunded'],
+                'total_return_amount' => $totalReturnAmount,
                 'status' => 'completed',
                 'completed_at' => now(),
             ]);
@@ -339,6 +354,8 @@ class SalesReturnController extends Controller
             'return_type' => $salesReturn->return_type,
             'refund_amount' => (int) $salesReturn->refund_amount,
             'credited_amount' => (int) $salesReturn->credited_amount,
+            'service_refunded' => (int) $salesReturn->service_refunded,
+            'tax_refunded' => (int) $salesReturn->tax_refunded,
             'total_return_amount' => (int) $salesReturn->total_return_amount,
             'transaction_id' => (int) $salesReturn->transaction_id,
             'items_summary' => $salesReturn->items->map(fn (SalesReturnItem $item) => [
@@ -422,6 +439,8 @@ class SalesReturnController extends Controller
                 'name' => $transaction->customer->name,
             ] : null,
             'grand_total' => (int) $transaction->grand_total,
+            // What a return shares out, for the form's live preview; the server recomputes at draft and complete.
+            'bill_share' => $this->returnBillShareService->billShare($transaction),
             'payment_method' => $transaction->payment_method,
             'payment_status' => $transaction->payment_status,
             'receivable' => $transaction->receivable ? [
@@ -480,6 +499,8 @@ class SalesReturnController extends Controller
             'return_type' => $salesReturn->return_type,
             'refund_amount' => (int) $salesReturn->refund_amount,
             'credited_amount' => (int) $salesReturn->credited_amount,
+            'service_refunded' => (int) $salesReturn->service_refunded,
+            'tax_refunded' => (int) $salesReturn->tax_refunded,
             'total_return_amount' => (int) $salesReturn->total_return_amount,
             'notes' => $salesReturn->notes,
             'created_at' => optional($salesReturn->created_at)?->toISOString(),
@@ -592,7 +613,9 @@ class SalesReturnController extends Controller
             ]);
         }
 
-        $totalReturnAmount = (int) $items->sum('subtotal');
+        $itemValue = (int) $items->sum('subtotal');
+        $share = $this->returnBillShareService->forReturn($transaction, $itemValue, $excludeSalesReturnId);
+        $totalReturnAmount = $itemValue + $share['service_refunded'] + $share['tax_refunded'];
         $settlement = $this->calculateSettlement($transaction, $totalReturnAmount, $returnType);
 
         return [
@@ -600,6 +623,8 @@ class SalesReturnController extends Controller
             'notes' => $validated['notes'] ?? null,
             'refund_amount' => $settlement['refund_amount'],
             'credited_amount' => $settlement['credited_amount'],
+            'service_refunded' => $share['service_refunded'],
+            'tax_refunded' => $share['tax_refunded'],
             'total_return_amount' => $totalReturnAmount,
             'items' => $items->all(),
         ];

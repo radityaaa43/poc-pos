@@ -28,7 +28,7 @@ class OpenBillListService
             // 1 or null: lets isAwaitingGuestPayment() answer without a query per row
             ->addSelect(['tenders_exists' => TransactionTender::query()->selectRaw('1')->whereColumn('transaction_tenders.transaction_id', 'transactions.id')->limit(1)])
             // 1 or null: the request died before storing the charge, so there is no QR to show and the row offers Bayar
-            ->addSelect(['abandoned_claim' => TransactionTender::query()->abandonedClaim()->selectRaw('1')->whereColumn('transaction_tenders.transaction_id', 'transactions.id')->limit(1)])
+            ->withAbandonedClaim()
             ->addSelect(['customer_name' => Customer::select('name')->whereColumn('customers.id', 'transactions.customer_id')->limit(1)])
             ->withSum(['salesReturns' => fn ($returns) => $returns->where('status', 'completed')], 'total_return_amount')
             ->oldest()
