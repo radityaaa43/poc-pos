@@ -450,6 +450,22 @@ return [
         'table_has_booking_at_outlet' => 'Meja ini punya reservasi outlet :outlet pada :time — tandai atau batalkan dulu',
     ],
 
+    'waste' => [
+        'reason_required' => 'Pilih alasan.',
+        'item_required' => 'Pilih bahan baku atau menu.',
+        'qty_invalid' => 'Jumlah harus angka bulat dari 1 sampai 1.000.000.',
+        'recorded' => 'Waste tercatat dan stok sudah dipotong.',
+        'pending' => 'Waste menunggu persetujuan. Stok belum berubah.',
+        'item_not_allowed' => 'Hanya bahan baku dan menu resep yang bisa dicatat sebagai waste. ":item" bukan keduanya.',
+        'no_recipe' => 'Menu ":item" belum punya resep.',
+        'nothing_to_take' => 'Jumlah ":item" terlalu kecil: tidak ada bahan yang terpotong.',
+        'insufficient' => 'Stok :item tidak mencukupi. Tersedia: :left.',
+        'product_in_use' => 'Produk ini tidak bisa dihapus karena sudah punya catatan waste.',
+        'movement' => 'Waste stok #:id.',
+        'audit_recorded' => 'Waste #:id tercatat.',
+        'audit_pending' => 'Waste #:id menunggu persetujuan.',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Validation Messages
