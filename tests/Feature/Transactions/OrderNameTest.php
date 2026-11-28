@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use App\Services\ThermalPrintService;
+use App\Support\Checkout\CheckoutFingerprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -95,6 +96,31 @@ class OrderNameTest extends TestCase
             ->assertJsonPath('data.results.0.status', 'synced');
 
         $this->assertSame('Budi 7', Transaction::sole()->order_name);
+    }
+
+    public function test_a_reused_uuid_with_another_name_is_a_conflict_not_a_duplicate(): void
+    {
+        Sanctum::actingAs($this->cashier, ['*']);
+        $send = fn (string $name) => $this->postJson('/api/v1/pos/transactions/sync', ['transactions' => [$this->queued($name)]])->assertOk();
+
+        $send('Budi 7')->assertJsonPath('data.results.0.status', 'synced');
+        $send(' Budi 7 ')->assertJsonPath('data.results.0.status', 'duplicate');
+        $send('Budi 8')->assertJsonPath('data.results.0.status', 'conflict');
+        $send('')->assertJsonPath('data.results.0.status', 'conflict');
+
+        $this->assertSame('Budi 7', Transaction::sole()->order_name);
+    }
+
+    public function test_a_sale_queued_without_a_name_keeps_the_fingerprint_it_had_before_the_field(): void
+    {
+        $payload = ['items' => [['product_id' => 1, 'qty' => 1]], 'cash' => 100000];
+        // Computed by the code before #445: a sale synced then and retried now must still read as a duplicate.
+        $before = 'fb24e0b0187c75f6c5e738b70bc122f4648ead9c06c85f04ddb36195c2374743';
+
+        foreach ([[], ['order_name' => null], ['order_name' => '  ']] as $unnamed) {
+            $this->assertSame($before, CheckoutFingerprint::fromSyncPayload($payload + $unnamed));
+        }
+        $this->assertNotSame($before, CheckoutFingerprint::fromSyncPayload($payload + ['order_name' => '0']));
     }
 
     public function test_more_than_twenty_characters_are_refused_on_web(): void
