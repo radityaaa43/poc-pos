@@ -98,6 +98,7 @@ DEFAULTS: dict = {
             "**/test_*", "**/*_test.*", "**/*.test.*", "**/*.spec.*", "**/tests/**",
             "**/e2e/**", "**/__tests__/**", "*.gen.*", "**/generated/**", "**/migrations/**",
         ],
+        "ratchet": [],  # files that may only shrink, whatever their size
     },
     "pr": {
         "require_closes": True,

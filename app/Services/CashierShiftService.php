@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Exceptions\ShiftCloseBlockedException;
+use App\Models\AuditLog;
 use App\Models\CashierShift;
 use App\Models\DineOrder;
 use App\Models\KitchenItem;
 use App\Models\Outlet;
+use App\Models\Receivable;
 use App\Models\SalesReturn;
 use App\Models\ShiftCashMovement;
 use App\Models\Transaction;
@@ -87,15 +89,48 @@ class CashierShiftService
     }
 
     /**
-     * Does a recap taken while a bill is unpaid already hold it? An unpaid bill (Belum Lunas) and an unpaid gateway sale are left out
-     * (calculateSummary), so once such a bill is paid after its shift closed, the closed recap lacks it and the payment is
-     * flagged "paid after close". A credit, split, transfer or cash sale was counted by its method.
-     * Pass the bill's payment_method as it was before the payment.
+     * Does a recap taken while a bill is unpaid already hold it? An unpaid bill (Belum Lunas), gateway sale or pay-later sale
+     * without a receivable is left out, and a split sale counts only the money received (calculateSummary), so once the money
+     * arrives after the shift closed, the closed recap lacks it and the payment is flagged "paid after close". A credit sale
+     * (it has a receivable), a transfer or a cash sale was counted by its method.
+     *
+     * @param  string|null  $methodBefore  the payment_method before the payment, when the payment has already changed it
      */
-    public static function countedInClosedRecap(?string $paymentMethod): bool
+    public static function countedInClosedRecap(Transaction $bill, ?string $methodBefore = null): bool
     {
-        return $paymentMethod !== Transaction::METHOD_OPEN_BILL
-            && ! in_array($paymentMethod, TransactionTenderService::GATEWAY_METHODS, true);
+        $method = $methodBefore ?? $bill->payment_method;
+
+        if ($method === 'pay_later') {
+            return $bill->receivable()->exists();
+        }
+
+        return ! in_array($method, [Transaction::METHOD_OPEN_BILL, 'split'], true)
+            && ! in_array($method, TransactionTenderService::GATEWAY_METHODS, true);
+    }
+
+    /**
+     * The shift whose forced close booked this pay-later sale as a shortfall, if one did. A payment at the till moves the
+     * sale to the paying shift while a transfer or gateway charge still waits, so the sale's own shift is open when the
+     * money arrives: the booking is what says it is paid after a close (#396 TC-8). Never a dine-in bill (a till payment
+     * after a close is not marked, REQ-005) or a credit sale. A plain read: call it after the caller's row locks.
+     *
+     * shortcut: the link is the invoice list of the forced close's audit entry, so a bill booked before #242 has none and
+     * gets no mark; store the booking shift's id on the sale if that matters.
+     */
+    public static function forcedCloseThatBooked(Transaction $sale): ?CashierShift
+    {
+        if (! $sale->is_pay_later || $sale->dineOrder()->exists() || $sale->receivable()->exists()) {
+            return null;
+        }
+
+        $shiftId = AuditLog::query()
+            ->where('module', 'cashier_shifts')
+            ->where('event', 'cashier_shift.hold_overridden')
+            ->whereJsonContains('meta->unpaid_bills', $sale->invoice)
+            ->latest('id')
+            ->value('auditable_id');
+
+        return $shiftId ? CashierShift::find($shiftId) : null;
     }
 
     /** @param  array<int, int>  $bookedBillIds  unpaid bills a forced close books as a shortfall (see closeShift) */
@@ -115,35 +150,35 @@ class CashierShiftService
             ->where('payment_status', 'paid')
             ->sum('grand_total');
 
-        // Split payments: cash tender portions must count toward the drawer,
-        // the parent row's payment_method ('split') puts grand_total in the non-cash bucket.
-        // A split waiting for its transfer is pending, but its cash part is already in the drawer.
-        $splitCashTenders = TransactionTender::query()
-            ->whereHas('transaction', fn ($q) => $q
-                ->where('cashier_shift_id', $shift->id)
-                ->where('payment_method', 'split')
-                ->whereIn('payment_status', ['paid', 'pending']))
-            ->where('method', TransactionTender::METHOD_CASH);
+        // A split sale counts only the money received (#396): its paid cash tenders are in the drawer, its paid non-cash
+        // tenders are non-cash sales, and its grand_total counts nowhere.
+        $splitSales = (clone $transactions)->where('payment_method', 'split')->select('transactions.id');
+        $paidTenders = TransactionTender::query()->where('payment_status', TransactionTender::STATUS_PAID);
 
-        $cashSalesTotal += (int) (clone $splitCashTenders)->sum('amount');
+        $cashSalesTotal += (int) (clone $paidTenders)
+            ->where('method', TransactionTender::METHOD_CASH)
+            ->whereIn('transaction_id', $splitSales)
+            ->sum('amount');
 
         // Only money received counts: an unpaid bill (Belum Lunas) has taken none yet, and a gateway sale counts once it is paid (see countedInClosedRecap).
-        $nonCashSalesTotal = (int) (clone $transactions)
-            ->whereKeyNot($bookedBillIds)
-            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
+        $nonCashSales = (clone $transactions)
+            ->whereNotIn('payment_method', ['cash', 'split', Transaction::METHOD_OPEN_BILL])
             ->where(fn ($sales) => $sales
                 ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
                 ->orWhere('payment_status', 'paid'))
-            ->sum('grand_total');
+            // A pay-later sale without a receivable has taken nothing until it is paid; a credit sale counts at sale time.
+            ->where(fn ($sales) => $sales
+                ->where('payment_method', '!=', 'pay_later')
+                ->orWhere('payment_status', 'paid')
+                ->orWhereIn('transactions.id', Receivable::query()->select('transaction_id')));
+        $nonCashSalesTotal = (int) (clone $nonCashSales)->whereKeyNot($bookedBillIds)->sum('grand_total');
 
-        // Split payments: non-cash portion = grand_total minus cash tenders.
-        $nonCashSalesTotal -= (int) (clone $splitCashTenders)->whereNotIn('transaction_id', $bookedBillIds)->sum('amount');
-
-        // A booked bill is already a shortfall (BR-16): only the non-cash part it did receive counts here.
-        $nonCashSalesTotal += (int) TransactionTender::query()
-            ->whereIn('transaction_id', $bookedBillIds)
+        // A booked bill is already a shortfall (BR-16): like a split, only the non-cash part it did receive counts here.
+        $nonCashSalesTotal += (int) (clone $paidTenders)
             ->where('method', '!=', TransactionTender::METHOD_CASH)
-            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->where(fn ($tenders) => $tenders
+                ->whereIn('transaction_id', $splitSales)
+                ->orWhereIn('transaction_id', $bookedBillIds))
             ->sum('amount');
 
         // What a sale was never asked for is not money received, so it comes off the bucket the sale is counted in. Only an
@@ -180,11 +215,15 @@ class CashierShiftService
         $cashSalesTotal -= $neverAsked((clone $transactions)
             ->where('payment_method', 'cash')
             ->where('payment_status', 'paid'));
-        $nonCashSalesTotal -= $neverAsked((clone $transactions)
-            ->whereNotIn('payment_method', ['cash', Transaction::METHOD_OPEN_BILL])
-            ->where(fn ($sales) => $sales
-                ->whereNotIn('payment_method', TransactionTenderService::GATEWAY_METHODS)
-                ->orWhere('payment_status', 'paid')));
+        // The same sales as added above, so nothing comes off that never went in (no split, no unpaid pay later).
+        $nonCashSalesTotal -= $neverAsked(clone $nonCashSales);
+
+        // A split is counted by its paid tenders, not its grand total, so #464's overpaid part (a return recorded while a
+        // transfer waited) is off here too; its cash part is cashExcess below.
+        $nonCashSalesTotal -= (int) (clone $transactions)
+            ->whereKeyNot($bookedBillIds)
+            ->where('payment_method', 'split')
+            ->sum('overpaid_amount');
 
         // A split's excess came off the non-cash sales above: its cash part (see cashExcess) is cash in the drawer.
         // One query per overpaid sale of the shift, a handful at most.
@@ -302,7 +341,7 @@ class CashierShiftService
                 ->each(fn (Transaction $sale) => $this->kitchenIntakeService->recover($sale));
 
             $blockers = $this->blockerService->blockersFor($lockedShift);
-            $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty();
+            $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty() || $blockers['splits']->isNotEmpty();
 
             // AC-12: a held shift closes only by force, and then only with a note (AC-13).
             if ($held && ! $overrideHold) {
@@ -331,12 +370,16 @@ class CashierShiftService
                     event: 'cashier_shift.hold_overridden',
                     module: 'cashier_shifts',
                     auditable: $lockedShift,
-                    description: 'Shift ditutup paksa dengan item belum diserahkan atau tagihan belum lunas.',
+                    description: 'Shift ditutup paksa dengan item belum diserahkan, tagihan atau split belum lunas.',
                     meta: [
                         'note' => trim((string) $closeNotes),
                         'not_collected_item_ids' => $blockers['items']->modelKeys(),
                         'unpaid_bills' => $blockers['bills']->pluck('invoice')->all(),
                         'unpaid_bills_total' => $unpaidBillsTotal,
+                        // Left payable and never booked as a shortfall: the unpaid part of a split is not cash (#396).
+                        'partly_paid_splits' => $blockers['splits']->toBase()
+                            ->map(fn (Transaction $sale) => ['invoice' => $sale->invoice, 'owed' => $sale->unpaidAmount()])
+                            ->all(),
                         'cancelled_pay_now' => $cancelled,
                     ],
                     actor: $actor,

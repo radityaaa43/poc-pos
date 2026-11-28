@@ -10,7 +10,6 @@ import axios from "axios";
 import toast from "react-hot-toast";
 import POSLayout from "@/Layouts/POSLayout";
 import ProductGrid from "@/Components/POS/ProductGrid";
-import CartPanel from "@/Components/POS/CartPanel";
 import CustomerSelect from "@/Components/POS/CustomerSelect";
 import NumpadModal from "@/Components/POS/NumpadModal";
 import HeldTransactions, {
@@ -23,6 +22,8 @@ import useCreditException from "@/Components/POS/CreditExceptionDialog";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
+import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
+import OrderTypeLock from "@/Components/POS/OrderTypeLock";
 import usePosShortcuts from "@/Hooks/usePosShortcuts";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
@@ -170,7 +171,7 @@ export default function Index({
                     handleAddToCart(product);
                     toast.success(`${product.title} ditambahkan (barcode)`);
                 } else {
-                    toast.error(`${product.title} stok habis`);
+                    toast.error(`${product.title} ${i18n.t("common.soldOut")}`);
                 }
             } else {
                 toast.error(`Produk tidak ditemukan: ${barcode}`);
@@ -209,10 +210,6 @@ export default function Index({
     );
     const loyaltyDiscount = useMemo(
         () => Number(pricingPreview?.summary?.loyalty_discount_total ?? 0),
-        [pricingPreview]
-    );
-    const taxTotal = useMemo(
-        () => Number(pricingPreview?.summary?.tax_total ?? 0),
         [pricingPreview]
     );
     const subtotal = useMemo(
@@ -280,6 +277,7 @@ export default function Index({
                 shipping_cost: shipping,
                 redeem_points: Number(redeemPointsInput || 0),
                 customer_voucher_id: selectedVoucherId || null,
+                order_type: orderType,
             })
             .then((response) => {
                 if (!cancelled) {
@@ -307,6 +305,7 @@ export default function Index({
         shipping,
         redeemPointsInput,
         selectedVoucherId,
+        orderType,
     ]);
 
     useEffect(() => {
@@ -1261,7 +1260,7 @@ export default function Index({
                                     Detail Pesanan
                                 </p>
 
-                                <div>
+                                <OrderTypeLock>
                                     <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
                                         Tipe Pesanan
                                     </label>
@@ -1285,7 +1284,7 @@ export default function Index({
                                             </button>
                                         ))}
                                     </div>
-                                </div>
+                                </OrderTypeLock>
 
                                 {isDelivery && (
                                     <div>
@@ -1886,48 +1885,14 @@ export default function Index({
                                 </div>
                             </div>
                         )}
-                        {voucherDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Voucher</span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(voucherDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {loyaltyDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">
-                                    Redeem Poin
-                                </span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(loyaltyDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {discount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Diskon Manual</span>
-                                <span className="text-danger-500">
-                                    -{formatPrice(discount)}
-                                </span>
-                            </div>
-                        )}
-                        {shipping > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Ongkir</span>
-                                <span className="font-medium">
-                                    +{formatPrice(shipping)}
-                                </span>
-                            </div>
-                        )}
-                        {taxTotal > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">PPN</span>
-                                <span className="font-medium">
-                                    +{formatPrice(taxTotal)}
-                                </span>
-                            </div>
-                        )}
+                        <CheckoutSummaryRows
+                            voucher={voucherDiscount}
+                            loyalty={loyaltyDiscount}
+                            discount={discount}
+                            shipping={shipping}
+                            bill={pricingPreview?.summary ?? {}}
+                            format={formatPrice}
+                        />
                         <div className="flex justify-between items-center mb-3">
                             <span className="font-semibold text-slate-800 dark:text-white">
                                 Total

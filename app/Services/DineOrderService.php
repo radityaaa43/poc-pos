@@ -46,6 +46,7 @@ class DineOrderService
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
+            $this->refuseIfProcessed($order);
             // #251: locked before the first plain read fixes MySQL's snapshot. A refusal rolls the whole accept back.
             $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
 
@@ -405,11 +406,24 @@ class DineOrderService
 
     public function reject(DineOrder $order, ?string $reason = null): void
     {
-        $order->update([
-            'status' => DineOrder::STATUS_REJECTED,
-            'notes' => $order->notes
-                ? "{$order->notes}\n[Penolakan: {$reason}]"
-                : "[Penolakan: {$reason}]",
-        ]);
+        DB::transaction(function () use ($order, $reason) {
+            $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            $this->refuseIfProcessed($order);
+
+            $order->update([
+                'status' => DineOrder::STATUS_REJECTED,
+                'notes' => $order->notes
+                    ? "{$order->notes}\n[Penolakan: {$reason}]"
+                    : "[Penolakan: {$reason}]",
+            ]);
+        });
+    }
+
+    /** #438: an order is accepted or rejected once. Pass the locked row, so a racing second action waits and is refused. */
+    private function refuseIfProcessed(DineOrder $order): void
+    {
+        if (! $order->isPending() || $order->transaction_id) {
+            throw ValidationException::withMessages(['order' => 'Pesanan ini sudah diproses.']);
+        }
     }
 }

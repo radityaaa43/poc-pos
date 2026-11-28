@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Services\KitchenIntakeService;
+use Closure;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -75,6 +76,7 @@ class Transaction extends Model
         'tax_rate',
         'tax_total',
         'service_charge',
+        'service_charge_rate',
         'tax_kind',
         'tax_base',
         'customer_npwp',
@@ -106,6 +108,7 @@ class Transaction extends Model
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
         'service_charge' => 'integer',
+        'service_charge_rate' => 'decimal:2',
         'tax_base' => 'integer',
         'discount_approved_at' => 'datetime',
         'payment_attempt' => 'integer',
@@ -221,20 +224,38 @@ class Transaction extends Model
                 ." where sr2.transaction_id = transactions.id and sr2.status = 'completed'), 0)");
     }
 
-    /**
-     * Bayar sekarang sales with no money received, cancelled when their shift closes (REQ-003 AC-20). Never a bill
-     * (pay later or dine-in), a split with a paid part or a sale with a completed return (BR-15), or one already cancelled.
-     */
-    public function scopeUnpaidPayNow($query)
+    /** Bayar sekarang sales: never a bill (pay later or dine-in), one with a completed return (BR-15) or a cancelled one. */
+    public function scopePayNow($query)
     {
         return $query->where('is_pay_later', false)
-            ->whereIn('payment_status', ['pending', 'failed', 'expired'])
             ->whereNotIn('payment_method', ['pay_later', self::METHOD_OPEN_BILL])
             ->doesntHave('dineOrder')
             ->doesntHave('receivable')
-            ->whereDoesntHave('tenders', fn ($tenders) => $tenders->where('payment_status', TransactionTender::STATUS_PAID))
             ->whereDoesntHave('salesReturns', fn ($returns) => $returns->where('status', 'completed'))
             ->notRestocked();
+    }
+
+    /** Bayar sekarang sales with no money received, cancelled when their shift closes (REQ-003 AC-20). */
+    public function scopeUnpaidPayNow($query)
+    {
+        return $query->payNow()
+            ->whereIn('payment_status', ['pending', 'failed', 'expired'])
+            ->whereDoesntHave('tenders', self::receivedTender());
+    }
+
+    /** Bayar sekarang split sales with some money received but not all of it: they hold their shift's close (#396). */
+    public function scopePartlyPaidSplit($query)
+    {
+        return $query->payNow()
+            ->where('payment_method', 'split')
+            ->where('payment_status', '!=', 'paid')
+            ->whereHas('tenders', self::receivedTender());
+    }
+
+    /** The one test of "money received": the close cancels a sale without it and is held by a split with it. */
+    private static function receivedTender(): Closure
+    {
+        return fn ($tenders) => $tenders->where('payment_status', TransactionTender::STATUS_PAID);
     }
 
     /** Not cancelled: see wasRestocked(). */
@@ -492,5 +513,14 @@ class Transaction extends Model
         }
 
         return false;
+    }
+
+    /**
+     * "PB1 10%" on a PB1 sale. Null on a PPN one, whose wording each document keeps (a null kind, from before
+     * the bill rules, reads as PPN).
+     */
+    public function pb1Label(): ?string
+    {
+        return $this->tax_kind === 'pb1' ? __('pdf/labels.receipt.pb1_rate', ['rate' => (float) $this->tax_rate]) : null;
     }
 }

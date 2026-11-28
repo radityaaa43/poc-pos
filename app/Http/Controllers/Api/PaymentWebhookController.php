@@ -590,8 +590,12 @@ class PaymentWebhookController extends Controller
         }
 
         // The owning shift closed first: its recap is a stored snapshot and stays as it was; the payment is only flagged.
-        $afterClose = $values['payment_status'] === 'paid' && $shift && ! $shift->isOpen()
-            && ! CashierShiftService::countedInClosedRecap($bill->payment_method);
+        // A bill settled at the till has moved to an open shift: the forced close that booked it still counts.
+        $closedShift = match (true) {
+            $values['payment_status'] !== 'paid' => null,
+            $shift && ! $shift->isOpen() => CashierShiftService::countedInClosedRecap($bill) ? null : $shift,
+            default => CashierShiftService::forcedCloseThatBooked($bill),
+        };
 
         // Paid while still open_bill (a failed charge had put it back): name the gateway, or the shift's non-cash total
         // leaves the money out. Set after the check above, which needs the method as it was.
@@ -599,7 +603,7 @@ class PaymentWebhookController extends Controller
             $values['payment_method'] = $gateway;
         }
 
-        $bill->update($afterClose ? [...$values, 'paid_after_close_at' => now()] : $values);
+        $bill->update($closedShift ? [...$values, 'paid_after_close_at' => now()] : $values);
 
         // The gateway took more than the receivable owed: the balance is booked, the rest must be refunded by hand.
         if ($excess > 0) {
@@ -615,13 +619,13 @@ class PaymentWebhookController extends Controller
             );
         }
 
-        if ($afterClose) {
+        if ($closedShift) {
             app(AuditLogService::class)->log(
                 event: 'payment.paid_after_close',
                 module: 'transactions',
                 auditable: $bill,
                 description: "Invoice {$bill->invoice} dibayar setelah shift ditutup; rekap shift tidak berubah.",
-                meta: ['shift_id' => $shift->id, 'gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
+                meta: ['shift_id' => $closedShift->id, 'gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount],
             );
             Log::info(ucfirst($gateway).' Webhook: paid after shift close', ['provider' => $gateway, 'order_id' => $providerId, 'transaction_id' => $bill->id]);
         }

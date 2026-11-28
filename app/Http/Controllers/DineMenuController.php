@@ -37,13 +37,15 @@ class DineMenuController extends Controller
                     $query->orWhereHas('warehouses', fn ($warehouse) => $warehouse->where('outlet_id', $outlet->id)->where('stock', '>', 0));
                 }
             })
-            ->with('category')
+            ->with(['category', 'components.warehouses' => fn ($warehouses) => $outlet
+                ? $warehouses->where('outlet_id', $outlet->id)->where('warehouses.is_active', true)
+                : $warehouses])
             ->get();
 
         // ponytail: previewProducts() returns arrays keyed by product id (pricing fields only) — merge the effective price back onto model-shaped payloads the menu page expects (id/title/image/category_id/sell_price)
         $previews = $this->pricingService->previewProducts($products, null, null, $outlet);
 
-        $products = $products->map(function (Product $product) use ($previews) {
+        $products = $products->map(function (Product $product) use ($previews, $outlet) {
             $preview = $previews->get($product->id);
 
             return [
@@ -52,6 +54,8 @@ class DineMenuController extends Controller
                 'image' => $product->image,
                 'category_id' => $product->category_id,
                 'sell_price' => (int) ($preview['effective_unit_price'] ?? $product->sell_price),
+                // A recipe menu short of ingredients stays on the menu, shown Habis, not hidden (REQ-001 AC-04).
+                'sold_out' => $product->is_composite && $product->stockAtOutlet($outlet) < 1,
             ];
         })->values();
 

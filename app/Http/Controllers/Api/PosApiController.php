@@ -20,12 +20,11 @@ use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
+use App\Services\CheckoutPreviewService;
 use App\Services\CheckoutService;
-use App\Services\LoyaltyService;
 use App\Services\OutletAccessService;
 use App\Services\Payments\PaymentGatewayManager;
 use App\Services\PriceListService;
-use App\Services\PricingService;
 use App\Services\TransactionTenderService;
 use App\Services\UnitConversionService;
 use App\Support\Checkout\CheckoutContext;
@@ -43,8 +42,7 @@ class PosApiController extends Controller
 
     public function __construct(
         private readonly CashierShiftService $cashierShiftService,
-        private readonly PricingService $pricingService,
-        private readonly LoyaltyService $loyaltyService,
+        private readonly CheckoutPreviewService $checkoutPreviewService,
         private readonly UnitConversionService $unitConversionService,
         private readonly PriceListService $priceListService,
         private readonly TransactionTenderService $tenderService,
@@ -171,9 +169,8 @@ class PosApiController extends Controller
         $products->through(function (Product $product) use ($warehouseId) {
             $data = (new ProductResource($product))->resolve();
             $data['stock'] = $product->stockIn($warehouseId);
-            if ($product->is_composite) {
-                $data['sell_price'] = $product->compositeSellPrice();
-            }
+            $data['sold_out'] = $product->is_composite && $data['stock'] < 1;
+            $data['sell_price'] = $product->is_composite ? $product->compositeSellPrice() : $data['sell_price'];
 
             return $data;
         });
@@ -234,15 +231,12 @@ class PosApiController extends Controller
             ? Customer::find($request->integer('customer_id'))
             : null;
 
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
-        $outlet = $activeShift?->warehouse?->outlet;
-        $preview = $this->pricingService->previewCart($carts, $customer, null, $outlet);
-        $checkout = $this->loyaltyService->previewCheckout($preview, $customer, [
+        $checkout = $this->checkoutPreviewService->checkout($request->user(), $customer, [
             'manual_discount' => (int) $request->integer('discount', 0),
             'shipping_cost' => (int) $request->integer('shipping_cost', 0),
             'redeem_points' => (int) $request->integer('redeem_points', 0),
-        ], null, $outlet);
+            'order_type' => $request->query('order_type'),
+        ], $carts);
 
         return $this->ok([
             'items' => CartResource::collection($carts),
@@ -254,6 +248,8 @@ class PosApiController extends Controller
                 'loyalty_discount' => (float) data_get($checkout, 'summary.loyalty_discount_total', 0),
                 'manual_discount' => (float) data_get($checkout, 'summary.manual_discount_total', 0),
                 'shipping_cost' => (float) $request->integer('shipping_cost', 0),
+                'service_charge' => (int) data_get($checkout, 'summary.service_charge', 0),
+                'tax_kind' => data_get($checkout, 'summary.tax_kind'),
                 'tax_rate' => (float) data_get($checkout, 'summary.tax_rate', 0),
                 'tax_total' => (float) data_get($checkout, 'summary.tax_total', 0),
                 'grand_total' => (float) data_get($checkout, 'summary.grand_total', 0),
@@ -832,7 +828,9 @@ class PosApiController extends Controller
                 }
             }
 
-            foreach ($payload['items'] as $item) {
+            // The offline cart arrives newest-first; create it oldest-first so the cart ids the preview and the
+            // stored total read (id ascending, last line's tax rate) match what the offline screen showed (#450).
+            foreach (array_reverse($payload['items']) as $item) {
                 $product = Product::find($item['product_id']);
 
                 if (! $product) {

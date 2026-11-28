@@ -65,7 +65,7 @@ class TransactionsExport implements FromCollection, ShouldAutoSize, WithHeadings
 
     public function headings(): array
     {
-        return ['Invoice', 'Tanggal', 'Kasir', 'Pelanggan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Ongkir', 'PPN', 'Grand Total'];
+        return ['Invoice', 'Tanggal', 'Kasir', 'Pelanggan', 'Metode', 'Status', 'Subtotal', 'Diskon', 'Ongkir', 'Service Charge', 'Jenis Pajak', 'Pajak', 'Grand Total'];
     }
 
     public function map($transaction): array
@@ -79,9 +79,11 @@ class TransactionsExport implements FromCollection, ShouldAutoSize, WithHeadings
                 ? 'Split: '.$transaction->tenders->map(fn ($tender) => $tender->method.' '.$tender->amount)->join(', ')
                 : ($transaction->payment_method ?? ''),
             $transaction->payment_status ?? '',
-            (int) ($transaction->grand_total + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0)),
+            (int) ($transaction->grand_total + ($transaction->discount ?? 0) - ($transaction->shipping_cost ?? 0) - ($transaction->tax_total ?? 0) - ($transaction->service_charge ?? 0)),
             (int) ($transaction->discount ?? 0),
             (int) ($transaction->shipping_cost ?? 0),
+            (int) ($transaction->service_charge ?? 0),
+            $transaction->tax_kind === 'pb1' ? 'PB1' : 'PPN',
             (int) ($transaction->tax_total ?? 0),
             (int) $transaction->grand_total,
         ];

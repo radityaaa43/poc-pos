@@ -25,8 +25,8 @@ class TransactionsExportTest extends TestCase
 
         $row = (new TransactionsExport(new Request))->map($transaction);
 
-        [$subtotal, $discount, $shipping, $tax, $grandTotal] = array_slice($row, 6);
+        [$subtotal, $discount, $shipping, $service, , $tax, $grandTotal] = array_slice($row, 6);
         $this->assertSame(30000, $subtotal);
-        $this->assertSame($grandTotal, $subtotal - $discount + $shipping + $tax);
+        $this->assertSame($grandTotal, $subtotal - $discount + $shipping + $service + $tax);
     }
 }

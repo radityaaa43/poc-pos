@@ -107,6 +107,7 @@ issue, stdlib and native features before new libraries.
   refactors, renames or reformatting outside the issue.
 - Sync with `main` daily and before the PR: `git fetch && git rebase origin/main`
   on your own unreviewed branch (`--force-with-lease` is fine); after review, merge it in instead.
+- Files in `file_length.ratchet` (`.github/governance.json`) may only shrink; CI fails a PR that grows them.
 - Hotspot files (`routes/web.php`, `routes/web/*.php`, `routes/api.php`, `resources/js/Utils/Menu.jsx`, `database/seeders/PermissionSeeder.php`, `database/seeders/RoleSeeder.php`, `resources/js/i18n/locales/en.json`, `resources/js/i18n/locales/id.json`, `lang/`, `ARCHITECTURE.md`): append rather than reorder, and name them in the PR.
 - Dashboard routes: append to your module's file in `routes/web/`, not to `routes/web.php` (a new
   module adds a file and its `require` there).
@@ -125,7 +126,8 @@ machine's CPU and memory. Locally, run only the fast checks:
 
 ```bash
 # laravel
-docker compose exec -T app vendor/bin/pint --test --diff=main
+vendor/bin/pint --test --diff=main
+composer analyse
 # frontend
 npm test
 npm run build
@@ -179,7 +181,8 @@ covered by the hook; review and CI still apply.
 
 Detail and the reasons: [`docs/agents/project-guide.md`](docs/agents/project-guide.md).
 
-- Local PHP and MySQL run in Docker: prefix `php`/`composer` with `docker compose exec -T app`.
+- Local PHP and MySQL run on the host (Laragon, PHP 8.4, MySQL 8.4; setup: `README.md` → Local setup).
+  Dev, checks, e2e and review apps use no containers.
 - Stock: `product_warehouse.stock` is operational; update `products.stock` in the same
   `DB::transaction`, with `lockForUpdate()` on the affected rows.
 - Never run the demo seeder (`DemoSeeder`, `seed:demo`) against production; it rebuilds demo data.

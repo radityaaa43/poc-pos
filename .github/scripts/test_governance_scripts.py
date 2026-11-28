@@ -5,6 +5,7 @@ import copy
 import os
 import sys
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -267,6 +268,25 @@ class Glossary(unittest.TestCase):
         out = check_glossary.problems(self.TABLES + "| outlet | The same row, edited on another branch |\n")
         self.assertEqual(len(out), 1)
         self.assertIn("line 11 repeats the term 'outlet' from line 3", out[0])
+
+
+class Ratchet(unittest.TestCase):
+    PAGE = "resources/js/Pages/Dashboard/Transactions/Index.jsx"
+
+    def lengths(self, path, old, new):
+        diff = mock.Mock(stdout=path + "\n")
+        with mock.patch.object(pr_size.subprocess, "run", return_value=diff), \
+                mock.patch.object(pr_size, "_lines_at", side_effect=lambda ref, _: new if ref is None else old):
+            return pr_size.length_problems("base", cfg(file_length__ratchet=[self.PAGE]))
+
+    def test_ratchet_file_may_not_grow(self):
+        self.assertIn("may only shrink", self.lengths(self.PAGE, 2062, 2063)[0])
+        self.assertEqual(self.lengths(self.PAGE, 2062, 2062), [])
+        self.assertEqual(self.lengths(self.PAGE, 2062, 2000), [])
+
+    def test_ratchet_does_not_change_other_files(self):
+        self.assertEqual(self.lengths("resources/js/Other.jsx", 500, 900), [])
+        self.assertIn("limit 1000", self.lengths("resources/js/Other.jsx", 900, 1001)[0])
 
 
 if __name__ == "__main__":

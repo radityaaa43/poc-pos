@@ -83,7 +83,8 @@ class RecapUnowedReturnTest extends TestCase
             ['method' => 'bank_transfer', 'amount' => 15000, 'bank_account_id' => $account->id],
         ]);
 
-        $this->assertRecap(cash: 5000, nonCash: 15000, expectedCash: 105000);
+        // #396 BR-8: the unconfirmed transfer part counts 0 until confirmed, and no return comes off a split.
+        $this->assertRecap(cash: 5000, nonCash: 0, expectedCash: 105000);
     }
 
     public function test_return_after_payment_is_not_subtracted_twice(): void
@@ -136,7 +137,8 @@ class RecapUnowedReturnTest extends TestCase
 
         $this->returnFromBill($this->bill($order), $this->flagged);
 
-        $this->assertRecap(cash: 5000, nonCash: 15000, expectedCash: 105000);
+        // #396 BR-8: the unconfirmed transfer part counts 0 until confirmed, and no return comes off a split.
+        $this->assertRecap(cash: 5000, nonCash: 0, expectedCash: 105000);
     }
 
     public function test_a_return_while_a_counter_gateway_charge_waits_leaves_the_excess_out_once_paid(): void
@@ -176,6 +178,22 @@ class RecapUnowedReturnTest extends TestCase
             'code' => 'SR-SECOND', 'transaction_id' => $bill->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
             'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 12500, 'completed_at' => now(),
         ]);
+        Transaction::create([
+            'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
+            'invoice' => 'TRX-OTHER', 'cash' => 0, 'change' => 0, 'discount' => 0, 'grand_total' => 30000,
+            'payment_method' => 'bank_transfer', 'payment_status' => 'paid',
+        ]);
+
+        $this->assertRecap(cash: 0, nonCash: 30000, expectedCash: 100000);
+    }
+
+    public function test_a_retried_transfer_never_takes_off_more_than_it_added(): void
+    {
+        $shift = app(CashierShiftService::class)->openShift($this->cashier, $this->cashier, 100000, null, $this->warehouse->id);
+        // asked again without tenders, discounted to 20000, returns of 25000 at line prices
+        $this->saleWithUnrefundedReturn($shift, [
+            'payment_attempt' => 1, 'payment_method' => 'bank_transfer', 'payment_status' => 'pending', 'grand_total' => 20000,
+        ], returned: 25000);
         Transaction::create([
             'cashier_id' => $this->cashier->id, 'cashier_shift_id' => $shift->id, 'warehouse_id' => $this->warehouse->id,
             'invoice' => 'TRX-OTHER', 'cash' => 0, 'change' => 0, 'discount' => 0, 'grand_total' => 30000,
