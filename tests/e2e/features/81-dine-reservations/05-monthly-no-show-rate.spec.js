@@ -20,17 +20,19 @@ test.describe('81-dine-reservations: monthly no-show rate', () => {
 
         await page.goto(`${URL}?date=${date}`);
         const card = page.getByRole('region', { name: /Ringkasan/ });
-        await expect(card).toContainText('Belum ditandai 3');
-        await expect(card).toContainText('Tingkat tidak datang —');
+        // The card is a description list: each label sits in a dt with its value in the next dd.
+        const value = (label) => card.locator('dt').filter({ hasText: new RegExp(`^${label}:?$`) }).locator('xpath=following-sibling::dd');
+        await expect(value('Belum ditandai')).toHaveText('3');
+        await expect(value('Tingkat tidak datang')).toHaveText('—');
 
         await mark(guests[0], 'Datang');
         await mark(guests[1], 'Batal');
         await mark(guests[2], 'Tidak datang');
 
-        await expect(card).toContainText('Belum ditandai 0');
-        await expect(card).toContainText('Tingkat tidak datang 50%');
-        for (const count of ['Datang 1', 'Batal 1', 'Tidak datang 1']) {
-            await expect(card).toContainText(count);
-        }
+        await expect(value('Belum ditandai')).toHaveText('0');
+        await expect(value('Tingkat tidak datang')).toHaveText('50%');
+        await expect(value('Datang')).toHaveText('1');
+        await expect(value('Batal')).toHaveText('1');
+        await expect(value('Tidak datang')).toHaveText('1');
     });
 });
