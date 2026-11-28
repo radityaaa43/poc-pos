@@ -115,6 +115,25 @@ export default function SalesReturnForm({
             0
         );
 
+        // Shares the sale's service charge and tax like ReturnBillShareService: cumulative round-half-up, so the
+        // returns of one sale add up to what it charged. Null bill_share (an older server payload) shows no rows.
+        const billShare = transaction.bill_share ?? null;
+        const base = Number(billShare?.base || 0);
+        const returnedValue = Number(billShare?.returned_value || 0);
+        const returnedBefore = Math.min(base, returnedValue);
+        const cumulative = Math.min(base, returnedBefore + totalAmount);
+        const shareOf = (total, at) =>
+            base > 0 ? Math.floor((2 * total * at + base) / (2 * base)) : 0;
+        const serviceShare = billShare
+            ? shareOf(Number(billShare.service_charge || 0), cumulative) -
+              shareOf(Number(billShare.service_charge || 0), returnedBefore)
+            : 0;
+        const taxShare = billShare
+            ? shareOf(Number(billShare.refundable_tax || 0), cumulative) -
+              shareOf(Number(billShare.refundable_tax || 0), returnedBefore)
+            : 0;
+        const grossAmount = totalAmount + serviceShare + taxShare;
+
         let receivableAfter = null;
         let settlementAmount = 0;
 
@@ -124,14 +143,14 @@ export default function SalesReturnForm({
         ) {
             receivableAfter = Math.max(
                 0,
-                Number(transaction.receivable.total || 0) - totalAmount
+                Number(transaction.receivable.total || 0) - grossAmount
             );
             settlementAmount = Math.max(
                 0,
                 Number(transaction.receivable.paid || 0) - receivableAfter
             );
         } else if (transaction.payment_status === "paid") {
-            settlementAmount = totalAmount;
+            settlementAmount = grossAmount;
         }
 
         const effectiveReturnType =
@@ -143,6 +162,10 @@ export default function SalesReturnForm({
             selectedItemsCount: selectedItems.length,
             totalItems,
             totalAmount,
+            serviceShare,
+            taxShare,
+            grossAmount,
+            hasBillShare: Boolean(billShare),
             restockQty,
             receivableAfter,
             refundAmount:
@@ -158,6 +181,7 @@ export default function SalesReturnForm({
         transaction.payment_method,
         transaction.payment_status,
         transaction.receivable,
+        transaction.bill_share,
     ]);
 
     const updateItem = (transactionDetailId, key, value) => {
@@ -477,6 +501,22 @@ export default function SalesReturnForm({
                                     label="Stok kembali"
                                     value={`${summary.restockQty} item`}
                                 />
+                                {summary.hasBillShare && (
+                                    <>
+                                        <PreviewRow
+                                            label={t("salesReturns.serviceRefund")}
+                                            value={formatCurrency(
+                                                summary.serviceShare
+                                            )}
+                                        />
+                                        <PreviewRow
+                                            label={t("salesReturns.taxRefund")}
+                                            value={formatCurrency(
+                                                summary.taxShare
+                                            )}
+                                        />
+                                    </>
+                                )}
                                 <PreviewRow
                                     label="Refund"
                                     value={formatCurrency(summary.refundAmount)}
@@ -505,9 +545,14 @@ export default function SalesReturnForm({
                                 )}
                                 <PreviewRow
                                     label="Nominal retur"
-                                    value={formatCurrency(summary.totalAmount)}
+                                    value={formatCurrency(summary.grossAmount)}
                                     strong
                                 />
+                                {summary.hasBillShare && (
+                                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                                        {t("salesReturns.roundingNotRefunded")}
+                                    </p>
+                                )}
                             </div>
 
                             {canComplete && (

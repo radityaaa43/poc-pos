@@ -15,6 +15,7 @@ Mengoreksi transaksi penjualan yang sudah terjadi melalui retur parsial atau pen
 - store credit
 - restock ke inventory
 - koreksi receivable untuk transaksi `pay_later`
+- retur mengembalikan service charge dan pajak secara proporsional (pembulatan tunai tidak dikembalikan)
 - histori retur penjualan
 
 ## Halaman dan Route
@@ -45,6 +46,15 @@ Di API, kemampuan token sama dengan izin web: baca `sales-returns-access`, form/
 5. user menyimpan draft
 6. user menyelesaikan retur
 7. sistem memperbarui stok, profit, dan receivable bila relevan
+
+## Nilai Retur
+
+`total_return_amount` = nilai item yang diretur + `service_refunded` + `tax_refunded`. Refund tunai, saldo toko, penurunan piutang, sisa tagihan (`remainingTotal()`), daftar open bill, dan rekap shift semuanya membaca nilai ini.
+
+- Service charge dan pajak dibagi proporsional terhadap nilai item yang diretur, dengan pembulatan kumulatif bilangan bulat: bagian dari seluruh retur satu penjualan berjumlah tepat sebesar yang pernah ditagih, tidak pernah lebih, dan retur terakhir menanggung sisa pembulatan.
+- Pajak yang dikembalikan tidak termasuk PPN atas ongkos kirim (ongkir bukan baris item). PB1 tidak mengenakan pajak pada ongkir.
+- Penjualan sebelum rilis (`tax_kind` null) dibaca sebagai PPN tanpa service charge, jadi hanya pajaknya yang dikembalikan (BR-2). Retur yang sudah selesai sebelum rilis tidak pernah dihitung ulang dan tetap bernilai item saja.
+- Pembulatan tunai (`cash_rounding`) tidak pernah dikembalikan.
 
 ## Integrasi Data
 
