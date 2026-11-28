@@ -587,7 +587,8 @@ class ShiftCloseHoldTest extends TestCase
         ]);
         app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
 
-        // The cash tender the till wrote carries no paid_at; it was created after the close, so it counts with the transfer.
+        // The till stamps the cash part with the time it took it, so it counts with the transfer whatever second it
+        // shares with the close.
         $this->assertSame(20000, $bill->fresh()->paid_after_close_amount);
     }
 
