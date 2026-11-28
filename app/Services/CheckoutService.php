@@ -41,8 +41,9 @@ class CheckoutService
                 lockForUpdate: true,
             );
 
-            // The credit mutex comes before the first plain read, so guard() below reads current receivables.
-            if ($ctx->isPayLater && $ctx->customer?->may_buy_on_credit) {
+            // The customer row is locked before the first plain read, so a loyalty write or a credit read sees it current,
+            // and every checkout and credit approval for the same customer takes the same order (shift, customer, stock).
+            if ($ctx->customer) {
                 $this->customerCredit->lock($ctx->customer->id);
             }
 
