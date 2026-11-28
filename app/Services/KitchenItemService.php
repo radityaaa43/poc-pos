@@ -102,10 +102,25 @@ class KitchenItemService
         });
     }
 
-    /** @param  array<int, int>|null  $stationIds  The card's Semua siap over the original order and its add-ons (#251). */
-    public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
+    /**
+     * The card's Semua siap over the original order and its add-ons (#251).
+     *
+     * @param  array<int, int>|null  $stationIds
+     * @param  array<int, int>|null  $saleIds  only the sales the screen shows (#540); null = every sale of the order
+     */
+    public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null, ?array $saleIds = null): void
     {
-        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds));
+        if ($saleIds !== null && $stationIds !== null) {
+            // An id the screen can't show (another station) is refused, not silently left to the rest of the order.
+            $shown = KitchenItem::whereIn('transaction_id', $saleIds)->inStations($stationIds)
+                ->distinct()->pluck('transaction_id')->all();
+
+            if (array_diff(array_map('intval', $saleIds), $shown) !== []) {
+                throw ValidationException::withMessages(['sale_ids' => 'Penjualan tidak termasuk stasiun ini.']);
+            }
+        }
+
+        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds), $saleIds);
     }
 
     /** @param  array<int, int>|null  $stationIds  Serahkan semua over the group (#251): each sale syncs its own dine order. */
@@ -114,11 +129,25 @@ class KitchenItemService
         $this->tapOrderGroup($root, fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds));
     }
 
-    /** @param  Closure(Transaction): void  $tap  run over the sale and its add-ons, newest first: an add-on's bill is locked before its original's */
-    private function tapOrderGroup(Transaction $root, Closure $tap): void
+    /**
+     * @param  Closure(Transaction): void  $tap  run over the sale and its add-ons, newest first: an add-on's bill is locked before its original's
+     * @param  array<int, int>|null  $saleIds  only these sales; an id outside the order is refused (#540)
+     */
+    private function tapOrderGroup(Transaction $root, Closure $tap, ?array $saleIds = null): void
     {
         // Read before the transaction: a plain read inside it would fix MySQL's snapshot before the rows are locked.
         $sales = Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
+
+        if ($saleIds !== null) {
+            $unknown = array_diff(array_unique(array_map('intval', $saleIds)), $sales->modelKeys());
+
+            if ($unknown !== []) {
+                throw ValidationException::withMessages(['sale_ids' => 'Penjualan tidak termasuk pesanan ini.']);
+            }
+
+            $sales = $sales->whereIn('id', $saleIds)->values();
+        }
+
         DB::transaction(function () use ($sales, $tap) {
             $this->lockKitchenRows($sales->modelKeys());
             $sales->each($tap);

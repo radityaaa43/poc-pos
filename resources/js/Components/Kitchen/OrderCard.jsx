@@ -4,7 +4,7 @@ import { IconClock } from "@tabler/icons-react";
 
 // One order on the kitchen display, used by the working grid and the pickup list; all state stays on the page.
 export default function OrderCard({
-    order, orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction,
+    order, orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction, saleIdsFor,
 }) {
     const { t } = useTranslation();
 
@@ -108,7 +108,7 @@ export default function OrderCard({
             {/* empty:hidden drops the footer when no button applies */}
             <footer className="flex flex-col gap-3 border-t border-slate-100 p-4 empty:hidden dark:border-slate-800">
                 {canPrepare && order.items.some((item) => item.status === "accepted" || item.status === "preparing") &&
-                    stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600", showAll ? {} : { station_ids: chosen })}
+                    stepButton(`all-${order.id}`, "kitchen.orders.all-ready", order.id, t("kitchen.actions.allReady"), "w-full bg-success-600 hover:bg-success-700 focus-visible:ring-success-600", { ...(showAll ? {} : { station_ids: chosen }), sale_ids: saleIdsFor(order) })}
                 {canHandOver && order.items.some((item) => item.status === "ready") &&
                     stepButton(`hand-over-all-${order.id}`, "kitchen.orders.hand-over-all", order.id, t("kitchen.actions.handOverAll"), "w-full bg-primary-500 hover:bg-primary-600 focus-visible:ring-primary-500", showAll ? {} : { station_ids: chosen })}
             </footer>

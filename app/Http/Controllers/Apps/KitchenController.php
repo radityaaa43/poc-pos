@@ -62,8 +62,11 @@ class KitchenController extends Controller
         $data = $request->validate([
             'station_ids' => ['sometimes', 'array'],
             'station_ids.*' => ['integer'],
+            // The sales the card shows (#540): an add-on that arrived after the last poll is not sent, so it stays open.
+            'sale_ids' => ['sometimes', 'array', 'min:1'],
+            'sale_ids.*' => ['integer'],
         ]);
-        $service->allReadyOrderGroup($transaction, $request->user(), $data['station_ids'] ?? null);
+        $service->allReadyOrderGroup($transaction, $request->user(), $data['station_ids'] ?? null, $data['sale_ids'] ?? null);
 
         return back();
     }

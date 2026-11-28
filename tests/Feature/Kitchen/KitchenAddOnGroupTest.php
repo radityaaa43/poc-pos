@@ -141,6 +141,58 @@ class KitchenAddOnGroupTest extends TestCase
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $food->fresh()->status);
     }
 
+    public function test_all_ready_marks_only_the_sales_the_screen_sent(): void
+    {
+        $root = $this->sale('INV-ROOT');
+        $rootItem = $this->item($root);
+        $addOn = $this->sale('INV-ADD', parent: $root);
+        $addOnItem = $this->item($addOn);
+
+        // The card the cook sees holds the original only: an add-on that arrived after the last poll stays open (#540).
+        $this->actingAs($this->staff)->post(route('kitchen.orders.all-ready', $root), ['sale_ids' => [$root->id]])->assertSessionHasNoErrors();
+
+        $this->assertSame(KitchenItem::STATUS_READY, $rootItem->fresh()->status);
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $addOnItem->fresh()->status);
+    }
+
+    public function test_all_ready_refuses_an_empty_sale_list(): void
+    {
+        $root = $this->sale('INV-ROOT');
+        $item = $this->item($root);
+
+        $this->actingAs($this->staff)->post(route('kitchen.orders.all-ready', $root), ['sale_ids' => []])->assertSessionHasErrors('sale_ids');
+
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
+    }
+
+    public function test_all_ready_refuses_a_sale_outside_the_order(): void
+    {
+        $root = $this->sale('INV-ROOT');
+        $item = $this->item($root);
+        $other = $this->sale('INV-OTHER');
+
+        // Another order's sale (the same as another outlet's, which the endpoint's outlet check refuses first).
+        $this->actingAs($this->staff)->post(route('kitchen.orders.all-ready', $root), ['sale_ids' => [$other->id]])->assertSessionHasErrors('sale_ids');
+
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $item->fresh()->status);
+    }
+
+    public function test_all_ready_refuses_a_sale_without_an_item_at_the_chosen_station(): void
+    {
+        $bar = KitchenStation::create(['name' => 'Bar']);
+        $root = $this->sale('INV-ROOT');
+        $food = $this->item($root);
+        $addOn = $this->sale('INV-ADD', parent: $root);
+        $drink = $this->item($addOn, station: $bar->id);
+
+        $this->actingAs($this->staff)
+            ->post(route('kitchen.orders.all-ready', $root), ['sale_ids' => [$root->id], 'station_ids' => [$bar->id]])
+            ->assertSessionHasErrors('sale_ids');
+
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $food->fresh()->status);
+        $this->assertSame(KitchenItem::STATUS_ACCEPTED, $drink->fresh()->status);
+    }
+
     // A shift close's lock order, a group's sales newest first. SQLite ignores FOR UPDATE: only CI's MySQL job sees it.
     public function test_every_kitchen_tap_locks_the_items_then_the_dine_orders_before_it_reads_them(): void
     {
