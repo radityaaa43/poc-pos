@@ -633,7 +633,7 @@ export default function Index({
                 break;
             case "F2":
                 e.preventDefault();
-                if (carts.length > 0 && !isSubmitting) handleSubmitTransaction();
+                if (carts.length > 0 && !isSubmitting && !isLoadingPricing) handleSubmitTransaction();
                 break;
             case "F3":
                 e.preventDefault();
