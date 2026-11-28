@@ -582,7 +582,12 @@
         "restockKitchenHint": "Already being made in the kitchen: not restocked by default",
         "serviceRefund": "Service charge refunded",
         "taxRefund": "Tax refunded",
-        "roundingNotRefunded": "Cash rounding is not refunded."
+        "roundingNotRefunded": "Cash rounding is not refunded.",
+        "discountDeduction": "Discount deducted",
+        "pointsRestored": "Points back to the customer",
+        "pointsReversed": "Points taken back",
+        "pointsUnit": "pts",
+        "pointsNote": "Points are applied when the return is completed."
     },
     "cashierShifts": {
         "title": "Cashier Shifts",

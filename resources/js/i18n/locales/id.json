@@ -582,7 +582,12 @@
         "restockKitchenHint": "Sudah dibuat di dapur: default tidak dikembalikan ke stok",
         "serviceRefund": "Service charge dikembalikan",
         "taxRefund": "Pajak dikembalikan",
-        "roundingNotRefunded": "Pembulatan tunai tidak dikembalikan."
+        "roundingNotRefunded": "Pembulatan tunai tidak dikembalikan.",
+        "discountDeduction": "Diskon dipotong",
+        "pointsRestored": "Poin kembali ke pelanggan",
+        "pointsReversed": "Poin ditarik kembali",
+        "pointsUnit": "poin",
+        "pointsNote": "Poin diproses saat retur diselesaikan."
     },
     "cashierShifts": {
         "title": "Shift Kasir",

@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreSalesReturnRequest;
 use App\Http\Requests\UpdateSalesReturnRequest;
+use App\Models\Customer;
 use App\Models\CustomerCredit;
 use App\Models\KitchenItem;
 use App\Models\Profit;
@@ -17,6 +18,7 @@ use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
+use App\Services\LoyaltyService;
 use App\Services\OutletAccessService;
 use App\Services\ReturnBillShareService;
 use App\Services\SalesReturnRestockService;
@@ -112,6 +114,9 @@ class SalesReturnController extends Controller
                 'credited_amount' => $payload['credited_amount'],
                 'service_refunded' => $payload['service_refunded'],
                 'tax_refunded' => $payload['tax_refunded'],
+                'discount_deducted' => $payload['discount_deducted'],
+                'points_restored' => $payload['points_restored'],
+                'points_reversed' => $payload['points_reversed'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -165,6 +170,9 @@ class SalesReturnController extends Controller
                 'credited_amount' => $payload['credited_amount'],
                 'service_refunded' => $payload['service_refunded'],
                 'tax_refunded' => $payload['tax_refunded'],
+                'discount_deducted' => $payload['discount_deducted'],
+                'points_restored' => $payload['points_restored'],
+                'points_reversed' => $payload['points_reversed'],
                 'total_return_amount' => $payload['total_return_amount'],
                 'notes' => $payload['notes'],
             ]);
@@ -193,8 +201,9 @@ class SalesReturnController extends Controller
 
         $salesReturn = $this->resolveAccessibleSalesReturn($request, $salesReturn->id);
         $before = [];
+        $pointsShortfall = 0;
 
-        DB::transaction(function () use ($request, $salesReturn, &$before) {
+        DB::transaction(function () use ($request, $salesReturn, &$before, &$pointsShortfall) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $request->user()->id,
                 lockForUpdate: true
@@ -214,6 +223,12 @@ class SalesReturnController extends Controller
 
             // The state that is actually completed, for the audit: the locked row, before anything changes.
             $before = $this->salesReturnAuditPayload($salesReturn);
+
+            // Lock the customer before any kitchen, sale or stock row (team order: shift → return → customer → ...).
+            // The id comes from the locked return row, never from the request; a walk-in has no customer to lock.
+            $customer = $salesReturn->customer_id
+                ? Customer::whereKey($salesReturn->customer_id)->lockForUpdate()->first()
+                : null;
 
             // Lock order, as in a shift close and a webhook: kitchen items, the dine order, then the sale; all before any
             // stock row (#241, #242). A refusal below rolls the cancellation back.
@@ -266,7 +281,22 @@ class SalesReturnController extends Controller
             // and the returns already completed, before any stock row (TC-5).
             $itemValue = (int) $salesReturn->items->sum('subtotal');
             $share = $this->returnBillShareService->forReturn($sale, $itemValue, $salesReturn->id, lock: true);
-            $totalReturnAmount = $itemValue + $share['service_refunded'] + $share['tax_refunded'];
+            // The items refund net of their discount share; service and tax follow. A full return equals what was paid.
+            $totalReturnAmount = $itemValue - $share['discount_deducted'] + $share['service_refunded'] + $share['tax_refunded'];
+
+            // Move the points the sale moved: redeemed back, earned taken back (clamped at 0). The shortfall a
+            // customer no longer holds goes into the audit entry below (BR-7).
+            $loyalty = $customer
+                ? app(LoyaltyService::class)->applyReturn(
+                    $customer,
+                    $salesReturn,
+                    $sale,
+                    $share['points_restored'],
+                    $share['points_reversed'],
+                    $totalReturnAmount
+                )
+                : ['restored' => 0, 'reversed' => 0];
+            $pointsShortfall = max(0, (int) $share['points_reversed'] - $loyalty['reversed']);
 
             foreach ($salesReturn->items as $item) {
                 $detail = $item->transactionDetail;
@@ -297,6 +327,9 @@ class SalesReturnController extends Controller
                 'credited_amount' => $settlement['credited_amount'],
                 'service_refunded' => $share['service_refunded'],
                 'tax_refunded' => $share['tax_refunded'],
+                'discount_deducted' => $share['discount_deducted'],
+                'points_restored' => $loyalty['restored'],
+                'points_reversed' => $loyalty['reversed'],
                 'total_return_amount' => $totalReturnAmount,
                 'status' => 'completed',
                 'completed_at' => now(),
@@ -340,13 +373,13 @@ class SalesReturnController extends Controller
             auditable: $salesReturn,
             description: 'Retur penjualan diselesaikan.',
             before: $before,
-            after: $this->salesReturnAuditPayload($salesReturn),
+            after: $this->salesReturnAuditPayload($salesReturn, $pointsShortfall),
         );
 
         return back()->with('success', 'Retur penjualan berhasil diselesaikan.');
     }
 
-    protected function salesReturnAuditPayload(SalesReturn $salesReturn): array
+    protected function salesReturnAuditPayload(SalesReturn $salesReturn, int $pointsShortfall = 0): array
     {
         return [
             'code' => $salesReturn->code,
@@ -356,6 +389,11 @@ class SalesReturnController extends Controller
             'credited_amount' => (int) $salesReturn->credited_amount,
             'service_refunded' => (int) $salesReturn->service_refunded,
             'tax_refunded' => (int) $salesReturn->tax_refunded,
+            'discount_deducted' => (int) $salesReturn->discount_deducted,
+            'points_restored' => (int) $salesReturn->points_restored,
+            'points_reversed' => (int) $salesReturn->points_reversed,
+            // Points this return could not take back because the balance no longer held them (BR-7).
+            'points_shortfall' => $pointsShortfall,
             'total_return_amount' => (int) $salesReturn->total_return_amount,
             'transaction_id' => (int) $salesReturn->transaction_id,
             'items_summary' => $salesReturn->items->map(fn (SalesReturnItem $item) => [
@@ -501,6 +539,9 @@ class SalesReturnController extends Controller
             'credited_amount' => (int) $salesReturn->credited_amount,
             'service_refunded' => (int) $salesReturn->service_refunded,
             'tax_refunded' => (int) $salesReturn->tax_refunded,
+            'discount_deducted' => (int) $salesReturn->discount_deducted,
+            'points_restored' => (int) $salesReturn->points_restored,
+            'points_reversed' => (int) $salesReturn->points_reversed,
             'total_return_amount' => (int) $salesReturn->total_return_amount,
             'notes' => $salesReturn->notes,
             'created_at' => optional($salesReturn->created_at)?->toISOString(),
@@ -615,7 +656,7 @@ class SalesReturnController extends Controller
 
         $itemValue = (int) $items->sum('subtotal');
         $share = $this->returnBillShareService->forReturn($transaction, $itemValue, $excludeSalesReturnId);
-        $totalReturnAmount = $itemValue + $share['service_refunded'] + $share['tax_refunded'];
+        $totalReturnAmount = $itemValue - $share['discount_deducted'] + $share['service_refunded'] + $share['tax_refunded'];
         $settlement = $this->calculateSettlement($transaction, $totalReturnAmount, $returnType);
 
         return [
@@ -625,6 +666,9 @@ class SalesReturnController extends Controller
             'credited_amount' => $settlement['credited_amount'],
             'service_refunded' => $share['service_refunded'],
             'tax_refunded' => $share['tax_refunded'],
+            'discount_deducted' => $share['discount_deducted'],
+            'points_restored' => $share['points_restored'],
+            'points_reversed' => $share['points_reversed'],
             'total_return_amount' => $totalReturnAmount,
             'items' => $items->all(),
         ];

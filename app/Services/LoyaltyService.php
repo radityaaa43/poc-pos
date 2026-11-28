@@ -6,6 +6,7 @@ use App\Models\Customer;
 use App\Models\CustomerVoucher;
 use App\Models\LoyaltyPointHistory;
 use App\Models\Outlet;
+use App\Models\SalesReturn;
 use App\Models\Setting;
 use App\Models\Transaction;
 use Carbon\CarbonInterface;
@@ -381,6 +382,60 @@ class LoyaltyService
         return $this->syncTier($customer->fresh());
     }
 
+    /**
+     * Take back a return's share of the points a sale moved (#545). Redeemed points come back as a positive `redeem`
+     * history row; earned points are reversed by a negative `earn` row. The balance never drops below 0: the reversal
+     * is clamped, and the shortfall the customer no longer holds is left in the earn row's note (the caller also
+     * writes it to the return's audit entry, BR-7). `loyalty_total_spent` drops by the money given back, clamped, and
+     * the tier is re-synced (Q1). Call it with the locked customer, inside the complete transaction.
+     *
+     * @return array{restored:int, reversed:int} the amounts actually applied
+     */
+    public function applyReturn(Customer $customer, SalesReturn $return, Transaction $sale, int $restore, int $reverse, int $moneyBack): array
+    {
+        if ($restore < 1 && $reverse < 1 && $moneyBack < 1) {
+            return ['restored' => 0, 'reversed' => 0];
+        }
+
+        $balance = max(0, (int) $customer->loyalty_points);
+        $newBalance = max(0, $balance + $restore - $reverse);
+        // The reversal is capped by what the balance can cover after the restore; the remainder is a shortfall.
+        $reversed = $balance + $restore - $newBalance;
+        $shortfall = max(0, $reverse - $reversed);
+
+        $customer->forceFill([
+            'loyalty_points' => $newBalance,
+            'loyalty_total_spent' => max(0, (int) $customer->loyalty_total_spent - max(0, $moneyBack)),
+        ])->save();
+
+        if ($restore > 0) {
+            $this->recordHistory(
+                $customer->fresh(),
+                $sale,
+                LoyaltyPointHistory::TYPE_REDEEM,
+                $restore,
+                0,
+                'Retur '.$return->code.': poin redeem dikembalikan'
+            );
+        }
+
+        if ($reverse > 0) {
+            $this->recordHistory(
+                $customer->fresh(),
+                $sale,
+                LoyaltyPointHistory::TYPE_EARN,
+                -$reversed,
+                0,
+                'Retur '.$return->code.': poin perolehan ditarik kembali'
+                    .($shortfall > 0 ? " (kurang {$shortfall} poin)" : '')
+            );
+        }
+
+        $this->syncTier($customer->fresh());
+
+        return ['restored' => $restore, 'reversed' => $reversed];
+    }
+
     public function validateVoucher(
         ?Customer $customer,
         mixed $voucher,
@@ -489,6 +544,9 @@ class LoyaltyService
             'loyalty_points' => (int) $customer->loyalty_points + $points,
             'loyalty_total_spent' => (int) $customer->loyalty_total_spent + $difference,
         ])->save();
+
+        // The sale's earned column follows, so a later return takes these points back in proportion (#545 BR-4).
+        $sale->forceFill(['loyalty_points_earned' => (int) $sale->loyalty_points_earned + $points])->save();
 
         if ($points > 0) {
             $this->recordHistory($customer->fresh(), $sale, LoyaltyPointHistory::TYPE_EARN, $points, $difference, 'Diskon ditolak pada transaksi '.$sale->invoice);

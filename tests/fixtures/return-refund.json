@@ -1,0 +1,51 @@
+{
+    "_comment": "ReturnNetOfDiscountTest holds ReturnBillShareService::forReturn to the first return of each case; Form.test.jsx holds the live preview of the same first return. Money is whole rupiah.",
+    "cases": [
+        {
+            "name": "manual discount only, full return",
+            "bill": {
+                "base": 100000, "discount": 10000, "loyalty_discount_total": 0, "customer_voucher_discount": 0,
+                "service_charge": 4500, "refundable_tax": 9450, "points_redeemed": 0, "points_earned": 0,
+                "grand_total": 103950, "shipping_cost": 0, "tax_kind": "pb1"
+            },
+            "steps": [
+                { "gross": 100000, "discount_deducted": 10000, "service_refunded": 4500, "tax_refunded": 9450, "points_restored": 0, "points_reversed": 0, "total": 103950 }
+            ]
+        },
+        {
+            "name": "voucher, redeemed points and manual discount together, full return",
+            "bill": {
+                "base": 100000, "discount": 5000, "loyalty_discount_total": 10000, "customer_voucher_discount": 5000,
+                "service_charge": 4000, "refundable_tax": 9000, "points_redeemed": 100, "points_earned": 40,
+                "grand_total": 93000, "shipping_cost": 0, "tax_kind": "pb1"
+            },
+            "steps": [
+                { "gross": 100000, "discount_deducted": 20000, "service_refunded": 4000, "tax_refunded": 9000, "points_restored": 100, "points_reversed": 40, "total": 93000 }
+            ]
+        },
+        {
+            "name": "100% discount: items refund 0, tax still refunded",
+            "bill": {
+                "base": 100000, "discount": 100000, "loyalty_discount_total": 0, "customer_voucher_discount": 0,
+                "service_charge": 0, "refundable_tax": 11000, "points_redeemed": 0, "points_earned": 0,
+                "grand_total": 11000, "shipping_cost": 0, "tax_kind": "ppn"
+            },
+            "steps": [
+                { "gross": 100000, "discount_deducted": 100000, "service_refunded": 0, "tax_refunded": 11000, "points_restored": 0, "points_reversed": 0, "total": 11000 }
+            ]
+        },
+        {
+            "name": "three partial returns, the last takes the remainder",
+            "bill": {
+                "base": 90000, "discount": 1000, "loyalty_discount_total": 0, "customer_voucher_discount": 0,
+                "service_charge": 1000, "refundable_tax": 0, "points_redeemed": 0, "points_earned": 0,
+                "grand_total": 90000, "shipping_cost": 0, "tax_kind": "pb1"
+            },
+            "steps": [
+                { "gross": 30000, "discount_deducted": 333, "service_refunded": 333, "tax_refunded": 0, "points_restored": 0, "points_reversed": 0, "total": 30000 },
+                { "gross": 30000, "discount_deducted": 334, "service_refunded": 334, "tax_refunded": 0, "points_restored": 0, "points_reversed": 0, "total": 30000 },
+                { "gross": 30000, "discount_deducted": 333, "service_refunded": 333, "tax_refunded": 0, "points_restored": 0, "points_reversed": 0, "total": 30000 }
+            ]
+        }
+    ]
+}

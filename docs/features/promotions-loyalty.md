@@ -27,6 +27,7 @@ Engine promo dan loyalty untuk meningkatkan penjualan dan retensi pelanggan.
 - **Poin**: earn point per transaksi, redeem untuk diskon
 - **Auto tier sync**: tier otomatis naik berdasarkan total belanja
 - **Settings**: enable/disable earn & redeem, rate amount, point value
+- **Poin pada retur**: retur mengembalikan poin redeem secara proporsional dan menarik kembali poin yang diperoleh (baris `redeem` positif dan `earn` negatif di `loyalty_point_histories`, catatan `Retur <kode>`). Saldo tidak pernah negatif; kekurangan poin dicatat di audit retur (`points_shortfall`). `loyalty_total_spent` turun sebesar uang yang diretur (tidak di bawah 0) dan tier disinkronkan ulang, sama seperti penolakan diskon (#508).
 
 ### Multi-Price List
 - Harga khusus per kelompok pelanggan (all, walk-in, registered, member)
