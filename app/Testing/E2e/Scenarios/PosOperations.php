@@ -71,7 +71,9 @@ class PosOperations
             // A finished sale: --arg=qty (default 3) of a new 10.000 product, --arg=left stock after the sale
             // (default 7), --arg=method=cash|pay_later, --arg=customer=<name>|none, --arg=guest=1 (a pay-later guest
             // bill: no customer, no receivable, a note --arg=note=<text>). The sale belongs to the
-            // cashier's open shift when there is one. Stock already reflects the sale.
+            // cashier's open shift when there is one. Stock already reflects the sale. Optional bill figures
+            // --arg=service_charge, --arg=tax_total, --arg=tax_kind, --arg=tax_rate, --arg=shipping_cost set
+            // grand_total = items + service + tax, as checkout would store after release.
             'posops.sale' => function (array $options): array {
                 $qty = (int) ($options['qty'] ?? 3);
                 $product = self::product($options['title'] ?? null, (int) ($options['left'] ?? 7));
@@ -81,6 +83,9 @@ class PosOperations
                 $payLater = $guest || ($options['method'] ?? 'cash') === 'pay_later';
                 $cashier = self::user($options['cashier'] ?? 'cashier@e2e.test');
                 $total = $qty * 10000;
+                $service = (int) ($options['service_charge'] ?? 0);
+                $tax = (int) ($options['tax_total'] ?? 0);
+                $grandTotal = $total + $service + $tax;
 
                 $transaction = Transaction::create([
                     'cashier_id' => $cashier->id,
@@ -88,11 +93,15 @@ class PosOperations
                     'warehouse_id' => self::warehouse()->id,
                     'customer_id' => $customer?->id,
                     'invoice' => 'TRX-E2E'.Str::upper(Str::random(8)),
-                    'cash' => $payLater ? 0 : $total,
+                    'cash' => $payLater ? 0 : $grandTotal,
                     'change' => 0,
                     'discount' => 0,
-                    'shipping_cost' => 0,
-                    'grand_total' => $total,
+                    'shipping_cost' => (int) ($options['shipping_cost'] ?? 0),
+                    'service_charge' => $service,
+                    'tax_total' => $tax,
+                    'tax_kind' => $options['tax_kind'] ?? null,
+                    'tax_rate' => isset($options['tax_rate']) ? (float) $options['tax_rate'] : null,
+                    'grand_total' => $grandTotal,
                     'payment_method' => $payLater ? 'pay_later' : 'cash',
                     'payment_status' => $payLater ? 'unpaid' : 'paid',
                     'is_pay_later' => $payLater,
@@ -113,7 +122,7 @@ class PosOperations
                     'customer_id' => $customer->id,
                     'transaction_id' => $transaction->id,
                     'invoice' => $transaction->invoice,
-                    'total' => $total,
+                    'total' => $grandTotal,
                     'paid' => 0,
                     'due_date' => now()->addDays(14),
                     'status' => 'unpaid',
@@ -125,6 +134,7 @@ class PosOperations
                     'customer' => $customer?->name,
                     'receivable_id' => $receivable?->id,
                     'total' => $total,
+                    'grand_total' => $grandTotal,
                 ];
             },
 

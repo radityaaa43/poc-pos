@@ -125,7 +125,7 @@ describe("useKitchenPrintDevice: printing a polled ticket", () => {
         expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
             expect.objectContaining({ number: "Meja 1", type: "dine_in", unpaid: false }),
             "58mm",
-            { type: "Dine-in", unpaid: "BELUM LUNAS" }
+            { type: "Dine-in", unpaid: "BELUM LUNAS", addon: "TAMBAHAN" }
         );
         expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
         expect(postedIds()).toEqual([[11, 12]]);
@@ -496,7 +496,7 @@ describe("useKitchenPrintDevice: cancel tickets (DIBATALKAN)", () => {
         expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
             expect.objectContaining({ kind: "cancel", key: "c7t1", number: "Meja 1", items: expect.any(Array) }),
             "80mm",
-            { type: "Dine-in", unpaid: "BELUM LUNAS", cancelled: "DIBATALKAN" }
+            { type: "Dine-in", unpaid: "BELUM LUNAS", addon: "TAMBAHAN", cancelled: "DIBATALKAN" }
         );
         expect(printBytes).toHaveBeenCalledWith(new Uint8Array([1, 2]), { deviceKey: "1:2:abc" });
         expect(cancelPosts()).toEqual([
@@ -506,12 +506,13 @@ describe("useKitchenPrintDevice: cancel tickets (DIBATALKAN)", () => {
         expect(unconfirmedCancellations()).toEqual([]);
     });
 
-    it("uses the English label on an English device", async () => {
+    it("uses the English labels on an English device", async () => {
         await i18n.changeLanguage("en");
         cancellations = [cancelTicket(7, [71])];
         mount();
         await flush();
         expect(buildKitchenTicketBytes.mock.calls[0][2].cancelled).toBe("CANCELLED");
+        expect(buildKitchenTicketBytes.mock.calls[0][2].addon).toBe("ADD-ON");
     });
 
     it("prints first and records after: the ids are in kitchen.unconfirmedCancellations when the POST starts", async () => {

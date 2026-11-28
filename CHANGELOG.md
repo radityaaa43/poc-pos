@@ -16,6 +16,7 @@ All notable application releases are listed here. Git tags using the same
 - **Email verification disabled**: `User` no longer implements `MustVerifyEmail`; the `verified` middleware, verification routes/controllers, and `Auth/VerifyEmail` page are removed. The setup wizard and public registration now land users directly on the dashboard. `markEmailAsVerified()` remains available via the retained trait for seeders/tests.
 - `DineInSettingsSeeder` now sets `dine_in_pay_online_enabled = 0` to match the enforced behavior (only `pay_at_counter` is accepted).
 - `seed:demo` and `DemoSeeder` output now lists all three demo accounts with role and outlet scope.
+- **Returns refund service charge and tax**: a sales return now gives back the returned items' proportional share of the sale's service charge and tax (a default PPN outlet included), not the items alone. Cash rounding is never refunded; returns completed before this release keep their items-only figures. `total_return_amount` includes the share, so the refund, store credit and what an unpaid bill still owes follow it (`REQ-010 AC-10`).
 
 ## [v3.0.3] - 2026-09-27
 

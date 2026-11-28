@@ -399,10 +399,20 @@ class Transaction extends Model
         return ['owed_total' => max(0, (int) $this->grand_total - $returned), 'amount_due' => $this->reducedAmountDue()];
     }
 
-    /** The relations screenAmounts() reads beyond receivable and dineOrder, for a list of sales. */
+    /** The relations screenAmounts() reads beyond receivable and dineOrder, for a list of sales, and the abandoned-claim flag. */
     public function scopeWithScreenAmounts($query)
     {
-        return $query->with('salesReturns', 'tenders');
+        return $query->with('salesReturns', 'tenders')->withAbandonedClaim();
+    }
+
+    /**
+     * 1 or null per row: a pending gateway tender with no reference after the claim went stale (the POS "Belum Lunas"
+     * list offers Bayar for it, and History shows the same). One definition of "abandoned", shared by both lists.
+     */
+    public function scopeWithAbandonedClaim($query)
+    {
+        return $query->addSelect(['abandoned_claim' => TransactionTender::query()->abandonedClaim()->selectRaw('1')
+            ->whereColumn('transaction_tenders.transaction_id', 'transactions.id')->limit(1)]);
     }
 
     public function tenders()

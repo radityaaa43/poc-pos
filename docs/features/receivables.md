@@ -44,7 +44,14 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
 - **Terpakai %** dibulatkan ke bawah. Batas Rp 0 menampilkan "—", dan utang berapa pun berarti **Melewati batas**.
 - Baris tanpa pelanggan, atau pelanggan yang tidak boleh piutang dan tidak punya batas, menampilkan "—".
 - **Batas piutang** diisi di halaman detail pelanggan (`customers-credit-approve`); lihat `member-management.md`.
-- Batas belum menolak checkout: penolakan dan pengecualian dikerjakan terpisah (REQ-007 AC-04 sampai AC-06).
+- Checkout bayar belakangan (web dan API) menolak pelanggan **yang punya batas** bila Terpakai + total melewati
+  batas (**Melebihi batas piutang — sisa Rp X**; tepat sebesar sisa masih boleh), lalu bila ada piutang lewat jatuh
+  tempo yang masih bersisa (**Lunasi piutang yang lewat jatuh tempo dulu**). Pelanggan **Tanpa batas** tidak pernah
+  ditolak. Penolakan membatalkan seluruh penjualan (stok, dapur, poin) dan keranjang tetap ada: kasir bisa menerima
+  pembayaran sekarang. Batas yang diturunkan di bawah Terpakai langsung menolak utang baru.
+- Pemeriksaan ada di `CustomerCreditService::guard`, dalam transaksi checkout yang membuat piutang, dengan baris
+  pelanggan dikunci, sehingga dua kasir tidak bisa bersama-sama melewati satu batas.
+- Pengecualian dengan persetujuan manajer belum ada: dikerjakan terpisah (REQ-007 AC-06).
 
 ## Integrasi Data
 
