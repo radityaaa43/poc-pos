@@ -154,6 +154,7 @@ class CashierShiftController extends Controller
             actualCash: (int) $request->validated('actual_cash'),
             closeNotes: $request->validated('close_notes'),
             forceClose: $forceClose,
+            overrideHold: $request->boolean('force'),
         );
 
         $this->auditLogService->log(

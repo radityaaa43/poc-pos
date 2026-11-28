@@ -118,6 +118,7 @@ class CashierShiftController extends AppsCashierShiftController
                 actualCash: (int) $request->validated('actual_cash'),
                 closeNotes: $request->validated('close_notes'),
                 forceClose: $forceClose,
+                overrideHold: $request->boolean('force'),
             );
         } catch (ShiftCloseBlockedException $e) {
             return $this->error($e->getMessage(), 422, [...$e->errors(), 'blockers' => $e->blockers]);

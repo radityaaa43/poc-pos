@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BankAccount;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
 use App\Models\Outlet;
 use App\Models\PaymentSetting;
 use App\Models\Transaction;
@@ -209,6 +210,8 @@ class TransactionTenderService
     public function confirmTransfer(Transaction $transaction): string
     {
         return DB::transaction(function () use ($transaction) {
+            // The dine order first, as in a shift close: marking the bill paid may complete it.
+            DineOrder::where('transaction_id', $transaction->id)->lockForUpdate()->first();
             $status = Transaction::whereKey($transaction->id)->lockForUpdate()->value('payment_status');
 
             if (! in_array($status, ['pending', 'pending_approval'], true)) {

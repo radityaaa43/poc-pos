@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Exceptions\ShiftCloseBlockedException;
 use App\Models\CashierShift;
+use App\Models\DineOrder;
+use App\Models\KitchenItem;
 use App\Models\Outlet;
 use App\Models\SalesReturn;
 use App\Models\ShiftCashMovement;
@@ -11,6 +13,8 @@ use App\Models\Transaction;
 use App\Models\TransactionTender;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,6 +25,7 @@ class CashierShiftService
         private readonly ShiftCloseBlockerService $blockerService,
         private readonly UnpaidSaleCancellationService $cancellationService,
         private readonly KitchenItemService $kitchenItemService,
+        private readonly KitchenIntakeService $kitchenIntakeService,
         private readonly AuditLogService $auditLogService,
     ) {}
 
@@ -208,15 +213,30 @@ class CashierShiftService
         User $actor,
         int $actualCash,
         ?string $closeNotes = null,
-        bool $forceClose = false
+        bool $forceClose = false,
+        ?bool $overrideHold = null
     ): CashierShift {
+        // Closing someone else's shift is a force close; overriding what holds it must still be asked for.
+        $overrideHold ??= $forceClose;
+
         if (! $shift->isOpen()) {
             throw ValidationException::withMessages([
                 'shift' => 'Shift yang sudah ditutup tidak dapat diubah.',
             ]);
         }
 
-        return DB::transaction(function () use ($shift, $actor, $actualCash, $closeNotes, $forceClose) {
+        // Outside the transaction, so a refused close keeps what it took in and the page lists it. A sale that cannot be
+        // taken in is reported and left to the recovery command: it never blocks a close.
+        $unrecoverable = $this->missedSales($shift)->reject(fn (Transaction $sale) => rescue(function () use ($sale) {
+            $this->kitchenIntakeService->recover($sale);
+
+            return true;
+        }, false))->modelKeys();
+
+        // Read before the transaction on purpose: a plain read inside it would fix MySQL's snapshot before the rows are locked.
+        $saleIds = Transaction::where('cashier_shift_id', $shift->id)->pluck('id');
+
+        return DB::transaction(function () use ($shift, $actor, $actualCash, $closeNotes, $forceClose, $overrideHold, $saleIds, $unrecoverable) {
             $lockedShift = CashierShift::query()->lockForUpdate()->findOrFail($shift->id);
 
             if (! $lockedShift->isOpen()) {
@@ -225,11 +245,17 @@ class CashierShiftService
                 ]);
             }
 
-            $blockers = $this->blockerService->blockersFor($lockedShift, lock: true);
+            $this->lockOrders($lockedShift, $saleIds);
+
+            // A checkout this close just waited for may not have reached the kitchen yet: its food holds the close too.
+            $this->missedSales($lockedShift)->except($unrecoverable)
+                ->each(fn (Transaction $sale) => $this->kitchenIntakeService->recover($sale));
+
+            $blockers = $this->blockerService->blockersFor($lockedShift);
             $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty();
 
             // AC-12: a held shift closes only by force, and then only with a note (AC-13).
-            if ($held && ! $forceClose) {
+            if ($held && ! $overrideHold) {
                 throw ShiftCloseBlockedException::withBlockers($this->blockerService->rows($blockers));
             }
 
@@ -285,7 +311,42 @@ class CashierShiftService
             ]);
 
             return $lockedShift->fresh(['user:id,name', 'openedBy:id,name', 'closedBy:id,name']);
-        });
+        }, 3); // retried on a deadlock; nothing leaves the database inside
+    }
+
+    /**
+     * Every writer takes these in one order (kitchen step, dine payment, webhook, return completion): shift, kitchen
+     * items, dine orders, sales. Locking reads only, so every plain read after them sees the latest committed rows.
+     *
+     * shortcut: a sale committed between reading $saleIds and the shift lock has its kitchen rows locked after the
+     * sale; the close's deadlock retry covers it.
+     *
+     * @param  Collection<int, int>  $saleIds
+     */
+    private function lockOrders(CashierShift $shift, Collection $saleIds): void
+    {
+        $lockKitchen = function (Collection $ids): void {
+            KitchenItem::whereIn('transaction_id', $ids)->lockForUpdate()->get(['id']);
+            DineOrder::whereIn('transaction_id', $ids)->lockForUpdate()->get(['id']);
+        };
+        $lockKitchen($saleIds);
+        // A late arrival's rows are locked too, or a kitchen tap on it could be overwritten with "not collected".
+        $locked = Transaction::where('cashier_shift_id', $shift->id)->lockForUpdate()->pluck('id');
+        $late = $locked->diff($saleIds);
+        if ($late->isNotEmpty()) {
+            $lockKitchen($late);
+        }
+    }
+
+    /** @return EloquentCollection<int, Transaction> the shift's recent sales that never reached the kitchen */
+    private function missedSales(CashierShift $shift): EloquentCollection
+    {
+        [$payNow, $payLater] = array_map(
+            fn (Builder $missed) => $missed->where('cashier_shift_id', $shift->id)->get(),
+            $this->kitchenIntakeService->missedSales(),
+        );
+
+        return $payNow->concat($payLater);
     }
 
     /**
@@ -296,21 +357,10 @@ class CashierShiftService
      */
     private function cancelUnpaidPayNowSales(CashierShift $shift, User $actor): array
     {
-        $candidates = fn () => Transaction::query()->unpaidPayNow()->where('cashier_shift_id', $shift->id);
         $cancelled = [];
 
-        foreach ($candidates()->orderBy('id')->pluck('id') as $id) {
-            // Re-read under lock: a webhook or a confirmation may have paid it meanwhile.
-            $sale = $candidates()->whereKey($id)->lockForUpdate()->first();
-
-            // The query's subqueries read this transaction's snapshot (MySQL REPEATABLE READ): the expiry command, a
-            // webhook or a return may have committed since. Locking reads see it, so nothing is restocked twice.
-            if (! $sale || $sale->wasRestocked(locking: true)
-                || $sale->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->lockForUpdate()->first()
-                || $sale->salesReturns()->where('status', 'completed')->lockForUpdate()->first()) {
-                continue;
-            }
-
+        // The close holds every sale of the shift locked, so these checks cannot go stale.
+        foreach (Transaction::query()->unpaidPayNow()->where('cashier_shift_id', $shift->id)->orderBy('id')->get() as $sale) {
             $this->cancellationService->cancel(
                 $sale,
                 "Dibatalkan saat shift ditutup {$sale->invoice}",

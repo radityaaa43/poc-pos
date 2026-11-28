@@ -58,7 +58,7 @@ Everything below counts only the orders whose transaction is on the closing shif
 - **What holds a close** (`ShiftCloseBlockerService`, listed on the shift page under "Belum selesai"). A held close is refused ("Shift tidak bisa ditutup: ...") and changes nothing; the API answers 422 with the list in `errors.blockers` (`/api/v1/cashier-shifts/{id}/close` and `/api/v1/pos/shift/close`). It is held by:
   - a kitchen item not handed over (`accepted`, `preparing` or `ready`);
   - an unpaid bill from the POS "Belum Lunas" list: a dine-in bill, or a guest's Bayar Belakangan sale, including one with a waiting or failed online attempt. A credit customer's receivable never holds the close.
-- **Force close** (permission `cashier-shifts-force-close`, the owner of the shift included; the owner sends `force: true`; password step-up as before). When something holds the shift, a note of at least 3 characters is required, and:
+- **Force close** (permission `cashier-shifts-force-close`, the owner of the shift included; password step-up as before). A held shift closes only when the request itself says `force: true`, a manager closing someone else's shift too: a page loaded before the hold appeared is refused with the list. When something holds the shift, a note of at least 3 characters is required, and:
   - the held items become `not_collected` (Tidak diambil);
   - the unpaid bills are booked in `cashier_shifts.unpaid_bills_total` as a shortfall: `cash_difference = actual_cash - expected_cash - unpaid_bills_total`. They are left out of non-cash sales, so the recap counts them once. A partly paid bill books only what is still owed;
   - the bills stay payable; a later payment counts in the shift that takes it, and the closed recap does not change;

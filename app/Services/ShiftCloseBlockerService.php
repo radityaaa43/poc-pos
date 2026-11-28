@@ -13,11 +13,8 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ShiftCloseBlockerService
 {
-    /**
-     * @param  bool  $lock  true inside the close's DB::transaction: the rows cannot be paid or served under it
-     * @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>}
-     */
-    public function blockersFor(CashierShift $shift, bool $lock = false): array
+    /** @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>} */
+    public function blockersFor(CashierShift $shift): array
     {
         // openBills() is the POS "Belum Lunas" list: dine-in bills and guest pay-later sales. A credit customer's
         // receivable is never in it (AC-17).
@@ -25,7 +22,6 @@ class ShiftCloseBlockerService
             ->openBills()
             ->where('cashier_shift_id', $shift->id)
             ->with(['dineOrder.table:id,name'])
-            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->orderBy('id')
             ->get()
             ->filter(fn (Transaction $bill) => $bill->unpaidAmount() > 0)
@@ -35,7 +31,6 @@ class ShiftCloseBlockerService
             ->open()
             ->whereHas('transaction', fn ($query) => $query->where('cashier_shift_id', $shift->id))
             ->with(['product:id,title', 'transaction:id,invoice', 'detail:id,price'])
-            ->when($lock, fn ($query) => $query->lockForUpdate())
             ->orderBy('id')
             ->get();
 
