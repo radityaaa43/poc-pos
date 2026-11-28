@@ -7,6 +7,7 @@ use App\Models\Outlet;
 use App\Models\Setting;
 use App\Services\BillSettingsService;
 use Database\Seeders\E2eSeeder;
+use Illuminate\Support\Arr;
 
 /**
  * Arrange scenarios for an outlet's bill settings (`billsettings.*`, REQ-010), on --arg=code=<outlet code>
@@ -29,6 +30,17 @@ class BillSettings
                     ->delete();
 
                 return ['deleted' => $deleted];
+            },
+
+            // Stores the given rules (--arg=service_charge_rate=5 ...) without the audit row of an owner's save,
+            // which other steps count.
+            'billsettings.set' => function (array $options) use ($outlet): array {
+                $target = $outlet($options);
+                foreach (Arr::only($options, array_keys(BillSettingsService::DEFAULTS)) as $key => $value) {
+                    Setting::setForOutlet($key, $value, $target);
+                }
+
+                return ['values' => app(BillSettingsService::class)->get($target)];
             },
 
             'billsettings.state' => function (array $options) use ($outlet): array {

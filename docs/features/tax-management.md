@@ -40,7 +40,26 @@ REQ-010. Edited in the outlet form (Settings → Outlets → edit, section **Tag
 - The outlet edit form sends a bill field only when it was changed there, so a form opened earlier does not write an old value back.
 - Each effective change writes one `outlet.bill_settings_updated` audit row with the changed keys, before and after.
 - The outlet list (web and `GET /api/v1/settings/outlets`) returns them as `bill_settings`.
-- No total uses them yet (#450). They apply to new bills only; stored sales are never recalculated. `transactions.service_charge`, `tax_kind` (`null` = PPN) and `tax_base` hold what a sale was computed with, and stay `0` / `null` until #450 writes them.
+- They apply to new bills only. POS sales use the service charge and the tax type (below); cash rounding changes no total yet.
+
+## How a bill is computed
+
+`BillTotalService` is the only place that adds the service charge and PB1. The POS and API previews, checkout and offline sync all reach it through `LoyaltyService::previewCheckout`; totals sent by a client are ignored.
+
+- *After discount* = subtotal after promo, voucher, points and manual discount, without shipping.
+- Service charge = after discount x `service_charge_rate`, only on a dine-in sale (`order_type = in_store`). A request without an order type is not dine-in.
+- PB1 outlet: tax = (after discount + service charge) x `pb1_rate`. Product PPN is ignored and delivery shipping is not in the base.
+- PPN outlet: PPN per line as before, on the line totals before voucher, points and manual discount. Shipping and the service charge are taxed at the rate of the last line with a rate above 0.
+- Total = after discount + shipping + service charge + tax. Each amount is rounded to whole rupiah, half up.
+
+Example, dine-in with a 5 % service charge: 2 x Rp 10,000 of a product with 11 % PPN.
+
+| Outlet tax | Service charge | Tax | Total |
+|---|---|---|---|
+| PPN | 1,000 | 2,200 + 110 = 2,310 | 23,310 |
+| PB1 10 % | 1,000 | 10 % x 21,000 = 2,100 | 23,100 |
+
+A sale stores `service_charge`, the `service_charge_rate` it was computed with (0 when not dine-in), `tax_kind`, `tax_rate` (the PB1 rate, or the effective PPN rate), `tax_total`, `tax_base` (what the tax was computed on) and `grand_total`. Older sales keep `0` / `null`, read as PPN, and are never recomputed. Every receipt, the invoice, the public page and the sales export take the service charge out of the subtotal and name the tax from `tax_kind`. Loyalty points keep their base (total minus shipping), so the service charge counts like the tax.
 
 ## Database
 

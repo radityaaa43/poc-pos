@@ -76,6 +76,7 @@ class Transaction extends Model
         'tax_rate',
         'tax_total',
         'service_charge',
+        'service_charge_rate',
         'tax_kind',
         'tax_base',
         'customer_npwp',
@@ -107,6 +108,7 @@ class Transaction extends Model
         'tax_rate' => 'decimal:2',
         'tax_total' => 'integer',
         'service_charge' => 'integer',
+        'service_charge_rate' => 'decimal:2',
         'tax_base' => 'integer',
         'discount_approved_at' => 'datetime',
         'payment_attempt' => 'integer',
@@ -511,5 +513,14 @@ class Transaction extends Model
         }
 
         return false;
+    }
+
+    /**
+     * "PB1 10%" on a PB1 sale. Null on a PPN one, whose wording each document keeps (a null kind, from before
+     * the bill rules, reads as PPN).
+     */
+    public function pb1Label(): ?string
+    {
+        return $this->tax_kind === 'pb1' ? __('pdf/labels.receipt.pb1_rate', ['rate' => (float) $this->tax_rate]) : null;
     }
 }

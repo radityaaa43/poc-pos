@@ -1200,6 +1200,12 @@
             "pay": "Bayar",
             "due": "Sisa tagihan"
         },
+        "bill": {
+            "serviceCharge": "Service charge",
+            "taxPpn": "PPN",
+            "taxPb1": "PB1 {{rate}}%",
+            "offlineOrderTypeLocked": "Tipe pesanan tidak bisa diubah saat offline di outlet ini"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",
