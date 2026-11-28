@@ -365,13 +365,11 @@ class TransactionTenderService
     {
         $closedAt = $shift->closed_at;
 
-        // A till payment writes its tender without `paid_at` (claim()), so a tender created at or after the close counts
-        // whatever its stamp; the close's own money has a stamp before it.
+        // Only a stamp decides it: every tender paid at the till now carries the time the money arrived, so a part of a
+        // split that was in the closed recap can never be counted again, whatever second it shares with the close.
         $late = (int) $transaction->tenders()
             ->where('payment_status', TransactionTender::STATUS_PAID)
-            ->when($closedAt, fn ($query) => $query->where(fn ($paid) => $paid
-                ->where('paid_at', '>=', $closedAt)
-                ->orWhere(fn ($unmarked) => $unmarked->whereNull('paid_at')->where('created_at', '>=', $closedAt))))
+            ->when($closedAt, fn ($query) => $query->where('paid_at', '>=', $closedAt))
             ->sum('amount');
 
         if ($late > 0) {

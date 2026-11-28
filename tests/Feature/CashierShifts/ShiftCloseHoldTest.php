@@ -580,6 +580,7 @@ class ShiftCloseHoldTest extends TestCase
         $this->forceClose($this->shift, $this->cashier);
 
         // The till takes the booked bill in two parts after the close: Rp 5.000 cash now, Rp 15.000 by transfer.
+        $this->openShiftFor($this->cashier);
         app(TransactionSettlementService::class)->settle($bill->fresh(), $this->cashier, [
             ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
             ['method' => 'bank_transfer', 'amount' => 15000, 'bank_account_id' => $account->id],
