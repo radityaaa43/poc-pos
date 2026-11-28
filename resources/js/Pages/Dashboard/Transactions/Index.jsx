@@ -21,6 +21,8 @@ import PayLaterOption from "@/Components/POS/PayLaterOption";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
+import useBillTotals from "@/Hooks/useBillTotals";
+import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
 import {
@@ -207,18 +209,12 @@ export default function Index({
         () => Number(pricingPreview?.summary?.loyalty_discount_total ?? 0),
         [pricingPreview]
     );
-    const taxTotal = useMemo(
-        () => Number(pricingPreview?.summary?.tax_total ?? 0),
-        [pricingPreview]
-    );
     const subtotal = useMemo(
         () => Number(pricingPreview?.summary?.subtotal_after_promo ?? 0),
         [pricingPreview]
     );
-    const payable = useMemo(
-        () => Number(pricingPreview?.summary?.grand_total ?? 0),
-        [pricingPreview]
-    );
+    const bill = useBillTotals(pricingPreview?.summary, { orderType, shipping, outlet: activeCashierShift?.outlet });
+    const payable = bill.grand_total;
     const quickCashAmounts = useMemo(() => {
         if (payable <= 0) return [];
 
@@ -276,6 +272,7 @@ export default function Index({
                 shipping_cost: shipping,
                 redeem_points: Number(redeemPointsInput || 0),
                 customer_voucher_id: selectedVoucherId || null,
+                order_type: orderType,
             })
             .then((response) => {
                 if (!cancelled) {
@@ -303,6 +300,8 @@ export default function Index({
         shipping,
         redeemPointsInput,
         selectedVoucherId,
+        orderType,
+        bill.reconnects,
     ]);
 
     useEffect(() => {
@@ -1895,48 +1894,14 @@ export default function Index({
                                 </div>
                             </div>
                         )}
-                        {voucherDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Voucher</span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(voucherDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {loyaltyDiscount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">
-                                    Redeem Poin
-                                </span>
-                                <span className="text-primary-600">
-                                    -{formatPrice(loyaltyDiscount)}
-                                </span>
-                            </div>
-                        )}
-                        {discount > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Diskon Manual</span>
-                                <span className="text-danger-500">
-                                    -{formatPrice(discount)}
-                                </span>
-                            </div>
-                        )}
-                        {shipping > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">Ongkir</span>
-                                <span className="font-medium">
-                                    +{formatPrice(shipping)}
-                                </span>
-                            </div>
-                        )}
-                        {taxTotal > 0 && (
-                            <div className="flex justify-between items-center mb-2 text-sm">
-                                <span className="text-slate-500">PPN</span>
-                                <span className="font-medium">
-                                    +{formatPrice(taxTotal)}
-                                </span>
-                            </div>
-                        )}
+                        <CheckoutSummaryRows
+                            voucher={voucherDiscount}
+                            loyalty={loyaltyDiscount}
+                            discount={discount}
+                            shipping={shipping}
+                            bill={bill}
+                            format={formatPrice}
+                        />
                         <div className="flex justify-between items-center mb-3">
                             <span className="font-semibold text-slate-800 dark:text-white">
                                 Total

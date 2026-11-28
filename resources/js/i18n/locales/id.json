@@ -1192,6 +1192,11 @@
             "pay": "Bayar",
             "due": "Sisa tagihan"
         },
+        "bill": {
+            "serviceCharge": "Service charge",
+            "taxPpn": "PPN",
+            "taxPb1": "PB1 {{rate}}%"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Diproses sekarang, dibayar nanti. Ditandai Belum lunas.",

@@ -28,7 +28,7 @@ class ReceiptTotalsTest extends TestCase
             'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 5, 'category_id' => $category->id,
         ]);
         $sale = Transaction::create($bill + [
-            'cashier_id' => User::factory()->create()->id, 'invoice' => 'TRX-TOTALS', 'access_token' => 'token',
+            'cashier_id' => User::factory()->create()->id, 'invoice' => 'TRX-TOTALS',
             'cash' => 25000, 'change' => 0, 'discount' => 0, 'shipping_cost' => 0,
             'payment_method' => 'cash', 'payment_status' => 'paid',
         ]);
@@ -93,7 +93,7 @@ class ReceiptTotalsTest extends TestCase
             'service_charge' => 1000, 'tax_kind' => 'pb1', 'tax_rate' => 10, 'tax_total' => 2100, 'grand_total' => 23100,
         ]);
 
-        $this->get(route('portal.transaction', [$sale->invoice, 'token' => 'token']))->assertOk()
+        $this->get(route('portal.transaction', [$sale->invoice, 'token' => $sale->access_token]))->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('transaction.service_charge', 1000)
                 ->where('transaction.tax_kind', 'pb1')

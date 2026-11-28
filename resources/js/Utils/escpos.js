@@ -59,7 +59,8 @@ function buildReceiptBytes(data, paperSize = "80mm") {
     line();
     leftRight("Subtotal", data.money(data.subtotal));
     if (data.discount_total > 0) leftRight("Diskon", `-${data.money(data.discount_total)}`);
-    if (data.tax_total > 0) leftRight("PPN", data.money(data.tax_total));
+    if (data.service_charge > 0) leftRight(data.service_charge_label ?? "Service charge", data.money(data.service_charge));
+    if (data.tax_total > 0) leftRight(data.tax_label ?? "PPN", data.money(data.tax_total));
     if (data.shipping_cost > 0) leftRight("Ongkir", data.money(data.shipping_cost));
     emphasize(true);
     leftRight("TOTAL", data.money(data.grand_total));
