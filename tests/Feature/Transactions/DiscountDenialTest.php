@@ -16,6 +16,7 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Spatie\Permission\Models\Permission;
@@ -182,6 +183,36 @@ class DiscountDenialTest extends TestCase
 
         $receivable = Receivable::sole();
         $this->assertSame([23310.0, 5277.0, 'partial'], [$receivable->total, $receivable->remaining, $receivable->status]);
+    }
+
+    /** A denial touches the customer too, so it locks the shift, then the customer, before the sale (#494, #508). */
+    public function test_denial_locks_the_shift_then_the_customer_before_the_sale(): void
+    {
+        Setting::set('loyalty_earn_rate_amount', '1000');
+        $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62812', 'address' => 'Jl. Satu']);
+        $customer->forceFill(['is_loyalty_member' => true, 'loyalty_points' => 0, 'loyalty_total_spent' => 0])->save();
+        $sale = $this->sell(self::PPN_WITH_SERVICE, ['customer_id' => $customer->id]);
+
+        $this->actingAs($this->manager);
+        $order = [];
+        DB::listen(function ($query) use (&$order) {
+            // Inside the denial's own transaction only (the test's outer transaction is level 1).
+            if (DB::transactionLevel() > 1 && preg_match('/^select \* from ["`]?(cashier_shifts|customers|transactions)["`]?/i', $query->sql, $match)) {
+                $order[] = strtolower($match[1]);
+            }
+        });
+
+        $this->deny($sale);
+
+        $first = [];
+        foreach ($order as $index => $table) {
+            $first[$table] ??= $index;
+        }
+        $this->assertArrayHasKey('cashier_shifts', $first);
+        $this->assertArrayHasKey('customers', $first);
+        $this->assertArrayHasKey('transactions', $first);
+        $this->assertLessThan($first['customers'], $first['cashier_shifts'], 'shift before customer');
+        $this->assertLessThan($first['transactions'], $first['customers'], 'customer before sale');
     }
 
     public function test_denial_recomputes_loyalty_points_and_total_spent(): void

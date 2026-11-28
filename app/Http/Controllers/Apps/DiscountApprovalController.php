@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
 use App\Models\CashierShift;
+use App\Models\Customer;
 use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\Receivable;
@@ -89,6 +90,13 @@ class DiscountApprovalController extends Controller
         $loyaltyDelta = 0;
 
         \DB::transaction(function () use (&$transaction, $status, $notes, &$loyaltyDelta) {
+            // A denial also touches the customer: lock the shift then the customer first, the team order
+            // shift → customer → receivable → sale (#494), so a return on the same sale cannot deadlock against it.
+            if ($status === 'denied' && $transaction->customer_id) {
+                CashierShift::whereKey($transaction->cashier_shift_id)->lockForUpdate()->value('id');
+                Customer::whereKey($transaction->customer_id)->lockForUpdate()->value('id');
+            }
+
             // Receivable before its sale, the lock order of receivable payments, returns and the payment webhook.
             $receivableId = Receivable::where('transaction_id', $transaction->id)->value('id');
             $receivable = $receivableId ? Receivable::whereKey($receivableId)->lockForUpdate()->first() : null;
@@ -139,7 +147,6 @@ class DiscountApprovalController extends Controller
             if ($status === 'denied' && isset($updates['grand_total']) && $transaction->customer_id) {
                 $loyaltyDelta = (int) $updates['grand_total'] - $oldGrandTotal;
                 if ($loyaltyDelta > 0) {
-                    CashierShift::whereKey($transaction->cashier_shift_id)->lockForUpdate()->value('id');
                     app(LoyaltyService::class)->awardAfterDenial($transaction, $loyaltyDelta);
                 }
             }

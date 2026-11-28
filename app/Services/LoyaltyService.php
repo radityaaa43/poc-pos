@@ -478,7 +478,7 @@ class LoyaltyService
         $points = $this->calculateEarnPoints($customer, $difference, $this->settings());
 
         $customer->forceFill([
-            'loyalty_points' => max(0, (int) $customer->loyalty_points) + $points,
+            'loyalty_points' => (int) $customer->loyalty_points + $points,
             'loyalty_total_spent' => (int) $customer->loyalty_total_spent + $difference,
         ])->save();
 
