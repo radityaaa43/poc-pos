@@ -66,6 +66,8 @@ Route::match(['post', 'put'], '/customers/{customer}/upgrade-member', [CustomerC
     ->middleware('permission:customers-upgrade-member|customers-edit')
     ->name('customers.upgrade-member');
 Route::patch('/customers/{customer}/credit', [CustomerController::class, 'updateCredit'])->middleware('permission:customers-credit-approve')->name('customers.credit');
+Route::patch('/customers/{customer}/credit-limit', [CustomerController::class, 'updateCreditLimit'])->middleware('permission:customers-credit-approve')->name('customers.credit-limit');
+Route::get('/customers/{customer}/credit-summary', [CustomerController::class, 'creditSummary'])->middleware('permission:transactions-access')->name('customers.credit-summary');
 
 // route customer store via AJAX (no redirect)
 Route::post('/customers/store-ajax', [CustomerController::class, 'storeAjax'])->middleware('permission:customers-create')->name('customers.storeAjax');

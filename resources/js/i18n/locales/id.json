@@ -468,7 +468,14 @@
             "no": "Tidak",
             "confirmGrant": "Izinkan pelanggan ini membeli dengan piutang?",
             "confirmRevoke": "Cabut izin piutang pelanggan ini?",
-            "cancel": "Batal"
+            "cancel": "Batal",
+            "limitLabel": "Batas piutang",
+            "noLimit": "Tanpa batas",
+            "used": "Terpakai",
+            "limitHelp": "Kosongkan untuk Tanpa batas",
+            "save": "Simpan",
+            "overdue": "Ada piutang lewat jatuh tempo",
+            "limitSaved": "Batas piutang disimpan"
         }
     },
     "transactions": {
@@ -539,6 +546,17 @@
             "days31to60": "31-60 Hari",
             "days61to90": "61-90 Hari",
             "over90": ">90 Hari"
+        },
+        "credit": {
+            "limit": "Batas",
+            "usedPercent": "Terpakai %",
+            "usedScope": "Terpakai (di semua outlet)",
+            "noLimit": "Tanpa batas",
+            "near": "Mendekati batas (≥ 80%)",
+            "over": "Melewati batas",
+            "filterLabel": "Batas piutang",
+            "filterAll": "Semua batas piutang",
+            "usedAria": "Terpakai {{percent}}% dari batas {{limit}}"
         }
     },
     "salesReturns": {
@@ -1184,6 +1202,15 @@
             "notice": "Dapur belum menerima pesanan ini. Sampaikan langsung ke dapur.",
             "close": "Tutup",
             "pending": "Pesanan offline yang belum diterima dapur: {{count}}"
+        },
+        "credit": {
+            "limit": "Batas",
+            "used": "Terpakai",
+            "remaining": "Sisa",
+            "noLimit": "Tanpa batas",
+            "overdue": "Ada piutang lewat jatuh tempo",
+            "loadError": "Gagal memuat batas piutang",
+            "retry": "Coba lagi"
         }
     },
     "outlets": {

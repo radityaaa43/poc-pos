@@ -81,6 +81,12 @@ class Receivable extends Model
         };
     }
 
+    /** Still owes money: the one definition of "unpaid" behind the credit limit figures. */
+    public function scopeOutstanding($query)
+    {
+        return $query->where('status', '!=', 'paid')->whereColumn('paid', '<', 'total');
+    }
+
     public function scopeOverdue($query)
     {
         return $query->where('status', '!=', 'paid')

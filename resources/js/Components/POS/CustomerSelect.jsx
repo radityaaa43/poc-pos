@@ -12,6 +12,7 @@ import {
 } from "@tabler/icons-react";
 import { CustomerHistoryButton } from "./CustomerHistoryPanel";
 import AddCustomerModal from "./AddCustomerModal";
+import CustomerCreditPanel from "./CustomerCreditPanel";
 import { useAuthorization } from "@/Utils/authorization";
 
 export default function CustomerSelect({
@@ -353,6 +354,8 @@ export default function CustomerSelect({
                     </div>
                 )}
             </div>
+
+            <CustomerCreditPanel customer={selected} />
 
             {/* Add Customer Modal */}
                 <AddCustomerModal

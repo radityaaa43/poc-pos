@@ -36,6 +36,73 @@ class ReceivableService
         return $this->scope($query, $warehouseIds);
     }
 
+    /**
+     * What each of these customers still owes, in whole rupiah: [customer_id => used]. Deliberately not
+     * outlet-scoped, because a credit limit counts every outlet's receivables.
+     */
+    public function usedByCustomer(Collection $customerIds): Collection
+    {
+        return Receivable::query()->outstanding()
+            ->whereIn('customer_id', $customerIds)
+            ->selectRaw('customer_id, SUM(total - paid) as used')
+            ->groupBy('customer_id')
+            ->toBase()
+            ->pluck('used', 'customer_id')
+            ->map(fn ($used) => (int) round((float) $used));
+    }
+
+    /**
+     * The list's Batas and Terpakai % of one customer. The percentage is rounded down and the state compares the
+     * same integers as scopeCredit(), so a row reads 80% only when the "near" filter lists it.
+     *
+     * @return array{limit: ?int, used: int, percent: ?int, state: string}
+     */
+    public function creditView(?int $limit, int $used): array
+    {
+        return [
+            'limit' => $limit,
+            'used' => $used,
+            'percent' => $limit > 0 ? intdiv($used * 100, $limit) : null,
+            'state' => match (true) {
+                $limit === null => 'none',
+                $used > $limit => 'over',
+                $used > 0 && $used * 100 >= $limit * 80 => 'near',
+                default => 'ok',
+            },
+        ];
+    }
+
+    /**
+     * Narrows a receivables query to the customers in one credit state: `near` (80% or more, over included),
+     * `over`, or `none` (may buy on credit, no limit). Null changes nothing.
+     */
+    public function scopeCredit($query, ?string $filter)
+    {
+        if ($filter === null) {
+            return $query;
+        }
+
+        if ($filter === 'none') {
+            $customers = Customer::query()->select('id')->where('may_buy_on_credit', true)->whereNull('credit_limit');
+        } else {
+            // shortcut: groups every open receivable of the shop on each filtered load; past about 500k open
+            // rows, keep the usage in a maintained column.
+            $usage = Receivable::query()->outstanding()
+                // Rounded like usedByCustomer(), so a filter never disagrees with a row over half a rupiah.
+                ->selectRaw('customer_id, ROUND(SUM(total - paid)) as used')
+                ->groupBy('customer_id');
+            $customers = Customer::query()->select('customers.id')
+                ->joinSub($usage, 'u', 'u.customer_id', '=', 'customers.id')
+                ->whereNotNull('customers.credit_limit');
+
+            $filter === 'over'
+                ? $customers->whereRaw('u.used > customers.credit_limit')
+                : $customers->where('u.used', '>', 0)->whereRaw('u.used * 100 >= customers.credit_limit * 80');
+        }
+
+        return $query->whereIn('receivables.customer_id', $customers);
+    }
+
     public function getCustomerStatement(int $customerId, ?Collection $warehouseIds = null): array
     {
         $customer = Customer::findOrFail($customerId);
