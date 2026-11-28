@@ -2,7 +2,7 @@ import React from "react";
 import OrderNameLine from "./OrderName";
 
 import { useTranslation } from "react-i18next";
-import { billSubtotal, taxLabel } from "@/Utils/billTotals";
+import { addedTax, billSubtotal, includedTax, includedTaxLabel, taxLabel } from "@/Utils/billTotals";
 
 const paymentLabels = {
     cash: "TUNAI",
@@ -229,10 +229,16 @@ export default function ThermalReceipt({
                         <span>{formatPrice(transaction.service_charge)}</span>
                     </div>
                 )}
-                {Number(transaction?.tax_total || 0) > 0 && (
+                {addedTax(transaction) > 0 && (
                     <div className="flex justify-between">
                         <span>{taxLabel(transaction, t, { withPpnRate: true })}</span>
-                        <span>{formatPrice(transaction?.tax_total)}</span>
+                        <span>{formatPrice(addedTax(transaction))}</span>
+                    </div>
+                )}
+                {includedTax(transaction) > 0 && (
+                    <div className="flex justify-between">
+                        <span>{includedTaxLabel(transaction, t)}</span>
+                        <span>{formatPrice(includedTax(transaction))}</span>
                     </div>
                 )}
                 <div className="flex justify-between font-bold text-sm">
@@ -444,10 +450,16 @@ export function ThermalReceipt58mm({
                     <span>{formatPrice(transaction.service_charge)}</span>
                 </div>
             )}
-            {Number(transaction?.tax_total || 0) > 0 && (
+            {addedTax(transaction) > 0 && (
                 <div className="flex justify-between">
                     <span>{taxLabel(transaction, t)}</span>
-                    <span>{formatPrice(transaction?.tax_total)}</span>
+                    <span>{formatPrice(addedTax(transaction))}</span>
+                </div>
+            )}
+            {includedTax(transaction) > 0 && (
+                <div className="flex justify-between">
+                    <span>{includedTaxLabel(transaction, t)}</span>
+                    <span>{formatPrice(includedTax(transaction))}</span>
                 </div>
             )}
             <div className="flex justify-between font-bold">

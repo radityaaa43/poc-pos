@@ -13,6 +13,7 @@ All notable application releases are listed here. Git tags using the same
 
 ### Changed
 
+- **A tax-inclusive price is no longer charged its PPN twice**: the PPN inside an inclusive product's price is reported in `tax_total` and the new `transactions.tax_included`, and never added to `grand_total`; exclusive lines, shipping and the service charge keep their PPN on top. Receipts and the invoice show the included part on its own line ("Termasuk PPN 11%") and the subtotal equals the items; returns no longer refund the included PPN again. Sales recorded before this release keep the figures they were charged. `BillTotalService`, `#576`.
 - **Email verification disabled**: `User` no longer implements `MustVerifyEmail`; the `verified` middleware, verification routes/controllers, and `Auth/VerifyEmail` page are removed. The setup wizard and public registration now land users directly on the dashboard. `markEmailAsVerified()` remains available via the retained trait for seeders/tests.
 - `DineInSettingsSeeder` now sets `dine_in_pay_online_enabled = 0` to match the enforced behavior (only `pay_at_counter` is accepted).
 - `seed:demo` and `DemoSeeder` output now lists all three demo accounts with role and outlet scope.

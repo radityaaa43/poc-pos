@@ -1,6 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { taxLabel } from "@/Utils/billTotals";
+import { addedTax, includedTax, includedTaxLabel, taxLabel } from "@/Utils/billTotals";
 
 function Row({ label, value, tone = "font-medium" }) {
     return (
@@ -22,7 +22,8 @@ export default function CheckoutSummaryRows({ voucher, loyalty, discount, shippi
             {discount > 0 && <Row label="Diskon Manual" value={`-${format(discount)}`} tone="text-danger-500" />}
             {shipping > 0 && <Row label="Ongkir" value={`+${format(shipping)}`} />}
             {bill.service_charge > 0 && <Row label={t("pos.bill.serviceCharge")} value={`+${format(bill.service_charge)}`} />}
-            {bill.tax_total > 0 && <Row label={taxLabel(bill, t)} value={`+${format(bill.tax_total)}`} />}
+            {addedTax(bill) > 0 && <Row label={taxLabel(bill, t)} value={`+${format(addedTax(bill))}`} />}
+            {includedTax(bill) > 0 && <Row label={includedTaxLabel(bill, t)} value={format(includedTax(bill))} />}
         </>
     );
 }

@@ -1,6 +1,6 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import i18n from "@/i18n";
-import { billSubtotal, receiptBillData, taxLabel } from "./billTotals";
+import { addedTax, billSubtotal, includedTax, includedTaxLabel, receiptBillData, taxLabel } from "./billTotals";
 
 beforeAll(() => i18n.changeLanguage("id"));
 
@@ -14,6 +14,14 @@ describe("billSubtotal", () => {
 
         expect(billSubtotal(sale)).toBe(20000);
         expect(billSubtotal(sale, { promo: 1, loyalty: 2, voucher: 3 })).toBe(20006);
+    });
+
+    it("takes only the PPN added on top out: an inclusive price already holds its PPN (#576)", () => {
+        const sale = { grand_total: 166500, discount: 0, shipping_cost: 0, tax_total: 16500, tax_included: 16500 };
+
+        expect(billSubtotal(sale)).toBe(166500);
+        expect(addedTax(sale)).toBe(0);
+        expect(includedTax(sale)).toBe(16500);
     });
 });
 
@@ -32,10 +40,18 @@ describe("taxLabel", () => {
     });
 
     it("hands the thermal printer the service charge with translated labels", () => {
-        expect(receiptBillData({ service_charge: 1000, tax_kind: "pb1", tax_rate: 10 }, t)).toEqual({
+        expect(receiptBillData({ service_charge: 1000, tax_kind: "pb1", tax_rate: 10, tax_total: 2100 }, t)).toEqual({
             service_charge: 1000,
             service_charge_label: "Service charge",
+            tax_added: 2100,
             tax_label: "PB1 10%",
+            tax_included: 0,
+            tax_included_label: "Termasuk PPN 10%",
         });
+    });
+
+    it("labels the PPN already inside the price, with its rate, and without one when the sale stored none", () => {
+        expect(includedTaxLabel({ tax_included: 16500, tax_rate: "11.00" }, t)).toBe("Termasuk PPN 11%");
+        expect(includedTaxLabel({ tax_included: 16500, tax_rate: null }, t)).toBe("Termasuk PPN");
     });
 });

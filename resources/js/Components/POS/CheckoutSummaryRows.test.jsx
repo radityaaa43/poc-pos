@@ -46,4 +46,18 @@ describe("CheckoutSummaryRows", () => {
         rerender(rows({}, { service_charge: 0, tax_total: 2000, tax_kind: "pb1", tax_rate: 10 }));
         expect(screen.queryByText("Service charge")).not.toBeInTheDocument();
     });
+
+    it("shows an inclusive price's PPN on its own line, never added again (#576)", () => {
+        render(rows({}, { tax_total: 16500, tax_included: 16500, tax_kind: "ppn", tax_rate: 11 }));
+
+        expect(value("Termasuk PPN 11%")).toHaveTextContent("Rp16500");
+        expect(screen.queryByText("PPN")).not.toBeInTheDocument();
+    });
+
+    it("shows both parts when a bill mixes inclusive and exclusive lines (#576)", () => {
+        render(rows({}, { tax_total: 13200, tax_included: 11000, tax_kind: "ppn", tax_rate: 11 }));
+
+        expect(value("PPN")).toHaveTextContent("+Rp2200");
+        expect(value("Termasuk PPN 11%")).toHaveTextContent("Rp11000");
+    });
 });

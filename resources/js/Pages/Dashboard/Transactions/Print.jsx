@@ -203,7 +203,6 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
             money: formatPrice,
             subtotal: baseSubtotal,
             discount_total: discountTotal,
-            tax_total: Number(transaction.tax_total || 0),
             ...receiptBillData(transaction, t),
             shipping_cost: Number(transaction.shipping_cost || 0),
             grand_total: Number(transaction.grand_total || 0),

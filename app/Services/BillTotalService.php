@@ -50,7 +50,9 @@ class BillTotalService
         }
 
         $shipping = (int) $sale->shipping_cost;
-        $afterDiscount = (int) $sale->grand_total - $shipping - $sale->service_charge - $sale->tax_total + $discount;
+        // Only the PPN charged on top stands in the grand total; the included part is already inside the prices (#576).
+        $addedTax = (int) $sale->tax_total - (int) $sale->tax_included;
+        $afterDiscount = (int) $sale->grand_total - $shipping - $sale->service_charge - $addedTax + $discount;
         $service = (int) round($afterDiscount * (float) $sale->service_charge_rate / 100);
         $rate = (float) $sale->tax_rate;
 
@@ -65,13 +67,18 @@ class BillTotalService
         return [
             'service_charge' => $service,
             'tax_total' => $taxTotal,
+            'tax_included' => (int) $sale->tax_included,
             'tax_base' => $taxBase,
-            'grand_total' => $afterDiscount + $shipping + $service + $taxTotal,
+            'grand_total' => $afterDiscount + $shipping + $service + $taxTotal - (int) $sale->tax_included,
         ];
     }
 
     /**
      * Writes nothing and reads only the outlet's bill settings.
+     *
+     * A tax-inclusive line already carries its PPN, so it is never added to the grand total; it is still counted in
+     * `tax_total` and reported apart as `tax_included` (#576). An exclusive line, the shipping and the service charge
+     * get their PPN on top, as before.
      *
      * @param  array<int, array<string, mixed>>  $lines  each with product_id, line_total, tax_rate and tax_type
      * @param  int  $afterDiscount  subtotal after promo, voucher, points and manual discount, without shipping
@@ -80,7 +87,9 @@ class BillTotalService
     {
         $settings = $this->billSettings->get($outlet);
         $service = $dineIn ? (int) round($afterDiscount * $settings['service_charge_rate'] / 100) : 0;
-        $lineTax = 0;
+        $taxAdded = 0;
+        $lineTaxAdded = 0;
+        $taxIncluded = 0;
         $shippingTax = 0;
         $effectiveRate = 0.0;
 
@@ -89,6 +98,7 @@ class BillTotalService
             $rate = $settings['pb1_rate'];
             $taxBase = $afterDiscount + $service;
             $taxTotal = (int) round($taxBase * $rate / 100);
+            $taxAdded = $taxTotal;
         } else {
             // PPN is charged per line, before voucher, points and manual discount.
             $taxBase = 0;
@@ -98,16 +108,24 @@ class BillTotalService
                     continue;
                 }
                 $lineRate = (float) $line['tax_rate'];
-                $lineTax += $this->taxService->calculateLineItem($lineTotal, $line['tax_type'], $lineRate)['tax_amount'];
+                $lineTax = (int) $this->taxService->calculateLineItem($lineTotal, $line['tax_type'], $lineRate)['tax_amount'];
+                $inclusive = $line['tax_type'] === 'inclusive';
+                if ($inclusive) {
+                    // Already inside the price: reported, never charged again.
+                    $taxIncluded += $lineTax;
+                } else {
+                    $lineTaxAdded += $lineTax;
+                }
                 if ($lineRate > 0) {
                     $effectiveRate = $lineRate;
-                    $taxBase += $lineTotal;
+                    $taxBase += $inclusive ? $lineTotal - $lineTax : $lineTotal;
                 }
             }
 
             // Shipping and the service charge are taxed at the rate of the last taxed line.
             $shippingTax = (int) round($shipping * $effectiveRate / 100);
-            $taxTotal = $lineTax + $shippingTax + (int) round($service * $effectiveRate / 100);
+            $taxAdded = $lineTaxAdded + $shippingTax + (int) round($service * $effectiveRate / 100);
+            $taxTotal = $taxAdded + $taxIncluded;
             $taxBase += $effectiveRate > 0 ? $shipping + $service : 0;
             $rate = $effectiveRate;
         }
@@ -117,14 +135,18 @@ class BillTotalService
             'service_charge_rate' => $dineIn ? $settings['service_charge_rate'] : 0.0,
             'tax_kind' => $settings['tax_kind'],
             'tax_total' => $taxTotal,
+            'tax_included' => $taxIncluded,
             'tax_rate' => $rate ?: null,
             'tax_base' => $taxBase,
-            'grand_total' => $afterDiscount + $shipping + $service + $taxTotal,
-            // The inputs of this total, for a client that recomputes it (the offline POS, #418).
+            'grand_total' => $afterDiscount + $shipping + $service + $taxAdded,
+            // The inputs of this total, for a client that recomputes it (the offline POS, #418): only the added part
+            // is added to the subtotal.
             'bill_basis' => [
                 'after_discount' => $afterDiscount,
                 'shipping' => $shipping,
-                'line_tax_total' => $lineTax,
+                'line_tax_total' => $lineTaxAdded + $taxIncluded,
+                'line_tax_added' => $lineTaxAdded,
+                'line_tax_included' => $taxIncluded,
                 'shipping_tax' => $shippingTax,
                 'effective_rate' => $effectiveRate,
             ],

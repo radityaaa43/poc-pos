@@ -59,7 +59,7 @@ Example, dine-in with a 5 % service charge: 2 x Rp 10,000 of a product with 11 %
 | PPN | 1,000 | 2,200 + 110 = 2,310 | 23,310 |
 | PB1 10 % | 1,000 | 10 % x 21,000 = 2,100 | 23,100 |
 
-A sale stores `service_charge`, the `service_charge_rate` it was computed with (0 when not dine-in), `tax_kind`, `tax_rate` (the PB1 rate, or the effective PPN rate), `tax_total`, `tax_base` (what the tax was computed on) and `grand_total`. Older sales keep `0` / `null`, read as PPN, and are never recomputed. Every receipt, the invoice, the public page and the sales export take the service charge out of the subtotal and name the tax from `tax_kind`. Loyalty points keep their base (total minus shipping), so the service charge counts like the tax.
+A sale stores `service_charge`, the `service_charge_rate` it was computed with (0 when not dine-in), `tax_kind`, `tax_rate` (the PB1 rate, or the effective PPN rate), `tax_total`, `tax_included`, `tax_base` (what the tax was computed on) and `grand_total`. A **tax-inclusive** product's price already carries its PPN: that part is counted in `tax_total` and reported apart in `tax_included`, and it is never added to `grand_total` (#576); an exclusive price, the shipping and the service charge still get their PPN on top. Older sales keep `0` / `null` (`tax_included` 0), read as PPN, and are never recomputed — a sale already charged twice keeps its figures. Every receipt, the invoice, the public page and the sales export take the service charge out of the subtotal and name the tax from `tax_kind`; the PPN a price already includes gets its own line ("Termasuk PPN 11%"), while PPN charged on top keeps the `+` line, and the subtotal equals the items. Loyalty points keep their base (total minus shipping), so the service charge counts like the tax.
 
 Denying a manual discount recomputes `service_charge`, `tax_total`, `tax_base` and `grand_total` on the restored base from the sale's own `tax_kind`, `tax_rate` and `service_charge_rate` (stored at checkout, 0 when not dine-in), never the current settings; PPN on lines and shipping stays. The receivable of a pay-later sale moves by the same amount, and a sale from before the bill rules only gets the discount back.
 
@@ -71,7 +71,8 @@ Denying a manual discount recomputes `service_charge`, `tax_total`, `tax_base` a
 
 ### Transactions
 - `tax_rate` — tarif yang dipakai (nullable)
-- `tax_total` — total PPN dalam rupiah
+- `tax_total` — total PPN dalam rupiah (yang ditambahkan di atas harga plus yang sudah termasuk di dalamnya)
+- `tax_included` — bagian PPN yang sudah termasuk dalam harga produk *inclusive*; tidak pernah ditambahkan lagi ke `grand_total`
 - `customer_npwp` — NPWP customer (opsional)
 
 ### Settings

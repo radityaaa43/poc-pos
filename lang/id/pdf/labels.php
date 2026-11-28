@@ -87,6 +87,8 @@ return [
         'before_tax' => 'Sebelum PPN',
         'tax_rate' => 'PPN :rate%',
         'service_charge' => 'Service charge',
+        'tax_included' => 'Termasuk PPN :rate%',
+        'tax_included_no_rate' => 'Termasuk PPN',
         'pb1_rate' => 'PB1 :rate%',
         'grand_total' => 'TOTAL',
         'amount_due' => 'SISA TAGIHAN',

@@ -139,6 +139,24 @@ class ReturnServiceAndTaxTest extends TestCase
         $this->assertSame(0, $sale->fresh()->remainingTotal());
     }
 
+    // #576: an inclusive price already holds its PPN, so a return refunds the price once and never the PPN again.
+    public function test_a_full_return_of_an_inclusive_sale_refunds_its_price_once(): void
+    {
+        $user = $this->user();
+        $this->openShiftFor($user);
+        [$sale, $details] = $this->makeSale($user, [['price' => 166500, 'qty' => 1]], [
+            'tax_kind' => 'ppn', 'tax_rate' => 11, 'tax_total' => 16500, 'tax_included' => 16500,
+            'tax_base' => 150000, 'grand_total' => 166500,
+        ]);
+
+        $return = $this->complete($user, $this->draft($user, $sale, [$this->item($details[0], 1)]));
+
+        $this->assertSame(0, $return->tax_refunded);
+        $this->assertSame(166500, $return->total_return_amount);
+        $this->assertSame(166500, $return->refund_amount);
+        $this->assertSame(0, $sale->fresh()->remainingTotal());
+    }
+
     public function test_cash_rounding_is_not_refunded(): void
     {
         $user = $this->user();
