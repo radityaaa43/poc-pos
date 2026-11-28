@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Inventory;
 
+use App\Http\Middleware\EnsureApiStepUp;
 use App\Models\AuditLog;
 use App\Models\Category;
 use App\Models\Outlet;
@@ -437,5 +438,20 @@ class StockWasteRecordTest extends TestCase
         StockWaste::create(['warehouse_id' => $empty->id, 'status' => 'pending', 'reason' => 'other']);
 
         $this->assertTrue($access->hasWarehouseHistory($empty));
+    }
+
+    public function test_an_outlet_whose_only_history_is_a_pending_waste_cannot_be_deleted(): void
+    {
+        $this->record([[$this->beans, 401]])->assertSessionHasNoErrors();
+        $this->assertDatabaseCount('stock_mutations', 0);
+        $admin = $this->userWith('outlets-delete');
+
+        $this->withSession($this->recentlyConfirmedSession())->actingAs($admin)
+            ->delete(route('settings.outlets.destroy', $this->outlet))->assertSessionHas('error');
+        Sanctum::actingAs($admin, ['*']);
+        $this->withoutMiddleware(EnsureApiStepUp::class)
+            ->deleteJson(route('api.settings.outlets.destroy', $this->outlet))->assertUnprocessable()->assertJsonValidationErrors('outlet');
+
+        $this->assertModelExists($this->outlet);
     }
 }
