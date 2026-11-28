@@ -138,11 +138,7 @@ class Transaction extends Model
         return $this->belongsTo(CashierShift::class);
     }
 
-    /**
-     * The root order of an add-on sale (#251); null for a normal sale.
-     *
-     * @return BelongsTo<Transaction, $this>
-     */
+    /** @return BelongsTo<Transaction, $this> the root order of an add-on sale (#251); null for a normal sale */
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_transaction_id');

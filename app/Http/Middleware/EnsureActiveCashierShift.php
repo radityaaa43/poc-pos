@@ -29,9 +29,8 @@ class EnsureActiveCashierShift
 
             // A pinned add-on (#251) survives: posted by the request, or else in the URL of the POS page it came from.
             parse_str((string) parse_url((string) $request->headers->get('referer'), PHP_URL_QUERY), $from);
-            $pin = $request->only('add_on_to') + Arr::only($from, 'add_on_to');
 
-            return to_route('transactions.index', $pin)->with('error', $message);
+            return to_route('transactions.index', $request->only('add_on_to') + Arr::only($from, 'add_on_to'))->with('error', $message);
         }
 
         return $next($request);

@@ -5,18 +5,14 @@ namespace App\Support\Kitchen;
 use App\Models\Transaction;
 use Illuminate\Support\Collection;
 
-/**
- * Display only (#251): an add-on's items show inside the card of its original order. Kitchen tickets stay one per sale,
- * so this grouping never goes into KitchenOrders::fromItems, which the ticket endpoints use.
- */
+/** Display only (#251): an add-on shows in its original's card. Not in KitchenOrders::fromItems: tickets stay per sale. */
 class KitchenOrderGroups
 {
     /** $items: as for KitchenOrders::fromItems. An item of an add-on also carries `add_on` (its sale id, age, unpaid). */
     public static function fromItems($items): Collection
     {
         $orders = KitchenOrders::fromItems($items);
-        // add-on sale id => root sale id
-        $parents = $items->pluck('transaction')->pluck('parent_transaction_id', 'id')->filter();
+        $parents = $items->pluck('transaction')->pluck('parent_transaction_id', 'id')->filter(); // add-on id => root id
 
         if ($parents->isEmpty()) {
             return $orders;

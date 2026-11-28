@@ -15,7 +15,6 @@ test.describe('32-kitchen-display', () => {
         const bank = arrange('pos.bank-account', { bank: uniq('BCA') });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
-
         await page.goto(`/dashboard/transactions/${original.invoice}/print`);
         await page.getByRole('button', { name: 'Tambah pesanan' }).click();
         const banner = page.getByText(`Pesanan tambahan untuk ${original.invoice}`);
@@ -27,13 +26,11 @@ test.describe('32-kitchen-display', () => {
         await page.getByRole('button', { name: new RegExp(bank.bank) }).click();
         const invoice = await finish(page);
         await expect(page.getByText(`Tambahan untuk ${original.invoice}`)).toBeVisible();
-
         // Pay now: nothing of the add-on reaches the kitchen before it is paid.
         await page.goto('/dashboard/kitchen');
         const card = page.locator('article', { hasText: original.invoice });
         await expect(card).toContainText(original.flagged[0]);
         await expect(card.getByRole('heading', { name: 'Tambahan' })).toHaveCount(0);
-
         arrange('kitchen.set-status', { invoice, status: 'paid' });
         await expect(card.getByRole('heading', { name: 'Tambahan' })).toBeVisible({ timeout: 15_000 });
         await expect(card).toContainText(title);
@@ -47,9 +44,7 @@ test.describe('32-kitchen-display', () => {
         arrange('posretry.restock', { transaction_id: original.transaction_id });
         arrange('pos.open-shift', { cash: 100000 });
         const page = await asRole(cashier);
-
         await page.goto(`/dashboard/transactions?add_on_to=${original.invoice}`);
-
         await expect(page.getByRole('alert').filter({ hasText: CANCELLED })).toBeVisible({ timeout: 45_000 });
     });
 });

@@ -50,8 +50,7 @@ class DineOrderService
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
 
-            // #251: locked, and ahead of every plain read (the first one fixes MySQL's snapshot), so a cancellation that
-            // committed meanwhile is seen. A refusal rolls the whole accept back.
+            // #251: locked before the first plain read fixes MySQL's snapshot. A refusal rolls the whole accept back.
             $parentId = $this->addOnOrderService->resolveForDine($order->addOnTo()->lockForUpdate()->first());
 
             $order->load(['items.product.components', 'table.area.outlet']);

@@ -83,19 +83,13 @@ class AddOnQrTest extends TestCase
         $this->assertSame($addOn->transaction_id, (int) AuditLog::where('event', 'transaction.add_on_created')->sole()->auditable_id);
         // An add-on of an add-on joins the root order.
         $this->assertSame($original->transaction_id, $this->accept($this->order(from: $addOn))->transaction->parent_transaction_id);
-    }
 
-    // BR-10: the table alone never links two orders
-    public function test_second_qr_order_at_same_table_is_not_linked(): void
-    {
-        $first = $this->accept($this->order());
+        // BR-10: the table alone never links two orders.
         $second = $this->accept($this->order());
         $this->assertNull($second->add_on_to_dine_order_id);
         $this->assertNull($second->transaction->parent_transaction_id);
-
-        $addOn = $this->accept($this->order(from: $second));
-        $this->assertSame($second->transaction_id, $addOn->transaction->parent_transaction_id);
-        $this->assertSame(0, Transaction::where('parent_transaction_id', $first->transaction_id)->count());
+        $this->assertSame($second->transaction_id, $this->accept($this->order(from: $second))->transaction->parent_transaction_id);
+        $this->assertSame(2, Transaction::where('parent_transaction_id', $original->transaction_id)->count(), 'only its own add-ons');
     }
 
     public function test_qr_add_on_with_another_tables_token_or_to_an_unaccepted_order_is_rejected(): void
@@ -196,10 +190,7 @@ class AddOnQrTest extends TestCase
         $this->assertEmpty(preg_grep('/for update/i', array_column(DB::getQueryLog(), 'query')), 'a guest submit takes no lock');
 
         // A cancellation committed before these locks is seen; one that comes later waits for them.
-        $this->assertLeadingReads(
-            ['cashier_shifts', 'dine_orders', 'dine_orders', 'transactions', 'transactions', 'transactions'],
-            fn () => $this->accept($addOn),
-        );
+        $this->assertLeadingReads(['cashier_shifts', 'dine_orders', 'dine_orders', 'transactions', 'transactions', 'transactions'], fn () => $this->accept($addOn));
         Cart::create(['cashier_id' => $this->cashier->id, 'product_id' => $this->nasi->id, 'qty' => 1, 'price' => 10000]);
         $this->assertLeadingReads(['cashier_shifts', 'transactions', 'transactions'], fn () => $this->post(
             route('transactions.store'), ['cash' => 100000, 'add_on_to' => $original->transaction->invoice],
@@ -230,8 +221,7 @@ class AddOnQrTest extends TestCase
     private function assertSubmitRefused(DiningTable $table, string $reference, string $message): void
     {
         $this->postJson(route('dine-order.store', $table->token), $this->payload($reference))
-            ->assertStatus(422)
-            ->assertJsonValidationErrors(['add_on_to' => $message]);
+            ->assertStatus(422)->assertJsonValidationErrors(['add_on_to' => $message]);
     }
 
     private function tableNamed(string $name): DiningTable

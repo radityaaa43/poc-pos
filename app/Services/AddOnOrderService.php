@@ -16,12 +16,7 @@ class AddOnOrderService
 
     public function __construct(private readonly AuditLogService $auditLogService) {}
 
-    /**
-     * POS: the root sale id a new sale links to, or null when the order is finished and a new one starts (BR-6). With $lock,
-     * call it in the checkout's DB::transaction before any plain read, with $original looked up outside it.
-     *
-     * @throws ValidationException an unknown order, another outlet's order, or a cancelled one (BR-11)
-     */
+    /** POS: the root sale id to link to, null when finished (BR-6). Locking: before the transaction's first plain read. */
     public function resolveForPos(?Transaction $original, CashierShift $shift, bool $lock = true): ?int
     {
         $original ??= $this->refuse('Pesanan asal tidak ditemukan');
@@ -38,29 +33,20 @@ class AddOnOrderService
         return $this->linkTo($root, $original);
     }
 
-    /**
-     * What the POS says about an add-on before checkout; the checkout decides again.
-     *
-     * @return array{invoice: string, state: string, reason: ?string} state: linked, completed, cancelled or refused
-     */
+    /** @return array{invoice: string, state: string, reason: ?string} linked, completed, cancelled or refused; no lock */
     public function preview(string $invoice, CashierShift $shift): array
     {
         try {
             $state = $this->resolveForPos(Transaction::where('invoice', $invoice)->first(), $shift, false) ? 'linked' : 'completed';
-            $reason = null;
         } catch (ValidationException $e) {
             $reason = $e->getMessage();
             $state = $reason === self::CANCELLED_MESSAGE ? 'cancelled' : 'refused';
         }
 
-        return compact('invoice', 'state', 'reason');
+        return compact('invoice', 'state') + ['reason' => $reason ?? null];
     }
 
-    /**
-     * QR submit: the order ordered from. The token is guest input: an accepted, not cancelled order of this table (BR-10, BR-11).
-     *
-     * @throws ValidationException
-     */
+    /** QR submit: the order ordered from. Guest input: an accepted, not cancelled order of this table (BR-10, BR-11). */
     public function originalForGuest(string $accessToken, DiningTable $table): DineOrder
     {
         $original = DineOrder::where('access_token', $accessToken)->where('dine_table_id', $table->id)->first()
@@ -74,12 +60,7 @@ class AddOnOrderService
         return $original;
     }
 
-    /**
-     * QR accept: the root sale id, or null for a new order: nothing referenced, or the whole order is finished (BR-13).
-     * A table is never enough to link two orders (BR-10). With $lock, as resolveForPos.
-     *
-     * @throws ValidationException a cancelled original (BR-11, BR-12)
-     */
+    /** QR accept: the root sale id, null for a new order (nothing referenced, or all finished: BR-10, BR-13). Locks as above. */
     public function resolveForDine(?DineOrder $original, bool $lock = true): ?int
     {
         if (in_array($original?->status, [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)) {
@@ -88,7 +69,6 @@ class AddOnOrderService
 
         $sale = $original?->transaction_id ? Transaction::when($lock, fn ($query) => $query->lockForUpdate())->find($original->transaction_id) : null;
 
-        // A completed original is not enough to start afresh: an add-on of it may still be open (BR-13).
         return $sale ? $this->linkTo($this->root($sale, $lock), $sale) : null;
     }
 
@@ -144,10 +124,7 @@ class AddOnOrderService
         return $open ? $root->id : null;
     }
 
-    /**
-     * BR-12: expired and restocked, a cancelled or rejected dine order, or every line returned. A failed or expired
-     * payment alone is not: that bill can still be paid.
-     */
+    /** BR-12: restocked on expiry, a cancelled or rejected dine order, or every line returned. Not a failed payment alone. */
     private function isCancelled(Transaction $sale): bool
     {
         return $sale->wasRestocked()

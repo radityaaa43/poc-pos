@@ -10,9 +10,7 @@ test.describe('22-pos-checkout-payments', () => {
         await page.goto(`/dashboard/transactions/${sale.invoice}/print`);
         const button = page.getByRole('button', { name: 'Tambah pesanan' });
         await expect(button).toBeEnabled({ timeout: 45_000 });
-
         await page.context().setOffline(true);
-
         await expect(button).toBeDisabled();
         await expect(page.getByText('Pesanan tambahan tidak tersedia saat offline')).toBeVisible();
         await page.context().setOffline(false);

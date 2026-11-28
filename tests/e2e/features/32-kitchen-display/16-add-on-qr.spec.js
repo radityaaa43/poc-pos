@@ -11,12 +11,10 @@ test.describe('32-kitchen-display', () => {
         const [first, second] = [uniq('Soto'), uniq('Wedang')].map((title) => {
             const { product_id } = arrange('product', { title, stock: 5 });
             arrange('kitchen.flag', { product_id });
-
             return { title, product_id };
         });
         const original = arrange('dine.order', { token, product_id: first.product_id, qty: 1 });
         arrange('open-shift', { cashier: manager.email, cash: 100000 });
-
         const staff = await asRole(manager);
         const accept = async () => {
             await staff.goto('/dashboard/dine-orders');
@@ -26,7 +24,6 @@ test.describe('32-kitchen-display', () => {
             await expect(waiting).toHaveCount(0);
         };
         await accept();
-
         // The guest (signed in to nothing) orders again from the status page of the accepted order.
         await page.goto(`/dine-order/${original.access_token}`);
         await page.getByRole('link', { name: 'Tambah pesanan' }).click();
@@ -36,12 +33,10 @@ test.describe('32-kitchen-display', () => {
         await page.waitForURL((url) => url.pathname.startsWith('/dine-order/') && !url.pathname.endsWith(original.access_token));
         const addOnToken = new URL(page.url()).pathname.split('/').pop();
         await accept();
-
         // Pay at the counter: each sale reaches the kitchen once it is paid.
         for (const [access_token, product_id] of [[original.access_token, first.product_id], [addOnToken, second.product_id]]) {
             arrange('kitchen.set-status', { invoice: arrange('dine.order-state', { access_token, product_id }).invoice, status: 'paid' });
         }
-
         await staff.goto('/dashboard/kitchen');
         const card = staff.locator('article', { hasText: table_name });
         await expect(card).toHaveCount(1);

@@ -794,10 +794,13 @@ class PosApiController extends Controller
             return ['status' => 'failed', 'reason' => 'Tidak terautentikasi.'];
         }
 
-        // Neither can be replayed blind: pay later needs the online outlet setting and a note, an add-on the original order.
-        $payLater = ($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later';
-        if ($payLater || isset($payload['add_on_to'])) {
-            return ['status' => 'failed', 'reason' => $payLater ? 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online' : 'Pesanan tambahan tidak tersedia saat offline'];
+        // Pay later needs the online outlet setting and (for guests) a note, so a queued entry can't be replayed blind.
+        if (($payload['pay_later'] ?? false) || ($payload['payment_method'] ?? '') === 'pay_later') {
+            return ['status' => 'failed', 'reason' => 'Bayar belakangan offline tidak lagi didukung — masukkan ulang saat online'];
+        }
+
+        if (isset($payload['add_on_to'])) { // nor can an add-on: the original order must be checked online (#251)
+            return ['status' => 'failed', 'reason' => 'Pesanan tambahan tidak tersedia saat offline'];
         }
 
         // Rebuild cart rows from the offline items, then reuse the normal

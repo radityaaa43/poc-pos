@@ -107,11 +107,7 @@ class DineOrder extends Model
         return $this->belongsTo(Transaction::class);
     }
 
-    /**
-     * The order whose status page this one was ordered from (#251).
-     *
-     * @return BelongsTo<DineOrder, $this>
-     */
+    /** @return BelongsTo<DineOrder, $this> the order whose status page this one was ordered from (#251) */
     public function addOnTo(): BelongsTo
     {
         return $this->belongsTo(self::class, 'add_on_to_dine_order_id');
@@ -145,8 +141,7 @@ class DineOrder extends Model
     /** Safety net: completed once the order is served and paid. Payment comes first (the kitchen waits for it), so serving normally completes it. */
     public function completeIfSettled(): void
     {
-        // Locking reads, the order then its bill (#251): a hand-over and a payment can commit side by side, and neither
-        // this model, its loaded bill nor the transaction's snapshot shows the other one's write.
+        // Locking reads, order then bill (#251): a loaded model or a snapshot misses a payment or hand-over beside it.
         if (static::whereKey($this->id)->lockForUpdate()->value('status') === self::STATUS_SERVED
             && Transaction::whereKey($this->transaction_id)->lockForUpdate()->value('payment_status') === 'paid') {
             $this->update(['status' => self::STATUS_COMPLETED, 'completed_at' => now()]);

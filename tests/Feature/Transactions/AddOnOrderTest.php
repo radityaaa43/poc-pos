@@ -190,10 +190,8 @@ class AddOnOrderTest extends TestCase
         $this->assertSame('pending', $addOn->payment_status);
         $this->assertSame(0, KitchenItem::where('transaction_id', $addOn->id)->count());
 
-        $this->actingAs($this->admin)
-            ->withSession(['auth.password_confirmed_at' => time()])
-            ->patch(route('transactions.confirm-payment', $addOn))
-            ->assertSessionHas('success');
+        $this->actingAs($this->admin)->withSession(['auth.password_confirmed_at' => time()])
+            ->patch(route('transactions.confirm-payment', $addOn))->assertSessionHas('success');
 
         $this->assertSame(1, KitchenItem::where('transaction_id', $addOn->id)->count());
     }
@@ -323,11 +321,13 @@ class AddOnOrderTest extends TestCase
         $this->assertSame(99, (int) $this->nasi->fresh()->stock);
     }
 
-    public function test_pos_page_says_what_the_add_on_will_do(): void
+    // The POS page says what the add-on will do, and only the checkout locks.
+    public function test_preview_takes_no_lock(): void
     {
         $open = $this->sell();
         $done = $this->sell(product: $this->product('Air mineral', flagged: false));
         $this->returnEverything($cancelled = $this->sell());
+        DB::enableQueryLog();
 
         foreach ([[$open, 'linked'], [$done, 'completed'], [$cancelled, 'cancelled']] as [$sale, $state]) {
             $this->actingAs($this->cashier)->get(route('transactions.index', ['add_on_to' => $sale->invoice]))
@@ -336,6 +336,8 @@ class AddOnOrderTest extends TestCase
 
         $this->actingAs($this->cashier)->get(route('transactions.index'))
             ->assertInertia(fn (Assert $page) => $page->where('addOn', null));
+        // SQLite never writes the clause, so this bites on CI's MySQL job.
+        $this->assertEmpty(preg_grep('/for update/i', array_column(DB::getQueryLog(), 'query')));
     }
 
     // The POS reloads its own page after these: the add-on must not be dropped on the way.
@@ -360,17 +362,6 @@ class AddOnOrderTest extends TestCase
         $this->actingAs($this->cashier)->post(route('transactions.store'), ['cash' => 100000, 'add_on_to' => $original->invoice])
             ->assertRedirect($withAddOn);
         $this->actingAs($this->cashier)->from($withAddOn)->delete(route('transactions.destroyCart', 1))->assertRedirect($withAddOn);
-    }
-
-    public function test_preview_takes_no_lock(): void
-    {
-        $sale = $this->sell();
-        DB::enableQueryLog();
-
-        $this->actingAs($this->cashier)->get(route('transactions.index', ['add_on_to' => $sale->invoice]))->assertOk();
-
-        // SQLite never writes the clause, so this bites on CI's MySQL job.
-        $this->assertEmpty(preg_grep('/for update/i', array_column(DB::getQueryLog(), 'query')));
     }
 
     public function test_parent_transaction_migration_rolls_back(): void
