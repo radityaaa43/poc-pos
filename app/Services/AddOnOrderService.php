@@ -1,0 +1,140 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\CashierShift;
+use App\Models\DineOrder;
+use App\Models\DiningTable;
+use App\Models\Transaction;
+use Illuminate\Validation\ValidationException;
+
+/** Add-on orders (#251, REQ-003 AC-21): their rules. An add-on is its own sale, linked to the root order, never written. */
+class AddOnOrderService
+{
+    /** BR-11, the same words on the POS and the table QR. */
+    public const CANCELLED_MESSAGE = 'Pesanan asal sudah dibatalkan — buat pesanan baru';
+
+    public function __construct(private readonly AuditLogService $auditLogService) {}
+
+    /** POS: the root sale id to link to, null when finished (BR-6). Locking: before the transaction's first plain read. */
+    public function resolveForPos(?Transaction $original, CashierShift $shift, bool $lock = true): ?int
+    {
+        $original ??= $this->refuse('Pesanan asal tidak ditemukan');
+        $root = $this->root($original, $lock);
+
+        // Any warehouse of the same outlet, as on the kitchen display and the payment retry.
+        $sameOutlet = (int) $root->warehouse_id === (int) $shift->warehouse_id
+            || ($root->warehouse?->outlet_id !== null && $root->warehouse->outlet_id === $shift->warehouse?->outlet_id);
+
+        if (! $sameOutlet) {
+            $this->refuse('Buka shift di outlet pesanan ini');
+        }
+
+        return $this->linkTo($root, $original);
+    }
+
+    /** @return array{invoice: string, state: string, reason: ?string} linked, completed, cancelled or refused; no lock */
+    public function preview(string $invoice, CashierShift $shift): array
+    {
+        try {
+            $state = $this->resolveForPos(Transaction::where('invoice', $invoice)->first(), $shift, false) ? 'linked' : 'completed';
+        } catch (ValidationException $e) {
+            $reason = $e->getMessage();
+            $state = $reason === self::CANCELLED_MESSAGE ? 'cancelled' : 'refused';
+        }
+
+        return compact('invoice', 'state') + ['reason' => $reason ?? null];
+    }
+
+    /** QR submit: the order ordered from. Guest input: an accepted, not cancelled order of this table (BR-10, BR-11). */
+    public function originalForGuest(string $accessToken, DiningTable $table): DineOrder
+    {
+        $original = DineOrder::where('access_token', $accessToken)->where('dine_table_id', $table->id)->first()
+            ?? $this->refuse('Pesanan asal tidak ditemukan di meja ini');
+        $this->resolveForDine($original, false);
+
+        if (! $original->transaction_id) {
+            $this->refuse('Pesanan asal belum diterima — tunggu konfirmasi staf');
+        }
+
+        return $original;
+    }
+
+    /** QR accept: the root sale id, null for a new order (nothing referenced, or all finished: BR-10, BR-13). Locks as above. */
+    public function resolveForDine(?DineOrder $original, bool $lock = true): ?int
+    {
+        if (in_array($original?->status, [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)) {
+            $this->refuse(self::CANCELLED_MESSAGE);
+        }
+
+        $sale = $original?->transaction_id ? Transaction::when($lock, fn ($query) => $query->lockForUpdate())->find($original->transaction_id) : null;
+
+        return $sale ? $this->linkTo($this->root($sale, $lock), $sale) : null;
+    }
+
+    /** A completed order's status page offers "Tambah pesanan" while an add-on from it would link (BR-13). No lock. */
+    public function wouldLink(DineOrder $order): bool
+    {
+        try {
+            return $order->status === DineOrder::STATUS_COMPLETED && $this->resolveForDine($order, false) !== null;
+        } catch (ValidationException) {
+            return false;
+        }
+    }
+
+    /** The receipt's "Tambah pesanan": hidden once the sale, or the order it belongs to, is cancelled (BR-12). */
+    public function offersAddOn(Transaction $sale): bool
+    {
+        return ! $this->isCancelled($sale) && ! ($sale->parent && $this->isCancelled($sale->parent));
+    }
+
+    /** The trail of who linked what; call it once the add-on sale exists. */
+    public function record(Transaction $addOn): void
+    {
+        $this->auditLogService->log(
+            event: 'transaction.add_on_created',
+            module: 'transactions',
+            auditable: $addOn,
+            description: "Pesanan tambahan {$addOn->invoice} dibuat.",
+            meta: ['parent_transaction_id' => $addOn->parent_transaction_id],
+        );
+    }
+
+    /** Locks the sale referred to, then its root: an add-on always before its original. */
+    private function root(Transaction $sale, bool $lock): Transaction
+    {
+        if ($lock) {
+            Transaction::whereKey($sale->id)->lockForUpdate()->value('id');
+        }
+
+        return Transaction::with('warehouse')->when($lock, fn ($query) => $query->lockForUpdate())->findOrFail($sale->orderRootId());
+    }
+
+    private function linkTo(Transaction $root, Transaction $original): ?int
+    {
+        if ($this->isCancelled($root) || $this->isCancelled($original)) {
+            $this->refuse(self::CANCELLED_MESSAGE);
+        }
+
+        // BR-13: open while any live sale of the order owes money (BR-9) or has kitchen work; else finished (BR-6).
+        $open = Transaction::where('parent_transaction_id', $root->id)->get()->prepend($root)->contains(fn (Transaction $sale) => (
+            $sale->payment_status !== 'paid' || $sale->kitchenItems()->open()->exists()
+        ) && ! $this->isCancelled($sale));
+
+        return $open ? $root->id : null;
+    }
+
+    /** BR-12: restocked on expiry, a cancelled or rejected dine order, or every line returned. Not a failed payment alone. */
+    private function isCancelled(Transaction $sale): bool
+    {
+        return $sale->wasRestocked()
+            // Read without setting the relation: the receipt page serialises this sale, and the dine order carries the guest's access_token.
+            || in_array($sale->dineOrder()->value('status'), [DineOrder::STATUS_REJECTED, DineOrder::STATUS_CANCELLED], true)
+            || ! Transaction::whereKey($sale->id)->notFullyReturned()->exists();
+    }
+
+    private function refuse(string $message): never
+    {
+        throw ValidationException::withMessages(['add_on_to' => $message]);
+    }
+}

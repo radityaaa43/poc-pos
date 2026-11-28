@@ -1231,6 +1231,29 @@
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Izinkan kasir outlet ini menjual sekarang dan menagih pembayaran nanti."
+        },
+        "bill": {
+            "title": "Tagihan",
+            "appliesToNew": "Berlaku untuk tagihan berikutnya; tagihan yang sudah dibuat tidak berubah.",
+            "serviceCharge": {
+                "label": "Service charge (%)",
+                "hint": "0 = nonaktif"
+            },
+            "taxKind": {
+                "label": "Jenis pajak",
+                "ppn": "PPN",
+                "ppnHint": "PPN per produk",
+                "pb1": "PB1",
+                "pb1Hint": "Satu tarif untuk seluruh tagihan"
+            },
+            "pb1Rate": {
+                "label": "Tarif PB1 (%)",
+                "hint": "Dipakai saat jenis pajak PB1."
+            },
+            "rounding": {
+                "label": "Pembulatan tunai",
+                "none": "Tanpa"
+            }
         }
     },
     "dineMenu": {
@@ -1255,6 +1278,15 @@
         "renamed": "Nama stasiun diubah",
         "deleted": "Stasiun dihapus",
         "failed": "Stasiun tidak bisa disimpan"
+    },
+    "addOn": {
+        "add": "Tambah pesanan",
+        "banner": "Pesanan tambahan untuk {{invoice}}",
+        "receipt": "Tambahan untuk {{invoice}}",
+        "completed": "Pesanan sebelumnya sudah selesai. Dibuat sebagai pesanan baru.",
+        "cancelled": "Pesanan asal sudah dibatalkan — buat pesanan baru",
+        "offline": "Pesanan tambahan tidak tersedia saat offline",
+        "cancel": "Batal"
     },
     "dine": {
         "pay": {

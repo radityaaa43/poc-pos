@@ -431,6 +431,12 @@ return [
         'raw_material' => 'Bahan baku tidak bisa diberi modifier.',
         'ingredient_in_use' => 'Produk ini bahan opsi ":option" di grup modifier ":group". Lepas dulu dari opsi itu.',
     ],
+    'outlet_bill' => [
+        'service_charge_rate' => 'Service charge harus 0 sampai 100, paling banyak 2 angka desimal.',
+        'tax_kind' => 'Jenis pajak harus PPN atau PB1.',
+        'pb1_rate' => 'Tarif PB1 harus 0 sampai 100, paling banyak 2 angka desimal.',
+        'cash_rounding_unit' => 'Pembulatan tunai harus Tanpa, 100, atau 500.',
+    ],
 
     'dine_reservations' => [
         'clash' => 'Meja ini sudah direservasi atas nama :name pada :time. Beri jarak minimal 2 jam.',
