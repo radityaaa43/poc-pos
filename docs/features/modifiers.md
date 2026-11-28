@@ -37,6 +37,7 @@ di outlet itu tidak ada; grup tanpa sisa opsi tetap ada (pemanggil memblokir men
 - Baris keranjang digabung hanya bila opsi dan catatannya sama (`carts.line_key`).
 - Diskon persen/nominal, voucher, pajak dan poin atas baris penuh; harga tetap, qty break dan bundle hanya mengganti
   harga menu; "gratis" pada beli X gratis Y hanya harga menu.
+- Qty break menghitung semua baris menu yang sama (opsi dan catatan apa pun; satuan non-dasar tidak ikut).
 - Checkout menyimpan opsi per baris (`transaction_detail_modifiers`: nama, harga, `components` =
   `[{product_id, qty_per_unit}]`) serta `note` dan `modifier_total`; struk membaca salinan ini. Bahan opsi diambil dalam
   transaksi yang sama dengan stok menu (`ComponentStockService`, kunci urut `product_id`).

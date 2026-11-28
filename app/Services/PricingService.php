@@ -236,6 +236,11 @@ class PricingService
             $this->applyComplexStage($buyGetRules, $items, $remainingQuantities, 'buy_get')
         );
 
+        // BR-5: quantity breaks count every line of a menu together, whatever its options or note. Pieces a bundle or
+        // free item used, and unit lines, are already absent from the remaining quantities.
+        $menuQuantities = $items->groupBy('product_id')
+            ->map(fn (Collection $lines) => $lines->sum(fn (array $line) => $remainingQuantities[$line['cart_id']]));
+
         foreach ($items as $cartId => $item) {
             $remainingQty = max(0, (int) ($remainingQuantities[$cartId] ?? 0));
             if ($remainingQty === 0) {
@@ -253,7 +258,8 @@ class PricingService
                     PricingRule::KIND_STANDARD_DISCOUNT,
                 ], true))
                 ->map(fn (PricingRule $rule) => $this->calculateLineCandidate(
-                    $rule, $cartProduct, $remainingQty, $customer, $outlet, $items->get($cartId)['option_unit_total']
+                    $rule, $cartProduct, $remainingQty, $customer, $outlet,
+                    $items->get($cartId)['option_unit_total'], $menuQuantities[$cartProduct->id]
                 ))
                 ->filter()
                 ->sortBy([
@@ -545,7 +551,7 @@ class PricingService
         return $allocated;
     }
 
-    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null, int $optionUnitTotal = 0): ?array
+    private function calculateLineCandidate(PricingRule $rule, Product $product, int $quantity, ?Customer $customer = null, ?Outlet $outlet = null, int $optionUnitTotal = 0, ?int $breakQuantity = null): ?array
     {
         if (! $this->matchesTarget($rule, $product)) {
             return null;
@@ -559,7 +565,7 @@ class PricingService
 
         if ($rule->kind === PricingRule::KIND_QTY_BREAK) {
             $break = $rule->qtyBreaks
-                ->filter(fn (PricingRuleQtyBreak $break) => $quantity >= (int) $break->min_qty)
+                ->filter(fn (PricingRuleQtyBreak $break) => ($breakQuantity ?? $quantity) >= (int) $break->min_qty)
                 ->sortBy([
                     ['min_qty', 'desc'],
                     ['sort_order', 'asc'],

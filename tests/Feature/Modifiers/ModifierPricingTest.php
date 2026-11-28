@@ -5,8 +5,10 @@ namespace Tests\Feature\Modifiers;
 use App\Models\Cart;
 use App\Models\Customer;
 use App\Models\PricingRule;
+use App\Models\TransactionDetail;
 use App\Services\LoyaltyService;
 use App\Services\PricingService;
+use PHPUnit\Framework\Attributes\TestWith;
 
 // REQ-008 AC-11, BR-1: promos, vouchers, tax and points on a line with options. Menu 20.000, Large +5.000.
 class ModifierPricingTest extends ModifierSaleTestCase
@@ -47,6 +49,33 @@ class ModifierPricingTest extends ModifierSaleTestCase
         $rule->qtyBreaks()->create(['min_qty' => 2, 'discount_type' => PricingRule::TYPE_PERCENTAGE, 'discount_value' => 50, 'sort_order' => 0]);
 
         $this->assertSame(30000, $this->preview()['items'][0]['line_total']);
+    }
+
+    // BR-5: every line of a menu counts towards its break, whatever the option or note.
+    #[TestWith([['Regular'], null, 10000])]
+    #[TestWith([['Large'], 'Tanpa gula', 15000])]
+    public function test_qty_break_counts_every_line_of_the_same_menu(array $options, ?string $note, int $lastTotal): void
+    {
+        $rule = $this->rule(['kind' => PricingRule::KIND_QTY_BREAK, 'target_type' => PricingRule::TARGET_ALL, 'product_id' => null]);
+        $rule->qtyBreaks()->create(['min_qty' => 3, 'discount_type' => PricingRule::TYPE_FIXED_PRICE, 'discount_value' => 10000, 'sort_order' => 0]);
+        $this->add(['Large'], 2);
+        $this->post(route('transactions.addToCart'), ['product_id' => $this->product('Teh', 8000, 5)->id, 'qty' => 1]);
+        // As on a single line before options: a box (non-base unit) takes no rule and does not count.
+        $box = Cart::create([
+            'cashier_id' => $this->cashier->id, 'product_id' => $this->menu->id,
+            'qty' => 1, 'conversion_factor' => 12, 'price' => 200000,
+        ]);
+
+        // Neither the box nor the other menu makes up the third.
+        $this->assertSame([50000, 8000, 200000], array_column($this->preview()['items'], 'line_total'));
+
+        $box->delete();
+        $this->add($options, 1, $note);
+
+        // 10.000 replaces the menu price on each line; Large +5.000 stays on top.
+        $this->assertSame([30000, 8000, $lastTotal], array_column($this->preview()['items'], 'line_total'));
+        $this->checkout()->assertSessionHasNoErrors();
+        $this->assertEquals([30000, 8000, $lastTotal], TransactionDetail::orderBy('id')->pluck('price')->all());
     }
 
     public function test_buy_x_get_y_frees_only_the_menu_price(): void
