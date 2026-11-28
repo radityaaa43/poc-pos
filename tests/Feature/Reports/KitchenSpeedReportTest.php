@@ -149,11 +149,177 @@ class KitchenSpeedReportTest extends TestCase
     public function test_empty_period_returns_empty_flag_not_zeros(): void
     {
         $this->assertSame(
-            ['rows' => [], 'orders' => ['orders' => 0, 'avg_minutes' => null], 'empty' => true],
+            [
+                'rows' => [],
+                'orders' => ['orders' => 0, 'avg_minutes' => null],
+                'empty' => true,
+                'completeness' => ['items' => 0, 'complete' => 0, 'percent' => null, 'below_target' => false, 'target' => 95],
+            ],
             $this->build(),
         );
         $this->item($this->product('Nasi goreng'));
         $this->assertFalse($this->build()['empty']);
+    }
+
+    public function test_completeness_is_null_without_items(): void
+    {
+        $this->assertSame(
+            ['items' => 0, 'complete' => 0, 'percent' => null, 'below_target' => false, 'target' => 95],
+            $this->build()['completeness'],
+        );
+    }
+
+    public function test_complete_items_give_one_hundred_percent(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi);
+
+        $this->assertSame(
+            ['items' => 2, 'complete' => 2, 'percent' => 100.0, 'below_target' => false, 'target' => 95],
+            $this->build()['completeness'],
+        );
+    }
+
+    public function test_open_items_are_counted_as_incomplete(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['status' => 'preparing', 'ready' => null, 'served' => null]);
+        $this->item($nasi, ['status' => 'accepted', 'prep' => null, 'ready' => null, 'served' => null]);
+
+        $this->assertSame(
+            ['items' => 3, 'complete' => 1, 'percent' => 33.3, 'below_target' => true, 'target' => 95],
+            $this->build()['completeness'],
+        );
+    }
+
+    public function test_cancelled_and_not_collected_items_are_left_out(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['status' => 'cancelled', 'prep' => null, 'ready' => null, 'served' => null]);
+        $this->item($nasi, ['status' => 'not_collected', 'ready' => null, 'served' => null]);
+
+        $this->assertSame(
+            ['items' => 1, 'complete' => 1, 'percent' => 100.0, 'below_target' => false, 'target' => 95],
+            $this->build()['completeness'],
+        );
+    }
+
+    public function test_ninety_five_percent_is_on_target(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        for ($i = 0; $i < 19; $i++) {
+            $this->item($nasi);
+        }
+        $this->item($nasi, ['status' => 'preparing', 'ready' => null, 'served' => null]);
+
+        $completeness = $this->build()['completeness'];
+
+        $this->assertSame(20, $completeness['items']);
+        $this->assertSame(19, $completeness['complete']);
+        $this->assertSame(95.0, $completeness['percent']);
+        $this->assertFalse($completeness['below_target']);
+    }
+
+    public function test_below_ninety_five_is_marked(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        for ($i = 0; $i < 94; $i++) {
+            $this->item($nasi);
+        }
+        for ($i = 0; $i < 6; $i++) {
+            $this->item($nasi, ['status' => 'preparing', 'ready' => null, 'served' => null]);
+        }
+
+        $this->assertSame(
+            ['items' => 100, 'complete' => 94, 'percent' => 94.0, 'below_target' => true, 'target' => 95],
+            $this->build()['completeness'],
+        );
+
+        // 189 of 199 rounds to 95,0 but is still below target: the mark compares the counts, not the rounded share.
+        for ($i = 0; $i < 189; $i++) {
+            $this->item($nasi, ['accepted' => '2026-05-11 10:00:00']);
+        }
+        for ($i = 0; $i < 10; $i++) {
+            $this->item($nasi, ['accepted' => '2026-05-11 10:00:00', 'status' => 'preparing', 'ready' => null, 'served' => null]);
+        }
+
+        $edge = $this->build('2026-05-11')['completeness'];
+        $this->assertSame(95.0, $edge['percent']);
+        $this->assertTrue($edge['below_target']);
+    }
+
+    public function test_item_without_accepted_time_is_not_counted(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['accepted' => null, 'prep' => null, 'ready' => null, 'served' => null]);
+
+        $this->assertSame(1, $this->build()['completeness']['items']);
+    }
+
+    public function test_station_filter_narrows_completeness(): void
+    {
+        $bar = $this->station('Bar');
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['station' => $bar->id]);
+        $this->item($nasi, ['station' => $bar->id, 'status' => 'preparing', 'ready' => null, 'served' => null]);
+
+        $all = $this->build()['completeness'];
+        $barOnly = $this->build(self::DAY, $bar->id)['completeness'];
+
+        $this->assertSame([3, 2], [$all['items'], $all['complete']]);
+        $this->assertSame([2, 1], [$barOnly['items'], $barOnly['complete']]);
+    }
+
+    public function test_null_station_counts_for_the_default_station(): void
+    {
+        $bar = $this->station('Bar');
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi, ['station' => $bar->id, 'status' => 'preparing', 'ready' => null, 'served' => null]);
+
+        $default = $this->build(self::DAY, $this->dapur())['completeness'];
+        $barOnly = $this->build(self::DAY, $bar->id)['completeness'];
+
+        $this->assertSame([1, 1], [$default['items'], $default['complete']]);
+        $this->assertSame([1, 0], [$barOnly['items'], $barOnly['complete']]);
+    }
+
+    public function test_completeness_ignores_other_outlets(): void
+    {
+        $other = Outlet::create(['code' => 'OUT-B', 'name' => 'Outlet B', 'is_active' => true]);
+        $this->user->outlets()->attach($other->id);
+        $otherWarehouse = $this->warehouse($other, 'WH-B1');
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi);
+        $this->item($nasi);
+        $this->item($nasi, ['warehouse' => $otherWarehouse]);
+        $this->item($nasi, ['warehouse' => $otherWarehouse, 'status' => 'preparing', 'ready' => null, 'served' => null]);
+
+        $mine = $this->page(['outlet_id' => $this->outlet->id])['completeness'];
+        $theirs = $this->page(['outlet_id' => $other->id])['completeness'];
+
+        $this->assertSame([2, 2], [$mine['items'], $mine['complete']]);
+        $this->assertSame([2, 1], [$theirs['items'], $theirs['complete']]);
+    }
+
+    public function test_open_only_period_is_empty_but_has_completeness(): void
+    {
+        $nasi = $this->product('Nasi goreng');
+        $this->item($nasi, ['status' => 'preparing', 'ready' => null, 'served' => null]);
+
+        $report = $this->build();
+
+        $this->assertTrue($report['empty']);
+        $this->assertSame([], $report['rows']);
+        $this->assertSame(
+            ['items' => 1, 'complete' => 0, 'percent' => 0.0, 'below_target' => true, 'target' => 95],
+            $report['completeness'],
+        );
     }
 
     public function test_median_helper(): void
@@ -517,11 +683,16 @@ class KitchenSpeedReportTest extends TestCase
         return $props;
     }
 
-    private function build(): array
+    private function build(string $date = self::DAY, ?int $stationId = null): array
     {
-        $day = Carbon::parse(self::DAY);
+        $day = Carbon::parse($date);
 
-        return app(KitchenSpeedReportService::class)->build([$this->warehouse->id], $day->copy()->startOfDay(), $day->copy()->endOfDay());
+        return app(KitchenSpeedReportService::class)->build(
+            [$this->warehouse->id],
+            $day->copy()->startOfDay(),
+            $day->copy()->endOfDay(),
+            $stationId,
+        );
     }
 
     private function warehouse(Outlet $outlet, string $code): Warehouse

@@ -6,6 +6,7 @@ use App\Models\KitchenItem;
 use App\Models\KitchenStation;
 use App\Models\Product;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
@@ -15,31 +16,29 @@ use Illuminate\Support\Collection;
  */
 class KitchenSpeedReportService
 {
+    /** REQ-003 "Kualitas data": the share of kitchen items whose times are complete up to ready. */
+    public const COMPLETENESS_TARGET = 95;
+
     /**
      * @param  array<int, int>  $warehouseIds
-     * @return array{rows: array<int, array<string, mixed>>, orders: array{orders: int, avg_minutes: float|null}, empty: bool}
+     * @return array{rows: array<int, array<string, mixed>>, orders: array{orders: int, avg_minutes: float|null}, empty: bool, completeness: array{items: int, complete: int, percent: float|null, below_target: bool, target: int}}
      */
     public function build(array $warehouseIds, CarbonInterface $from, CarbonInterface $to, ?int $stationId = null): array
     {
         // shortcut: loads one outlet-month in memory; chunk it beyond ~200k rows.
-        // The period is the day the item was accepted. Cancelled, not collected, still open and release-carried
-        // rows (no accepted_at) never reach the numbers.
-        $base = KitchenItem::query()
+        // The period is the day the item was accepted. Release-carried rows (no accepted_at) are outside it.
+        $scoped = KitchenItem::query()
             ->whereIn('warehouse_id', $warehouseIds)
             ->whereNotNull('accepted_at')
-            ->whereBetween('accepted_at', [$from, $to])
-            ->whereIn('status', [KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED]);
+            ->whereBetween('accepted_at', [$from, $to]);
+        // Cancelled, not collected and still open rows never reach the per-menu numbers; the completeness card counts the open ones.
+        $base = (clone $scoped)->whereIn('status', [KitchenItem::STATUS_READY, KitchenItem::STATUS_SERVED]);
         $columns = ['transaction_id', 'product_id', 'kitchen_station_id', 'qty', 'status', 'accepted_at', 'preparing_at', 'ready_at'];
 
         // A read-only lookup, not KitchenStation::defaultId(), which creates the station: a report GET must not write.
         // An item without a station (the column is nullable) counts as the default station, as intake does.
         $defaultId = KitchenStation::where('is_default', true)->value('id');
-        $items = $stationId === null
-            ? (clone $base)->get($columns)
-            : (clone $base)->where(fn ($query) => $query
-                ->where('kitchen_station_id', $stationId)
-                ->when($stationId === (int) $defaultId, fn ($q) => $q->orWhereNull('kitchen_station_id')))
-                ->get($columns);
+        $items = $this->forStation(clone $base, $stationId, $defaultId)->get($columns);
 
         $products = Product::whereIn('id', $items->pluck('product_id')->unique())
             ->get(['id', 'title', 'prep_target_minutes'])
@@ -60,7 +59,44 @@ class KitchenSpeedReportService
         $served = $stationId === null ? $items : (clone $base)->get($columns);
         $orders = $this->orders($served->where('status', KitchenItem::STATUS_SERVED)->pluck('transaction_id')->unique());
 
-        return ['rows' => $rows, 'orders' => $orders, 'empty' => $rows === [] && ($stationId !== null || $orders['orders'] === 0)];
+        return [
+            'rows' => $rows,
+            'orders' => $orders,
+            'empty' => $rows === [] && ($stationId !== null || $orders['orders'] === 0),
+            'completeness' => $this->completeness($scoped, $stationId, $defaultId),
+        ];
+    }
+
+    /** An item without a station counts as the default station, as intake does. */
+    private function forStation(Builder $query, ?int $stationId, ?int $defaultId): Builder
+    {
+        return $query->when($stationId !== null, fn (Builder $q) => $q->where(fn (Builder $group) => $group
+            ->where('kitchen_station_id', $stationId)
+            ->when($stationId === (int) $defaultId, fn (Builder $default) => $default->orWhereNull('kitchen_station_id'))));
+    }
+
+    /**
+     * BR-1/BR-3: every live item of the report's filters; complete when both the start and the ready time exist.
+     * Still-open items stay in the denominator (REQ-003's formula), cancelled and not-collected items do not.
+     *
+     * @return array{items: int, complete: int, percent: float|null, below_target: bool, target: int}
+     */
+    private function completeness(Builder $scoped, ?int $stationId, ?int $defaultId): array
+    {
+        $row = $this->forStation(clone $scoped, $stationId, $defaultId)
+            ->whereNotIn('status', [KitchenItem::STATUS_CANCELLED, KitchenItem::STATUS_NOT_COLLECTED])
+            ->selectRaw('count(*) as items, sum(case when preparing_at is not null and ready_at is not null then 1 else 0 end) as complete')
+            ->first();
+        $items = (int) ($row->items ?? 0);
+        $complete = (int) ($row->complete ?? 0);
+
+        return [
+            'items' => $items,
+            'complete' => $complete,
+            'percent' => $items > 0 ? round(100 * $complete / $items, 1) : null,
+            'below_target' => $items > 0 && $complete * 100 < $items * self::COMPLETENESS_TARGET,
+            'target' => self::COMPLETENESS_TARGET,
+        ];
     }
 
     private function row(Product $product, ?KitchenStation $station, Collection $group): array

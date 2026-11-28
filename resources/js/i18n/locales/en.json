@@ -939,7 +939,11 @@
             "station": "Station",
             "allStations": "All stations",
             "stationDeleted": "(deleted)",
-            "handoverAllStations": "All orders from all stations"
+            "handoverAllStations": "All orders from all stations",
+            "completenessTitle": "Data completeness",
+            "completenessSummary": "{{complete}} of {{items}} kitchen items have times up to ready",
+            "completenessBelow": "Below the 95% target",
+            "completenessHint": "Open items still count; this share rises as they finish."
         }
     },
     "auditLogs": {

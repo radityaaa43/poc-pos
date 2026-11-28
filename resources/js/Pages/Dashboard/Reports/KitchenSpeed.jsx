@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Head, router } from "@inertiajs/react";
 import { useTranslation } from "react-i18next";
-import { IconDatabaseOff, IconSearch, IconStopwatch } from "@tabler/icons-react";
+import { IconAlertTriangle, IconDatabaseOff, IconSearch, IconStopwatch } from "@tabler/icons-react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import Input from "@/Components/Dashboard/Input";
 import Select from "@/Components/Dashboard/Select";
@@ -14,7 +14,7 @@ const tdClass = "px-4 py-4 text-right text-sm text-slate-600 dark:text-slate-400
 
 const columns = ["orders", "portions", "makeMedian", "makeAvg", "waitMakeMedian", "waitMakeAvg", "target", "withinTarget"];
 
-const KitchenSpeed = ({ filters, outlets = [], stations = [], rows = [], orders, empty, errors = {} }) => {
+const KitchenSpeed = ({ filters, outlets = [], stations = [], rows = [], orders, empty, completeness, errors = {} }) => {
     const { t, i18n } = useTranslation();
     const [filterData, setFilterData] = useState({
         outlet_id: String(filters?.outlet_id ?? ""),
@@ -107,6 +107,32 @@ const KitchenSpeed = ({ filters, outlets = [], stations = [], rows = [], orders,
                         </button>
                     </div>
                 </form>
+
+                {completeness?.items > 0 && (
+                    <section aria-labelledby="kitchen-completeness" className={`${cardClass} p-5`}>
+                        <h2 id="kitchen-completeness" className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            {t("reports.kitchenSpeed.completenessTitle")}
+                        </h2>
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
+                            {decimal(completeness.percent)}%
+                        </p>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                            {t("reports.kitchenSpeed.completenessSummary", {
+                                complete: completeness.complete,
+                                items: completeness.items,
+                            })}
+                        </p>
+                        {completeness.below_target && (
+                            <p className="inline-flex items-center gap-1 mt-2 text-sm font-medium text-red-600 dark:text-red-400">
+                                <IconAlertTriangle size={16} />
+                                {t("reports.kitchenSpeed.completenessBelow")}
+                            </p>
+                        )}
+                        <p className="text-xs text-slate-400 dark:text-slate-500 mt-2">
+                            {t("reports.kitchenSpeed.completenessHint")}
+                        </p>
+                    </section>
+                )}
 
                 {empty ? (
                     <div className={`${cardClass} flex flex-col items-center justify-center py-16`}>
