@@ -590,7 +590,8 @@
         "closeBlocked": {
             "title": "Belum selesai",
             "item": "Belum diserahkan",
-            "bill": "Belum lunas"
+            "bill": "Belum lunas",
+            "syncFirst": "Sinkronkan transaksi offline dulu"
         },
         "forced": {
             "submit": "Tutup paksa",
@@ -1209,6 +1210,11 @@
             "takeoverNotice": "Tamu sedang membayar online. Tanyakan dulu apakah tamu sudah membayar. Kalau Anda menerima pembayaran sekarang, pembayaran online tamu tidak berlaku dan uangnya harus dikembalikan manual.",
             "billGone": "Tagihan ini sudah tidak ada di daftar Belum Lunas (sudah dibayar atau dibatalkan). Tutup jendela ini dan periksa Riwayat Transaksi."
         },
+        "offlineKitchen": {
+            "notice": "Dapur belum menerima pesanan ini. Sampaikan langsung ke dapur.",
+            "close": "Tutup",
+            "pending": "Pesanan offline yang belum diterima dapur: {{count}}"
+        },
         "credit": {
             "limit": "Batas",
             "used": "Terpakai",
@@ -1332,6 +1338,7 @@
         "qtyUnit": "Jumlah ({{unit}})",
         "addIngredient": "Tambah bahan",
         "removeIngredient": "Hapus bahan {{number}}",
+        "activeAt": "Aktif di outlet",
         "saved": "Grup modifier disimpan",
         "failed": "Grup modifier tidak bisa disimpan",
         "deleted": "Grup modifier dihapus",

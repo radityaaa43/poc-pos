@@ -21,7 +21,7 @@ use Laravel\Sanctum\Sanctum;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
-// REQ-008 AC-01..AC-05, BR-1..BR-3: modifier groups, their options and attaching them to menus.
+// REQ-008 AC-01..AC-05, BR-1..BR-3: modifier groups, their options, attaching them to menus and the per-outlet switch.
 class ModifierGroupTest extends TestCase
 {
     use RefreshDatabase;
@@ -174,24 +174,35 @@ class ModifierGroupTest extends TestCase
         $this->assertSame(0, $group->products()->count());
     }
 
-    public function test_the_catalog_offers_every_live_option(): void
+    public function test_disabled_option_is_not_offered_at_that_outlet(): void
     {
         $milk = $this->product(['is_raw_material' => true]);
+        [$a, $b] = [$this->outlet('MOD-A'), $this->outlet('MOD-B')];
         $group = $this->createGroup(['options' => [
             $this->option('Regular', ['is_default' => true]),
-            $this->option('Large', ['components' => [['product_id' => $milk->id, 'qty' => 50]]]),
+            $this->option('Large', ['components' => [['product_id' => $milk->id, 'qty' => 50]], 'disabled_outlet_ids' => [$b->id]]),
         ]]);
         $menu = $this->product();
         $plain = $this->product();
         $menu->modifierGroups()->attach($group->id);
-        $outlet = $this->outlet('MOD-A');
+        $names = fn (Outlet $outlet) => array_column(ModifierCatalog::forOutlet($outlet, collect([$menu->id]))[$menu->id][0]['options'], 'name');
+
+        $this->assertSame(['Regular', 'Large'], $names($a));
+        $this->assertSame(['Regular'], $names($b));
 
         DB::enableQueryLog();
-        $catalog = ModifierCatalog::forOutlet($outlet, collect([$menu->id, $plain->id]));
+        $catalog = ModifierCatalog::forOutlet($a, collect([$menu->id, $plain->id]));
         $this->assertCount(4, DB::getQueryLog(), 'products, groups, options, components');
         $this->assertFalse($catalog->has($plain->id));
-        $this->assertSame(['Regular', 'Large'], array_column($catalog[$menu->id][0]['options'], 'name'));
         $this->assertSame([['product_id' => $milk->id, 'qty' => 50.0]], $catalog[$menu->id][0]['options'][1]['components']);
+
+        // A save without the key (a form opened before the switch existed) keeps the switches; an empty list clears them.
+        $save = fn (array $extra) => $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => $group->options()->get()
+            ->map(fn ($option) => $this->option($option->name, ['id' => $option->id, 'is_default' => $option->is_default] + $extra))->all()]))->assertSessionHasNoErrors();
+        $save([]);
+        $this->assertSame(['Regular'], $names($b));
+        $save(['disabled_outlet_ids' => []]);
+        $this->assertSame(['Regular', 'Large'], $names($b));
     }
 
     public function test_deleting_keeps_products_sellable(): void
@@ -262,12 +273,13 @@ class ModifierGroupTest extends TestCase
 
     public function test_every_change_is_audited(): void
     {
+        $outlet = $this->outlet('MOD-B');
         $group = $this->createGroup();
         [$regular, $large] = $group->options()->get()->all();
 
         $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [
             $this->option('Regular', ['id' => $regular->id, 'is_default' => true]),
-            $this->option('Large', ['id' => $large->id, 'price_delta' => 7000]),
+            $this->option('Large', ['id' => $large->id, 'price_delta' => 7000, 'disabled_outlet_ids' => [$outlet->id]]),
         ]]));
         $this->delete(route('settings.modifiers.destroy', $group));
 
@@ -277,6 +289,8 @@ class ModifierGroupTest extends TestCase
         $this->assertSame('Ukuran', $logs[0]->after['name']);
         $this->assertSame(5000, $logs[1]->before['options'][1]['price_delta']);
         $this->assertSame(7000, $logs[1]->after['options'][1]['price_delta']);
+        $this->assertSame([], $logs[1]->before['options'][1]['disabled_outlet_ids']);
+        $this->assertSame([$outlet->id], $logs[1]->after['options'][1]['disabled_outlet_ids']);
         $this->assertCount(2, $logs[2]->before['options']);
 
         // Attaching to a menu is part of the product's own update entry.
@@ -296,6 +310,9 @@ class ModifierGroupTest extends TestCase
         $this->get(route('settings.modifiers.index'))->assertForbidden();
         $this->post(route('settings.modifiers.store'), $this->payload())->assertForbidden();
         $this->put(route('settings.modifiers.update', $group), $this->payload())->assertForbidden();
+        $off = $this->option('Regular', ['is_default' => true, 'disabled_outlet_ids' => [$this->outlet('MOD-A')->id]]);
+        $this->put(route('settings.modifiers.update', $group), $this->payload(['options' => [$off]]))->assertForbidden();
+        $this->assertDatabaseCount('modifier_option_outlet', 0);
         $this->delete(route('settings.modifiers.destroy', $group))->assertForbidden();
 
         // products-edit alone: no groups are listed, and a save that sends the field, even empty, changes nothing.

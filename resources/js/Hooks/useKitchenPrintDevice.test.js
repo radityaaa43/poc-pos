@@ -842,6 +842,34 @@ describe("useKitchenPrintDevice: a reprint keeps the print safety rules (#410)",
         expect(sent()).toEqual(["r7-1", "t1"]);
     });
 
+    it("shows a queued reprint as failed when auto-print is switched off", async () => {
+        setStorage();
+        holdFirstSend();
+        const { result } = mount();
+        await flush();
+        await tap(result); // queued behind the original
+
+        act(() => result.current.setAutoPrint(false));
+
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.reprintFailed).toBe(7);
+        await finishSend();
+        expect(sent()).toEqual(["t1"]);
+    });
+
+    it("keeps Cetak ulang usable when the session ends while a ticket has failed", async () => {
+        setStorage();
+        printBytes.mockRejectedValue(new Error("transfer"));
+        const { result } = mount();
+        await flush();
+        expect(result.current.headFailed).toBe(true);
+
+        axios.get.mockRejectedValue({ response: { status: 404 } });
+        await advance(5000);
+
+        expect(result.current.headFailed).toBe(false);
+    });
+
     it("after the session ended: drops the queued reprint with its failure, and a new one prints after the send in flight", async () => {
         setStorage();
         holdFirstSend();

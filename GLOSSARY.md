@@ -61,6 +61,7 @@ two words compete for one concept, pick one here and use it everywhere. `/grill-
 | Bill settings ("Tagihan") | The per-outlet rules a bill is computed with: service charge rate, tax type (PPN per product, or PB1), PB1 rate and cash rounding (Tanpa, 100, 500). Changed in the outlet form with `outlets-update`, audit-logged; they apply to new bills only | Tagihan as a bill or an unpaid sale ("Belum lunas") | `BillSettingsService`; `settings` keys `service_charge_rate`, `tax_kind`, `pb1_rate`, `cash_rounding_unit` (per `outlet_id`) |
 | Service charge | A percentage an outlet adds to dine-in bills; 0 = off | Tax; `shipping_cost` | `settings.service_charge_rate`, `transactions.service_charge` |
 | PB1 | The regional restaurant tax: one outlet rate on the whole bill, used instead of per-product PPN at an outlet whose tax type is PB1 | PPN: per product | `settings.tax_kind = pb1`, `settings.pb1_rate`, `transactions.tax_kind` |
+| Option ("Opsi") | One choice in a modifier group: name, extra price (0 or more, the same at every outlet), optional recipe, default flag (at most one per group, exactly one in a required group); switched off per outlet; soft deleted | A variation sold as its own product | `ModifierOption`, `modifier_options`, `modifier_option_components`, `modifier_option_outlet` |
 
 ## Retired terms
 

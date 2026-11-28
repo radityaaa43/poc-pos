@@ -52,7 +52,7 @@
             <div class="doc">
                 <div class="badge">Nota Barang</div>
                 <div class="doc-number">{{ $receivable->invoice }}</div>
-                <div class="muted">Jatuh tempo: {{ $receivable->due_date ?? '-' }}</div>
+                <div class="muted">Jatuh tempo: {{ $receivable->due_date?->format('d/m/Y') ?? '-' }}</div>
             </div>
         </div>
 

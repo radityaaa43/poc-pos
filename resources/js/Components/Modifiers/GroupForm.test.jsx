@@ -27,12 +27,12 @@ const group = {
     min_select: 1,
     max_select: 1,
     options: [
-        { id: 1, name: "Regular", price_delta: 0, is_default: true, components: [] },
-        { id: 2, name: "Large", price_delta: 5000, is_default: false, components: [] },
+        { id: 1, name: "Regular", price_delta: 0, is_default: true, components: [], disabled_outlet_ids: [] },
+        { id: 2, name: "Large", price_delta: 5000, is_default: false, components: [], disabled_outlet_ids: [] },
     ],
 };
 
-const mount = (props = {}) => render(<GroupForm ingredients={[]} onClose={vi.fn()} {...props} />);
+const mount = (props = {}) => render(<GroupForm outlets={[]} ingredients={[]} onClose={vi.fn()} {...props} />);
 const defaults = () => screen.getAllByRole("checkbox", { name: "Opsi default" });
 
 beforeEach(async () => {
@@ -100,8 +100,8 @@ describe("GroupForm", () => {
         await vi.waitFor(() => expect(Element.prototype.scrollIntoView).toHaveBeenCalled());
     });
 
-    it("builds a recipe in the ingredient's unit", async () => {
-        mount({ ingredients: [{ id: 9, title: "Susu", unit_symbol: "ml" }] });
+    it("builds a recipe in the ingredient's unit, and switches an outlet off and back on", async () => {
+        mount({ outlets: [{ id: 2, name: "Cabang" }], ingredients: [{ id: 9, title: "Susu", unit_symbol: "ml" }] });
 
         await userEvent.click(screen.getByRole("button", { name: "Tambah bahan" }));
         await userEvent.selectOptions(screen.getByLabelText("Bahan"), "Susu");
@@ -109,5 +109,10 @@ describe("GroupForm", () => {
         expect(data.options[0].components).toEqual([{ product_id: "9", qty: "50" }]);
         await userEvent.click(screen.getByRole("button", { name: "Hapus bahan 1" }));
         expect(data.options[0].components).toEqual([]);
+
+        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
+        expect(data.options[0].disabled_outlet_ids).toEqual([2]);
+        await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
+        expect(screen.getByRole("switch", { name: "Cabang" })).toBeChecked();
     });
 });
