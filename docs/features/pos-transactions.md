@@ -21,6 +21,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 
 - cari produk via barcode / pencarian
 - cart multi-item
+- menu dengan modifier: panel opsi dan catatan per baris, harga dan stok opsi dihitung server ([`modifiers.md`](modifiers.md))
 - update qty cart
 - hold transaction
 - resume held cart
@@ -128,4 +129,5 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 
 - `routes/web/transactions.php`
 - `app/Http/Controllers/Apps/TransactionController.php`
+- `app/Services/CartService.php` (tambah ke keranjang)
 - `resources/js/Pages/Dashboard/Transactions`
