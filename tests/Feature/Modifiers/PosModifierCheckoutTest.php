@@ -3,6 +3,7 @@
 namespace Tests\Feature\Modifiers;
 
 use App\Models\Cart;
+use App\Models\CashierShift;
 use App\Models\ModifierGroup;
 use App\Models\StockMutation;
 use App\Models\Transaction;
@@ -68,14 +69,22 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(1, (int) Cart::sole()->qty);
     }
 
-    public function test_menu_with_required_group_out_cannot_be_added(): void
+    // Short of ingredients or switched off at the outlet: either way the group cannot reach its minimum (AC-09).
+    public function test_required_group_with_too_few_options_at_an_outlet_blocks_the_menu(): void
     {
-        $this->option('Regular')->components()->attach($this->milk->id, ['qty' => 1]);
-        $this->setStock($this->milk, 0);
+        $this->option('Large')->group->update(['min_select' => 2, 'max_select' => 2]);
+        $soldOut = fn (bool $expected) => $this->get(route('transactions.index'))
+            ->assertInertia(fn (Assert $page) => $page->where('products.0.modifiers_sold_out', $expected));
+        $soldOut(false);
 
-        $this->get(route('transactions.index'))
-            ->assertInertia(fn (Assert $page) => $page->where('products.0.modifiers_sold_out', true));
-        $this->add(['Regular'])->assertSessionHasErrors('modifiers');
+        $this->setStock($this->milk, 1);
+        $soldOut(true);
+        $this->add(['Regular', 'Large'])->assertSessionHasErrors(['modifiers' => $this->refusal('option_sold_out', ['option' => 'Large'])]);
+
+        $this->setStock($this->milk, 10);
+        $this->option('Large')->disabledOutlets()->attach($this->outlet->id);
+        $soldOut(true);
+        $this->add(['Regular'])->assertSessionHasErrors(['modifiers' => $this->refusal('group_min', ['group' => 'Size', 'min' => 2])]);
         $this->assertSame(0, Cart::count());
     }
 
@@ -112,6 +121,11 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
         $this->assertSame(
             [['Size', 'Large', 5000, $this->option('Large')->id], ['Topping', 'Boba', 3000, $this->option('Boba')->id]],
             $detail->modifiers->map(fn ($row) => [$row->group_name, $row->option_name, $row->price_delta, (int) $row->modifier_option_id])->all()
+        );
+        // The recipe as sold, per unit.
+        $this->assertEquals(
+            [[['product_id' => $this->milk->id, 'qty_per_unit' => 2]], [['product_id' => $this->boba->id, 'qty_per_unit' => 1]]],
+            $detail->modifiers->pluck('components')->all()
         );
         // Menu HPP 2 x 5.000, plus 4 milk x 700 and 2 boba x 900.
         $this->assertSame(14600, (int) $detail->cost_total);
@@ -180,24 +194,40 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
         // The first stock rows read by (product, warehouse) are the locks, taken before any deduction.
         $locked = collect(DB::getQueryLog())
-            ->filter(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse" where ("product_id" = ?'))
+            // MySQL quotes names with backticks, SQLite with double quotes.
+            ->filter(fn (array $query) => str_starts_with(strtr($query['query'], '`', '"'), 'select * from "product_warehouse" where ("product_id" = ?'))
             ->take(3)->map(fn (array $query) => $query['bindings'][0])->values()->all();
         $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], $locked);
     }
 
-    public function test_expired_payment_gives_back_option_stock(): void
+    public function test_expired_payment_gives_back_the_recipe_as_sold(): void
     {
-        $this->add(['Large'], 2);
+        $this->add(['Large', 'Boba'], 2);
         $this->checkout();
         Transaction::sole()->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
-        // Deleted since the sale: its recipe is still what comes back.
+        // Edited, then deleted, since the sale; Boba's ingredient is gone from the catalogue altogether.
+        $this->option('Large')->components()->sync([$this->milk->id => ['qty' => 5]]);
         $this->option('Large')->delete();
+        $this->option('Boba')->delete();
+        $this->boba->delete();
         $this->travel(25)->hours();
 
         $this->artisan('transactions:expire')->assertSuccessful();
 
         $this->assertSame([[50, 50], [10, 10]], [$this->stockOf($this->menu), $this->stockOf($this->milk)]);
         $this->assertSame(4, (int) StockMutation::where('product_id', $this->milk->id)->where('mutation_type', 'in')->sole()->qty);
+    }
+
+    // Each option alone is covered; together they need 11 of 10.
+    public function test_options_sharing_an_ingredient_cannot_oversell_without_a_warehouse(): void
+    {
+        CashierShift::query()->update(['warehouse_id' => null]);
+        $this->option('Boba')->components()->sync([$this->milk->id => ['qty' => 9]]);
+        $this->add(['Large', 'Boba'])->assertSessionHasNoErrors();
+
+        $this->checkout()->assertSessionHasErrors('stock');
+
+        $this->assertSame(10, (int) $this->milk->fresh()->stock);
     }
 
     public function test_receipts_keep_the_sold_options_after_the_group_is_deleted(): void

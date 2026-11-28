@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ModifierOption;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
 use App\Models\Transaction;
@@ -50,7 +49,8 @@ class ComponentStockService
                     'warehouse_id' => $warehouseId,
                 ])->lockForUpdate()->first()
                 : null;
-            $available = $pw ? (int) $pw->stock : (int) $component->stock;
+            // Without a warehouse row, read fresh: options sharing an ingredient hold separate copies of it.
+            $available = (int) ($pw ? $pw->stock : Product::lockForUpdate()->findOrFail($component->id)->stock);
             if ($available < $componentQty) {
                 throw ValidationException::withMessages([
                     'stock' => "Stok komponen {$component->title} tidak mencukupi. Tersedia: {$available}.",
@@ -77,22 +77,18 @@ class ComponentStockService
     }
 
     /**
-     * Gives back what the options of $qty sold units of a line took, in product_id order. A deleted option keeps its
-     * recipe; a deleted ingredient has no row left and is skipped. The caller records the stock mutations.
+     * Gives back what the options of $qty sold units of a line took, in product_id order, from the recipe saved with
+     * the sale. An ingredient deleted since is skipped. The caller records the stock mutations.
      *
      * @return list<array{product: Product, qty: int, stock_before: int}>
      */
     public function restockOptions(TransactionDetail $detail, int $qty, ?int $warehouseId): array
     {
-        $options = ModifierOption::withTrashed()->with('components')
-            ->findMany($detail->modifiers->pluck('modifier_option_id')->filter()->all());
         $taken = [];
 
-        foreach ($options as $option) {
-            foreach ($option->components as $component) {
-                $componentQty = (int) round((float) $component->getRelationValue('pivot')?->qty * $qty);
-                $taken[$component->id] = ($taken[$component->id] ?? 0) + $componentQty;
-            }
+        foreach ($detail->modifiers->flatMap->components as $line) {
+            $componentQty = (int) round($line['qty_per_unit'] * $qty);
+            $taken[$line['product_id']] = ($taken[$line['product_id']] ?? 0) + $componentQty;
         }
 
         ksort($taken);
@@ -102,7 +98,12 @@ class ComponentStockService
             $pw = $warehouseId
                 ? ProductWarehouse::where(['product_id' => $productId, 'warehouse_id' => $warehouseId])->lockForUpdate()->first()
                 : null;
-            $product = Product::lockForUpdate()->findOrFail($productId);
+            $product = Product::lockForUpdate()->find($productId);
+
+            if (! $product) {
+                continue;
+            }
+
             $restocked[] = ['product' => $product, 'qty' => $componentQty, 'stock_before' => (int) ($pw->stock ?? $product->stock)];
             $pw?->increment('stock', $componentQty);
             $product->increment('stock', $componentQty);

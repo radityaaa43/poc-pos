@@ -12,11 +12,13 @@ return new class extends Migration
         Schema::create('transaction_detail_modifiers', function (Blueprint $table) {
             $table->id();
             $table->foreignId('transaction_detail_id')->constrained()->cascadeOnDelete();
-            // For the recipe a return restocks and the per-option report; the names and price below are the record.
+            // For the per-option report; the columns below are the record.
             $table->foreignId('modifier_option_id')->nullable()->constrained()->nullOnDelete();
             $table->string('group_name', 100);
             $table->string('option_name', 100);
             $table->unsignedInteger('price_delta')->default(0);
+            // [{product_id, qty_per_unit}] as deducted: what a restock gives back, whatever the recipe says later.
+            $table->json('components');
             $table->timestamps();
 
             $table->index('modifier_option_id');

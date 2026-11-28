@@ -99,15 +99,20 @@ class ModifierSelection
     /** The sale line's own copy of its options, so later edits never change it (REQ-008 decision 11).
      *
      * @param  list<array<string, mixed>>  $options  from resolve()
+     * @param  Collection<int, ModifierOption>  $recipes  by option id, the ones the sale deducts
      * @return list<array<string, mixed>>
      */
-    public static function snapshot(array $options): array
+    public static function snapshot(array $options, Collection $recipes): array
     {
         return array_map(fn (array $option) => [
             'modifier_option_id' => $option['id'],
             'group_name' => $option['group_name'],
             'option_name' => $option['name'],
             'price_delta' => $option['price_delta'],
+            'components' => array_map(
+                fn (array $line) => ['product_id' => $line['product_id'], 'qty_per_unit' => $line['qty']],
+                $recipes[$option['id']]->componentLines()
+            ),
         ], $options);
     }
 

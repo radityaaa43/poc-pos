@@ -238,7 +238,7 @@ class CheckoutService
                 'note' => $cart->note,
                 'modifier_total' => $selection['unit_total'] ?? 0,
             ]);
-            $detail->modifiers()->createMany(ModifierSelection::snapshot($options));
+            $detail->modifiers()->createMany(ModifierSelection::snapshot($options, $recipes));
 
             foreach ($options as $option) {
                 $this->componentStock->deduct($transaction, $recipes[$option['id']]->components, 1, (int) $cart->qty, $warehouseId, "opsi {$option['name']} {$product->title}", $userId);
