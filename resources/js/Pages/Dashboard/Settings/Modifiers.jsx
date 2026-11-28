@@ -7,6 +7,8 @@ import Swal from "sweetalert2";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import GroupForm from "@/Components/Modifiers/GroupForm";
 
+const iconButton = "size-11 inline-flex items-center justify-center rounded-xl transition-colors";
+
 // Reachable only with modifiers-manage (the route middleware), so the buttons need no per-action check.
 export default function Modifiers({ groups = [], outlets = [], ingredients = [] }) {
     const { t } = useTranslation();
@@ -72,20 +74,10 @@ export default function Modifiers({ groups = [], outlets = [], ingredients = [] 
                                         </p>
                                     </div>
                                     <div className="ml-auto flex items-center gap-2 shrink-0">
-                                        <button
-                                            type="button"
-                                            aria-label={t("modifiers.editLabel", { name: group.name })}
-                                            onClick={() => setForm({ group })}
-                                            className="size-11 inline-flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                                        >
+                                        <button type="button" className={`${iconButton} text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800`} onClick={() => setForm({ group })} aria-label={t("modifiers.editLabel", { name: group.name })}>
                                             <IconPencil size={18} />
                                         </button>
-                                        <button
-                                            type="button"
-                                            aria-label={t("modifiers.deleteLabel", { name: group.name })}
-                                            onClick={() => handleDelete(group)}
-                                            className="size-11 inline-flex items-center justify-center rounded-xl text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-900/20 transition-colors"
-                                        >
+                                        <button type="button" className={`${iconButton} text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-900/20`} onClick={() => handleDelete(group)} aria-label={t("modifiers.deleteLabel", { name: group.name })}>
                                             <IconTrash size={18} />
                                         </button>
                                     </div>

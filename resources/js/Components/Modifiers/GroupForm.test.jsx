@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import i18n from "@/i18n";
 import GroupForm from "./GroupForm";
@@ -20,17 +20,9 @@ vi.mock("@inertiajs/react", () => ({
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
-const group = {
-    id: 7,
-    name: "Ukuran",
-    is_required: true,
-    min_select: 1,
-    max_select: 1,
-    options: [
-        { id: 1, name: "Regular", price_delta: 0, is_default: true, components: [], disabled_outlet_ids: [] },
-        { id: 2, name: "Large", price_delta: 5000, is_default: false, components: [], disabled_outlet_ids: [] },
-    ],
-};
+const option = (id, name, price_delta) => ({ id, name, price_delta, is_default: id === 1, components: [], disabled_outlet_ids: [] });
+const options = [option(1, "Regular", 0), option(2, "Large", 5000)];
+const group = { id: 7, name: "Ukuran", is_required: true, min_select: 1, max_select: 1, options };
 
 const mount = (props = {}) => render(<GroupForm outlets={[]} ingredients={[]} onClose={vi.fn()} {...props} />);
 const defaults = () => screen.getAllByRole("checkbox", { name: "Opsi default" });
@@ -42,7 +34,7 @@ beforeEach(async () => {
 });
 
 describe("GroupForm", () => {
-    it("says what minimum and maximum a required and an optional group take", async () => {
+    it("says what minimum and maximum a required and an optional group take, in both languages", async () => {
         mount();
         expect(screen.getByRole("radio", { name: "Opsional" })).toBeChecked();
         expect(screen.getByText("Grup opsional: minimum boleh 0.")).toBeInTheDocument();
@@ -51,6 +43,10 @@ describe("GroupForm", () => {
 
         expect(screen.getByText("Grup wajib: minimum 1 dan tidak lebih dari maksimum.")).toBeInTheDocument();
         expect(data.is_required).toBe(true);
+        await act(() => i18n.changeLanguage("en"));
+        expect(screen.getByRole("radio", { name: "Required" })).toBeChecked();
+        expect(screen.getByRole("button", { name: "Add option" })).toBeInTheDocument();
+        expect(screen.getByLabelText("Extra price (Rp)")).toBeInTheDocument();
     });
 
     it("keeps one default option: ticking one unticks the other, and it can be cleared", async () => {
@@ -79,11 +75,7 @@ describe("GroupForm", () => {
     });
 
     it("updates an existing group and shows the server messages where they belong", async () => {
-        errors = {
-            min_select: "Pesan minimum",
-            options: "Pesan default",
-            "options.1.price_delta": "Pesan harga",
-        };
+        errors = { min_select: "Pesan minimum", options: "Pesan default", "options.1.price_delta": "Pesan harga" };
         mount({ group });
         await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
@@ -110,14 +102,5 @@ describe("GroupForm", () => {
         expect(data.options[0].disabled_outlet_ids).toEqual([2]);
         await userEvent.click(screen.getByRole("switch", { name: "Cabang" }));
         expect(screen.getByRole("switch", { name: "Cabang" })).toBeChecked();
-    });
-
-    it("reads in English", async () => {
-        await i18n.changeLanguage("en");
-        mount();
-
-        expect(screen.getByRole("radio", { name: "Required" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Add option" })).toBeInTheDocument();
-        expect(screen.getByLabelText("Extra price (Rp)")).toBeInTheDocument();
     });
 });

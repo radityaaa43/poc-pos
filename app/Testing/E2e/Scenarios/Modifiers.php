@@ -7,7 +7,6 @@ use App\Services\ModifierGroupService;
 use App\Support\Modifiers\ModifierCatalog;
 use Illuminate\Support\Str;
 
-/** Arrange scenarios for modifier groups (REQ-008). */
 class Modifiers
 {
     /**
@@ -20,9 +19,7 @@ class Modifiers
             'modifier-group' => function (array $options): array {
                 $group = app(ModifierGroupService::class)->save(null, [
                     'name' => $options['name'],
-                    'is_required' => true,
-                    'min_select' => 1,
-                    'max_select' => 1,
+                    'is_required' => true, 'min_select' => 1, 'max_select' => 1,
                     'options' => [
                         ['name' => 'Regular', 'price_delta' => 0, 'is_default' => true],
                         ['name' => 'Large', 'price_delta' => 5000, 'is_default' => false],

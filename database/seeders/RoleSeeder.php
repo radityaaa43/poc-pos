@@ -93,7 +93,7 @@ class RoleSeeder extends Seeder
 
         $this->createManagerRole();
 
-        // REQ-008 BR-3: by default the roles that may edit products also manage modifiers. A shop's own roles get it
+        // REQ-008 BR-3: by default, roles that edit products also manage modifiers. A shop's own roles get it
         // on the first run only, so a re-run never gives back what the owner took away (products-access is re-synced).
         Role::whereHas('permissions', fn ($query) => $query->where('name', 'products-edit'))
             ->when(! $firstModifierGrant, fn ($query) => $query->where('name', 'products-access'))

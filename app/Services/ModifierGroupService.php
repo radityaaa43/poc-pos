@@ -13,8 +13,7 @@ class ModifierGroupService
     ) {}
 
     /**
-     * Writes the group and syncs its options in one transaction: sent ids are updated, rows without an id created,
-     * the rest soft deleted. The array order is the display order.
+     * Saves the group and its options: sent ids are updated, new rows created, the rest soft deleted, in array order.
      *
      * @param  array<string, mixed>  $data  validated by SaveModifierGroupRequest
      */

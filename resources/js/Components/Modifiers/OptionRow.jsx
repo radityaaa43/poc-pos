@@ -26,30 +26,12 @@ export default function OptionRow({ prefix, number, option, outlets, ingredients
             </legend>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input
-                    label={t("modifiers.optionName")}
-                    value={option.name}
-                    onChange={(e) => set("name", e.target.value)}
-                    errors={error("name")}
-                    maxLength={100}
-                />
-                <Input
-                    type="number"
-                    min="0"
-                    label={t("modifiers.price")}
-                    value={option.price_delta}
-                    onChange={(e) => set("price_delta", e.target.value)}
-                    errors={error("price_delta")}
-                />
+                <Input label={t("modifiers.optionName")} value={option.name} onChange={(e) => set("name", e.target.value)} errors={error("name")} maxLength={100} />
+                <Input type="number" min="0" label={t("modifiers.price")} value={option.price_delta} onChange={(e) => set("price_delta", e.target.value)} errors={error("price_delta")} />
             </div>
 
             <label className="inline-flex min-h-11 items-center gap-2 cursor-pointer text-sm text-slate-700 dark:text-slate-300">
-                <input
-                    type="checkbox"
-                    checked={option.is_default}
-                    onChange={(e) => set("is_default", e.target.checked)}
-                    className="size-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500"
-                />
+                <input type="checkbox" checked={option.is_default} onChange={(e) => set("is_default", e.target.checked)} className="size-5 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
                 {t("modifiers.default")}
             </label>
 
@@ -74,31 +56,14 @@ export default function OptionRow({ prefix, number, option, outlets, ingredients
                                     </option>
                                 ))}
                             </Select>
-                            <Input
-                                type="number"
-                                min="1"
-                                label={unit ? t("modifiers.qtyUnit", { unit }) : t("modifiers.qty")}
-                                // Stored as a decimal, so a saved 50 arrives as 50 and a typed value stays a string.
-                                value={line.qty}
-                                onChange={(e) => setLine(index, { qty: e.target.value })}
-                                errors={error(`components.${index}.qty`)}
-                            />
-                            <button
-                                type="button"
-                                aria-label={t("modifiers.removeIngredient", { number: index + 1 })}
-                                onClick={() => set("components", option.components.filter((_, i) => i !== index))}
-                                className="mt-7 size-11 inline-flex items-center justify-center rounded-xl text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-900/20"
-                            >
+                            <Input type="number" min="1" label={unit ? t("modifiers.qtyUnit", { unit }) : t("modifiers.qty")} value={line.qty} onChange={(e) => setLine(index, { qty: e.target.value })} errors={error(`components.${index}.qty`)} />
+                            <button type="button" aria-label={t("modifiers.removeIngredient", { number: index + 1 })} onClick={() => set("components", option.components.filter((_, i) => i !== index))} className="mt-7 size-11 inline-flex items-center justify-center rounded-xl text-danger-500 hover:bg-danger-50 dark:hover:bg-danger-900/20">
                                 <IconTrash size={18} />
                             </button>
                         </div>
                     );
                 })}
-                <button
-                    type="button"
-                    onClick={() => set("components", [...option.components, { product_id: "", qty: "" }])}
-                    className={`${textButton} text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20`}
-                >
+                <button type="button" onClick={() => set("components", [...option.components, { product_id: "", qty: "" }])} className={`${textButton} text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20`}>
                     <IconPlus size={16} />
                     {t("modifiers.addIngredient")}
                 </button>
@@ -112,14 +77,7 @@ export default function OptionRow({ prefix, number, option, outlets, ingredients
                             const on = !off.includes(outlet.id);
 
                             return (
-                                <button
-                                    key={outlet.id}
-                                    type="button"
-                                    role="switch"
-                                    aria-checked={on}
-                                    onClick={() => toggleOutlet(outlet.id)}
-                                    className="flex min-h-11 items-center gap-3 text-sm text-slate-700 dark:text-slate-300"
-                                >
+                                <button key={outlet.id} type="button" role="switch" aria-checked={on} onClick={() => toggleOutlet(outlet.id)} className="flex min-h-11 items-center gap-3 text-sm text-slate-700 dark:text-slate-300">
                                     <span
                                         aria-hidden="true"
                                         className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${on ? "bg-primary-500" : "bg-slate-300 dark:bg-slate-600"}`}
