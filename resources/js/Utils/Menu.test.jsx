@@ -120,6 +120,14 @@ describe("sidebar Menu", () => {
         expect(granted.map((i) => i.href)).toContain("/reports.kitchen-speed.index");
     });
 
+    it("shows the unprinted kitchen tickets report to users with reports-access", () => {
+        const granted = leaves(
+            renderMenu({ auth: { super: false, permissions: { "reports-access": true } } }),
+        ).filter((i) => i.permissions === true);
+
+        expect(granted.map((i) => i.href)).toContain("/reports.kitchen-unprinted.index");
+    });
+
     it.each([
         [["stock-waste-create"], 1],
         [["stock-waste-approve"], 1],

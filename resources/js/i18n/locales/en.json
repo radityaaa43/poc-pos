@@ -293,6 +293,7 @@
             "profitReport": "Profit Report",
             "advancedInsights": "Advanced Insights",
             "kitchenSpeedReport": "Kitchen Speed Report",
+            "kitchenUnprinted": "Unprinted Kitchen Tickets",
             "wasteReport": "Waste Report",
             "cashierShifts": "Cashier Shifts",
             "auditLogs": "Audit Logs",
@@ -940,6 +941,26 @@
             "allStations": "All stations",
             "stationDeleted": "(deleted)",
             "handoverAllStations": "All orders from all stations"
+        },
+        "kitchenUnprinted": {
+            "title": "Unprinted Kitchen Tickets",
+            "note": "A ticket is listed when no print device of the outlet recorded it as printed after 30 seconds.",
+            "outlet": "Outlet",
+            "startDate": "Start date",
+            "endDate": "End date",
+            "apply": "Apply",
+            "total": "Unprinted tickets",
+            "allPrinted": "Every ticket in this period printed",
+            "truncated": "Showing the newest {{shown}} of {{total}} tickets",
+            "perDay": "Count per day",
+            "date": "Date",
+            "count": "Count",
+            "tickets": "Unprinted tickets",
+            "time": "Time",
+            "number": "Order",
+            "station": "Station",
+            "device": "Print device",
+            "items": "Items"
         }
     },
     "auditLogs": {

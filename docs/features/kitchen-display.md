@@ -112,8 +112,16 @@ Switching **Cetak otomatis** off stops what still waits to print; switching it o
 - **Sleeping tab and Wake Lock:** while Cetak otomatis is on, the page asks the browser to keep the screen awake and asks again when the tab becomes visible. The browser still stops timers of a hidden tab or a sleeping device, so a device that slept prints nothing meanwhile; on waking, the poll returns the waiting orders, which print oldest first behind the offline-or-asleep warning. Orders are never lost: printing is recorded only after the ticket was sent.
 - **Devices without WebUSB** (iPad, Firefox, Safari, or a page not on HTTPS): the printer settings say **Perangkat ini tidak mendukung printer USB** / "This device does not support USB printers", and **Hubungkan printer** and **Cetak otomatis** are disabled. The display itself works as usual and shows no printer warning.
 - **Paper out is not detected** (WebUSB cannot report it): use **Cetak ulang**. See `docs/features/thermal-printer.md`.
-- **For the owner:** orders that never got a ticket are the kitchen items with no `kitchen_ticket_prints` row older than a few minutes; there is no report for it.
+- **For the owner:** orders that never got a ticket are the kitchen items with no `kitchen_ticket_prints` row older than a few minutes; the **Unprinted tickets report** below lists them per outlet and period.
 - Code: `resources/js/Utils/printerStatus.js` (error codes and the one status), `resources/js/Components/Kitchen/PrinterStatusBanner.jsx`, `resources/js/Hooks/useWakeLock.js`.
+
+### Unprinted tickets report
+
+The owner watches tickets that never printed: **Tiket Dapur Tidak Tercetak** / "Unprinted Kitchen Tickets" (`reports.kitchen-unprinted.index`, menu Reports, permission `reports-access`), per outlet and period (default the current month in the app timezone). It is the server's view of the **Belum tercetak** chip, derived read-only from `kitchen_items` and `kitchen_ticket_prints`: no new table and no write on a GET.
+
+- A ticket is listed when no print device of its outlet recorded it as printed, after a 30-second grace from when it was due (`accepted_at`, or `created_at` on release-carried rows). A ticket printed later through **Coba lagi** leaves the list; **Cetak ulang** records nothing and changes nothing.
+- One row per order and station, numbered as the display shows it (`KitchenOrders`), with the order number, the station, the outlet's print devices that existed when the ticket was due, the time and the item count. A null station reads as Dapur. Cancelled items are left out; a served or not collected ticket that never printed stays listed. An outlet with no print device at that time lists nothing ("kitchens that don't print" are out of scope).
+- A per-day count in the app timezone and the period total (the target is 0); 0 says every ticket printed. The ticket list is capped at the newest 500 rows and the page says so, while the counts cover the whole period.
 
 ## Language
 
