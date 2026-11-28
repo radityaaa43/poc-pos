@@ -300,6 +300,19 @@ describe("useKitchenPrintDevice: reprint (REQ-004 K2)", () => {
         expect(unconfirmedCancellations()).toEqual([]);
     });
 
+    it("titles a station reprint with the station name (#345)", async () => {
+        await i18n.changeLanguage("id");
+        const { result } = mount();
+
+        await act(() => result.current.reprint({ ...order, station: "Bar" }));
+
+        expect(buildKitchenTicketBytes).toHaveBeenCalledWith(
+            expect.objectContaining({ station: "Bar", reprint: true }),
+            "80mm",
+            expect.any(Object)
+        );
+    });
+
     it("can be repeated: every tap prints, under its own key", async () => {
         const { result } = mount();
 
@@ -309,6 +322,31 @@ describe("useKitchenPrintDevice: reprint (REQ-004 K2)", () => {
         expect(printBytes).toHaveBeenCalledTimes(2);
         expect(buildKitchenTicketBytes.mock.calls.map((c) => c[0].key)).toEqual(["r7-1", "r7-2"]);
         expect(axios.post).not.toHaveBeenCalled();
+    });
+
+    // A split shop reprints once per station: the card stays busy until the second ticket is out (#345).
+    it("keeps the order busy while a second station ticket still prints", async () => {
+        setStorage();
+        tickets = [];
+        const sends = [];
+        printBytes.mockImplementation(() => new Promise((resolve, reject) => sends.push({ resolve, reject })));
+        const { result } = mount();
+        await flush();
+
+        await act(async () => {
+            result.current.reprint({ ...order, station: "Bar" });
+            result.current.reprint({ ...order, station: "Dapur" });
+        });
+
+        expect(result.current.reprinting).toEqual([order.id, order.id]);
+
+        sends[0].resolve();
+        await flush();
+        expect(result.current.reprinting).toEqual([order.id]);
+
+        sends[1].resolve();
+        await flush();
+        expect(result.current.reprinting).toEqual([]);
     });
 
     // Auto-print on, the original still being sent, Cetak ulang tapped behind it. Each send waits to be settled.

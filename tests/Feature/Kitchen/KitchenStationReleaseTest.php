@@ -81,6 +81,9 @@ class KitchenStationReleaseTest extends TestCase
 
     public function test_the_migrations_reverse_and_run_again(): void
     {
+        // #345's pivot references kitchen_stations, so its own migration is rewound first and run again last.
+        $pivot = require database_path('migrations/2026_12_29_300001_create_kitchen_print_device_station_table.php');
+        $pivot->down();
         $this->runMigrations('down');
 
         $this->assertFalse(Schema::hasTable('kitchen_stations'));
@@ -88,7 +91,9 @@ class KitchenStationReleaseTest extends TestCase
         $this->assertFalse(Schema::hasColumn('kitchen_items', 'kitchen_station_id'));
 
         $this->runMigrations('up');
+        $pivot->up();
 
+        $this->assertTrue(Schema::hasTable('kitchen_print_device_station'));
         $this->assertSame(1, KitchenStation::count());
         $this->assertTrue(Schema::hasColumn('products', 'kitchen_station_id'));
         $this->assertTrue(Schema::hasColumn('kitchen_items', 'kitchen_station_id'));

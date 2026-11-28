@@ -886,6 +886,13 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(screen.queryByText("Belum tercetak")).not.toBeInTheDocument();
         });
 
+        it("matches a split shop's ticket key t<order.id>-s<station> (#345)", () => {
+            use({ unprinted: [{ key: "t9-s2", since: secondsAgo(31), state: "queued" }] });
+            render(<Index orders={orders} outlet={outlet} />);
+
+            expect(within(cards()[1]).getByText("Belum tercetak")).toBeInTheDocument();
+        });
+
         it("marks the grouped card for an add-on's own unprinted ticket (#251)", () => {
             const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
             const items = [...orders[0].items, { id: 99, title: "Es Jeruk", qty: 1, status: "accepted", add_on }];
@@ -934,7 +941,9 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             await user().click(reprint);
 
             expect(hook.reprint).toHaveBeenCalledTimes(1);
-            expect(hook.reprint).toHaveBeenCalledWith(orders[1]);
+            expect(hook.reprint).toHaveBeenCalledWith(
+                expect.objectContaining({ id: orders[1].id, kind: "order", items: orders[1].items })
+            );
         });
 
         it("reprints one ticket per sale on a grouped add-on card (#314)", async () => {
@@ -980,7 +989,7 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             ["auto-print off", { autoPrint: false }, true],
             ["a tab that is not the printing one", { otherTab: true }, false],
         ])("offers Cetak ulang only for an order this device printed, where it can print (%s)", (_case, over, offered) => {
-            use({ ...over, printedIds: [1, 3] }); // order 7 has an item this device never printed
+            use({ ...over, printedIds: [3] }); // order 7 has no line this device printed
             render(<Index orders={orders} outlet={outlet} />);
 
             expect(reprintIn(cards()[0])).not.toBeInTheDocument();
@@ -1000,17 +1009,36 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
             expect(reprintIn(cards()[1])).not.toBeInTheDocument();
         });
 
-        it("reprints the whole order when the station filter hides some of its lines", async () => {
+        it("reprints the printed lines per station, titled, whatever the station filter hides (#345)", async () => {
             localStorage.setItem("kitchenStations", "[1]");
             const stations = [{ id: 1, name: "Dapur", is_default: true }, { id: 2, name: "Bar", is_default: false }];
-            const mixed = [{ ...orders[0], items: orders[0].items.map((item, i) => ({ ...item, station_id: i + 1 })) }];
+            const mixed = [{ ...orders[0], items: orders[0].items.map((item, i) => ({ ...item, station_id: i + 1, station: i === 0 ? "Dapur" : "Bar" })) }];
             const hook = use();
             render(<Index orders={mixed} outlet={outlet} stations={stations} />);
             expect(screen.queryByText(/Es Teh/)).not.toBeInTheDocument();
 
             await user().click(reprintIn(cards()[0]));
 
-            expect(hook.reprint).toHaveBeenCalledWith(mixed[0]);
+            // One titled ticket per station, whatever the filter hides (#345).
+            expect(hook.reprint.mock.calls.map(([ticket]) => [ticket.station, ticket.items.map((item) => item.id)])).toEqual([
+                ["Dapur", [1]],
+                ["Bar", [2]],
+            ]);
+        });
+
+        it("offers Cetak ulang when this station device printed only its own line, and reprints that line titled (#345)", async () => {
+            const stations = [{ id: 1, name: "Dapur", is_default: true }, { id: 2, name: "Bar", is_default: false }];
+            const items = [
+                { id: 3, title: "Kopi", qty: 1, note: null, status: "accepted", station_id: 2, station: "Bar" },
+                { id: 4, title: "Nasi", qty: 1, note: null, status: "accepted", station_id: 1, station: "Dapur" },
+            ];
+            const hook = use({ printedIds: [3] });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} stations={stations} />);
+
+            await user().click(reprintIn(cards()[0]));
+
+            expect(hook.reprint).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).toHaveBeenCalledWith(expect.objectContaining({ station: "Bar", items: [items[0]] }));
         });
 
         it("a ticket still queued and young has no button yet", () => {

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
@@ -27,5 +28,11 @@ class KitchenPrintDevice extends Model
     public function prints(): HasMany
     {
         return $this->hasMany(KitchenTicketPrint::class);
+    }
+
+    /** The stations this device serves (#345): none means every station, so a single-station shop is unchanged. */
+    public function stations(): BelongsToMany
+    {
+        return $this->belongsToMany(KitchenStation::class, 'kitchen_print_device_station');
     }
 }

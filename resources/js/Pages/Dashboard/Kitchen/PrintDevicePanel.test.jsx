@@ -8,7 +8,7 @@ import { requestPrinter, disconnectPrinter, printerKey, printBytes, buildKitchen
 import { useKitchenPrintDevice } from "@/Hooks/useKitchenPrintDevice";
 import PrintDevicePanel from "./PrintDevicePanel";
 
-vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn() } }));
+vi.mock("axios", () => ({ default: { get: vi.fn(), post: vi.fn(), put: vi.fn() } }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/Utils/escpos", () => ({
     requestPrinter: vi.fn(),
@@ -25,6 +25,15 @@ vi.mock("@/Utils/printQueue", () => ({
 function Harness() {
     const printDevice = useKitchenPrintDevice({ id: 1 });
     return <PrintDevicePanel printDevice={printDevice} />;
+}
+const stationList = [
+    { id: 1, name: "Dapur", is_default: true },
+    { id: 2, name: "Bar", is_default: false },
+];
+// A split shop, so the panel shows the stations this device serves (#345).
+function StationHarness() {
+    const printDevice = useKitchenPrintDevice({ id: 1 });
+    return <PrintDevicePanel printDevice={printDevice} stations={stationList} />;
 }
 
 const saved = () => JSON.parse(localStorage.getItem("kitchen.station"));
@@ -234,6 +243,45 @@ describe("PrintDevicePanel", () => {
         render(<Harness />);
 
         [...screen.getAllByRole("button"), screen.getByRole("switch")].forEach((el) => expect(el.className).toMatch(/min-h-\[44px\]/));
+    });
+
+    it("ticks the stations the server says this device prints (#345)", async () => {
+        withDevice();
+        axios.get.mockResolvedValue({ data: { station_ids: [1] } });
+        render(<StationHarness />);
+
+        expect(await screen.findByRole("checkbox", { name: "Dapur" })).toBeChecked();
+        expect(screen.getByRole("checkbox", { name: "Bar" })).not.toBeChecked();
+    });
+
+    it("keeps the station ticks disabled and unknown after a failed load, and reloads on retry (#345)", async () => {
+        withDevice();
+        axios.get.mockRejectedValueOnce(new Error("load failed"));
+        render(<StationHarness />);
+
+        const bar = await screen.findByRole("checkbox", { name: "Bar" });
+        expect(bar).toBeDisabled();
+        expect(bar).not.toBeChecked();
+        expect(toast.error).toHaveBeenCalledWith("load failed");
+
+        axios.get.mockResolvedValue({ data: { station_ids: [2] } });
+        await userEvent.setup().click(screen.getByRole("button", { name: "Coba Lagi" }));
+
+        await waitFor(() => expect(screen.getByRole("checkbox", { name: "Bar" })).toBeChecked());
+        expect(screen.getByRole("checkbox", { name: "Bar" })).toBeEnabled();
+    });
+
+    it("rolls a failed station save back and reports it (#345)", async () => {
+        withDevice();
+        axios.get.mockResolvedValue({ data: { station_ids: [1] } });
+        axios.put.mockRejectedValue(new Error("save failed"));
+        render(<StationHarness />);
+
+        await userEvent.setup().click(await screen.findByRole("checkbox", { name: "Bar" }));
+
+        await waitFor(() => expect(toast.error).toHaveBeenCalledWith("save failed"));
+        expect(screen.getByRole("checkbox", { name: "Bar" })).not.toBeChecked();
+        expect(screen.getByRole("checkbox", { name: "Dapur" })).toBeChecked();
     });
 });
 

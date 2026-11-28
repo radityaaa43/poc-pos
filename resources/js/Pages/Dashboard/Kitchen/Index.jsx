@@ -61,7 +61,7 @@ function groupSales(order) {
 
 // The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
 // prints a CETAK ULANG copy of one that did. `order` is the whole order, whatever the station filter shows.
-function PrintAction({ order, notPrinted, reprintable, printDevice }) {
+function PrintAction({ order, notPrinted, reprintable, printDevice, reprintTickets }) {
     const { t } = useTranslation();
     if (!notPrinted && !reprintable) return null;
 
@@ -81,12 +81,8 @@ function PrintAction({ order, notPrinted, reprintable, printDevice }) {
                     type="button"
                     disabled={printDevice.headFailed || busy}
                     onClick={() => {
-                        // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per sale (#314).
-                        if (sales.length === 1 && sales[0].id === order.id) {
-                            printDevice.reprint(order);
-                        } else {
-                            sales.forEach((sale) => printDevice.reprint(sale));
-                        }
+                        // Only the lines this device printed, one ticket per station in a split shop (#345).
+                        reprintTickets(order).forEach((ticket) => printDevice.reprint(ticket));
                     }}
                     className={PRINT_BUTTON}
                 >
@@ -202,20 +198,50 @@ export default function Index({ orders, outlet, stations = [] }) {
     const hasPrinter = Boolean(outlet && printDevice.device);
     const queuedEntry = (order) =>
         printDevice.autoPrint
-            ? printDevice.unprinted?.find((entry) => groupSales(order).some((sale) => entry.key === `t${sale.id}`))
+            // A split shop names its tickets `t<id>-s<station>`; match both forms, and never the sale id's prefix (#345).
+            ? printDevice.unprinted?.find((entry) =>
+                  groupSales(order).some((sale) => entry.key === `t${sale.id}` || entry.key.startsWith(`t${sale.id}-s`))
+              )
             : undefined;
     const notPrinted = (order) => isNotPrinted(queuedEntry(order), now);
-    // Cetak ulang is only for an order whose ticket this device printed (REQ-004 decision 12).
+    // Cetak ulang is for an order of which this device printed at least one line (REQ-004 decision 12, #345).
     const printed = new Set(printDevice.printedIds);
     const reprintable = (order) => {
         const lines = order.items.filter((item) => item.status !== "cancelled");
         // A tab that is not the printing one can't reach the printer: the leader tab holds it.
         const hasTarget = Boolean(printDevice.printerKey || printDevice.autoPrint) && !printDevice.otherTab;
-        return hasTarget && !queuedEntry(order) && lines.length > 0 && lines.every((item) => printed.has(item.id));
+        return hasTarget && !queuedEntry(order) && lines.some((item) => printed.has(item.id));
     };
-    // `order` here is the whole order: a reprint is the same ticket, whatever the station filter shows.
+    // Cetak ulang prints only the lines this device printed (#345): one ticket per sale, and per station in a split shop.
+    const reprintTickets = (order) => {
+        const groups = new Map();
+        for (const sale of groupSales(order)) {
+            for (const item of sale.items) {
+                if (item.status === "cancelled" || !printed.has(item.id)) continue;
+                // An item of a deleted station (or with none) is Dapur's, as on the server.
+                const stationId = activeIds.has(item.station_id) ? item.station_id : defaultId;
+                const key = `${sale.id}:${stationId}`;
+                if (!groups.has(key)) {
+                    groups.set(key, {
+                        ...sale,
+                        items: [],
+                        ...(multi ? { station: stations.find((s) => s.id === stationId)?.name } : {}),
+                    });
+                }
+                groups.get(key).items.push(item);
+            }
+        }
+        return [...groups.values()];
+    };
+    // `order` here is the whole order: a reprint uses the lines this device printed, whatever the station filter shows.
     const printAction = (order) => (
-        <PrintAction order={order} notPrinted={notPrinted(order)} reprintable={reprintable(order)} printDevice={printDevice} />
+        <PrintAction
+            order={order}
+            notPrinted={notPrinted(order)}
+            reprintable={reprintable(order)}
+            printDevice={printDevice}
+            reprintTickets={reprintTickets}
+        />
     );
 
     const cardProps = { orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction };
@@ -244,7 +270,7 @@ export default function Index({ orders, outlet, stations = [] }) {
                 )}
             </div>
 
-            {panelOpen && <PrintDevicePanel printDevice={printDevice} />}
+            {panelOpen && <PrintDevicePanel printDevice={printDevice} stations={stations} />}
 
             {connectionLost && (
                 <div

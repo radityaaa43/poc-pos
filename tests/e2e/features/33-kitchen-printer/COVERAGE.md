@@ -25,3 +25,5 @@ Manual checks (REQ-004, K2):
 - A cable pulled in the middle of a ticket: the app shows "Printer dapur tidak terhubung", plugging it back prints the whole ticket again, and the torn stub on paper is for staff to discard.
 - The Wake Lock on an Android Chrome tablet: with Cetak otomatis on, the screen stays on past its normal timeout; with it off the screen sleeps again. The e2e only counts calls to a stub.
 - A tablet that really sleeps with orders waiting: on waking it shows "Printer dapur offline atau tab tidur" and prints them once. The e2e holds the ticket requests instead.
+
+Steps (REQ-006): `12-station-ticket` (AC-07): a device that serves one station prints only that station's items, under the station-name title; a two-station order splits one titled ticket to each device.

@@ -1169,7 +1169,9 @@
             "reprint": "REPRINT",
             "reprintButton": "Reprint",
             "reprintFailed": "Reprint failed",
-            "addon": "ADD-ON"
+            "addon": "ADD-ON",
+            "stations": "Stations this device prints",
+            "stationsHelper": "Leave all unchecked to print every station."
         },
         "actions": {
             "start": "Start",
