@@ -32,7 +32,8 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - pelanggan berbatas piutang yang ditolak: dialog bayar sekarang atau minta pengecualian persetujuan (lihat `receivables.md`)
 - add customer langsung dari POS
 - penjualan walk-in: tunai, QRIS, dan transfer selesai tanpa memilih pelanggan; pelanggan wajib hanya untuk memakai poin, voucher, atau harga member; pay later (Bayar Belakangan) tidak lagi butuh pelanggan: tamu cukup mengisi catatan minimal 2 karakter
-- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet and do not change any total yet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet).
+- Bill settings (**Tagihan**: service charge, PPN or PB1, cash rounding) are set per outlet; see [tax management](tax-management.md#bill-settings-tagihan-per-outlet). The service charge and the tax type change the total ([how](tax-management.md#how-a-bill-is-computed)); cash rounding does not yet.
+- The pricing preview takes `order_type` and its summary returns `service_charge`, `tax_kind`, `tax_base` and `bill_basis` (the inputs of the total) beside the tax and total. The POS previews again when the order type changes, so the Service charge row follows Di Tempat / Bawa Pulang / Diantar.
 
 ## Halaman dan Route
 

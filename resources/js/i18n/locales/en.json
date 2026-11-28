@@ -1,5 +1,6 @@
 {
     "common": {
+        "soldOut": "Sold out",
         "buttons": {
             "add": "Add",
             "edit": "Edit",
@@ -311,7 +312,8 @@
             "kitchenStations": "Kitchen stations",
             "whatsApp": "WhatsApp",
             "modifiers": "Modifier",
-            "dineReservations": "Reservations"
+            "dineReservations": "Reservations",
+            "stockWaste": "Waste"
         },
         "menu": {
             "overview": "Overview",
@@ -596,13 +598,15 @@
             "title": "Close blocked",
             "item": "Not handed over",
             "bill": "Unpaid",
-            "syncFirst": "Sync offline transactions first"
+            "syncFirst": "Sync offline transactions first",
+            "split": "Split payment not fully paid — {{amount}} still owed"
         },
         "forced": {
             "submit": "Force close",
             "note": "Force-close note",
             "warning": "Items not handed over are marked not collected, and unpaid bills go into the cash difference.",
-            "unpaidBooked": "Unpaid bills booked"
+            "unpaidBooked": "Unpaid bills booked",
+            "splitNote": "Split payments not fully paid stay payable."
         }
     },
     "stock": {
@@ -1197,6 +1201,12 @@
             "pay": "Pay",
             "due": "Amount due"
         },
+        "bill": {
+            "serviceCharge": "Service charge",
+            "taxPpn": "PPN",
+            "taxPb1": "PB1 {{rate}}%",
+            "offlineOrderTypeLocked": "The order type can't be changed offline at this outlet"
+        },
         "payLater": {
             "label": "Bayar Belakangan",
             "hint": "Prepared now, paid later. Marked Belum lunas.",
@@ -1410,5 +1420,51 @@
         "saved": "Reservation saved",
         "marked": "Reservation status changed",
         "failed": "The reservation could not be saved"
+    },
+    "waste": {
+        "title": "Waste",
+        "subtitle": "Raw materials and menus thrown away.",
+        "create": "Record waste",
+        "back": "Back to the waste list",
+        "status": "Status",
+        "allStatuses": "All statuses",
+        "warehouse": "Warehouse",
+        "allWarehouses": "All warehouses",
+        "reason": "Reason",
+        "chooseReason": "Choose a reason",
+        "item": "Item",
+        "itemNumber": "Item {{number}}",
+        "chooseItem": "Choose a raw material or menu",
+        "addItem": "Add item",
+        "removeItem": "Remove item {{number}}",
+        "qty": "Quantity",
+        "stockLeft": "Stock: {{stock}}",
+        "menuStock": "Stock: — (recipe ingredients are checked on save)",
+        "noteOptional": "Note (optional)",
+        "note": "Note",
+        "total": "Estimated waste value: {{value}}",
+        "estimateNote": "From the current average cost; the final value is calculated on save.",
+        "save": "Save waste",
+        "empty": "No waste records yet",
+        "recordedBy": "Recorded by {{name}}",
+        "lines": "Recorded items",
+        "moves": "Stock taken",
+        "unitCost": "Unit cost",
+        "value": "Value",
+        "notTaken": "The stock has not been taken.",
+        "takenAt": "Stock taken {{date}}",
+        "statuses": {
+            "pending": "Pending approval",
+            "recorded": "Recorded",
+            "rejected": "Rejected",
+            "cancelled": "Cancelled"
+        },
+        "reasons": {
+            "expired": "Expired",
+            "damaged": "Damaged",
+            "wrong_made": "Made wrong",
+            "not_collected": "Not collected",
+            "other": "Other"
+        }
     }
 }

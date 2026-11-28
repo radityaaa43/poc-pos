@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Controller;
 use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
+use App\Models\Receivable;
 use App\Models\Transaction;
 use App\Services\AuditLogService;
+use App\Services\BillTotalService;
 use App\Services\CreditApprovalService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
@@ -86,9 +88,16 @@ class DiscountApprovalController extends Controller
 
     protected function logAndUpdate(Transaction $transaction, string $status, ?string $notes = null): void
     {
-        \DB::transaction(function () use ($transaction, $status, $notes) {
+        \DB::transaction(function () use (&$transaction, $status, $notes) {
+            // Receivable before its sale, the lock order of receivable payments, returns and the payment webhook.
+            $receivableId = Receivable::where('transaction_id', $transaction->id)->value('id');
+            $receivable = $receivableId ? Receivable::whereKey($receivableId)->lockForUpdate()->first() : null;
+            // Read again under the lock: a second answer must find the sale already answered.
+            $transaction = Transaction::whereKey($transaction->id)->lockForUpdate()->firstOrFail();
+            abort_if($transaction->discount_approval_status !== 'pending', 404);
+
             // ponytail: approval only settles the approval state — payment stays tied to the actual method.
-            // grand_total already excludes the manual discount (LoyaltyService), so denying re-adds it.
+            // grand_total already excludes the manual discount (LoyaltyService), so denying restores the bill.
             $paymentStatus = match ($transaction->payment_method) {
                 'cash' => 'paid',
                 'pay_later' => 'unpaid',
@@ -106,15 +115,23 @@ class DiscountApprovalController extends Controller
             if ($status === 'denied') {
                 $updates['discount'] = 0;
                 $updates['payment_status'] = 'unpaid';
+                if ($deniedDiscount > 0) {
+                    $updates += app(BillTotalService::class)->restore($transaction, $deniedDiscount);
+                }
             } else {
                 $updates['payment_status'] = $paymentStatus;
             }
 
-            $transaction->update($updates);
-
-            if ($status === 'denied' && $deniedDiscount > 0) {
-                $transaction->increment('grand_total', $deniedDiscount);
+            // A pay-later sale owes the difference too (BR-6); a receivable already paid off is open again.
+            if ($receivable && isset($updates['grand_total'])) {
+                $receivable->total += $updates['grand_total'] - $transaction->grand_total;
+                if ($receivable->status === 'paid' && $receivable->remaining > 0) {
+                    $receivable->status = $receivable->due_date && now()->gt($receivable->due_date) ? 'overdue' : 'partial';
+                }
+                $receivable->save();
             }
+
+            $transaction->update($updates);
 
             DiscountApprovalLog::where('transaction_id', $transaction->id)
                 ->where('status', 'pending')

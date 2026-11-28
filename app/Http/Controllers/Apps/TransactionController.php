@@ -20,6 +20,7 @@ use App\Services\AddOnOrderService;
 use App\Services\AuditLogService;
 use App\Services\BatchService;
 use App\Services\CashierShiftService;
+use App\Services\CheckoutPreviewService;
 use App\Services\CheckoutService;
 use App\Services\CreditApprovalService;
 use App\Services\LoyaltyService;
@@ -56,6 +57,7 @@ class TransactionController extends Controller
         protected readonly OutletAccessService $outletAccessService,
         protected readonly CheckoutService $checkoutService,
         protected readonly TransactionPaymentRetryService $paymentRetryService,
+        protected readonly CheckoutPreviewService $checkoutPreviewService,
     ) {}
 
     public function index()
@@ -73,9 +75,8 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $initialPricingPreview = $this->loyaltyService->previewCheckout(
-            $this->pricingService->previewCart($carts, null, null, $outlet)
-        );
+        // The POS opens on Di Tempat, so the first paint already carries the dine-in bill.
+        $initialPricingPreview = $this->checkoutPreviewService->checkout(auth()->user(), null, ['order_type' => 'in_store'], $carts);
 
         $heldCarts = Cart::heldList(Cart::with('product:id,title,sell_price,image', 'creditRequest')
             ->where('cashier_id', $userId)->held()->get());
@@ -95,7 +96,7 @@ class TransactionController extends Controller
             ->forPos($warehouseId)
             ->orderBy('title')
             ->get()
-            ->filter(fn (Product $product) => $product->stockIn($warehouseId) > 0)
+            ->filter(fn (Product $product) => $product->is_composite || $product->stockIn($warehouseId) > 0)
             ->values();
         $pricingBadges = $this->pricingService->previewProducts($products, null, null, $outlet);
         $products = $products->map(function (Product $product) use ($pricingBadges, $warehouseId) {
@@ -103,7 +104,7 @@ class TransactionController extends Controller
 
             return [
                 ...collect($product->toArray())->except(['warehouses', 'components'])->all(),
-                'stock' => $product->stockIn($warehouseId),
+                'stock' => ($stock = $product->stockIn($warehouseId)), 'sold_out' => $product->is_composite && $stock < 1,
                 'sell_price' => $product->is_composite ? $product->compositeSellPrice() : (int) $product->sell_price,
                 'units' => $product->units->map(fn ($u) => [
                     'unit_id' => $u->id,
@@ -217,6 +218,7 @@ class TransactionController extends Controller
             'shipping_cost' => ['nullable', 'integer', 'min:0'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'customer_voucher_id' => ['nullable', 'integer', 'exists:customer_vouchers,id'],
+            'order_type' => ['nullable', 'in:in_store,takeaway,delivery'],
         ]);
 
         $customer = isset($validated['customer_id'])
@@ -225,8 +227,6 @@ class TransactionController extends Controller
         $voucher = isset($validated['customer_voucher_id'])
             ? CustomerVoucher::find($validated['customer_voucher_id'])
             : null;
-        $activeShift = $this->cashierShiftService->getActiveShiftForUser($request->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
 
         $carts = Cart::with('product.category')
             ->where('cashier_id', $request->user()->id)
@@ -234,16 +234,15 @@ class TransactionController extends Controller
             ->latest()
             ->get();
 
-        $pricingPreview = $this->pricingService->previewCart($carts, $customer, null, $activeShift?->warehouse?->outlet);
-
         return response()->json([
             'success' => true,
-            'data' => $this->loyaltyService->previewCheckout($pricingPreview, $customer, [
+            'data' => $this->checkoutPreviewService->checkout($request->user(), $customer, [
                 'manual_discount' => (int) ($validated['discount'] ?? 0),
                 'shipping_cost' => (int) ($validated['shipping_cost'] ?? 0),
                 'redeem_points' => (int) ($validated['redeem_points'] ?? 0),
                 'voucher' => $voucher,
-            ], null, $activeShift?->warehouse?->outlet),
+                'order_type' => $validated['order_type'] ?? null,
+            ], $carts),
         ]);
     }
 

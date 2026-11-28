@@ -648,9 +648,18 @@ class PaymentWebhookLockTest extends TestCase
         ]);
         Receivable::create(['transaction_id' => $credit->id, 'invoice' => $credit->invoice, 'due_date' => now()->addDays(7), 'total' => 150000, 'paid' => 0, 'status' => 'unpaid']);
 
+        // The same sale without a receivable was in no recap (#396 BR-7), so paying it is flagged.
+        $guest = Transaction::create([
+            ...$credit->only(['cashier_id', 'cashier_shift_id', 'cash', 'change', 'discount', 'shipping_cost', 'grand_total',
+                'payment_method', 'payment_status', 'is_pay_later']),
+            'invoice' => 'TRX-GUEST-1',
+        ]);
+
         $this->notify('midtrans', $dine->invoice, 'paid')->assertOk();
         $this->notify('midtrans', $credit->invoice, 'paid', amount: 150000)->assertOk();
+        $this->notify('midtrans', $guest->invoice, 'paid', amount: 150000)->assertOk();
 
+        $this->assertNotNull($guest->fresh()->paid_after_close_at);
         $this->assertNotNull($dine->fresh()->paid_after_close_at);
         $credit->refresh();
         $this->assertSame('paid', $credit->payment_status);
@@ -837,11 +846,14 @@ class PaymentWebhookLockTest extends TestCase
 
     public function test_the_closed_recap_rule(): void
     {
-        foreach (['cash', 'pay_later', 'split', 'bank_transfer'] as $method) {
-            $this->assertTrue(CashierShiftService::countedInClosedRecap($method), $method);
+        $counted = fn (string $method) => CashierShiftService::countedInClosedRecap(new Transaction(['payment_method' => $method]));
+
+        foreach (['cash', 'bank_transfer'] as $method) {
+            $this->assertTrue($counted($method), $method);
         }
-        foreach ([Transaction::METHOD_OPEN_BILL, 'qris', 'midtrans', 'xendit'] as $method) {
-            $this->assertFalse(CashierShiftService::countedInClosedRecap($method), $method);
+        // pay_later here has no receivable; a credit sale (with one) is counted, see the flag test above.
+        foreach ([Transaction::METHOD_OPEN_BILL, 'split', 'pay_later', 'qris', 'midtrans', 'xendit'] as $method) {
+            $this->assertFalse($counted($method), $method);
         }
     }
 }

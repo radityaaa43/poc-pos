@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ShiftCloseBlockerService
 {
-    /** @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>} */
+    /** @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>} */
     public function blockersFor(CashierShift $shift): array
     {
         // openBills() is the POS "Belum Lunas" list: dine-in bills and guest pay-later sales. A credit customer's
@@ -34,11 +34,20 @@ class ShiftCloseBlockerService
             ->orderBy('id')
             ->get();
 
-        return ['items' => $items, 'bills' => $bills];
+        // #396: a Bayar sekarang split sale with only part of its money in.
+        $splits = Transaction::query()
+            ->partlyPaidSplit()
+            ->where('cashier_shift_id', $shift->id)
+            ->orderBy('id')
+            ->get()
+            ->filter(fn (Transaction $sale) => $sale->unpaidAmount() > 0)
+            ->values();
+
+        return ['items' => $items, 'bills' => $bills, 'splits' => $splits];
     }
 
     /**
-     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>}  $blockers
+     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>}  $blockers
      * @return array<int, array{type: string, order: string, label: ?string, amount: int}>
      */
     public function rows(array $blockers): array
@@ -58,6 +67,13 @@ class ShiftCloseBlockerService
             'amount' => $bill->unpaidAmount(),
         ]);
 
-        return $items->concat($bills)->values()->all();
+        $splits = $blockers['splits']->toBase()->map(fn (Transaction $sale) => [
+            'type' => 'split',
+            'order' => $sale->invoice,
+            'label' => data_get($sale, 'customer.name') ?? $sale->note,
+            'amount' => $sale->unpaidAmount(),
+        ]);
+
+        return $items->concat($bills)->concat($splits)->values()->all();
     }
 }

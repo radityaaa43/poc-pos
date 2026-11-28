@@ -123,9 +123,9 @@ it (the assignee still marks the issue as claimed), review is requested by movin
 Technical review, and the Verifier's checklist posted with `gh pr comment` is its approval (`CONTRIBUTING.md` → Single
 maintainer). Drop this once each role has its own account.
 
-**Worktrees.** A developer works in their own git worktree with its own `npm ci`. Run PHP for a
-worktree as `tests/e2e/README.md` → *Running compose from a git worktree* describes: `docker compose
-exec -T app` from a worktree runs against the main checkout's code, not the worktree's.
+**Worktrees.** A developer works in their own git worktree with its own `composer install` and
+`npm ci`, and runs PHP in it. E2e for a second worktree: `tests/e2e/README.md` → *Several worktrees at
+once*.
 
 **Effort.** The Tech Lead sets the Effort field (`low`, `medium`, `high`, `xhigh`, `max`, the same
 scale as the `AI used` line). A developer works on one ticket at a time, except that tickets whose
