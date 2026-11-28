@@ -777,7 +777,10 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                             {item.product
                                                                 ?.barcode && (
                                                                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                                                                    {item.product.barcode}
+                                                                    {
+                                                                        item.product
+                                                                            .barcode
+                                                                    }
                                                                 </p>
                                                             )}
                                                         </td>

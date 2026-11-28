@@ -27,23 +27,18 @@ class ModifierPricingTest extends ModifierSaleTestCase
         return app(PricingService::class)->previewCart(Cart::with('product')->orderBy('id')->get(), $customer, null, $this->outlet);
     }
 
-    public function test_percent_promo_applies_to_menu_plus_options(): void
+    // A percentage acts on menu + options; a fixed price replaces only the menu price.
+    #[TestWith([PricingRule::TYPE_PERCENTAGE, 10, 45000])]
+    #[TestWith([PricingRule::TYPE_FIXED_PRICE, 10000, 30000])]
+    public function test_a_line_discount_on_menu_plus_options(string $type, int $value, int $total): void
     {
-        $this->rule(['discount_value' => 10]);
+        $this->rule(['discount_type' => $type, 'discount_value' => $value]);
         $this->add(['Large'], 2);
 
         $item = $this->preview()['items'][0];
 
-        $this->assertSame([20000, 5000, 25000, 45000], [$item['menu_unit_price'], $item['option_unit_total'], $item['base_unit_price'], $item['line_total']]);
+        $this->assertSame([20000, 5000, 25000, $total], [$item['menu_unit_price'], $item['option_unit_total'], $item['base_unit_price'], $item['line_total']]);
         $this->assertSame(['Large'], array_column($item['options'], 'name'));
-    }
-
-    public function test_fixed_price_replaces_only_the_menu_price(): void
-    {
-        $this->rule(['discount_type' => PricingRule::TYPE_FIXED_PRICE, 'discount_value' => 10000]);
-        $this->add(['Large'], 2);
-
-        $this->assertSame(30000, $this->preview()['items'][0]['line_total']);
     }
 
     // BR-5: every line of a menu counts towards its break, whatever the option or note.

@@ -71,14 +71,9 @@ class ComponentStockService
      */
     public function restockOptions(TransactionDetail $detail, int $qty, ?int $warehouseId): array
     {
-        $taken = [];
-
-        foreach ($detail->modifiers->flatMap->components as $line) {
-            $componentQty = (int) round($line['qty_per_unit'] * $qty);
-            $taken[$line['product_id']] = ($taken[$line['product_id']] ?? 0) + $componentQty;
-        }
-
-        ksort($taken);
+        $taken = $detail->modifiers->flatMap->components->groupBy('product_id')
+            ->map(fn ($lines) => (int) $lines->sum(fn (array $line) => round($line['qty_per_unit'] * $qty)))
+            ->sortKeys();
         $restocked = [];
 
         foreach ($taken as $productId => $componentQty) {

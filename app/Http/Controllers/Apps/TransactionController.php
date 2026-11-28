@@ -289,7 +289,6 @@ class TransactionController extends Controller
         ]);
 
         $activeShift = $this->cashierShiftService->getActiveShiftForUser(auth()->user()->id);
-        $activeShift?->loadMissing('warehouse.outlet');
 
         $cartService->add(auth()->id(), $activeShift?->warehouse_id, $activeShift?->warehouse?->outlet, $validated);
 
@@ -371,10 +370,10 @@ class TransactionController extends Controller
 
         // Update quantity and price (derive price from DB, not from request/global sell_price)
         $cart->qty = $request->qty;
-        $menuPrice = $product->is_composite
-            ? $product->compositeSellPrice()
-            : $unitConversion->getSellPrice($product, (int) $cart->unit_id);
-        $cart->price = ($menuPrice + $cart->modifier_total) * $request->qty;
+        $cart->price = $product->is_composite
+            ? $product->compositeSellPrice() * $request->qty
+            : $unitConversion->getSellPrice($product, (int) $cart->unit_id) * $request->qty;
+        $cart->price += $cart->modifier_total * $request->qty;
         $cart->save();
 
         return back()->with('success', 'Quantity updated successfully');

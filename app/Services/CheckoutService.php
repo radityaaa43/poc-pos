@@ -213,10 +213,10 @@ class CheckoutService
             $options = $selection['options'] ?? [];
 
             // Frozen HPP: read the warehouse average before the stock decrement below (REQ-002 §6.6).
-            $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, $cart->qty, (float) ($cart->conversion_factor ?? 1))
-                + $this->inventoryCostService->recipeCost(
-                    collect($options)->flatMap(fn (array $option) => $recipes[$option['id']]->components), $warehouseId, $cart->qty
-                );
+            $costTotal = $this->inventoryCostService->lineCost($product, $warehouseId, $cart->qty, (float) ($cart->conversion_factor ?? 1));
+            $costTotal += $this->inventoryCostService->recipeCost(
+                collect($options)->flatMap(fn (array $option) => $recipes[$option['id']]->components), $warehouseId, $cart->qty
+            );
 
             $detail = $transaction->details()->create([
                 'transaction_id' => $transaction->id,

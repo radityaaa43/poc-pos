@@ -30,7 +30,6 @@ class CartService
         $unitId = null;
         $conversionFactor = 1;
 
-        // Composite: check component stock
         if ($product->is_composite) {
             $product->load('components');
             foreach ($product->components->whereInstanceOf(Product::class) as $component) {

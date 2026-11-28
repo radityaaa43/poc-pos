@@ -382,6 +382,7 @@ class PricingService
         }
 
         $participants = [];
+        $baseTotal = 0;
         $tempRemaining = $remainingQuantities;
 
         foreach ($rule->bundleItems as $bundleItem) {
@@ -399,16 +400,18 @@ class PricingService
             $participants = array_merge($participants, $matched);
         }
 
-        // The bundle price replaces the menu prices; paid options stay on top (REQ-008 decision 16).
-        $menuTotal = (int) collect($participants)->sum('menu_total');
+        foreach ($participants as $participant) {
+            $baseTotal += (int) $participant['base_total'];
+        }
+
         $bundlePrice = (int) round((float) $rule->discount_value);
-        if ($bundlePrice >= $menuTotal) {
+        if ($bundlePrice >= $baseTotal) {
             return null;
         }
 
         $allocations = $this->allocateDiscount(
             $participants,
-            $menuTotal - $bundlePrice
+            $baseTotal - $bundlePrice
         );
 
         return [
@@ -417,7 +420,7 @@ class PricingService
             'priority' => (int) $rule->priority,
             'group_key' => 'bundle-'.$rule->id.'-'.str()->uuid(),
             'group_label' => $rule->name,
-            'discount_total' => $menuTotal - $bundlePrice,
+            'discount_total' => $baseTotal - $bundlePrice,
             'participants' => $allocations,
         ];
     }
@@ -470,8 +473,7 @@ class PricingService
             }
 
             foreach ($matched as $match) {
-                // The free item's paid options stay charged (REQ-008 decision 5).
-                $match['discount_total'] = (int) $match['menu_total'];
+                $match['discount_total'] = (int) $match['base_total'];
                 $rewardParticipants[] = $match;
                 $participants[] = $match;
             }
@@ -522,8 +524,8 @@ class PricingService
                 'product_id' => (int) $item['product_id'],
                 'product_title' => $item['product_title'],
                 'quantity' => $take,
-                'base_total' => (int) $item['base_unit_price'] * $take,
-                'menu_total' => (int) $item['menu_unit_price'] * $take,
+                // Menu price only: a rule that sets or frees a price leaves paid options charged (decisions 5, 16).
+                'base_total' => (int) $item['menu_unit_price'] * $take,
             ];
             $required -= $take;
             // Taken units are gone for the next match: a unit is never both "buy" and "get", nor two bundle items.
@@ -535,7 +537,7 @@ class PricingService
 
     private function allocateDiscount(array $participants, int $discountTotal): array
     {
-        $baseTotal = max(1, (int) collect($participants)->sum('menu_total'));
+        $baseTotal = max(1, (int) collect($participants)->sum('base_total'));
         $allocated = [];
         $running = 0;
         $lastIndex = array_key_last($participants);
@@ -543,8 +545,8 @@ class PricingService
         foreach ($participants as $index => $participant) {
             $share = $index === $lastIndex
                 ? $discountTotal - $running
-                : (int) floor($discountTotal * ((int) $participant['menu_total'] / $baseTotal));
-            $share = max(0, min((int) $participant['menu_total'], $share));
+                : (int) floor($discountTotal * ((int) $participant['base_total'] / $baseTotal));
+            $share = max(0, min((int) $participant['base_total'], $share));
             $running += $share;
             $participant['discount_total'] = $share;
             $allocated[] = $participant;

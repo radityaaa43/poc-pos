@@ -330,8 +330,7 @@ class PosApiController extends Controller
 
         $cart = Cart::with('product')
             ->where('product_id', $validated['product_id'])
-            ->where('unit_id', $unitId)
-            ->where('line_key', '') // never into a web line that carries options or a note
+            ->where(['unit_id' => $unitId, 'line_key' => '']) // never into a web line that carries options or a note
             ->where('cashier_id', $request->user()->id)
             ->active()
             ->first();
@@ -393,11 +392,10 @@ class PosApiController extends Controller
         }
 
         $cart->qty = $validated['qty'];
-        $menuPrice = $product->is_composite
-            ? $product->compositeSellPrice()
-            : $this->unitConversionService->getSellPrice($product, $cart->unit_id);
-        $cart->price = ($menuPrice + $cart->modifier_total) * $validated['qty'];
-        $cart->save();
+        $cart->price = $product->is_composite
+            ? $product->compositeSellPrice() * $validated['qty']
+            : $this->unitConversionService->getSellPrice($product, $cart->unit_id) * $validated['qty'];
+        $cart->update(['price' => $cart->price + $cart->modifier_total * $validated['qty']]);
 
         return $this->ok(new CartResource($cart->load('product', 'unit')), 'Keranjang diperbarui');
     }
