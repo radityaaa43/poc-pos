@@ -13,7 +13,7 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ShiftCloseBlockerService
 {
-    /** @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>} */
+    /** @return array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>, discounts: Collection<int, Transaction>} */
     public function blockersFor(CashierShift $shift): array
     {
         // openBills() is the POS "Belum Lunas" list: dine-in bills and guest pay-later sales. A credit customer's
@@ -43,12 +43,23 @@ class ShiftCloseBlockerService
             ->filter(fn (Transaction $sale) => $sale->unpaidAmount() > 0)
             ->values();
 
-        return ['items' => $items, 'bills' => $bills, 'splits' => $splits];
+        // #542: a sale of this shift whose manual discount still waits for approval, so its final value is open. A
+        // cancelled (restocked) sale does not hold. shortcut: the checkout writes `pending` after its own commit, so a
+        // close in that gap can miss it; move the update into CheckoutService's transaction when that gap matters.
+        $discounts = Transaction::query()
+            ->where('cashier_shift_id', $shift->id)
+            ->where('discount_approval_status', 'pending')
+            ->notRestocked()
+            ->with('customer:id,name')
+            ->orderBy('id')
+            ->get();
+
+        return ['items' => $items, 'bills' => $bills, 'splits' => $splits, 'discounts' => $discounts];
     }
 
     /**
-     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>}  $blockers
-     * @return array<int, array{type: string, order: string, label: ?string, amount: int}>
+     * @param  array{items: Collection<int, KitchenItem>, bills: Collection<int, Transaction>, splits: Collection<int, Transaction>, discounts: Collection<int, Transaction>}  $blockers
+     * @return array<int, array{type: string, order: string, label: ?string, amount: int, id?: int}>
      */
     public function rows(array $blockers): array
     {
@@ -74,6 +85,15 @@ class ShiftCloseBlockerService
             'amount' => $sale->unpaidAmount(),
         ]);
 
-        return $items->concat($bills)->concat($splits)->values()->all();
+        // #542: the sale id lets the list approve or deny straight from the hold (the existing web routes).
+        $discounts = $blockers['discounts']->toBase()->map(fn (Transaction $sale) => [
+            'type' => 'discount',
+            'id' => $sale->id,
+            'order' => $sale->invoice,
+            'label' => data_get($sale, 'customer.name') ?? $sale->note,
+            'amount' => (int) $sale->discount,
+        ]);
+
+        return $items->concat($bills)->concat($splits)->concat($discounts)->values()->all();
     }
 }

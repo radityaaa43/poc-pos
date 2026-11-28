@@ -146,9 +146,11 @@ class CashierShiftService
             ->where('cashier_shift_id', $shift->id)
             ->where('status', 'completed');
 
+        // Cash already in the drawer counts, a sale whose discount still waits for approval included (#542 BR-5): its
+        // money was taken at checkout, so leaving it out would show a false surplus at the force close that reads it.
         $cashSalesTotal = (int) (clone $transactions)
             ->where('payment_method', 'cash')
-            ->where('payment_status', 'paid')
+            ->whereIn('payment_status', ['paid', 'pending_approval'])
             ->sum('grand_total');
 
         // A split sale counts only the money received (#396): its paid cash tenders are in the drawer, its paid non-cash
@@ -215,7 +217,7 @@ class CashierShiftService
 
         $cashSalesTotal -= $neverAsked((clone $transactions)
             ->where('payment_method', 'cash')
-            ->where('payment_status', 'paid'));
+            ->whereIn('payment_status', ['paid', 'pending_approval']));
         // The same sales as added above, so nothing comes off that never went in (no split, no unpaid pay later).
         $nonCashSalesTotal -= $neverAsked(clone $nonCashSales);
 
@@ -342,7 +344,9 @@ class CashierShiftService
                 ->each(fn (Transaction $sale) => $this->kitchenIntakeService->recover($sale));
 
             $blockers = $this->blockerService->blockersFor($lockedShift);
-            $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty() || $blockers['splits']->isNotEmpty();
+            // #542: a sale whose discount still waits for approval is not final, so it holds the close like the rest.
+            $held = $blockers['items']->isNotEmpty() || $blockers['bills']->isNotEmpty() || $blockers['splits']->isNotEmpty()
+                || $blockers['discounts']->isNotEmpty();
 
             // AC-12: a held shift closes only by force, and then only with a note (AC-13).
             if ($held && ! $overrideHold) {
@@ -378,6 +382,10 @@ class CashierShiftService
                         // Left payable and never booked as a shortfall: the unpaid part of a split is not cash (#396).
                         'partly_paid_splits' => $blockers['splits']->toBase()
                             ->map(fn (Transaction $sale) => ['invoice' => $sale->invoice, 'owed' => $sale->unpaidAmount()])
+                            ->all(),
+                        // Left pending, and its cash may already be in the drawer: listed so the manager can reconcile (#542).
+                        'pending_discounts' => $blockers['discounts']->toBase()
+                            ->map(fn (Transaction $sale) => ['invoice' => $sale->invoice, 'discount' => (int) $sale->discount])
                             ->all(),
                         'cancelled_pay_now' => $cancelled,
                     ],

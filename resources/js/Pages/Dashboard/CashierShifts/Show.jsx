@@ -264,7 +264,10 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
                             </div>
                         </div>
 
-                        <ShiftCloseBlockedList blockers={closeBlockers} />
+                        <ShiftCloseBlockedList
+                            blockers={closeBlockers}
+                            canDecide={Boolean(can("discounts-approve") || auth?.super)}
+                        />
 
                         {/* Outside the form: a shift closed meanwhile removes the form but must still say why. */}
                         {errors?.shift && (
@@ -301,6 +304,9 @@ export default function Show({ cashierShift, canForceClose = false, closeBlocker
                                             {t("cashierShifts.forced.warning")}
                                             {closeBlockers.some((row) => row.type === "split") && (
                                                 <span className="mt-1 block">{t("cashierShifts.forced.splitNote")}</span>
+                                            )}
+                                            {closeBlockers.some((row) => row.type === "discount") && (
+                                                <span className="mt-1 block">{t("cashierShifts.forced.discountNote")}</span>
                                             )}
                                         </p>
                                     )}

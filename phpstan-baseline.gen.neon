@@ -31,12 +31,6 @@ parameters:
 			path: app/Exports/TransactionsExport.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Exports/TransactionsExport.php
-
-		-
 			message: '#^Relation ''tenders'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -136,12 +130,6 @@ parameters:
 			message: '#^Relation ''category'' is not found in App\\Models\\Product model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Api/PosApiController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 4
 			path: app/Http/Controllers/Api/PosApiController.php
 
 		-
@@ -290,12 +278,6 @@ parameters:
 
 		-
 			message: '#^Relation ''cashierShift'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Api/V1/DiscountApprovalController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Api/V1/DiscountApprovalController.php
@@ -679,12 +661,6 @@ parameters:
 			path: app/Http/Controllers/Api/V1/TransactionController.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Api/V1/TransactionController.php
-
-		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -1010,12 +986,6 @@ parameters:
 
 		-
 			message: '#^Relation ''cashierShift'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Apps/DiscountApprovalController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Apps/DiscountApprovalController.php
@@ -1477,12 +1447,6 @@ parameters:
 			path: app/Http/Controllers/Apps/SalesReturnController.php
 
 		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$customer\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
 			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$receivable\.$#'
 			identifier: property.notFound
 			count: 2
@@ -1504,12 +1468,6 @@ parameters:
 			message: '#^Relation ''customer'' is not found in App\\Models\\SalesReturn model\.$#'
 			identifier: larastan.relationExistence
 			count: 2
-			path: app/Http/Controllers/Apps/SalesReturnController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
 			path: app/Http/Controllers/Apps/SalesReturnController.php
 
 		-
@@ -1807,12 +1765,6 @@ parameters:
 			path: app/Http/Controllers/Apps/TransactionController.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 2
-			path: app/Http/Controllers/Apps/TransactionController.php
-
-		-
 			message: '#^Relation ''product'' is not found in App\\Models\\Cart model\.$#'
 			identifier: larastan.relationExistence
 			count: 7
@@ -1868,12 +1820,6 @@ parameters:
 
 		-
 			message: '#^Relation ''cashier'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/DashboardController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/DashboardController.php
@@ -1945,12 +1891,6 @@ parameters:
 			path: app/Http/Controllers/DocumentController.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 5
-			path: app/Http/Controllers/DocumentController.php
-
-		-
 			message: '#^Relation ''payments'' is not found in App\\Models\\Payable model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
@@ -2018,12 +1958,6 @@ parameters:
 
 		-
 			message: '#^Relation ''cashier'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/PublicPortalController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/PublicPortalController.php
@@ -2269,12 +2203,6 @@ parameters:
 			path: app/Http/Controllers/Reports/ProfitReportController.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/ProfitReportController.php
-
-		-
 			message: '#^Using nullsafe property access "\?\-\>total_profit" on left side of \?\? is unnecessary\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 1
@@ -2282,12 +2210,6 @@ parameters:
 
 		-
 			message: '#^Relation ''cashier'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: app/Http/Controllers/Reports/SalesReportController.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Http/Controllers/Reports/SalesReportController.php
@@ -3079,12 +3001,6 @@ parameters:
 			path: app/Models/Transaction.php
 
 		-
-			message: '#^Method App\\Models\\Transaction\:\:customer\(\) with return type void returns Illuminate\\Database\\Eloquent\\Relations\\BelongsTo\<App\\Models\\Customer, \$this\(App\\Models\\Transaction\)\> but should not return anything\.$#'
-			identifier: return.void
-			count: 1
-			path: app/Models/Transaction.php
-
-		-
 			message: '#^PHPDoc type array of property App\\Models\\TransactionDetail\:\:\$fillable is not covariant with PHPDoc type list\<string\> of overridden property Illuminate\\Database\\Eloquent\\Model\:\:\$fillable\.$#'
 			identifier: property.phpDocType
 			count: 1
@@ -3425,18 +3341,6 @@ parameters:
 			identifier: larastan.relationExistence
 			count: 1
 			path: app/Services/PayableAgingService.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$customer\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Payments/MidtransGateway.php
-
-		-
-			message: '#^Access to an undefined property App\\Models\\Transaction\:\:\$customer\.$#'
-			identifier: property.notFound
-			count: 1
-			path: app/Services/Payments/XenditGateway.php
 
 		-
 			message: '#^Access to an undefined property App\\Models\\Cart\:\:\$product\.$#'
@@ -3787,12 +3691,6 @@ parameters:
 			path: database/seeders/FeatureDemoSeeder.php
 
 		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: database/seeders/OperationalCoreSeeder.php
-
-		-
 			message: '#^Using nullsafe method call on non\-nullable type Illuminate\\Console\\Command\. Use \-\> instead\.$#'
 			identifier: nullsafe.neverNull
 			count: 4
@@ -3803,9 +3701,3 @@ parameters:
 			identifier: nullsafe.neverNull
 			count: 2
 			path: database/seeders/RawMaterialDemoSeeder.php
-
-		-
-			message: '#^Relation ''customer'' is not found in App\\Models\\Transaction model\.$#'
-			identifier: larastan.relationExistence
-			count: 1
-			path: database/seeders/SampleDataSeeder.php
