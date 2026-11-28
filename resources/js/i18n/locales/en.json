@@ -612,6 +612,21 @@
             "warning": "Items not handed over are marked not collected, and unpaid bills go into the cash difference.",
             "unpaidBooked": "Unpaid bills booked",
             "splitNote": "Split payments not fully paid stay payable."
+        },
+        "monthSummary": {
+            "title": "Force-close summary",
+            "outlet": "Outlet",
+            "month": "Month",
+            "apply": "Apply",
+            "closed": "Shifts closed",
+            "forceClosed": "Force-closed",
+            "overHold": "Force-closed over a hold",
+            "empty": "No shifts closed this month",
+            "noHeld": "No shift was force-closed over a hold",
+            "cashier": "Cashier",
+            "closedAt": "Closed",
+            "note": "Note",
+            "viewShift": "View shift #{{id}}"
         }
     },
     "stock": {

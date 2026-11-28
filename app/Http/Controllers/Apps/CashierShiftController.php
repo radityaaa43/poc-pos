@@ -13,12 +13,15 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\AuditLogService;
 use App\Services\CashierShiftService;
+use App\Services\ForceCloseSummaryService;
 use App\Services\OutletAccessService;
 use App\Services\ShiftCloseBlockerService;
 use App\Services\ThermalPrintService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -27,7 +30,8 @@ class CashierShiftController extends Controller
     public function __construct(
         protected readonly CashierShiftService $cashierShiftService,
         protected readonly AuditLogService $auditLogService,
-        protected readonly OutletAccessService $outletAccessService
+        protected readonly OutletAccessService $outletAccessService,
+        protected readonly ForceCloseSummaryService $forceCloseSummaryService
     ) {}
 
     public function index(Request $request): Response
@@ -49,6 +53,28 @@ class CashierShiftController extends Controller
 
         $query = $this->cashierShiftService->visibleToUser($query, $request->user());
 
+        // The monthly force-close summary (REQ-003 AC-13, #564): same visibility as the list, one outlet and month.
+        $outlets = $this->outletAccessService->accessibleOutlets($request->user());
+        $summaryInput = $request->validate([
+            'summary_outlet_id' => ['nullable', Rule::in($outlets->pluck('id'))],
+            'summary_month' => ['nullable', 'date_format:Y-m'],
+        ]);
+        $timezone = config('app.timezone');
+        /** @var Outlet|null $outlet accessibleOutlets() returns an untyped Eloquent collection of outlets */
+        $outlet = isset($summaryInput['summary_outlet_id'])
+            ? $outlets->firstWhere('id', (int) $summaryInput['summary_outlet_id'])
+            : $this->outletAccessService->activeOutlet($request);
+        $summaryMonth = $summaryInput['summary_month'] ?? now($timezone)->format('Y-m');
+        $summary = $this->forceCloseSummaryService->monthSummary(
+            $this->cashierShiftService->visibleToUser(CashierShift::query(), $request->user()),
+            $outlet
+                ? Warehouse::where('outlet_id', $outlet->id)->pluck('id')->all()
+                : $this->outletAccessService->warehousesFor($request->user())->pluck('id')->all(),
+            // '!Y-m' resets the remaining fields: without it the parsed month keeps today's day, so on the 30th
+            // a February summary would start in March (#564).
+            Carbon::createFromFormat('!Y-m', $summaryMonth, $timezone)->startOfMonth(),
+        );
+
         $shifts = $query->paginate($this->perPage())->withQueryString();
         $shifts->through(fn (CashierShift $shift) => $this->transformShift($shift));
 
@@ -64,6 +90,9 @@ class CashierShiftController extends Controller
             'activeShift' => $activeShift ? $this->transformShift($activeShift) : null,
             'warehouses' => $warehouses,
             'canForceClose' => $request->user()->isSuperAdmin() || $request->user()->can('cashier-shifts-force-close'),
+            'forceCloseSummary' => $summary,
+            'summaryFilters' => ['outlet_id' => $outlet?->id, 'month' => $summaryMonth],
+            'summaryOutlets' => $outlets->map(fn ($accessible) => $accessible->only(['id', 'code', 'name']))->values()->all(),
         ]);
     }
 
