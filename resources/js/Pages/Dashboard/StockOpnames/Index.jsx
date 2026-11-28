@@ -2,6 +2,7 @@ import React from "react";
 import DashboardLayout from "@/Layouts/DashboardLayout";
 import { Head, Link, router } from "@inertiajs/react";
 import Button from "@/Components/Dashboard/Button";
+import OpnameVarianceByMonth from "@/Components/Dashboard/OpnameVarianceByMonth";
 import Table from "@/Components/Dashboard/Table";
 import Pagination from "@/Components/Dashboard/Pagination";
 import { useAuthorization } from "@/Utils/authorization";
@@ -21,7 +22,7 @@ function formatDateTime(value) {
     }).format(new Date(value));
 }
 
-export default function Index({ stockOpnames, filters, warehouses = [] }) {
+export default function Index({ stockOpnames, filters, warehouses = [], variance }) {
     const { can } = useAuthorization();
     const canCreateStockOpnames = can("stock-opnames-create");
 
@@ -121,6 +122,8 @@ export default function Index({ stockOpnames, filters, warehouses = [] }) {
                     />
                 </div>
             </div>
+
+            <OpnameVarianceByMonth variance={variance} />
 
             <Table.Card title="Daftar Sesi Stock Opname">
                 <Table>

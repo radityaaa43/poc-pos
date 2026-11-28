@@ -1515,5 +1515,22 @@
         "deletedUser": "Pengguna dihapus",
         "wastePercent": "Waste terhadap HPP penjualan",
         "noSalesCost": "Tidak ada biaya penjualan pada periode ini"
+    },
+    "opnameVariance": {
+        "title": "Selisih opname per bulan",
+        "description": "Rata-rata selisih absolut stock opname yang difinalisasi, sebelum dan sesudah pencatatan waste dimulai.",
+        "month": "Bulan",
+        "phase": "Fase",
+        "before": "Sebelum",
+        "after": "Sesudah",
+        "opnames": "Opname",
+        "avgValue": "Rata-rata nilai selisih",
+        "avgItemsOff": "Rata-rata item selisih",
+        "wasteStarted": "Pencatatan waste dimulai",
+        "empty": "Belum ada stock opname final dalam 12 bulan terakhir.",
+        "noWaste": "Belum ada waste tercatat: semua bulan dihitung sebagai sebelum.",
+        "startedIn": "Pencatatan waste dimulai pada {{month}}",
+        "estimated": "Estimasi",
+        "estimatedNote": "Baris estimasi memakai HPP rata-rata hari ini karena opname tidak punya biaya tersimpan."
     }
 }
