@@ -729,10 +729,8 @@ export default function Index({
                 toast.error("Pilih rekening bank tujuan untuk tender transfer");
                 return;
             }
-            if (
-                cashTenders[0] &&
-                Number(cashTenders[0].cash_received || 0) < Number(cashTenders[0].amount)
-            ) {
+            // Any cash tender paid with less than its amount is refused; blank falls back to the amount (#497, #501).
+            if (cashTenders.some((t) => Number(t.cash_received || t.amount) < Number(t.amount))) {
                 toast.error("Uang tunai split kurang dari nominal tender");
                 return;
             }

@@ -1,6 +1,9 @@
 // Lives outside Pages/ because the Inertia page glob would bundle a test placed there.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, fireEvent, screen, act } from "@testing-library/react";
+import { router } from "@inertiajs/react";
+import toast from "react-hot-toast";
+import axios from "axios";
 import Index from "@/Pages/Dashboard/Transactions/Index";
 
 const page = vi.hoisted(() => ({ props: {} }));
@@ -82,5 +85,28 @@ describe("POS split payment change", () => {
         await split({ first: "qris" });
 
         expect(changes()).toEqual([]);
+    });
+});
+
+// #501 / #497: any short cash tender is refused (not only the first), and a blank cash received means exact cash.
+describe("POS split cash refusal", () => {
+    it("refuses when a later cash tender is short, not only the first", async () => {
+        axios.post.mockResolvedValue({ data: { data: { summary: { grand_total: 20000 } } } });
+        render(<Index carts={carts} initialPricingPreview={{ items: [], summary: { grand_total: 20000 } }} paymentGateways={gateways} />);
+        await act(async () => {});
+        fireEvent.click(screen.getByRole("button", { name: "Split Pembayaran (2 metode)" }));
+        const methods = screen.getAllByRole("combobox").filter((select) => select.querySelector('option[value="cash"]'));
+        fireEvent.change(methods[0], { target: { value: "cash" } });
+        fireEvent.change(methods[1], { target: { value: "cash" } });
+        const [a, b] = screen.getAllByPlaceholderText("Nominal");
+        fireEvent.change(a, { target: { value: "10000" } });
+        fireEvent.change(b, { target: { value: "10000" } });
+        // First cash is exact (blank received -> amount); the second is paid 5.000 short.
+        const received = screen.getAllByPlaceholderText("Uang diterima (opsional)");
+        fireEvent.change(received[received.length - 1], { target: { value: "5000" } });
+        fireEvent.keyDown(window, { key: "F2" });
+
+        expect(toast.error).toHaveBeenCalledWith("Uang tunai split kurang dari nominal tender");
+        expect(router.post).not.toHaveBeenCalled();
     });
 });
