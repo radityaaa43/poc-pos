@@ -218,7 +218,10 @@ class TransactionTenderService
                 throw ValidationException::withMessages(['payment' => 'Status transaksi tidak dapat dikonfirmasi saat ini.']);
             }
 
-            $owed = $transaction->unpaidAmount(); // what this confirmation collects, read before it does
+            // What this confirmation collects, read before it does: what the sale was asked (a return recorded while it
+            // waited changes nothing, #405) less the parts already received.
+            $owed = max(0, $transaction->amountDue()
+                - (int) $transaction->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
 
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)

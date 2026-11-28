@@ -555,6 +555,17 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertSame([0, 0], [$summary['cash_sales_total'], $summary['non_cash_sales_total']]);
     }
 
+    public function test_the_late_audit_logs_what_was_asked_when_a_return_came_while_the_transfer_waited(): void
+    {
+        $split = $this->splitSale($this->shift);
+        $this->forceClose($this->shift, $this->cashier);
+        $this->completedReturn($split, 4000);
+
+        app(TransactionTenderService::class)->confirmTransfer($split);
+
+        $this->assertSame(15000, AuditLog::where('event', 'payment.paid_after_close')->sole()->meta['amount']);
+    }
+
     public function test_split_gateway_part_paid_after_force_close_is_flagged(): void
     {
         $this->useGateway('midtrans', false);
@@ -729,12 +740,12 @@ class ShiftCloseHoldTest extends TestCase
         return $sale;
     }
 
-    /** A completed return of no value, enough to take the sale out of the close's cancel and hold (BR-15). */
-    private function completedReturn(Transaction $sale): void
+    /** A completed return, of no value by default: enough to take the sale out of the close's cancel and hold (BR-15). */
+    private function completedReturn(Transaction $sale, int $amount = 0): void
     {
         DB::table('sales_returns')->insert([
             'code' => "SR-{$sale->id}", 'transaction_id' => $sale->id, 'cashier_id' => $this->cashier->id, 'status' => 'completed',
-            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => 0,
+            'return_type' => 'refund_cash', 'refund_amount' => 0, 'credited_amount' => 0, 'total_return_amount' => $amount,
             'completed_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
     }
