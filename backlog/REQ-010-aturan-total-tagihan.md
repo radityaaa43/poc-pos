@@ -1,6 +1,6 @@
 # REQ-010: Aturan total tagihan (service charge, PB1, pembulatan tunai)
 
-- **Status:** draft
+- **Status:** ready
 - **Owner:** @radityaaa43
 - **Module:** module:sales
 - **Updated:** 2026-11-28
@@ -29,6 +29,9 @@ Hari ini pajak hanya PPN per produk (exclusive atau inclusive, tarif per produk;
 8. **Split bill dan split payment:** service charge dan pajak dibagi proporsional ke tiap bagian (REQ-009); pembulatan berlaku per pembayaran tunai, termasuk bagian tunai dari split payment. (Business/PM, 2026-11-28)
 9. **Retur** mengembalikan service charge dan pajak proporsional dengan item yang diretur; pembulatan tidak dikembalikan. (Business/PM, 2026-11-28)
 10. **Saat rilis tidak ada yang berubah:** semua outlet PPN seperti sekarang, service charge nonaktif, pembulatan tanpa. Hanya pemilik yang mengubahnya (izin pengaturan yang ada), dan setiap perubahan dicatat di audit log. Penjualan lama tidak dihitung ulang. (Business/PM, 2026-11-28)
+11. **Dasar PPN tetap seperti sekarang** (per baris, sebelum voucher, poin, dan diskon manual); service charge ikut dikenai PPN dengan tarif efektifnya. Hanya PB1 memakai dasar keputusan 3. Alasan: outlet PPN tidak boleh berubah total saat rilis (AC-03). Ditolak: menerapkan keputusan 3 ke PPN, karena semua outlet PPN berubah totalnya. (Business/PM, 2026-11-28, Q-A feasibility #424)
+12. **Pesanan QR/dine-in dikenai pajak sama seperti POS mulai rilis.** Hari ini tagihan dine-in tidak dikenai pajak sama sekali, padahal item yang sama di POS dikenai pajak; ini perbaikan, dan disebut di catatan rilis. Ditolak: QR tetap tanpa pajak di outlet PPN, karena pajak yang seharusnya dipungut tidak tercatat. (Business/PM, 2026-11-28, Q-B)
+13. **Ongkir delivery tidak masuk dasar PB1;** outlet PPN tetap memajaki ongkir seperti sekarang. (Business/PM, 2026-11-28, Q-C)
 
 ## Process
 
@@ -101,7 +104,7 @@ n/a — tidak ada status baru; aturan ini hanya mengubah cara total dihitung.
 
 - **AC-01:** Given pemilik dengan izin pengaturan, when membuka pengaturan outlet, then bagian **Tagihan** menampilkan service charge (0-100%, default nonaktif), jenis pajak (**PPN** atau **PB1** dengan tarif 0-100%, default PPN), dan pembulatan tunai (**Tanpa**, **100**, **500**, default Tanpa); nilai di luar batas ditolak.
 - **AC-02:** Given pengaturan disimpan, when tagihan baru dibuat, then tagihan baru memakai pengaturan itu; tagihan yang sudah ada dan penjualan lama tidak dihitung ulang.
-- **AC-03:** Given rilis, when belum ada yang diubah, then semua outlet menghitung seperti sebelum rilis (PPN per produk, tanpa service, tanpa pembulatan).
+- **AC-03:** Given rilis, when belum ada yang diubah, then semua outlet menghitung seperti sebelum rilis (PPN per produk, tanpa service, tanpa pembulatan), kecuali pesanan QR/dine-in yang mulai dikenai pajak seperti POS (keputusan 12).
 - **AC-04:** Given perubahan pengaturan tagihan, when disimpan, then audit log mencatat siapa, kapan, outlet, nilai lama, dan nilai baru.
 
 ### Menagih
@@ -181,7 +184,7 @@ n/a — tidak ada status baru; aturan ini hanya mengubah cara total dihitung.
 
 ## Open questions
 
-- **Q1:** Feasibility read oleh tech-lead (mesin harga, struk, recap shift, offline, ukuran ticket) — decides: tech-lead. `?`
+- **Q1:** Feasibility read — **answered** (#424, 2026-11-28): layak dengan satu `BillTotalService` yang dipakai checkout POS, API, sync, dan accept dine-in. Enam ticket: T1 pengaturan outlet (±700), T2 service charge + PB1 di POS (±1.300), T3 aturan yang sama di QR/dine-in (±900), T4 pembulatan tunai termasuk split dan recap (±1.100; bagian ledger menunggu #427), T5 retur (±600), T6 laporan pajak (±650). Urutan: T1, T2, lalu T3/T4/T5 paralel, lalu T6. Q-A..Q-C menjadi keputusan 11-13.
 
 ## Delivered by
 
