@@ -293,6 +293,15 @@ describe("HeldTransactions: credit exception holds", () => {
         return user;
     };
 
+    it("a basket cancelled by the shift close says why and is free again", async () => {
+        const user = userEvent.setup();
+        render(<HeldTransactions heldCarts={[{ ...held[1], credit_status: "cancelled" }]} />);
+        await user.click(screen.getByRole("button"));
+
+        expect(screen.getByText("Shift ditutup")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Lanjutkan" })).toBeEnabled();
+    });
+
     it("a waiting basket says so and cannot be resumed or deleted", async () => {
         await expandCredit();
 

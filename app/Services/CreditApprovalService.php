@@ -74,17 +74,17 @@ class CreditApprovalService
         $this->ensureOutletAccess($request, $approver);
 
         DB::transaction(function () use ($request, $reason, $approver) {
-            // The same query as the checkout's own lock, so both take the shift's index and row in one order.
-            $shift = CashierShift::query()->open()->where('user_id', $request->cashier_id)
-                ->latest('opened_at')->lockForUpdate()->first();
+            // The request's own shift first, by id, as its close locks it: an approval and a close queue on one row.
+            $shift = CashierShift::query()->lockForUpdate()->find($request->cashier_shift_id);
             $customer = $this->customerCredit->lock($request->customer_id);
             $locked = CreditApprovalRequest::whereKey($request->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === CreditApprovalRequest::APPROVED) {
                 return;
             }
+            $this->ensure($locked->status !== CreditApprovalRequest::CANCELLED, 'shift_closed');
             $this->ensure($locked->status === CreditApprovalRequest::PENDING, 'already_denied');
-            $this->ensure($shift?->id === $locked->cashier_shift_id, 'shift_closed');
+            $this->ensure((bool) $shift?->isOpen(), 'shift_closed');
             $this->ensure((bool) $customer->may_buy_on_credit, 'credit_revoked');
 
             $held = Cart::where('cashier_id', $locked->cashier_id)->forHold($locked->hold_id);
@@ -146,6 +146,7 @@ class CreditApprovalService
             if ($locked->status === CreditApprovalRequest::DENIED) {
                 return;
             }
+            $this->ensure($locked->status !== CreditApprovalRequest::CANCELLED, 'shift_closed');
             $this->ensure($locked->status === CreditApprovalRequest::PENDING, 'already_approved');
 
             Cart::where('cashier_id', $locked->cashier_id)->forHold($locked->hold_id)
@@ -158,6 +159,19 @@ class CreditApprovalService
                 'approver' => $approver->name,
             ]);
         }, attempts: 3);
+    }
+
+    /** BR-11: a close cancels what still waits and frees the baskets. Call inside the close, after its shift lock. */
+    public function cancelForShift(CashierShift $shift, User $actor): void
+    {
+        $pending = CreditApprovalRequest::where('cashier_shift_id', $shift->id)
+            ->where('status', CreditApprovalRequest::PENDING)->orderBy('id')->lockForUpdate()->get();
+
+        foreach ($pending as $request) {
+            Cart::where('cashier_id', $request->cashier_id)->forHold($request->hold_id)->update(['hold_label' => 'Shift ditutup']);
+            $this->decide($request, CreditApprovalRequest::CANCELLED, 'Shift ditutup', $actor);
+            $this->audit($request, 'cancelled', 'Pengecualian kredit dibatalkan: shift ditutup', $actor, ['amount' => $request->amount]);
+        }
     }
 
     /** Parks the refused cart. The refused checkout rolled back, so no sale, stock, receivable or kitchen item exists. */

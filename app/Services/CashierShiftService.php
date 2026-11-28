@@ -304,6 +304,8 @@ class CashierShiftService
             }
 
             $cancelled = $this->cancelUnpaidPayNowSales($lockedShift, $actor);
+            // Resolved here: the approval service checks out through this one.
+            app(CreditApprovalService::class)->cancelForShift($lockedShift, $actor);
 
             $unpaidBillsTotal = (int) $blockers['bills']->sum(fn (Transaction $bill) => $bill->unpaidAmount());
             $this->kitchenItemService->markNotCollected($blockers['items']);

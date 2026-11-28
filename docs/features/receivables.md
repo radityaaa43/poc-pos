@@ -64,6 +64,7 @@ Mencatat piutang pelanggan yang berasal dari transaksi `pay_later` dan menyediak
   batas tidak berubah. Ditolak sistem (pengajuan tetap menunggu) bila shift sudah ditutup, total berubah, stok kurang,
   atau izin piutang pelanggan sudah dicabut. Persetujuan kedua tidak mengubah apa pun. Diskon yang melewati ambang
   tetap menunggu approval diskon.
+- Menutup shift membatalkan pengajuan yang masih menunggu (**Shift ditutup**, diaudit) dan membuka kembali keranjangnya.
 - **Tolak**: kasir melihat alasannya di daftar transaksi ditahan, lalu melanjutkan (bayar sekarang) atau menghapusnya.
 - Audit: `credit_approval.requested`, `.approved`, `.denied` pada pelanggan.
 - Urutan lock: shift kasir, pelanggan, pengajuan, keranjang, stok.

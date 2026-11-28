@@ -4,6 +4,7 @@ namespace Tests\Feature\Transactions;
 
 use App\Models\AuditLog;
 use App\Models\Cart;
+use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\CreditApprovalRequest;
 use App\Models\Customer;
@@ -324,6 +325,32 @@ class CreditApprovalTest extends TestCase
         if (DB::getDriverName() === 'mysql') { // SQLite renders no lock clause
             $this->assertSame([true, true, true, false], array_column(array_slice($reads, 0, 4), 1));
         }
+    }
+
+    // BR-11, TC-6: a close cancels what still waits, the basket is the cashier's again, and neither decision applies.
+    public function test_closing_the_shift_cancels_pending_requests(): void
+    {
+        $request = $this->requested();
+        $outside = DB::transactionLevel();
+        $reads = [];
+        DB::listen(function ($query) use (&$reads, $outside) {
+            if (DB::transactionLevel() > $outside && preg_match('/^select .*? from [`"](cashier_shifts|credit_approval_requests)[`"]/', $query->sql, $match)) {
+                $reads[] = $match[1];
+            }
+        });
+
+        app(CashierShiftService::class)->closeShift(CashierShift::findOrFail($request->cashier_shift_id), $this->cashier, 0);
+
+        // The shift row is locked before the requests, the order an approval takes them in.
+        $this->assertSame('cashier_shifts', $reads[0]);
+        $this->assertContains('credit_approval_requests', $reads);
+        $this->assertSame(CreditApprovalRequest::CANCELLED, $request->fresh()->status);
+        $this->assertTrue(AuditLog::where('event', 'credit_approval.cancelled')->exists());
+        CreditApprovalRequest::assertHoldIsFree($request->hold_id);
+        foreach (['approve', 'deny'] as $action) {
+            $this->decide($action, $request)->assertSessionHasErrors(['reason' => __('messages.credit.shift_closed')]);
+        }
+        $this->assertNothingBooked();
     }
 
     public function test_decided_request_cannot_be_flipped(): void

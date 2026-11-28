@@ -1227,7 +1227,8 @@
             "requestException": "Minta pengecualian",
             "cancel": "Batal",
             "awaiting": "Menunggu persetujuan kredit",
-            "denied": "Pengecualian kredit ditolak"
+            "denied": "Pengecualian kredit ditolak",
+            "cancelled": "Shift ditutup"
         }
     },
     "outlets": {

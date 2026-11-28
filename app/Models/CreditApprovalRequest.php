@@ -15,6 +15,8 @@ class CreditApprovalRequest extends Model
 
     public const DENIED = 'denied';
 
+    public const CANCELLED = 'cancelled';
+
     protected $fillable = [
         'customer_id', 'cashier_id', 'cashier_shift_id', 'warehouse_id', 'hold_id', 'amount', 'reason_code',
         'remaining_limit', 'payload', 'status', 'decided_by', 'decided_at', 'decision_reason', 'transaction_id',

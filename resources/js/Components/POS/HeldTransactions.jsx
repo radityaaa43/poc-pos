@@ -147,7 +147,7 @@ export default function HeldTransactions({
                             {hold.credit_status ? (
                                 <p className="flex items-center gap-1 text-xs font-semibold text-amber-800 dark:text-amber-200">
                                     <IconAlertTriangle size={12} className="shrink-0" aria-hidden="true" />
-                                    {t(awaiting(hold) ? "pos.credit.awaiting" : "pos.credit.denied")}
+                                    {t(`pos.credit.${awaiting(hold) ? "awaiting" : hold.credit_status}`)}
                                 </p>
                             ) : (
                                 <p className="text-xs font-medium text-amber-800 dark:text-amber-200 truncate">

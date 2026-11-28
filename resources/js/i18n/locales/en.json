@@ -1227,7 +1227,8 @@
             "requestException": "Request an exception",
             "cancel": "Cancel",
             "awaiting": "Awaiting credit approval",
-            "denied": "Credit exception denied"
+            "denied": "Credit exception denied",
+            "cancelled": "Shift closed"
         }
     },
     "outlets": {
