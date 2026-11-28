@@ -827,7 +827,9 @@ class PosApiController extends Controller
                 }
             }
 
-            foreach ($payload['items'] as $item) {
+            // The offline cart arrives newest-first; create it oldest-first so the cart ids the preview and the
+            // stored total read (id ascending, last line's tax rate) match what the offline screen showed (#450).
+            foreach (array_reverse($payload['items']) as $item) {
                 $product = Product::find($item['product_id']);
 
                 if (! $product) {

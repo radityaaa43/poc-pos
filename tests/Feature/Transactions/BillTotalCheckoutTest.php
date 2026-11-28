@@ -279,6 +279,55 @@ class BillTotalCheckoutTest extends TestCase
         $this->assertBill(Transaction::sole(), $this->dineInBill());
     }
 
+    public function test_offline_sync_of_a_two_rate_cart_matches_the_screen_preview(): void
+    {
+        $this->charge();
+        $this->openShift();
+        Sanctum::actingAs($this->cashier, ['*']);
+
+        // Line A at 11 % then line B at 5 %: the screen's preview taxes the last line, as checkout does.
+        $this->product->update(['sell_price' => 100000]);
+        $five = Product::create([
+            'title' => 'Teh', 'barcode' => 'SVC-003', 'sku' => 'SKU-SVC-003', 'image' => '', 'description' => '',
+            'buy_price' => 50000, 'sell_price' => 100000, 'stock' => 50, 'category_id' => $this->product->category_id,
+            'tax_type' => 'exclusive', 'tax_rate' => 5,
+        ]);
+        $five->warehouses()->attach($this->warehouse->id, ['stock' => 50]);
+
+        Cart::create([
+            'cashier_id' => $this->cashier->id, 'warehouse_id' => $this->warehouse->id,
+            'product_id' => $this->product->id, 'qty' => 1, 'price' => 100000,
+        ]);
+        Cart::create([
+            'cashier_id' => $this->cashier->id, 'warehouse_id' => $this->warehouse->id,
+            'product_id' => $five->id, 'qty' => 1, 'price' => 100000,
+        ]);
+
+        $preview = $this->actingAs($this->cashier)
+            ->postJson(route('transactions.pricing-preview'), ['order_type' => 'in_store'])
+            ->assertOk()
+            ->assertJsonPath('data.summary.grand_total', 226500)
+            ->json('data.summary.grand_total');
+
+        Cart::query()->delete();
+        Sanctum::actingAs($this->cashier, ['*']);
+
+        // The offline cart is queued newest-first (latest() carts), so the sync must build it oldest-first to
+        // tax the same last line the screen previewed.
+        $this->postJson('/api/v1/pos/transactions/sync', ['transactions' => [
+            self::TAMPERED + [
+                'client_uuid' => '550e8400-e29b-41d4-a716-446655440010', 'order_type' => 'in_store', 'cash' => 300000,
+                'items' => [
+                    ['product_id' => $five->id, 'qty' => 1, 'unit_id' => null],
+                    ['product_id' => $this->product->id, 'qty' => 1, 'unit_id' => null],
+                ],
+            ],
+        ]])->assertOk()->assertJsonPath('data.results.0.status', 'synced');
+
+        $this->assertSame($preview, Transaction::sole()->grand_total);
+        $this->assertSame(226500, Transaction::sole()->grand_total);
+    }
+
     public function test_checkout_uses_settings_at_checkout_time(): void
     {
         $this->openShift();
