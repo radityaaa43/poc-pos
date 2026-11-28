@@ -63,6 +63,13 @@ For every sales outlet:
 - Assign cashiers and managers through user outlet assignments.
 - Configure store profile, printer, payment settings, bank accounts, pricing, vouchers, dine-in tables, WhatsApp, and sales target as required.
 
+## Per-outlet settings
+
+Saved in the outlet edit form (`outlets-update`, audit-logged):
+
+- **Bayar Belakangan** (`pay_later_enabled`), off by default.
+- **Tagihan**: service charge, tax type (PPN or PB1) and cash rounding. Defaults and rules: [tax management](features/tax-management.md#bill-settings-tagihan-per-outlet).
+
 ## Pilot Checklist
 
 Run the following with a test user assigned to one outlet:
