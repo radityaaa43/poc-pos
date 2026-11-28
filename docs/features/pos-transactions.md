@@ -102,7 +102,7 @@ recovers the sale from its receipt (`transactions.print`) instead of cancelling 
 
 **Tambah pesanan** on a sale's receipt (`transactions-access`) opens the POS with that order pinned (`?add_on_to=<invoice>`); the checkout then makes a new sale with its own invoice, payment, stock, shift, promotions and points, linked by `transactions.parent_transaction_id` to the root order. The original is never rewritten. Rules (`app/Services/AddOnOrderService.php`, checked again at checkout):
 
-- It needs an open shift in the original order's outlet.
+- It needs an open shift in the original order's outlet; a shift closed mid-cart keeps the pinned order.
 - A finished order (the original and every non-cancelled add-on paid, nothing left in the kitchen) starts a new order without a link; otherwise the add-on joins it.
 - A cancelled original (expired and restocked by `transactions:expire`, dine-in order cancelled or rejected, or every line returned) is refused: "Pesanan asal sudah dibatalkan — buat pesanan baru", and its receipt has no button. A `failed` or `expired` payment that was not restocked is not a cancellation: the add-on is allowed and linked.
 - Not available offline or on the mobile API; a queued offline sale carrying `add_on_to` is rejected at sync. Audit log: `transaction.add_on_created`. The add-on's receipt page shows "Tambahan untuk <original invoice>". Schema: migration `2026_12_11_100001` adds `transactions.parent_transaction_id` and `dine_orders.add_on_to_dine_order_id`, both nullable, no backfill.

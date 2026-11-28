@@ -5,6 +5,7 @@ namespace Tests\Feature\Transactions;
 use App\Models\AuditLog;
 use App\Models\BankAccount;
 use App\Models\Cart;
+use App\Models\CashierShift;
 use App\Models\Category;
 use App\Models\Customer;
 use App\Models\DineArea;
@@ -353,6 +354,12 @@ class AddOnOrderTest extends TestCase
         $this->actingAs($this->admin)->post(route('cashier-shifts.store'), [
             'opening_cash' => 0, 'warehouse_id' => $this->warehouse->id, 'redirect_to' => 'transactions', 'add_on_to' => $original->invoice,
         ])->assertRedirect($withAddOn);
+
+        // A shift closed mid-cart: the redirect keeps the pin, posted by the request or only in the URL of the POS page.
+        CashierShift::query()->update(['status' => 'closed', 'closed_at' => now()]);
+        $this->actingAs($this->cashier)->post(route('transactions.store'), ['cash' => 100000, 'add_on_to' => $original->invoice])
+            ->assertRedirect($withAddOn);
+        $this->actingAs($this->cashier)->from($withAddOn)->delete(route('transactions.destroyCart', 1))->assertRedirect($withAddOn);
     }
 
     public function test_preview_takes_no_lock(): void
