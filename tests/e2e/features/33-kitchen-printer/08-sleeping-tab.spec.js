@@ -40,6 +40,8 @@ test.describe('33-kitchen-printer', () => {
         const second = arrange('kitchen-sale', { prefix: uniq('Ctk') });
         await page.waitForTimeout(35_000);
         expect(await ticketTexts(page)).toEqual([]);
+        // No ticket request has been answered for 30 s: the warning does not wait for one.
+        await expect(banner(page, 'Printer dapur offline atau tab tidur')).toBeVisible();
 
         // It wakes: the backlog arrives older than 30 s, so the warning shows while it prints.
         wake();

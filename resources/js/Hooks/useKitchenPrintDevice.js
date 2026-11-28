@@ -3,7 +3,7 @@ import axios from "axios";
 import i18n from "@/i18n";
 import { createPrintQueue } from "@/Utils/printQueue";
 import { buildKitchenTicketBytes, printBytes, printerKey as keyOf } from "@/Utils/escpos";
-import { classifyPrinterError, derivePrinterStatus, isStale, unprintedFromJobs, webUsbSupport } from "@/Utils/printerStatus";
+import { STALE_PRINT_MS, classifyPrinterError, derivePrinterStatus, isStale, unprintedFromJobs, webUsbSupport } from "@/Utils/printerStatus";
 import { useWakeLock } from "@/Hooks/useWakeLock";
 
 const POLL_MS = 5000;
@@ -130,6 +130,8 @@ export function useKitchenPrintDevice(outlet) {
     const [now, setNow] = useState(() => Date.now());
     // When a ticket was last overdue; the offline-or-asleep warning is held a little after that.
     const [staleAt, setStaleAt] = useState(null);
+    // No ticket fetch has succeeded for that long (AC-10, BR-4): orders may be waiting that this tab never heard of.
+    const [unfetched, setUnfetched] = useState(false);
     // The queue that is polling (null while this tab does not print) and a reprint-only one for auto-print off.
     const queueRef = useRef(null);
     const reprintQueueRef = useRef(null);
@@ -269,10 +271,15 @@ export function useKitchenPrintDevice(outlet) {
             },
         });
 
-        // Runs every second and reads the live queue, so a backlog that prints at once on waking still warns.
+        let fetchedAt = Date.now();
+        // Runs every second and reads the live queue, so a backlog that prints at once on waking still warns. It
+        // does not wait for the poll, so a request that never answers warns too.
         const clock = () => {
             const at = Date.now();
             setNow(at);
+            // Offline is the connection banner's to say; the 30 s start again once the browser is back.
+            if (!navigator.onLine) fetchedAt = at;
+            setUnfetched(at - fetchedAt > STALE_PRINT_MS);
             if (isStale(unprintedFromJobs(queue.jobs), at)) setStaleAt(at);
         };
         const publish = () => {
@@ -324,6 +331,7 @@ export function useKitchenPrintDevice(outlet) {
                 if (ended) throw ended;
                 setRecordFailed(failures.length > 0);
                 const { data } = await axios.get(route("kitchen.print-devices.tickets", deviceId));
+                fetchedAt = Date.now();
 
                 // A job that is queued or failed (not sending) was built from an older poll: drop it when its
                 // ticket left the response, rebuild it when the items or quantities changed. A job absent only
@@ -391,6 +399,7 @@ export function useKitchenPrintDevice(outlet) {
             setQueueState(NO_JOBS);
             setReprinting([]);
             setStaleAt(null);
+            setUnfetched(false);
             setRecordFailed(false);
             setEnded(false);
         };
@@ -486,6 +495,7 @@ export function useKitchenPrintDevice(outlet) {
         wakeLock,
         now,
         staleAt,
+        unfetched,
     });
 
     return {

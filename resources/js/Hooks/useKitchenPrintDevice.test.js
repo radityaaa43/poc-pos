@@ -854,3 +854,90 @@ describe("useKitchenPrintDevice: a reprint keeps the print safety rules (#410)",
         expect(result.current.reprinting).toEqual([]);
     });
 });
+
+describe("useKitchenPrintDevice: tickets that cannot be fetched (REQ-004 AC-10, BR-4)", () => {
+    const answer = async () => ({ data: { tickets: [], cancellations: [] } });
+    const down = () => Promise.reject({ response: { status: 500 } });
+    const never = () => new Promise(() => {});
+
+    it.each([
+        ["keeps failing", down],
+        ["never answers", never],
+    ])("shows stale after 30 s when the request %s, and clears on the next success", async (_case, get) => {
+        setStorage();
+        axios.get.mockImplementation(get);
+        const { result } = mount();
+        await advance(30000);
+        expect(result.current.status).toBeNull();
+
+        await advance(1000);
+        expect(result.current.status).toBe("stale");
+
+        axios.get.mockImplementation(answer);
+        await advance(4000); // the next poll
+        expect(result.current.status).toBeNull();
+    });
+
+    it("counts the 30 s from the last success", async () => {
+        setStorage();
+        axios.get.mockImplementation(answer);
+        const { result } = mount();
+        await advance(40000);
+        expect(result.current.status).toBeNull();
+
+        axios.get.mockImplementation(down);
+        await advance(30000);
+        expect(result.current.status).toBeNull();
+
+        await advance(1000);
+        expect(result.current.status).toBe("stale");
+    });
+
+    it("says nothing once auto-print is off, and starts the 30 s again when it is back on", async () => {
+        setStorage();
+        axios.get.mockImplementation(never);
+        const { result } = mount();
+        await advance(31000);
+
+        act(() => result.current.setAutoPrint(false));
+        expect(result.current.status).toBeNull();
+        await advance(60000);
+        expect(result.current.status).toBeNull();
+
+        act(() => result.current.setAutoPrint(true));
+        await advance(30000);
+        expect(result.current.status).toBeNull();
+    });
+
+    it("says nothing in a tab that is not the printing one", async () => {
+        const locks = fakeLocks();
+        Object.defineProperty(navigator, "locks", { value: locks, configurable: true });
+        locks.request("kitchen-print", {}, () => new Promise(() => {})); // another tab is the leader
+        setStorage();
+        const { result } = mount();
+        await advance(60000);
+
+        expect(result.current.status).toBeNull();
+        delete navigator.locks;
+    });
+
+    it("leaves an offline browser to the connection banner, and starts the 30 s again once it is back", async () => {
+        setStorage();
+        axios.get.mockImplementation(down);
+        const { result } = mount();
+        await advance(31000);
+        expect(result.current.status).toBe("stale");
+
+        onLine = false;
+        await advance(60000);
+        expect(result.current.status).toBeNull();
+
+        onLine = true;
+        await act(async () => window.dispatchEvent(new Event("online")));
+        await advance(29000);
+        expect(result.current.status).toBeNull();
+
+        await advance(2000);
+        expect(result.current.status).toBe("stale");
+    });
+});

@@ -44,14 +44,15 @@ export function unprintedFromJobs(jobs) {
 
 // One status at a time, highest priority first. `unsupported` is for the settings panel only (the page
 // shows no banner for it). Everything but unsupported and a driver lock needs auto-print on, so a display
-// that never prints stays quiet. `staleAt` is when the stale condition last held (the hook keeps it).
-export function derivePrinterStatus({ supported, autoPrint, errorCode, disconnected, unprinted, wakeLock, now, staleAt }) {
+// that never prints stays quiet. `staleAt` is when the stale condition last held and `unfetched` says the
+// tickets have not been fetched for too long (the hook keeps both).
+export function derivePrinterStatus({ supported, autoPrint, errorCode, disconnected, unprinted, wakeLock, now, staleAt, unfetched }) {
     if (!supported) return "unsupported";
     if (errorCode === "driver_locked") return "driver_locked";
     if (!autoPrint) return null;
     if (errorCode === "not_connected" || disconnected) return "not_connected";
     if (errorCode) return "failed";
-    if (isStale(unprinted, now) || (staleAt != null && now - staleAt < STALE_HOLD_MS)) return "stale";
+    if (unfetched || isStale(unprinted, now) || (staleAt != null && now - staleAt < STALE_HOLD_MS)) return "stale";
     if (["unsupported", "refused", "released"].includes(wakeLock)) return "wake_lock_off";
     return null;
 }
