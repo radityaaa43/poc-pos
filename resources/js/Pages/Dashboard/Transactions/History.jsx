@@ -51,46 +51,73 @@ const formatDateTime = (value) =>
         minute: "2-digit",
     });
 
-// Accepted dine-in order whose bill is unsettled. A pending bank transfer stays with the existing "Pending - Konfirmasi" action.
+// A claim the request died on: pending, a gateway tender, no reference after 120 s. The server derives it from the
+// same scope the POS "Belum Lunas" list uses, so there is one rule.
+const abandoned = (transaction) =>
+    Boolean(transaction.abandoned_claim) && transaction.payment_status === "pending";
+// A pay-later POS sale the guest or the cashier never settled (mirrors Transaction::payLaterBills).
+const isPosBill = (transaction) =>
+    transaction.is_pay_later &&
+    !transaction.dine_order &&
+    !transaction.receivable &&
+    transaction.owed_total > 0;
+const DINE_IN_PROGRESS = ["accepted", "preparing", "ready", "served"];
+// An unsettled bill: a dine-in order still in progress (the same states as Belum Lunas), or a POS pay-later sale
+// whose gateway claim was abandoned. A live pending transfer or gateway claim keeps its own action (confirm / QR).
 const isOpenBill = (transaction) =>
-    transaction.dine_order?.status === "accepted" &&
-    (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
-        (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"));
+    (DINE_IN_PROGRESS.includes(transaction.dine_order?.status) &&
+        (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
+            (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"))) ||
+    (abandoned(transaction) && isPosBill(transaction));
 
-// The cashier pays an unpaid bill from here or from the POS "Belum Lunas" section. A pending gateway payment
-// (QRIS) cannot be charged twice: it links to the receipt, which shows the QR, until the webhook marks it paid.
-const OpenBillStatus = ({ transaction, canPay, onPay }) => (
-    <span className="inline-flex items-center gap-2">
-        <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
-            Belum Lunas · {transaction.dine_order.table?.name ?? "Meja"}
-        </span>
-        {transaction.payment_status === "pending" ? (
-            <Link
-                href={route("transactions.print", transaction.invoice)}
-                className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-sky-500 text-white rounded-full hover:bg-sky-600 transition-colors"
-            >
-                Lihat QR
-            </Link>
-        ) : (
-            canPay && (
-                <button
-                    type="button"
-                    onClick={() =>
-                        onPay({
-                            order_id: transaction.dine_order.id,
-                            invoice: transaction.invoice,
-                            table: transaction.dine_order.table?.name,
-                            amount: transaction.owed_total,
-                        })
-                    }
-                    className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+// The cashier pays an unpaid bill from here or from the POS "Belum Lunas" section. A pending gateway payment keeps
+// its receipt link, which shows the QR, until the webhook marks it paid; an abandoned claim has no QR, so it offers
+// Bayar like the POS list does.
+const OpenBillStatus = ({ transaction, canPay, onPay }) => {
+    const isDine = Boolean(transaction.dine_order);
+    const showQr = transaction.payment_status === "pending" && !abandoned(transaction);
+    // A POS bill settles with transactions-access, which this page already requires; a dine bill needs its own permission.
+    const canPayHere = isDine ? canPay : true;
+    return (
+        <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 rounded-full">
+                {isDine
+                    ? `Belum Lunas · ${transaction.dine_order.table?.name ?? "Meja"}`
+                    : "Belum Lunas"}
+            </span>
+            {showQr ? (
+                <Link
+                    href={route("transactions.print", transaction.invoice)}
+                    className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-sky-500 text-white rounded-full hover:bg-sky-600 transition-colors"
                 >
-                    Bayar
-                </button>
-            )
-        )}
-    </span>
-);
+                    Lihat QR
+                </Link>
+            ) : (
+                canPayHere && (
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onPay({
+                                id: transaction.id,
+                                order_id: transaction.dine_order?.id,
+                                invoice: transaction.invoice,
+                                table: transaction.dine_order?.table?.name,
+                                label: isDine
+                                    ? undefined
+                                    : transaction.customer?.name ??
+                                      transaction.note,
+                                amount: transaction.owed_total,
+                            })
+                        }
+                        className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+                    >
+                        Bayar
+                    </button>
+                )
+            )}
+        </span>
+    );
+};
 
 const History = ({ transactions, filters, warehouses = [], bankAccounts = [], paymentGateways = [] }) => {
     const { can } = useAuthorization();

@@ -271,7 +271,7 @@ satu metode per tagihan:
   kedua); POS dan Riwayat menampilkan "Lihat QR" ke struk. Pengecualian: tagihan yang `pending` karena charge online tamu
   (tanpa tender) diambil alih kasir (takeover, lihat "Guest online payment").
   Another exception: a gateway tender with no reference after 120 s belongs to a request that died before storing its charge.
-  The POS "Belum Lunas" row then offers **Bayar** again and paying replaces it (Riwayat Transaksi still shows "Lihat QR").
+  The POS "Belum Lunas" row and Transactions History then offer **Bayar** again, with the same flow, and paying replaces it.
 
 Saat dibayar, dalam satu `DB::transaction` dengan `lockForUpdate()` pada pesanan dan transaksi:
 
