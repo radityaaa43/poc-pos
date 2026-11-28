@@ -1990,7 +1990,6 @@ export default function Index({
                     </div>
                 </div>
             </div>
-
             {creditException.dialog}
             {/* Numpad Modal */}
             <NumpadModal
