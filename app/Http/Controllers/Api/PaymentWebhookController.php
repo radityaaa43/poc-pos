@@ -356,6 +356,18 @@ class PaymentWebhookController extends Controller
                 return 'flag';
             }
 
+            // The same charge booked a second time is nothing new; but a charge that was failed (its rest expired after the
+            // sale was covered another way) arriving paid is a second payment of that money: flag it, never ignore it.
+            $referenceStatus = $this->referenceStatus($bill, $reference);
+
+            if ($referenceStatus === TransactionTender::STATUS_PAID) {
+                return 'ignore';
+            }
+
+            if ($referenceStatus !== null) {
+                return 'flag';
+            }
+
             if (! $this->isRedelivery($bill, $attempt, $reference)) {
                 return 'flag';
             }
@@ -435,6 +447,18 @@ class PaymentWebhookController extends Controller
         return filled($reference) && $known !== []
             ? in_array($reference, $known, true)
             : $attempt === (int) $bill->payment_attempt;
+    }
+
+    /**
+     * The status of the tender that stores this gateway reference, or null when no tender of the bill carries it.
+     */
+    private function referenceStatus(Transaction $bill, ?string $reference): ?string
+    {
+        if (blank($reference)) {
+            return null;
+        }
+
+        return $bill->tenders()->where('payment_reference', $reference)->value('payment_status');
     }
 
     /**
@@ -657,7 +681,9 @@ class PaymentWebhookController extends Controller
             $all = $bill->tenders()->get();
             // A rest that failed after the paid tenders already covered the sale is stale: it must not fail a sale
             // that owes nothing (#530 BR-3). A pending rest is left, so a transfer still waiting keeps the bill open.
-            $paidCovers = (int) $all->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount') >= $bill->remainingTotal();
+            // Paid > 0: a fully returned sale that took no money must not read as paid (#530).
+            $paidTotal = (int) $all->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount');
+            $paidCovers = $paidTotal > 0 && $paidTotal >= $bill->remainingTotal();
             $statuses = $all->when($paidCovers, fn ($tenders) => $tenders->where('payment_status', '!=', TransactionTender::STATUS_FAILED));
             $values = ['payment_status' => app(TransactionTenderService::class)->aggregateStatus(
                 $statuses->map(fn (TransactionTender $t) => ['method' => $t->method, 'payment_status' => $t->payment_status])->all()

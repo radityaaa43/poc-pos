@@ -130,6 +130,7 @@ describe("Transactions History", () => {
             payment_status: "failed",
             payment_method: "split",
             is_pay_later: false,
+            partly_paid_split: true,
             created_at: "2026-11-28T10:00:00Z",
         };
         render(<History transactions={{ data: [split], links: [] }} filters={{}} />);
@@ -137,6 +138,24 @@ describe("Transactions History", () => {
         // the rest is collected on the receipt (the modal settles pay-later bills only), so Bayar is a link
         expect(screen.getAllByText("Bayar")[0].closest("a")).not.toBeNull();
         expect(screen.queryByText("Piutang")).not.toBeInTheDocument();
+    });
+
+    it("offers no Bayar for a split the server does not call partly paid", () => {
+        // A failed dine split or a returned one is not collectable: only the server's partly paid split rule decides.
+        const split = {
+            id: 14,
+            invoice: "TRX-SPLIT-DEAD",
+            grand_total: 20000,
+            owed_total: 20000,
+            payment_status: "failed",
+            payment_method: "split",
+            is_pay_later: false,
+            partly_paid_split: false,
+            created_at: "2026-11-28T10:00:00Z",
+        };
+        render(<History transactions={{ data: [split], links: [] }} filters={{}} />);
+
+        expect(screen.queryByText("Bayar")).not.toBeInTheDocument();
     });
 
     it("offers Bayar, not Lihat QR, on a dine bill whose gateway claim was abandoned", () => {

@@ -164,6 +164,24 @@ class SettleGuestBillTest extends TestCase
         $this->assertNull($bill->payment_failure_reason);
     }
 
+    public function test_a_failed_bill_with_a_failed_gateway_charge_is_paid_from_history(): void
+    {
+        $bill = $this->guestBill();
+        $bill->update(['payment_status' => 'failed', 'payment_method' => 'midtrans', 'payment_attempt' => 1, 'payment_failure_reason' => 'expired']);
+        $bill->tenders()->create([
+            'method' => 'midtrans', 'amount' => (int) $bill->grand_total,
+            'payment_status' => 'failed', 'payment_reference' => 'ref-old',
+        ]);
+
+        // The Bayar action History offers for a failed gateway bill: the settle route takes the money and the old charge stays dead.
+        $this->settle($bill, $this->cash())->assertSessionHasNoErrors();
+
+        $bill->refresh();
+        $this->assertSame('paid', $bill->payment_status);
+        $this->assertSame((int) $bill->grand_total, (int) $bill->tenders()->where('payment_status', 'paid')->sum('amount'));
+        $this->assertSame(2, $bill->payment_attempt);
+    }
+
     public function test_settle_with_qris_charges_the_bill_and_leaves_it_pending(): void
     {
         $this->enableMidtrans();

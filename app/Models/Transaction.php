@@ -252,6 +252,12 @@ class Transaction extends Model
             ->whereHas('tenders', self::receivedTender());
     }
 
+    /** Is this row one the partly paid split rule selects? The history page asks it for the Bayar action (#530). */
+    public function isPartlyPaidSplit(): bool
+    {
+        return static::partlyPaidSplit()->whereKey($this->getKey())->exists();
+    }
+
     /** The one test of "money received": the close cancels a sale without it and is held by a split with it. */
     private static function receivedTender(): Closure
     {

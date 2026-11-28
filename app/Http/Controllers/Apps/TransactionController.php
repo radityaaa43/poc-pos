@@ -888,7 +888,7 @@ class TransactionController extends Controller
 
             return [
                 ...$transaction->toArray(),
-                'can_create_sales_return' => $canCreateSalesReturn,
+                'can_create_sales_return' => $canCreateSalesReturn, 'partly_paid_split' => $transaction->isPartlyPaidSplit(),
                 // what the dialogs ask: after returns, not the grand total
                 ...($salesReturnTablesReady ? $transaction->screenAmounts() : ['owed_total' => (int) $transaction->grand_total]),
             ];

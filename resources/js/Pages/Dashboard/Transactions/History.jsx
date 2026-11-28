@@ -69,10 +69,9 @@ const isFailedGatewayBill = (transaction) =>
     isPosBill(transaction) &&
     ["failed", "expired"].includes(transaction.payment_status);
 // A split sale that holds some money but has a failed or pending rest: the rest is collected on its receipt (#530).
-const isSplitRest = (transaction) =>
-    transaction.payment_method === "split" &&
-    transaction.payment_status !== "paid" &&
-    transaction.owed_total > 0;
+// The server decides it (the partly paid split scope), so a failed dine split, a returned one or one waiting for
+// discount approval is not offered Bayar here.
+const isSplitRest = (transaction) => transaction.partly_paid_split === true;
 // An unsettled bill: a dine-in order still in progress (the same states as Belum Lunas), a POS pay-later sale whose
 // gateway claim was abandoned or failed, or a partly paid split. A live pending transfer or gateway claim keeps its
 // own action (confirm / QR).
@@ -89,7 +88,7 @@ const isOpenBill = (transaction) =>
 // Bayar like the POS list does.
 const OpenBillStatus = ({ transaction, canPay, onPay }) => {
     const isDine = Boolean(transaction.dine_order);
-    const isSplit = transaction.payment_method === "split";
+    const isSplit = Boolean(transaction.partly_paid_split);
     const showQr = transaction.payment_status === "pending" && !abandoned(transaction);
     // A POS bill settles with transactions-access, which this page already requires; a dine bill needs its own permission.
     const canPayHere = isDine ? canPay : true;

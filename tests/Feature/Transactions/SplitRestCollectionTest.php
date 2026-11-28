@@ -557,6 +557,31 @@ class SplitRestCollectionTest extends TestCase
         $this->assertNull($sale->late_superseded_payment_at);
     }
 
+    public function test_a_rest_that_settles_after_its_expiry_on_a_covered_sale_is_flagged(): void
+    {
+        Http::fake(['https://app.sandbox.midtrans.com/*' => Http::response([
+            'token' => 'snap', 'redirect_url' => 'https://pay.midtrans.test/rest',
+        ], 200)]);
+        $sale = $this->failedSplit();
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'midtrans'])
+            ->assertSessionHasNoErrors();
+
+        // The old qris part is paid late: the paid tenders cover the sale, then the rest expires.
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-qris', 15000))->assertOk();
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-midtrans-r1', 15000, 'expire'))->assertOk();
+        $this->assertSame('paid', $sale->fresh()->payment_status);
+
+        // The same charge then settles: that money arrived twice and must be flagged, not silently ignored (#530).
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-midtrans-r1', 15000))->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertNotNull($sale->late_superseded_payment_at);
+        $this->assertSame(20000, (int) $sale->tenders()->where('payment_status', 'paid')->sum('amount'));
+    }
+
     public function test_a_redelivered_late_payment_while_a_transfer_rest_waits_is_ignored(): void
     {
         $bank = $this->bankAccount();
@@ -614,6 +639,22 @@ class SplitRestCollectionTest extends TestCase
 
         $this->assertSame('failed', $sale->fresh()->payment_status);
         $this->assertSame(0, $sale->fresh()->payment_attempt);
+    }
+
+    public function test_history_flags_only_a_partly_paid_split_for_bayar(): void
+    {
+        $paid = $this->failedSplit(); // 5.000 cash kept, rest failed: collectable
+        $dead = $this->sale('failed', 20000); // no money received at all: not collectable
+        $dead->tenders()->create(['method' => 'qris', 'amount' => 20000, 'change' => 0, 'payment_status' => 'failed']);
+
+        $props = $this->actingAs($this->cashier)
+            ->get(route('transactions.history'))
+            ->assertOk()
+            ->viewData('page')['props'];
+
+        $flags = collect($props['transactions']['data'])->pluck('partly_paid_split', 'invoice');
+        $this->assertTrue($flags[$paid->invoice]);
+        $this->assertFalse($flags[$dead->invoice]);
     }
 
     public function test_a_rest_without_an_open_shift_is_refused(): void
