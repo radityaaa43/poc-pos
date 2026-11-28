@@ -58,3 +58,6 @@ Route::get('stock-mutations', [StockMutationController::class, 'index'])->middle
 Route::get('stock-waste', [StockWasteController::class, 'index'])->middleware('permission:stock-waste-create|stock-waste-approve')->name('stock-waste.index');
 Route::get('stock-waste/create', [StockWasteController::class, 'create'])->middleware('permission:stock-waste-create')->name('stock-waste.create');
 Route::post('stock-waste', [StockWasteController::class, 'store'])->middleware('permission:stock-waste-create')->name('stock-waste.store');
+Route::post('stock-waste/{stockWaste}/approve', [StockWasteController::class, 'approve'])->middleware('permission:stock-waste-approve')->name('stock-waste.approve');
+Route::post('stock-waste/{stockWaste}/reject', [StockWasteController::class, 'reject'])->middleware('permission:stock-waste-approve')->name('stock-waste.reject');
+Route::post('stock-waste/{stockWaste}/cancel', [StockWasteController::class, 'cancel'])->middleware('permission:stock-waste-approve')->name('stock-waste.cancel');

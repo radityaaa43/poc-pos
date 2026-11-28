@@ -464,6 +464,14 @@ return [
         'movement' => 'Stock waste #:id.',
         'audit_recorded' => 'Waste #:id recorded.',
         'audit_pending' => 'Waste #:id is pending approval.',
+        'rejected' => 'Waste rejected.',
+        'cancelled' => 'Waste cancelled and the stock restored.',
+        'own_record' => 'You cannot approve your own waste record; another approver must.',
+        'already_handled' => 'Already handled by :name; nothing was changed.',
+        'approver' => 'another approver',
+        'audit_approved' => 'Waste #:id approved and the stock taken.',
+        'audit_rejected' => 'Waste #:id rejected.',
+        'audit_cancelled' => 'Waste #:id cancelled and the stock restored.',
     ],
 
     /*

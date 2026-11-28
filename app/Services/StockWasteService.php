@@ -228,6 +228,131 @@ class StockWasteService
         ]);
     }
 
+    /** Approve a pending record: another user takes the stock now, at this moment's recipe and cost (REQ-011 AC-06). */
+    public function approve(StockWaste $waste, User $user): StockWaste
+    {
+        return DB::transaction(function () use ($waste, $user) {
+            $locked = StockWaste::whereKey($waste->id)->lockForUpdate()->firstOrFail();
+            $this->assertStatus($locked, StockWaste::STATUS_PENDING);
+
+            if ((int) $locked->created_by === (int) $user->id) {
+                $this->refuse('waste', 'own_record', []);
+            }
+
+            $stored = $locked->lines()->orderBy('id')->get();
+            $lines = $stored->map(fn ($line) => ['product_id' => $line->product_id, 'qty' => (int) $line->qty])->all();
+            $moves = $this->explode($lines);
+
+            $stock = $this->lockStock($locked, $moves);
+            $this->takeStock($locked, $moves, $stored->pluck('id')->all(), $stock, $user);
+
+            $locked->update(['approved_by' => $user->id, 'approved_at' => now()]);
+
+            $this->auditLogService->log(
+                event: 'stock_waste.approved',
+                module: 'stock',
+                auditable: $locked,
+                description: __('messages.waste.audit_approved', ['id' => $locked->id]),
+                meta: ['warehouse_id' => $locked->warehouse_id, 'total_value' => $locked->total_value],
+                actor: $user,
+            );
+
+            return $locked->fresh();
+        }, 3);
+    }
+
+    /** Reject a pending record with a reason; nothing moves (AC-08). */
+    public function reject(StockWaste $waste, User $user, string $reason): StockWaste
+    {
+        return DB::transaction(function () use ($waste, $user, $reason) {
+            $locked = StockWaste::whereKey($waste->id)->lockForUpdate()->firstOrFail();
+            $this->assertStatus($locked, StockWaste::STATUS_PENDING);
+
+            $locked->update([
+                'status' => StockWaste::STATUS_REJECTED,
+                'rejected_by' => $user->id,
+                'rejected_at' => now(),
+                'rejected_reason' => $reason,
+            ]);
+
+            $this->auditLogService->log(
+                event: 'stock_waste.rejected',
+                module: 'stock',
+                auditable: $locked,
+                description: __('messages.waste.audit_rejected', ['id' => $locked->id]),
+                meta: ['warehouse_id' => $locked->warehouse_id, 'reason' => $reason],
+                actor: $user,
+            );
+
+            return $locked->fresh();
+        }, 3);
+    }
+
+    /** Cancel a recorded record with a reason: the stock comes back with the cost it left with (AC-09). */
+    public function cancel(StockWaste $waste, User $user, string $reason): StockWaste
+    {
+        return DB::transaction(function () use ($waste, $user, $reason) {
+            $locked = StockWaste::whereKey($waste->id)->lockForUpdate()->firstOrFail();
+            $this->assertStatus($locked, StockWaste::STATUS_RECORDED);
+
+            $moves = $locked->moves()->orderBy('product_id')->get();
+            $productIds = $moves->pluck('product_id')->unique()->sort()->values()->all();
+
+            // Same lock order as record(): the waste row (above), the pivot rows by product id, then products.
+            foreach ($productIds as $productId) {
+                ProductWarehouse::where(['product_id' => $productId, 'warehouse_id' => $locked->warehouse_id])->lockForUpdate()->first();
+            }
+            $products = Product::whereKey($productIds)->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+
+            foreach ($moves as $move) {
+                $product = $products[$move->product_id];
+                $stockBefore = (int) (ProductWarehouse::where([
+                    'product_id' => $move->product_id, 'warehouse_id' => $locked->warehouse_id,
+                ])->value('stock') ?? 0);
+
+                $this->inventoryCostService->receive($product, $locked->warehouse_id, (int) $move->qty, (float) $move->unit_cost);
+                $product->increment('stock', (int) $move->qty);
+                $this->stockMutationService->recordWasteMovement($product, $locked, 'in', (int) $move->qty, $stockBefore, $stockBefore + (int) $move->qty, userId: $user->id);
+            }
+
+            $locked->update([
+                'status' => StockWaste::STATUS_CANCELLED,
+                'cancelled_by' => $user->id,
+                'cancelled_at' => now(),
+                'cancelled_reason' => $reason,
+            ]);
+
+            $this->auditLogService->log(
+                event: 'stock_waste.cancelled',
+                module: 'stock',
+                auditable: $locked,
+                description: __('messages.waste.audit_cancelled', ['id' => $locked->id]),
+                meta: ['warehouse_id' => $locked->warehouse_id, 'reason' => $reason],
+                actor: $user,
+            );
+
+            return $locked->fresh();
+        }, 3);
+    }
+
+    /** The record must still be in the status the action needs; a second request names who already handled it. */
+    private function assertStatus(StockWaste $waste, string $expected): void
+    {
+        if ($waste->status === $expected) {
+            return;
+        }
+
+        $actorId = match ($waste->status) {
+            StockWaste::STATUS_RECORDED => $waste->approved_by,
+            StockWaste::STATUS_REJECTED => $waste->rejected_by,
+            StockWaste::STATUS_CANCELLED => $waste->cancelled_by,
+            default => null,
+        };
+        $name = ($actorId ? User::whereKey($actorId)->value('name') : null) ?? __('messages.waste.approver');
+
+        throw ValidationException::withMessages(['waste' => __('messages.waste.already_handled', ['name' => $name])]);
+    }
+
     private function refuse(string $field, string $message, array $replace): never
     {
         throw ValidationException::withMessages([$field => __("messages.waste.$message", $replace)]);

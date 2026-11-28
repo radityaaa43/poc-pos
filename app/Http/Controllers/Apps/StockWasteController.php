@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StockWasteReasonRequest;
 use App\Http\Requests\StoreStockWasteRequest;
 use App\Models\Product;
 use App\Models\ProductWarehouse;
@@ -70,6 +71,35 @@ class StockWasteController extends Controller
         $waste = $this->stockWasteService->record($request->validated(), $request->user());
 
         return to_route('stock-waste.index')->with('success', __('messages.waste.'.$waste->status));
+    }
+
+    /** Another holder of stock-waste-approve approves a pending record; the stock is taken then (AC-06). */
+    public function approve(Request $request, StockWaste $stockWaste): RedirectResponse
+    {
+        abort_unless($this->outletAccessService->canUseWarehouse($request->user(), $stockWaste->warehouse), 403);
+
+        $this->stockWasteService->approve($stockWaste, $request->user());
+
+        return back()->with('success', __('messages.waste.recorded'));
+    }
+
+    public function reject(StockWasteReasonRequest $request, StockWaste $stockWaste): RedirectResponse
+    {
+        abort_unless($this->outletAccessService->canManageWarehouse($request->user(), $stockWaste->warehouse), 403);
+
+        $this->stockWasteService->reject($stockWaste, $request->user(), $request->validated('reason'));
+
+        return back()->with('success', __('messages.waste.rejected'));
+    }
+
+    /** Cancel a recorded record with a reason; the stock comes back (AC-09). */
+    public function cancel(StockWasteReasonRequest $request, StockWaste $stockWaste): RedirectResponse
+    {
+        abort_unless($this->outletAccessService->canManageWarehouse($request->user(), $stockWaste->warehouse), 403);
+
+        $this->stockWasteService->cancel($stockWaste, $request->user(), $request->validated('reason'));
+
+        return back()->with('success', __('messages.waste.cancelled'));
     }
 
     /**

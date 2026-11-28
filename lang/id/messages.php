@@ -464,6 +464,14 @@ return [
         'movement' => 'Waste stok #:id.',
         'audit_recorded' => 'Waste #:id tercatat.',
         'audit_pending' => 'Waste #:id menunggu persetujuan.',
+        'rejected' => 'Waste ditolak.',
+        'cancelled' => 'Waste dibatalkan dan stok dikembalikan.',
+        'own_record' => 'Anda tidak bisa menyetujui catatan waste sendiri; approver lain harus menyetujuinya.',
+        'already_handled' => 'Sudah diproses oleh :name; tidak ada yang berubah.',
+        'approver' => 'approver lain',
+        'audit_approved' => 'Waste #:id disetujui dan stok dipotong.',
+        'audit_rejected' => 'Waste #:id ditolak.',
+        'audit_cancelled' => 'Waste #:id dibatalkan dan stok dikembalikan.',
     ],
 
     /*
