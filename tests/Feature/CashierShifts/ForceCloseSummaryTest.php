@@ -171,6 +171,19 @@ class ForceCloseSummaryTest extends TestCase
             ->assertSessionHasErrors('summary_outlet_id');
     }
 
+    public function test_a_summary_month_taken_on_the_last_day_keeps_its_own_month(): void
+    {
+        // On the 31st a bare 'Y-m' parse kept day 31, overflowing February into March (#564).
+        $this->travelTo(Carbon::create(2026, 3, 31, 10, 0, 0, config('app.timezone')));
+        $this->closedShift(['closed_at' => Carbon::create(2026, 2, 15, 12, 0, 0, config('app.timezone'))]);
+
+        $this->actingAs($this->cashier)
+            ->get(route('cashier-shifts.index', ['summary_month' => '2026-02']))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('forceCloseSummary.month', '2026-02')
+                ->where('forceCloseSummary.closed', 1));
+    }
+
     public function test_bad_summary_month_is_refused(): void
     {
         $this->actingAs($this->cashier)

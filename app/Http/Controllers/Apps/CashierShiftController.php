@@ -70,7 +70,9 @@ class CashierShiftController extends Controller
             $outlet
                 ? Warehouse::where('outlet_id', $outlet->id)->pluck('id')->all()
                 : $this->outletAccessService->warehousesFor($request->user())->pluck('id')->all(),
-            Carbon::createFromFormat('Y-m', $summaryMonth, $timezone)->startOfMonth(),
+            // '!Y-m' resets the remaining fields: without it the parsed month keeps today's day, so on the 30th
+            // a February summary would start in March (#564).
+            Carbon::createFromFormat('!Y-m', $summaryMonth, $timezone)->startOfMonth(),
         );
 
         $shifts = $query->paginate($this->perPage())->withQueryString();
