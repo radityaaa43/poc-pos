@@ -23,6 +23,7 @@ import RetryPaymentPanel from "@/Components/POS/RetryPaymentPanel";
 import AddOnButton, { InvoiceNumber } from "@/Components/POS/AddOnButton";
 import { LateRefundNotice } from "./LateRefundBadge";
 import InvoiceTotal from "./InvoiceTotal";
+import OrderNameLine, { ORDER_TYPE_LABELS, useOrderNameLine } from "@/Components/Receipt/OrderName";
 import { useAuthorization } from "@/Utils/authorization";
 import { hasCachedPrinter, kickDrawer, printReceipt } from "@/Utils/escpos";
 import toast, { Toaster } from "react-hot-toast";
@@ -175,12 +176,8 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
     const isNonCash = paymentMethodKey !== "cash";
     const showPaymentLink = isNonCash && transaction.payment_url;
 
+    const orderNameLine = useOrderNameLine(transaction.order_name);
     const receiptData = useMemo(() => {
-        const orderTypeLabels = {
-            in_store: "Di Tempat",
-            takeaway: "Bawa Pulang",
-            delivery: "Diantar",
-        };
         const discountTotal =
             Number(transaction.discount || 0) +
             promoDiscountTotal +
@@ -196,7 +193,8 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
             cashier: transaction.cashier?.name,
             customer_name: transaction.customer?.name,
             order_type_label:
-                orderTypeLabels[transaction.order_type] ?? transaction.order_type,
+                ORDER_TYPE_LABELS[transaction.order_type] ?? transaction.order_type,
+            order_name_line: orderNameLine,
             items: items.map((item) => ({
                 qty: Number(item.qty),
                 name: item.product?.title ?? item.product?.name ?? "Item",
@@ -227,6 +225,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
         voucherDiscountTotal,
         paymentMethodLabel,
         isNonCash,
+        orderNameLine,
     ]);
 
     const openThermalFallback = async (popup) => {
@@ -610,6 +609,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                                 </span>
                                             </div>
                                             <InvoiceNumber transaction={transaction} />
+                                            <OrderNameLine name={transaction.order_name} className="text-sm font-semibold print:hidden" />
                                             <p className="text-xs sm:text-sm opacity-80 print:opacity-100 mt-1">
                                                 {formatDateTime(
                                                     transaction.created_at
@@ -664,7 +664,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
                                             )}
                                             {transaction.order_type && (
                                                 <span className="inline-flex items-center px-3 py-1 text-xs font-semibold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                                                    {{ in_store: "Di Tempat", takeaway: "Bawa Pulang", delivery: "Diantar" }[transaction.order_type] ?? transaction.order_type}
+                                                    {ORDER_TYPE_LABELS[transaction.order_type] ?? transaction.order_type}
                                                 </span>
                                             )}
                                             {transaction.payment_method ===

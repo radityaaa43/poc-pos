@@ -198,6 +198,7 @@ class DineOrderTest extends TestCase
         $this->assertEquals(30000, $transaction->grand_total);
         $this->assertEquals('unpaid', $transaction->payment_status);
         $this->assertEquals('in_store', $transaction->order_type);
+        $this->assertNull($transaction->order_name); // a table order keeps the table name (#445)
         $this->assertEquals($this->warehouse->id, $transaction->warehouse_id);
 
         $this->assertDatabaseHas('transaction_details', [

@@ -99,6 +99,7 @@ return [
         'points_redeemed' => 'Points Redeemed',
         'voucher_used' => 'Voucher',
         'footer' => 'Purchased items cannot be returned.',
+        'order_name' => 'Order name',
     ],
 
     /*

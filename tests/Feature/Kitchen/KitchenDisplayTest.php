@@ -143,6 +143,28 @@ class KitchenDisplayTest extends TestCase
             );
     }
 
+    // REQ-009 AC-20 (#445): table name, else order name, else invoice.
+    public function test_a_named_order_shows_its_name_and_a_table_order_keeps_its_table(): void
+    {
+        $named = $this->sale('INV-NAMED', orderType: 'takeaway');
+        $named->update(['order_name' => 'Budi 7']);
+        $dine = $this->sale('INV-DINE', table: 'Meja 5');
+        $dine->update(['order_name' => 'Budi 8']);
+        $this->kitchenItem($named, acceptedAt: now()->subMinutes(3));
+        $this->kitchenItem($dine, acceptedAt: now()->subMinutes(2));
+        $this->kitchenItem($this->sale('INV-PLAIN'), acceptedAt: now()->subMinute());
+
+        $this->actingAs($this->cook)->get(route('kitchen.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('orders.0.number', 'Budi 7')
+                ->where('orders.0.invoice', 'INV-NAMED')
+                ->where('orders.1.number', 'Meja 5')
+                ->where('orders.1.invoice', 'INV-DINE')
+                ->where('orders.2.number', 'INV-PLAIN')
+                ->where('orders.2.invoice', 'INV-PLAIN')
+            );
+    }
+
     public function test_item_note_is_shown(): void
     {
         if (! Schema::hasColumn('kitchen_items', 'note')) {

@@ -1249,6 +1249,11 @@
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
         },
+        "orderName": {
+            "label": "Nama pesanan",
+            "placeholder": "Nama / nomor buzzer (opsional)",
+            "limit": "Maksimal 20 karakter"
+        },
         "offlineQueue": {
             "button": "Transaksi offline tertunda ({{count}})",
             "retryNow": "Coba sinkron sekarang",
@@ -1439,6 +1444,9 @@
         "marked": "Status reservasi diubah",
         "failed": "Reservasi tidak bisa disimpan"
     },
+    "receipt": {
+        "orderName": "Nama pesanan"
+    },
     "waste": {
         "title": "Waste",
         "subtitle": "Bahan baku dan menu yang dibuang.",
@@ -1510,6 +1518,14 @@
         "reasons": "Waste per Alasan",
         "reason": "Alasan",
         "records": "Jumlah catatan",
-        "empty": "Tidak ada waste pada periode ini"
+        "empty": "Tidak ada waste pada periode ini",
+        "date": "Tanggal",
+        "recorderDays": "Waste per Pencatat dan Hari",
+        "recorder": "Pencatat",
+        "nearLimit": "Mendekati batas",
+        "limitNote": "Batas {{amount}} per catatan; mendekati = dalam 10%",
+        "deletedUser": "Pengguna dihapus",
+        "wastePercent": "Waste terhadap HPP penjualan",
+        "noSalesCost": "Tidak ada biaya penjualan pada periode ini"
     }
 }

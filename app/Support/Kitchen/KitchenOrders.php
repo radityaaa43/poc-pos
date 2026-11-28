@@ -10,10 +10,10 @@ class KitchenOrders
 {
     /** Relations fromItems() reads, with only the columns it needs (no prices). */
     public const RELATIONS = [
-        'transaction:id,invoice,order_type,payment_status,created_at,parent_transaction_id',
+        'transaction:id,invoice,order_type,order_name,payment_status,created_at,parent_transaction_id',
         'transaction.dineOrder:id,transaction_id,dine_table_id',
         'transaction.dineOrder.table:id,name',
-        'transaction.parent:id,invoice', // an add-on is named after its original (#314)
+        'transaction.parent:id,invoice,order_name', // an add-on is named after its original (#314)
         'transaction.parent.dineOrder:id,transaction_id,dine_table_id',
         'transaction.parent.dineOrder.table:id,name',
         'product:id,title',
@@ -46,8 +46,8 @@ class KitchenOrders
     }
 
     /**
-     * How one sale is named: the table for a dine-in order, else the invoice. An add-on takes its original's
-     * number, so the kitchen finds that order; its type and payment mark stay its own.
+     * How one sale is named: the table for a dine-in order, else the order name (a buzzer number, #445) or the
+     * invoice. An add-on takes its original's number, so the kitchen finds that order; its type and payment mark stay own.
      */
     public static function header(Transaction $transaction): array
     {
@@ -57,7 +57,8 @@ class KitchenOrders
         return [
             'id' => $transaction->id,
             'root_id' => $transaction->orderRootId(),
-            'number' => $original->dineOrder ? $original->dineOrder->table?->name : $original->invoice,
+            'number' => $original->dineOrder ? $original->dineOrder->table?->name : ($original->order_name ?? $original->invoice),
+            'invoice' => $original->invoice,
             'type' => $dineOrder ? 'dine_in' : $transaction->order_type,
             'unpaid' => $transaction->payment_status !== 'paid',
         ];

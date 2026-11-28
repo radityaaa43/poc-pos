@@ -1249,6 +1249,11 @@
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
         },
+        "orderName": {
+            "label": "Order name",
+            "placeholder": "Name / buzzer number (optional)",
+            "limit": "Max 20 characters"
+        },
         "offlineQueue": {
             "button": "Pending offline sales ({{count}})",
             "retryNow": "Retry now",
@@ -1439,6 +1444,9 @@
         "marked": "Reservation status changed",
         "failed": "The reservation could not be saved"
     },
+    "receipt": {
+        "orderName": "Order name"
+    },
     "waste": {
         "title": "Waste",
         "subtitle": "Raw materials and menus thrown away.",
@@ -1510,6 +1518,14 @@
         "reasons": "Waste per Reason",
         "reason": "Reason",
         "records": "Records",
-        "empty": "No waste in this period"
+        "empty": "No waste in this period",
+        "date": "Date",
+        "recorderDays": "Waste per Recorder and Day",
+        "recorder": "Recorder",
+        "nearLimit": "At or near limit",
+        "limitNote": "Limit {{amount}} per record; near = within 10%",
+        "deletedUser": "Deleted user",
+        "wastePercent": "Waste as % of sales cost",
+        "noSalesCost": "No sales cost in this period"
     }
 }

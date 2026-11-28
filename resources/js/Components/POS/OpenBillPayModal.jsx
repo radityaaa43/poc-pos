@@ -67,7 +67,7 @@ export default function OpenBillPayModal({ bill, gone = false, bankAccounts = []
     };
 
     return (
-        <Modal show onClose={onClose} title={`${t("pos.unpaidBills.pay")} ${bill.label ?? bill.table ?? "Meja"} · ${bill.invoice}`} maxWidth="md">
+        <Modal show onClose={onClose} title={`${t("pos.unpaidBills.pay")} ${bill.label ?? bill.table ?? "Meja"} · ${bill.invoice}${bill.order_name ? ` · ${bill.order_name}` : ""}`} maxWidth="md">
             <form onSubmit={handleSubmit} className="space-y-4">
                 {gone && (
                     // The list no longer has this bill (paid or cancelled meanwhile). The server would refuse the payment anyway.

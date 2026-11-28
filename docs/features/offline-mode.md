@@ -6,6 +6,7 @@ Offline mode membantu kasir menyelesaikan checkout yang sudah disiapkan ketika k
 
 - Master data tertentu tersedia melalui cache-first PWA.
 - Transaksi checkout dimasukkan ke IndexedDB `pending_transactions` ketika offline.
+- After a sale is queued, the POS clears the sale form (note, order type, order name, discount, customer, payment) as it does after an online sale.
 - Queue dikirim dari browser ke `POST /dashboard/transactions/sync` (auth session, permission `transactions-access`) saat koneksi kembali; klien Bearer token memakai `POST /api/v1/pos/transactions/sync`. Keduanya menjalankan `PosApiController::syncTransactions`.
 - `client_uuid` menjaga sinkronisasi tetap idempotent.
 - Server tetap menjadi sumber harga dan validasi akhir.

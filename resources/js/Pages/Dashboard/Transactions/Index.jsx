@@ -18,12 +18,13 @@ import HeldTransactions, {
 import OpenBills from "@/Components/POS/OpenBills";
 import AddOnBanner, { offlineRefusal, withAddOn } from "@/Components/POS/AddOnBanner";
 import PayLaterOption from "@/Components/POS/PayLaterOption";
+import OrderDetails from "@/Components/POS/OrderDetails";
 import { queueOfflineSale } from "@/Components/POS/OfflineKitchenNotice";
 import OfflineQueuePanel from "@/Components/POS/OfflineQueuePanel";
 import i18n from "@/i18n";
 import useBarcodeScanner from "@/Hooks/useBarcodeScanner";
 import CheckoutSummaryRows from "@/Components/POS/CheckoutSummaryRows";
-import OrderTypeLock from "@/Components/POS/OrderTypeLock";
+
 import usePosShortcuts from "@/Hooks/usePosShortcuts";
 import { getProductImageUrl } from "@/Utils/imageUrl";
 import { useAuthorization } from "@/Utils/authorization";
@@ -102,6 +103,7 @@ export default function Index({
     const [cashInput, setCashInput] = useState("");
     const [shippingInput, setShippingInput] = useState("");
     const [orderType, setOrderType] = useState("in_store");
+    const [orderName, setOrderName] = useState("");
     const [orderNote, setOrderNote] = useState("");
     const [paymentMethod, setPaymentMethod] = useState(
         defaultPaymentGateway ?? "cash"
@@ -372,6 +374,22 @@ export default function Index({
         setSplitMode(false);
         setSplitTenders([{ ...emptyTender }, { ...emptyTender }]);
     };
+    // What belongs to one sale, cleared once it is posted or queued offline (the order name goes with the cart).
+    const resetSaleForm = () => {
+        setDiscountInput("");
+        setRedeemPointsInput("");
+        setCashInput("");
+        setShippingInput("");
+        setSelectedCustomer(null);
+        setSelectedBankAccount(null);
+        resetSplitTenders();
+        setSelectedVoucherId("");
+        setPaymentMethod(defaultPaymentGateway ?? "cash");
+        setPayLater(false);
+        setDueDate("");
+        setOrderType("in_store");
+        setOrderNote("");
+    };
 
     const handleOpenShift = () => {
         router.post(route("cashier-shifts.store"), withAddOn({
@@ -445,6 +463,11 @@ export default function Index({
             setShippingInput("");
         }
     };
+
+    // An emptied cart (sold, held, queued offline or items removed) ends that order and its name.
+    useEffect(() => {
+        if (carts.length === 0) setOrderName("");
+    }, [carts.length]);
 
     // Handle hold transaction
     const [isHolding, setIsHolding] = useState(false);
@@ -715,6 +738,7 @@ export default function Index({
                 payment_gateway: null,
                 bank_account_id: isBankTransfer ? selectedBankAccount?.id : null,
                 order_type: orderType,
+                order_name: orderName || null,
                 note: orderNote || null,
                 cart_ids: carts.map((item) => item.id),
                 items: carts.map((item) => ({
@@ -727,6 +751,7 @@ export default function Index({
                 refreshPendingCount();
                 setQueuedCartIds(payload.cart_ids);
                 setPricingPreview(initialPricingPreview);
+                resetSaleForm();
                 toast.success("Transaksi disimpan offline. Akan dikirim saat online.");
             });
             setIsSubmitting(false);
@@ -767,6 +792,7 @@ export default function Index({
                 pay_later: payLater,
                 due_date: dueDate,
                 order_type: orderType,
+                order_name: orderName || null,
                 note: orderNote || null,
             }),
             {
@@ -774,25 +800,14 @@ export default function Index({
                     setIsSubmitting(false);
                     // Only a saved sale flashes success. A refusal also lands here, and keeps the form (#473).
                     if (!page.props.flash?.success) return;
-                    setDiscountInput("");
-                    setRedeemPointsInput("");
-                    setCashInput("");
-                    setShippingInput("");
-                    setSelectedCustomer(null);
-                    setSelectedBankAccount(null);
-                    resetSplitTenders();
-                    setSelectedVoucherId("");
-                    setPaymentMethod(defaultPaymentGateway ?? "cash");
-                    setPayLater(false);
-                    setDueDate("");
-                    setOrderType("in_store");
-                    setOrderNote("");
+                    resetSaleForm();
+                    setOrderName("");
                     toast.success(page.props.flash.success);
                 },
                 onError: (errors) => {
                     setIsSubmitting(false);
-                    // The credit rules, the add-on, the pay-later gate and the guest note rule answer with their own message.
-                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || "Gagal menyimpan transaksi");
+                    // The credit rules, the add-on, the pay-later gate, the guest note rule and the order name answer with their own message.
+                    toast.error(errors?.add_on_to || errors?.credit || errors?.pay_later || errors?.note || errors?.order_name || "Gagal menyimpan transaksi");
                 },
             }
         );
@@ -1213,31 +1228,12 @@ export default function Index({
                                     Detail Pesanan
                                 </p>
 
-                                <OrderTypeLock>
-                                    <label className="mb-2 block text-xs font-medium text-slate-600 dark:text-slate-400">
-                                        Tipe Pesanan
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-2">
-                                        {[
-                                            { value: "in_store", label: "Di Tempat" },
-                                            { value: "takeaway", label: "Bawa Pulang" },
-                                            { value: "delivery", label: "Diantar" },
-                                        ].map((type) => (
-                                            <button
-                                                key={type.value}
-                                                type="button"
-                                                onClick={() => handleOrderTypeChange(type.value)}
-                                                className={`min-h-10 rounded-lg px-1 py-2 text-xs font-semibold transition-all ${
-                                                    orderType === type.value
-                                                        ? "bg-primary-500 text-white"
-                                                        : "bg-white text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-                                                }`}
-                                            >
-                                                {type.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </OrderTypeLock>
+                                <OrderDetails
+                                    orderType={orderType}
+                                    onOrderTypeChange={handleOrderTypeChange}
+                                    orderName={orderName}
+                                    onOrderNameChange={setOrderName}
+                                />
 
                                 {isDelivery && (
                                     <div>
