@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Transaction;
 use App\Services\OutletAccessService;
 use App\Services\TransactionPaymentRetryService;
+use App\Services\TransactionSettlementService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -18,6 +19,7 @@ class TransactionRetryController extends Controller
 {
     public function __construct(
         protected readonly TransactionPaymentRetryService $paymentRetryService,
+        protected readonly TransactionSettlementService $settlementService,
         protected readonly OutletAccessService $outletAccessService,
     ) {}
 
@@ -28,14 +30,17 @@ class TransactionRetryController extends Controller
 
         $data = $request->validate([
             'payment_method' => ['required', Rule::in(['cash', 'qris', 'midtrans', 'xendit', 'bank_transfer'])],
-            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.$transaction->amountDue()],
+            'cash_amount' => ['exclude_unless:payment_method,cash', 'required', 'integer', 'min:'.$this->paymentRetryService->amountFor($transaction)],
             'bank_account_id' => ['exclude_unless:payment_method,bank_transfer', 'required', 'integer', 'exists:bank_accounts,id'],
         ]);
 
         $print = redirect()->route('transactions.print', $transaction->invoice);
 
         try {
-            $sale = $this->paymentRetryService->retry($transaction, $request->user(), $data);
+            // A split with money received collects only the rest: the paid part must not be replaced (#530).
+            $sale = $this->paymentRetryService->hasPartlyPaidSplit($transaction)
+                ? $this->settlementService->collectRest($transaction, $request->user(), $data)
+                : $this->paymentRetryService->retry($transaction, $request->user(), $data);
         } catch (PaymentGatewayException $exception) {
             return $print->with('error', $exception->getMessage());
         }

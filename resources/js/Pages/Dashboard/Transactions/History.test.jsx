@@ -109,6 +109,55 @@ describe("Transactions History", () => {
         expect(screen.getByText("post transactions.settle")).toBeInTheDocument();
     });
 
+    it("offers Bayar on a pay-later sale whose gateway payment failed, opening the settle dialog", async () => {
+        const user = userEvent.setup();
+        const failed = { ...abandonedPosBill, payment_status: "failed", abandoned_claim: null };
+        render(<History transactions={{ data: [failed], links: [] }} filters={{}} />);
+
+        // the row is drawn twice (table and mobile card)
+        await user.click(screen.getAllByRole("button", { name: "Bayar" })[0]);
+
+        expect(screen.getByText("asks 10000")).toBeInTheDocument();
+        expect(screen.getByText("post transactions.settle")).toBeInTheDocument();
+    });
+
+    it("offers Bayar on a split whose rest is not paid, linking to its receipt", () => {
+        const split = {
+            id: 13,
+            invoice: "TRX-SPLIT",
+            grand_total: 20000,
+            owed_total: 20000,
+            payment_status: "failed",
+            payment_method: "split",
+            is_pay_later: false,
+            partly_paid_split: true,
+            created_at: "2026-11-28T10:00:00Z",
+        };
+        render(<History transactions={{ data: [split], links: [] }} filters={{}} />);
+
+        // the rest is collected on the receipt (the modal settles pay-later bills only), so Bayar is a link
+        expect(screen.getAllByText("Bayar")[0].closest("a")).not.toBeNull();
+        expect(screen.queryByText("Piutang")).not.toBeInTheDocument();
+    });
+
+    it("offers no Bayar for a split the server does not call partly paid", () => {
+        // A failed dine split or a returned one is not collectable: only the server's partly paid split rule decides.
+        const split = {
+            id: 14,
+            invoice: "TRX-SPLIT-DEAD",
+            grand_total: 20000,
+            owed_total: 20000,
+            payment_status: "failed",
+            payment_method: "split",
+            is_pay_later: false,
+            partly_paid_split: false,
+            created_at: "2026-11-28T10:00:00Z",
+        };
+        render(<History transactions={{ data: [split], links: [] }} filters={{}} />);
+
+        expect(screen.queryByText("Bayar")).not.toBeInTheDocument();
+    });
+
     it("offers Bayar, not Lihat QR, on a dine bill whose gateway claim was abandoned", () => {
         const bill = dineBill("accepted", { payment_status: "pending", payment_method: "qris", abandoned_claim: 1 });
         render(<History transactions={{ data: [bill], links: [] }} filters={{}} />);

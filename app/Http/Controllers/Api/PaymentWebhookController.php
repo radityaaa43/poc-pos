@@ -356,11 +356,29 @@ class PaymentWebhookController extends Controller
                 return 'flag';
             }
 
+            // The same charge booked a second time is nothing new; but a charge that was failed (its rest expired after the
+            // sale was covered another way) arriving paid is a second payment of that money: flag it, never ignore it.
+            $referenceStatus = $this->referenceStatus($bill, $reference);
+
+            if ($referenceStatus === TransactionTender::STATUS_PAID) {
+                return 'ignore';
+            }
+
+            if ($referenceStatus !== null) {
+                return 'flag';
+            }
+
             if (! $this->isRedelivery($bill, $attempt, $reference)) {
                 return 'flag';
             }
 
             return $this->knownReferences($bill) === [] ? 'unmatched' : 'ignore';
+        }
+
+        // A payment already booked on this bill (the gateway sends the same charge again, e.g. Xendit PAID then
+        // SETTLED) is a redelivery, not a second one to refund (#530 BR-7).
+        if ($this->referenceBooked($bill, $reference)) {
+            return 'ignore';
         }
 
         if ($attempt === $current) {
@@ -432,6 +450,30 @@ class PaymentWebhookController extends Controller
     }
 
     /**
+     * The status of the tender that stores this gateway reference, or null when no tender of the bill carries it.
+     */
+    private function referenceStatus(Transaction $bill, ?string $reference): ?string
+    {
+        if (blank($reference)) {
+            return null;
+        }
+
+        return $bill->tenders()->where('payment_reference', $reference)->value('payment_status');
+    }
+
+    /**
+     * Was this gateway reference already booked on the bill? A paid tender stores the reference of the payment that
+     * settled it, so the same charge delivered again is recognised before it can be counted twice.
+     */
+    private function referenceBooked(Transaction $bill, ?string $reference): bool
+    {
+        return filled($reference) && $bill->tenders()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->where('payment_reference', $reference)
+            ->exists();
+    }
+
+    /**
      * Every gateway reference the bill stores. A tender's settlement updates only the tender, so the bill's own is not enough.
      *
      * @return array<int, string>
@@ -443,8 +485,9 @@ class PaymentWebhookController extends Controller
 
     /**
      * A paid notification for an older attempt, or for a failed one, on a bill that is not paid. Booked as the payment
-     * when nothing else holds the bill (no pending or paid tender rows, see hasBlockingTenders) and the amount is what is
-     * still owed; flagged for a manual refund otherwise. The event is audited either way.
+     * when the bill still owes it and no paid tender already covers the rest (a split's failed part compares against
+     * what the sale owes, #530 A4; a pending rest tender stays and flags the excess later). Flagged for a manual refund
+     * otherwise. The event is audited either way.
      *
      * @param  array<string, mixed>  $extra  more meta for the booking's audit row
      */
@@ -453,7 +496,7 @@ class PaymentWebhookController extends Controller
         $priorStatus = $bill->payment_status;
         $meta = ['gateway' => $gateway, 'order_id' => $providerId, 'amount' => $amount, 'order_attempt' => $attempt, 'bill_attempt' => $bill->payment_attempt, 'prior_status' => $priorStatus];
 
-        if ($this->lateRefusal($bill, $amount) === null) {
+        if ($this->lateRefusal($bill, $amount, $this->replacedSplitPart($bill, $providerId) !== null) === null) {
             $this->record($bill, $shift, $gateway, $providerId, 'paid', false, $reference, $amount, late: true);
 
             // An earlier flag of this same payment (a tender was pending then) is reversed by the booking, and stays in the
@@ -477,20 +520,63 @@ class PaymentWebhookController extends Controller
         $this->markLatePayment($bill, 'payment.late_after_failed', "Pembayaran terlambat invoice {$bill->invoice} tidak dicatat; perlu refund manual.", [...$meta, 'booked' => false], $reference);
     }
 
-    /** Why a late payment of this amount cannot be booked (still_held, amount_mismatch, restocked), or null when it can. */
-    private function lateRefusal(Transaction $bill, mixed $amount): ?string
+    /**
+     * Why a late payment of this amount cannot be booked (still_held, amount_mismatch, restocked), or null when it can.
+     * A split's failed gateway part is judged against what the sale still owes, not its remaining total: a paid part for
+     * another portion never blocks booking it (#530 BR-7/A4), and a pending rest tender is left to flag any excess later.
+     */
+    private function lateRefusal(Transaction $bill, mixed $amount, bool $splitPart = false): ?string
     {
         // A credit sale is charged what its receivable still owes (it may be partly paid), any other sale its remaining total.
         $receivable = $bill->receivable()->first();
-        $owed = $receivable ? (int) round($receivable->remaining) : $bill->remainingTotal();
+        $owed = $receivable
+            ? (int) round($receivable->remaining)
+            : ($splitPart ? $bill->unpaidAmount() : $bill->remainingTotal());
 
         return match (true) {
-            $bill->hasBlockingTenders() => 'still_held',
+            ! $splitPart && $bill->hasBlockingTenders() => 'still_held',
             ! is_numeric($amount) || (int) round((float) $amount) !== $owed => 'amount_mismatch',
             // A sale that expired and was restocked has no goods left to pay for: refund, do not book.
             $bill->wasRestocked() => 'restocked',
             default => null,
         };
+    }
+
+    /**
+     * The split's failed gateway part a late payment settles, or null for any other payment. Found by order id: the
+     * failed tender while it still exists, else what a collected rest replaced (its audit keeps the order id). #530 A4.
+     *
+     * @return array{method: string, amount: int, tender: TransactionTender|null}|null
+     */
+    private function replacedSplitPart(Transaction $bill, string $providerId): ?array
+    {
+        if ($bill->payment_method !== 'split' || $this->baseInvoice($providerId) !== $bill->invoice) {
+            return null;
+        }
+
+        $failed = $bill->tenders()->where('payment_status', TransactionTender::STATUS_FAILED)->get()
+            ->first(fn (TransactionTender $tender) => in_array($tender->method, TransactionTenderService::GATEWAY_METHODS, true));
+
+        if ($failed) {
+            return ['method' => $failed->method, 'amount' => (int) $failed->amount, 'tender' => $failed];
+        }
+
+        $logs = AuditLog::where('event', 'transaction.split_rest_collected')
+            ->where('auditable_type', $bill->getMorphClass())
+            ->where('auditable_id', $bill->id)
+            ->orderByDesc('id')
+            ->get();
+
+        foreach ($logs as $log) {
+            foreach ($log->meta['replaced'] ?? [] as $replaced) {
+                if (in_array($replaced['method'] ?? null, TransactionTenderService::GATEWAY_METHODS, true)
+                    && $this->baseInvoice((string) ($replaced['order_id'] ?? '')) === $bill->invoice) {
+                    return ['method' => $replaced['method'], 'amount' => (int) $replaced['amount'], 'tender' => null];
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -561,16 +647,46 @@ class PaymentWebhookController extends Controller
                 ->get()
                 ->filter(fn (TransactionTender $t) => $providerId === $t->order_reference);
 
+        // A collected rest deleted the failed part's tender; the audit remembers it, so its late success is booked as the
+        // part's own paid tender (#530 BR-7/A4). A pending rest tender is left untouched and flags the excess later.
+        if ($late && $tenders->isEmpty()) {
+            $part = $this->replacedSplitPart($bill, $providerId);
+
+            if ($part) {
+                $tenders = collect([$bill->tenders()->create([
+                    'method' => $part['method'],
+                    'amount' => $part['amount'],
+                    'payment_status' => TransactionTender::STATUS_PAID,
+                    'payment_reference' => $reference,
+                    'paid_at' => now(),
+                ])]);
+            }
+        }
+
         if ($tenders->isNotEmpty()) {
             foreach ($tenders as $tender) {
+                // A paid tender is never rewritten: a callback of another charge that derives the same order id must
+                // not unbook money already received (#530 BR-2).
+                if ($tender->payment_status === TransactionTender::STATUS_PAID) {
+                    continue;
+                }
+
                 $tender->update([
                     'payment_status' => $newStatus,
                     'payment_reference' => $reference ?: $tender->payment_reference,
                     'paid_at' => $newStatus === 'paid' ? now() : $tender->paid_at,
                 ]);
             }
+
+            $all = $bill->tenders()->get();
+            // A rest that failed after the paid tenders already covered the sale is stale: it must not fail a sale
+            // that owes nothing (#530 BR-3). A pending rest is left, so a transfer still waiting keeps the bill open.
+            // Paid > 0: a fully returned sale that took no money must not read as paid (#530).
+            $paidTotal = (int) $all->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount');
+            $paidCovers = $paidTotal > 0 && $paidTotal >= $bill->remainingTotal();
+            $statuses = $all->when($paidCovers, fn ($tenders) => $tenders->where('payment_status', '!=', TransactionTender::STATUS_FAILED));
             $values = ['payment_status' => app(TransactionTenderService::class)->aggregateStatus(
-                $bill->tenders()->get()->map(fn (TransactionTender $t) => ['method' => $t->method, 'payment_status' => $t->payment_status])->all()
+                $statuses->map(fn (TransactionTender $t) => ['method' => $t->method, 'payment_status' => $t->payment_status])->all()
             )];
 
             // The bill keeps the reference of what was actually booked: a later callback carrying the cashier charge's own

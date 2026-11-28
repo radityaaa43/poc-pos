@@ -138,6 +138,16 @@ describe("OpenBills pay-later bills", () => {
         expect(screen.queryByText(/Menunggu Pembayaran/)).not.toBeInTheDocument();
     });
 
+    it("links a split sale with money received to its receipt to collect the rest", async () => {
+        const user = userEvent.setup();
+        render(<OpenBills openBills={[{ ...posBill, kind: "split", pending: true, label: null }]} />);
+
+        await user.click(screen.getByRole("button", { name: /Belum Lunas/ }));
+
+        expect(screen.getByRole("link", { name: "Bayar sisa" })).toHaveAttribute("href", "/transactions.print/TRX-POS");
+        expect(screen.queryByRole("button", { name: "Bayar" })).not.toBeInTheDocument();
+    });
+
     it("shows the age in hours once it passes an hour", async () => {
         const user = userEvent.setup();
         render(<OpenBills openBills={[{ ...posBill, created_at: minutesAgo(130) }]} />);

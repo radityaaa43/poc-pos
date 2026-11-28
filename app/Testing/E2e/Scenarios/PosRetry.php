@@ -5,6 +5,7 @@ namespace App\Testing\E2e\Scenarios;
 use App\Models\CashierShift;
 use App\Models\StockMutation;
 use App\Models\Transaction;
+use App\Models\TransactionTender;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Testing\E2e\Scenarios;
@@ -57,6 +58,20 @@ class PosRetry
                 $transaction->profits()->create(['total' => $qty * 5000]);
 
                 return $product + ['transaction_id' => $transaction->id, 'invoice' => $transaction->invoice, 'total' => $total];
+            },
+
+            // A 20.000 split sale in the cashier's open shift with 5.000 paid in cash and a 15.000 QRIS part that failed
+            // (#530): the rest (owed) is still to be collected. Stock was taken at sale.
+            'posretry.split-failed-gateway' => function (array $options): array {
+                $sale = Scenarios::registry()['posretry.failed-sale']([...$options, 'qty' => '2', 'status' => 'failed']);
+                $transaction = Transaction::findOrFail($sale['transaction_id']);
+                $transaction->update(['payment_method' => 'split', 'cash' => 5000]);
+                $transaction->tenders()->createMany([
+                    ['method' => TransactionTender::METHOD_CASH, 'amount' => 5000, 'cash_received' => 5000, 'payment_status' => TransactionTender::STATUS_PAID],
+                    ['method' => TransactionTender::METHOD_QRIS, 'amount' => 15000, 'payment_status' => TransactionTender::STATUS_FAILED],
+                ]);
+
+                return $sale + ['owed' => 15000];
             },
 
             // Marks --arg=transaction_id as auto-expired and restocked, the way ExpirePendingTransactionsCommand leaves it.

@@ -544,7 +544,7 @@ class PosLatePaymentTest extends TestCase
     }
 
     #[DataProvider('gateways')]
-    public function test_a_split_sale_with_a_paid_cash_part_and_a_failed_qr_part_is_flagged_when_the_qr_is_paid_later(string $gateway): void
+    public function test_a_split_sale_with_a_paid_cash_part_books_the_failed_qr_part_paid_later(string $gateway): void
     {
         $sale = $this->sale(overrides: ['payment_method' => 'split']);
         $sale->tenders()->update(['amount' => 12000]);
@@ -553,9 +553,11 @@ class PosLatePaymentTest extends TestCase
         $this->notify($gateway, $sale, amount: 12000)->assertOk();
 
         $sale->refresh();
-        $this->assertSame('failed', $sale->payment_status); // the paid cash part blocks a booking: refund by hand
-        $this->assertNotNull($sale->late_superseded_payment_at);
-        $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
+        // A paid part for another portion never blocks booking the part still owed (#530 BR-7/A4).
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertNull($sale->late_superseded_payment_at);
+        $this->assertSame(self::TOTAL, (int) $sale->tenders()->where('payment_status', 'paid')->sum('amount'));
+        $this->assertTrue(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
     }
 
     #[DataProvider('gateways')]

@@ -44,6 +44,15 @@ describe("RetryPaymentPanel", () => {
         expect(screen.getByRole("button", { name: "Bayar dengan cara lain" })).toBeEnabled();
     });
 
+    it("names the rest of a split sale and offers only another way", () => {
+        renderPanel({ transaction: { ...failed, payment_method: "split", retry_amount: 15000 } });
+
+        expect(screen.getByText("Sisa pembayaran belum diterima.")).toBeInTheDocument();
+        expect(screen.getByText(/Sisa tagihan: Rp\s*15\.000/)).toBeInTheDocument();
+        // Splitting the rest again is not offered: the cashier picks one method for what is left.
+        expect(screen.queryByRole("button", { name: "Coba lagi" })).not.toBeInTheDocument();
+    });
+
     it("says what the sale still owes and computes the change from it", async () => {
         const user = userEvent.setup();
         renderPanel({ transaction: { ...failed, retry_amount: 30000 } });

@@ -99,15 +99,104 @@ class TransactionSettlementService
     }
 
     /**
+     * Collect the rest of a pay-now split sale whose other part failed or whose discount was denied (#530). The sale
+     * keeps its own shift and its paid tenders; the rest is a new tender in the taking cashier's open shift of the
+     * same outlet, so its money is counted there (BR-4). A pending transfer is never replaced: it is confirmed first.
+     *
+     * @param  array{payment_method: string, cash_amount?: int, bank_account_id?: int}  $input
+     *
+     * @throws ValidationException when the sale cannot take a rest, or a pending transfer must be confirmed first
+     */
+    public function collectRest(Transaction $transaction, User $cashier, array $input): Transaction
+    {
+        $claim = DB::transaction(function () use ($transaction, $cashier, $input) {
+            // Lock order: taking shift, then the sale; the sale's own shift is only read (BR-4, TC-14).
+            $shift = $this->cashierShiftService->requireActiveShiftForUser($cashier->id, lockForUpdate: true);
+            $sale = Transaction::with('warehouse')->whereKey($transaction->id)->lockForUpdate()->firstOrFail();
+
+            if ($sale->payment_status === 'pending_approval') {
+                throw ValidationException::withMessages(['payment' => 'Diskon penjualan ini masih menunggu persetujuan.']);
+            }
+
+            // The #396 hold predicate, re-read under the lock: only a sale that is still partly paid can take a rest.
+            if (! Transaction::partlyPaidSplit()->whereKey($sale->id)->exists() || $sale->wasRestocked(locking: true)) {
+                throw ValidationException::withMessages(['payment' => $sale->payment_status === 'paid'
+                    ? 'Tagihan ini sudah dilunasi.'
+                    : 'Sisa penjualan ini tidak bisa ditagih di sini.']);
+            }
+
+            $livePending = $sale->tenders()->where('payment_status', TransactionTender::STATUS_PENDING)->get()
+                ->reject(fn (TransactionTender $tender) => in_array($tender->method, TransactionTenderService::GATEWAY_METHODS, true)
+                    && $tender->payment_reference === null
+                    && $tender->created_at->lt(now()->subSeconds(TransactionTender::CLAIM_STALE_SECONDS)));
+
+            if ($livePending->isNotEmpty()) {
+                throw ValidationException::withMessages(['payment' => $livePending->contains('method', TransactionTender::METHOD_BANK_TRANSFER)
+                    ? 'Konfirmasi transfer dulu (Jumlah diterima), lalu tagih sisanya.'
+                    : 'Tagihan ini sedang menunggu pembayaran (gateway). Selesaikan pembayaran itu dulu, lihat QR di struk.']);
+            }
+
+            $shift->load('warehouse.outlet');
+            if ($sale->warehouse?->outlet_id !== $shift->warehouse?->outlet_id) {
+                throw ValidationException::withMessages(['payment' => 'Buka shift di outlet penjualan ini']);
+            }
+
+            $owed = $sale->unpaidAmount();
+            if ($owed < 1) {
+                throw ValidationException::withMessages(['payment' => 'Penjualan ini tidak lagi memiliki sisa tagihan.']);
+            }
+
+            // What the replaced part was: the only trace left once claim() deletes its tender.
+            $replaced = $sale->tenders()->get()->map(fn (TransactionTender $tender) => [
+                'method' => $tender->method,
+                'amount' => (int) $tender->amount,
+                'status' => $tender->payment_status,
+                'payment_reference' => $tender->payment_reference,
+                'order_id' => in_array($tender->method, TransactionTenderService::GATEWAY_METHODS, true)
+                    ? $tender->setRelation('transaction', $sale)->order_reference
+                    : null,
+            ])->all();
+
+            $claim = $this->claim($sale, $cashier, $shift, $shift->warehouse?->outlet, [[
+                'method' => $input['payment_method'],
+                'amount' => $owed,
+                'cash_received' => $input['cash_amount'] ?? null,
+                'bank_account_id' => $input['bank_account_id'] ?? null,
+            ]], expectedTotal: $owed, keepPaid: true);
+
+            // Only a rest taken in another shift carries it; null means the sale's own shift.
+            if ($shift->id !== $sale->cashier_shift_id) {
+                TransactionTender::whereKey($claim['tender_ids'])->update(['cashier_shift_id' => $shift->id]);
+            }
+
+            $meta = ['owed' => $owed, 'method' => $input['payment_method'], 'attempt' => (int) $sale->payment_attempt, 'replaced' => $replaced];
+            $this->auditLogService->log(
+                event: 'transaction.split_rest_collected',
+                module: 'transactions',
+                auditable: $sale,
+                description: "Sisa penjualan invoice {$sale->invoice} ditagih dengan metode {$input['payment_method']}.",
+                meta: $meta,
+                actor: $cashier,
+            );
+            Log::info('Split rest collected', ['invoice' => $sale->invoice, 'attempt' => $meta['attempt'], 'owed' => $owed]);
+
+            return $claim;
+        });
+
+        return $this->charge($claim);
+    }
+
+    /**
      * Record the tenders on a bill the caller has locked and checked, and claim any gateway charge: the committed
      * pending bill and its tender refuse a second payment while charge() talks to the gateway.
      * Runs inside the caller's DB::transaction, with no network call.
-     * $expectedTotal is what the tenders must add up to (default: the grand total).
+     * $expectedTotal is what the tenders must add up to (default: the grand total). $keepPaid keeps the sale's paid
+     * tenders and its own shift: a collected rest is added to the sale, not a second claim of it (#530).
      *
      * @param  array<int, array<string, mixed>>  $tenderInput
      * @return Claim
      */
-    public function claim(Transaction $transaction, User $cashier, CashierShift $shift, ?Outlet $outlet, array $tenderInput, ?int $expectedTotal = null): array
+    public function claim(Transaction $transaction, User $cashier, CashierShift $shift, ?Outlet $outlet, array $tenderInput, ?int $expectedTotal = null, bool $keepPaid = false): array
     {
         $tenders = $this->tenderService->normalize($tenderInput, $expectedTotal ?? (int) $transaction->grand_total, allowEmpty: false, outlet: $outlet);
         $gatewayMethods = collect($tenders)->pluck('method')->intersect(TransactionTenderService::GATEWAY_METHODS);
@@ -122,16 +211,22 @@ class TransactionSettlementService
         $before = $transaction->only([...self::RESTORED, 'payment_status', 'payment_failure_reason', 'payment_attempt', 'payment_reference', 'payment_url']);
 
         // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
-        $transaction->tenders()->delete();
+        // A collected rest keeps the sale's paid tenders.
+        ($keepPaid ? $transaction->tenders()->where('payment_status', '!=', TransactionTender::STATUS_PAID) : $transaction->tenders())
+            ->delete();
         $tenderModels = $transaction->tenders()->createMany($tenders);
 
+        // A rest is added to the sale's tenders: cash, change and the status sum all of them, and the sale keeps its own
+        // method and shift so the earlier money stays in the shift that took it (#530 BR-4).
+        $all = $keepPaid ? $transaction->tenders()->get() : $tenders;
+
         $transaction->update([
-            'cashier_id' => $cashier->id,
-            'cashier_shift_id' => $shift->id,
-            'cash' => (int) collect($tenders)->sum('cash_received'),
-            'change' => (int) collect($tenders)->sum('change'),
-            'payment_method' => count($tenders) > 1 ? 'split' : $tenders[0]['method'],
-            'payment_status' => $this->tenderService->aggregateStatus($tenders),
+            'cashier_id' => $keepPaid ? $transaction->cashier_id : $cashier->id,
+            'cashier_shift_id' => $keepPaid ? $transaction->cashier_shift_id : $shift->id,
+            'cash' => (int) collect($all)->sum('cash_received'),
+            'change' => (int) collect($all)->sum('change'),
+            'payment_method' => $keepPaid ? $transaction->payment_method : (count($tenders) > 1 ? 'split' : $tenders[0]['method']),
+            'payment_status' => $this->tenderService->aggregateStatus($all),
             'bank_account_id' => collect($tenders)->firstWhere('bank_account_id', '!==', null)['bank_account_id'] ?? null,
             'payment_reference' => null,
             'payment_url' => null,
@@ -139,7 +234,9 @@ class TransactionSettlementService
             // Every gateway charge is its own attempt, so its own order id: one that timed out may still exist at the
             // gateway. A bill with a payment history (a guest attempt, a retry) moves its counter on any settlement: an
             // older charge paid afterwards is then a late payment, never booked twice. Cash at attempt 0 leaves it.
-            ...($gatewayMethods->isNotEmpty() || $transaction->payment_attempt > 0
+            // A collected rest always moves it, so a late callback of the replaced part can never pay a sale that is
+            // waiting for its transfer (#530 BR-2).
+            ...($keepPaid || $gatewayMethods->isNotEmpty() || $transaction->payment_attempt > 0
                 ? ['payment_attempt' => $transaction->payment_attempt + 1, 'payment_failure_reason' => null]
                 : []),
         ]);

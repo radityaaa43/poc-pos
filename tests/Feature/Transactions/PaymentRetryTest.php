@@ -172,7 +172,7 @@ class PaymentRetryTest extends TestCase
         $this->assertSame(0, TransactionTender::where('transaction_id', $sale->id)->count());
     }
 
-    public function test_a_sale_with_a_paid_tender_part_cannot_be_retried(): void
+    public function test_a_retry_never_replaces_a_paid_tender_part(): void
     {
         $sale = $this->makeSale('split');
         $sale->tenders()->createMany([
@@ -180,11 +180,17 @@ class PaymentRetryTest extends TestCase
             ['method' => 'qris', 'amount' => 10000, 'change' => 0, 'payment_status' => 'failed'],
         ]);
 
-        $this->actingAs($this->cashier)
-            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'cash', 'cash_amount' => 20000])
-            ->assertSessionHasErrors('payment');
+        // The route now collects the rest of such a sale (#530); retry() itself still refuses it, because a retry
+        // replaces every tender and would lose the paid part.
+        try {
+            app(TransactionPaymentRetryService::class)->retry($sale, $this->cashier, ['payment_method' => 'cash', 'cash_amount' => 20000]);
+            $this->fail('A retry must never replace a paid tender part.');
+        } catch (ValidationException $exception) {
+            $this->assertSame('Sebagian penjualan ini sudah dibayar (pembayaran terpisah), jadi tidak bisa diulang.', $exception->errors()['payment'][0]);
+        }
 
         $this->assertSame(2, $sale->tenders()->count());
+        $this->assertSame(10000, (int) $sale->tenders()->where('payment_status', 'paid')->sum('amount'));
         $this->assertSame(0, $sale->fresh()->payment_attempt);
     }
 

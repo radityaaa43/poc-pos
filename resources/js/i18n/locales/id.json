@@ -1205,7 +1205,8 @@
             "change": "Kembalian",
             "bankAccount": "Rekening tujuan",
             "pay": "Bayar",
-            "due": "Sisa tagihan"
+            "due": "Sisa tagihan",
+            "splitRest": "Sisa pembayaran belum diterima."
         },
         "bill": {
             "serviceCharge": "Service charge",
@@ -1225,6 +1226,7 @@
         "unpaidBills": {
             "title": "Belum Lunas",
             "pay": "Bayar",
+            "payRest": "Bayar sisa",
             "ageMinutes": "{{count}} mnt",
             "ageHours": "{{count}} j",
             "awaitingOnline": "Menunggu pembayaran online",

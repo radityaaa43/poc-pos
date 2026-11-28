@@ -64,19 +64,31 @@ const isPosBill = (transaction) =>
     transaction.can_create_sales_return !== false &&
     transaction.owed_total > 0;
 const DINE_IN_PROGRESS = ["accepted", "preparing", "ready", "served"];
-// An unsettled bill: a dine-in order still in progress (the same states as Belum Lunas), or a POS pay-later sale
-// whose gateway claim was abandoned. A live pending transfer or gateway claim keeps its own action (confirm / QR).
+// A pay-later POS sale whose gateway attempt failed or expired still offers Bayar, as Belum Lunas does (#532 Q1).
+const isFailedGatewayBill = (transaction) =>
+    isPosBill(transaction) &&
+    ["failed", "expired"].includes(transaction.payment_status);
+// A split sale that holds some money but has a failed or pending rest: the rest is collected on its receipt (#530).
+// The server decides it (the partly paid split scope), so a failed dine split, a returned one or one waiting for
+// discount approval is not offered Bayar here.
+const isSplitRest = (transaction) => transaction.partly_paid_split === true;
+// An unsettled bill: a dine-in order still in progress (the same states as Belum Lunas), a POS pay-later sale whose
+// gateway claim was abandoned or failed, or a partly paid split. A live pending transfer or gateway claim keeps its
+// own action (confirm / QR).
 const isOpenBill = (transaction) =>
     (DINE_IN_PROGRESS.includes(transaction.dine_order?.status) &&
         (["unpaid", "failed", "expired"].includes(transaction.payment_status) ||
             (transaction.payment_status === "pending" && transaction.payment_method !== "bank_transfer"))) ||
-    (abandoned(transaction) && isPosBill(transaction));
+    (abandoned(transaction) && isPosBill(transaction)) ||
+    isFailedGatewayBill(transaction) ||
+    isSplitRest(transaction);
 
 // The cashier pays an unpaid bill from here or from the POS "Belum Lunas" section. A pending gateway payment keeps
 // its receipt link, which shows the QR, until the webhook marks it paid; an abandoned claim has no QR, so it offers
 // Bayar like the POS list does.
 const OpenBillStatus = ({ transaction, canPay, onPay }) => {
     const isDine = Boolean(transaction.dine_order);
+    const isSplit = Boolean(transaction.partly_paid_split);
     const showQr = transaction.payment_status === "pending" && !abandoned(transaction);
     // A POS bill settles with transactions-access, which this page already requires; a dine bill needs its own permission.
     const canPayHere = isDine ? canPay : true;
@@ -87,7 +99,15 @@ const OpenBillStatus = ({ transaction, canPay, onPay }) => {
                     ? `Belum Lunas · ${transaction.dine_order.table?.name ?? "Meja"}`
                     : "Belum Lunas"}
             </span>
-            {showQr ? (
+            {isSplit ? (
+                // The rest is collected on the sale's receipt, where the paid part is kept (the same action as Belum Lunas).
+                <Link
+                    href={route("transactions.print", transaction.invoice)}
+                    className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-primary-500 text-white rounded-full hover:bg-primary-600 transition-colors"
+                >
+                    Bayar
+                </Link>
+            ) : showQr ? (
                 <Link
                     href={route("transactions.print", transaction.invoice)}
                     className="inline-flex items-center px-3 py-1 text-xs font-semibold bg-sky-500 text-white rounded-full hover:bg-sky-600 transition-colors"

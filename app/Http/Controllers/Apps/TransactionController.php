@@ -763,7 +763,7 @@ class TransactionController extends Controller
 
         // Pay-another-way choices are only needed while the sale can be retried.
         $retryable = $this->paymentRetryService->isRetryable($transaction);
-        $transaction->forceFill(['retry_amount' => $retryable ? $transaction->amountDue() : null, 'amount_due' => $transaction->reducedAmountDue(), ...$transaction->cashRefundNotice()]);
+        $transaction->forceFill(['retry_amount' => $retryable ? $this->paymentRetryService->amountFor($transaction) : null, 'amount_due' => $transaction->reducedAmountDue(), ...$transaction->cashRefundNotice()]);
         $outlet = $retryable ? $transaction->warehouse?->outlet : null;
 
         return Inertia::render('Dashboard/Transactions/Print', [
@@ -888,7 +888,7 @@ class TransactionController extends Controller
 
             return [
                 ...$transaction->toArray(),
-                'can_create_sales_return' => $canCreateSalesReturn,
+                'can_create_sales_return' => $canCreateSalesReturn, 'partly_paid_split' => $transaction->isPartlyPaidSplit(),
                 // what the dialogs ask: after returns, not the grand total
                 ...($salesReturnTablesReady ? $transaction->screenAmounts() : ['owed_total' => (int) $transaction->grand_total]),
             ];
