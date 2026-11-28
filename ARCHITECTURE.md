@@ -267,7 +267,7 @@ Alias per route:
 | `setup.notinstalled` | `EnsureNotInstalled` | `/setup` hanya bisa diakses sebelum `app_setup_completed` |
 | `abilities` | Sanctum `CheckAbilities` | Ability token API per endpoint (nama ability = nama permission Spatie) |
 | `api_step_up` | `EnsureApiStepUp` | Versi API dari `step_up`: token harus baru saja memanggil `POST /api/v1/auth/confirm-password` (disimpan di cache, timeout 900 detik); percobaan tanpa konfirmasi dicatat di audit log. Dipakai untuk konfirmasi pembayaran, tutup shift, CRUD role/user, payment settings, rekening bank, price list, outlet |
-| `keep_flash` | `KeepFlashForPolls` | Untuk request latar belakang POS (poll tagihan belum lunas, preview promo, sinkron offline, ringkasan piutang, riwayat pelanggan): flash (error/sukses) tetap utuh untuk halaman hasil redirect |
+| `keep_flash` | `KeepFlashForPolls` | Untuk request latar belakang POS (poll tagihan belum lunas, preview promo, sinkron offline, ringkasan piutang, riwayat pelanggan, status pembayaran di struk): flash (error/sukses) tetap utuh untuk halaman hasil redirect |
 
 Middleware global lain: `SecureHeaders` (header keamanan response), `EnforceAbsoluteSessionLifetime` (logout paksa setelah 12 jam sejak login, `SECURITY_SESSION_ABSOLUTE_LIFETIME_SECONDS=43200`).
 

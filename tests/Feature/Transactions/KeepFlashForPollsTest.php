@@ -108,6 +108,7 @@ class KeepFlashForPollsTest extends TestCase
             'customer history' => ['GET', 'customers.history'],
             'pricing preview' => ['POST', 'transactions.pricing-preview'],
             'offline sync' => ['POST', 'transactions.sync'],
+            'receipt payment status, in another tab' => ['GET', 'transactions.status'],
         ];
     }
 
@@ -121,7 +122,15 @@ class KeepFlashForPollsTest extends TestCase
             : [];
 
         $this->refusedCheckout();
-        $url = $method === 'GET' ? route($route, $customer) : route($route);
+        $parameter = match (true) {
+            $route === 'transactions.status' => Transaction::create([
+                'cashier_id' => $this->cashier->id, 'invoice' => 'INV-POLL', 'cash' => 0, 'change' => 0, 'discount' => 0,
+                'shipping_cost' => 0, 'grand_total' => 2000, 'payment_method' => 'cash', 'payment_status' => 'paid',
+            ])->invoice,
+            $method === 'GET' => $customer,
+            default => [],
+        };
+        $url = route($route, $parameter);
         $this->json($method, $url, $body, self::AJAX)->assertOk();
 
         $this->posPage()->assertInertia(fn (Assert $page) => $page->has('errors.stock'));
