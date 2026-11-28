@@ -3,142 +3,444 @@
     "cases": [
         {
             "name": "default outlet: PPN per line with the shipping taxed, no service charge",
-            "settings": { "service_charge_rate": 0, "tax_kind": "ppn", "pb1_rate": 10 },
+            "settings": {
+                "service_charge_rate": 0,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
             "lines": [
-                { "product_id": 1, "line_total": 47250, "tax_rate": 11, "tax_type": "exclusive" },
-                { "product_id": 2, "line_total": 10000, "tax_rate": 0, "tax_type": "exclusive" },
-                { "product_id": 3, "line_total": 33000, "tax_rate": 10, "tax_type": "inclusive" }
+                {
+                    "product_id": 1,
+                    "line_total": 47250,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                },
+                {
+                    "product_id": 2,
+                    "line_total": 10000,
+                    "tax_rate": 0,
+                    "tax_type": "exclusive"
+                },
+                {
+                    "product_id": 3,
+                    "line_total": 33000,
+                    "tax_rate": 10,
+                    "tax_type": "inclusive"
+                }
             ],
             "after_discount": 80250,
             "shipping": 12000,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "ppn", "tax_total": 9398, "tax_rate": 10, "tax_base": 92250, "grand_total": 101648,
-                "bill_basis": { "after_discount": 80250, "shipping": 12000, "line_tax_total": 8198, "shipping_tax": 1200, "effective_rate": 10 }
+                "service_charge": 0,
+                "service_charge_rate": 0,
+                "tax_kind": "ppn",
+                "tax_total": 9398,
+                "tax_included": 3000,
+                "tax_rate": 10,
+                "tax_base": 89250,
+                "grand_total": 98648,
+                "bill_basis": {
+                    "after_discount": 80250,
+                    "shipping": 12000,
+                    "line_tax_total": 8198,
+                    "line_tax_added": 5198,
+                    "line_tax_included": 3000,
+                    "shipping_tax": 1200,
+                    "effective_rate": 10
+                }
             }
         },
         {
             "name": "PPN outlet: the service charge is taxed at the effective rate",
-            "settings": { "service_charge_rate": 5, "tax_kind": "ppn", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 20000,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 2310, "tax_rate": 11, "tax_base": 21000, "grand_total": 23310,
-                "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
+                "service_charge": 1000,
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "tax_total": 2310,
+                "tax_included": 0,
+                "tax_rate": 11,
+                "tax_base": 21000,
+                "grand_total": 23310,
+                "bill_basis": {
+                    "after_discount": 20000,
+                    "shipping": 0,
+                    "line_tax_total": 2200,
+                    "line_tax_added": 2200,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 11
+                }
             }
         },
         {
             "name": "not dine-in: no service charge",
-            "settings": { "service_charge_rate": 5, "tax_kind": "ppn", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 20000,
             "shipping": 0,
             "dine_in": false,
             "expected": {
-                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 22200,
-                "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
+                "service_charge": 0,
+                "service_charge_rate": 0,
+                "tax_kind": "ppn",
+                "tax_total": 2200,
+                "tax_included": 0,
+                "tax_rate": 11,
+                "tax_base": 20000,
+                "grand_total": 22200,
+                "bill_basis": {
+                    "after_discount": 20000,
+                    "shipping": 0,
+                    "line_tax_total": 2200,
+                    "line_tax_added": 2200,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 11
+                }
             }
         },
         {
             "name": "PPN outlet with service charge, shipping and mixed rates",
-            "settings": { "service_charge_rate": 5, "tax_kind": "ppn", "pb1_rate": 10 },
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
             "lines": [
-                { "product_id": 1, "line_total": 47250, "tax_rate": 11, "tax_type": "exclusive" },
-                { "product_id": 3, "line_total": 33000, "tax_rate": 10, "tax_type": "inclusive" },
-                { "product_id": 2, "line_total": 10000, "tax_rate": 0, "tax_type": "exclusive" }
+                {
+                    "product_id": 1,
+                    "line_total": 47250,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                },
+                {
+                    "product_id": 3,
+                    "line_total": 33000,
+                    "tax_rate": 10,
+                    "tax_type": "inclusive"
+                },
+                {
+                    "product_id": 2,
+                    "line_total": 10000,
+                    "tax_rate": 0,
+                    "tax_type": "exclusive"
+                }
             ],
             "after_discount": 80250,
             "shipping": 12000,
             "dine_in": true,
             "expected": {
-                "service_charge": 4013, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 9799, "tax_rate": 10, "tax_base": 96263, "grand_total": 106062,
-                "bill_basis": { "after_discount": 80250, "shipping": 12000, "line_tax_total": 8198, "shipping_tax": 1200, "effective_rate": 10 }
+                "service_charge": 4013,
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "tax_total": 9799,
+                "tax_included": 3000,
+                "tax_rate": 10,
+                "tax_base": 93263,
+                "grand_total": 103062,
+                "bill_basis": {
+                    "after_discount": 80250,
+                    "shipping": 12000,
+                    "line_tax_total": 8198,
+                    "line_tax_added": 5198,
+                    "line_tax_included": 3000,
+                    "shipping_tax": 1200,
+                    "effective_rate": 10
+                }
             }
         },
         {
             "name": "half a rupiah rounds up; products at 0 % leave the service charge and shipping untaxed",
-            "settings": { "service_charge_rate": 5, "tax_kind": "ppn", "pb1_rate": 10 },
-            "lines": [{ "product_id": 2, "line_total": 47250, "tax_rate": 0, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 2,
+                    "line_total": 47250,
+                    "tax_rate": 0,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 47250,
             "shipping": 5000,
             "dine_in": true,
             "expected": {
-                "service_charge": 2363, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 0, "tax_rate": null, "tax_base": 0, "grand_total": 54613,
-                "bill_basis": { "after_discount": 47250, "shipping": 5000, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 2363,
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "tax_total": 0,
+                "tax_included": 0,
+                "tax_rate": null,
+                "tax_base": 0,
+                "grand_total": 54613,
+                "bill_basis": {
+                    "after_discount": 47250,
+                    "shipping": 5000,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         },
         {
             "name": "PPN outlet, discounts cover the whole subtotal: per-line PPN stays as before",
-            "settings": { "service_charge_rate": 5, "tax_kind": "ppn", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 0,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "service_charge_rate": 5, "tax_kind": "ppn", "tax_total": 2200, "tax_rate": 11, "tax_base": 20000, "grand_total": 2200,
-                "bill_basis": { "after_discount": 0, "shipping": 0, "line_tax_total": 2200, "shipping_tax": 0, "effective_rate": 11 }
+                "service_charge": 0,
+                "service_charge_rate": 5,
+                "tax_kind": "ppn",
+                "tax_total": 2200,
+                "tax_included": 0,
+                "tax_rate": 11,
+                "tax_base": 20000,
+                "grand_total": 2200,
+                "bill_basis": {
+                    "after_discount": 0,
+                    "shipping": 0,
+                    "line_tax_total": 2200,
+                    "line_tax_added": 2200,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 11
+                }
             }
         },
         {
             "name": "PB1 replaces the product PPN and taxes the service charge",
-            "settings": { "service_charge_rate": 5, "tax_kind": "pb1", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "inclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "inclusive"
+                }
+            ],
             "after_discount": 20000,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 2100, "tax_rate": 10, "tax_base": 21000, "grand_total": 23100,
-                "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 1000,
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "tax_total": 2100,
+                "tax_included": 0,
+                "tax_rate": 10,
+                "tax_base": 21000,
+                "grand_total": 23100,
+                "bill_basis": {
+                    "after_discount": 20000,
+                    "shipping": 0,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         },
         {
             "name": "PB1 leaves the delivery shipping out of the base",
-            "settings": { "service_charge_rate": 5, "tax_kind": "pb1", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 20000,
             "shipping": 10000,
             "dine_in": false,
             "expected": {
-                "service_charge": 0, "service_charge_rate": 0, "tax_kind": "pb1", "tax_total": 2000, "tax_rate": 10, "tax_base": 20000, "grand_total": 32000,
-                "bill_basis": { "after_discount": 20000, "shipping": 10000, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 0,
+                "service_charge_rate": 0,
+                "tax_kind": "pb1",
+                "tax_total": 2000,
+                "tax_included": 0,
+                "tax_rate": 10,
+                "tax_base": 20000,
+                "grand_total": 32000,
+                "bill_basis": {
+                    "after_discount": 20000,
+                    "shipping": 10000,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         },
         {
             "name": "PB1 at 0 % keeps its kind and has no rate",
-            "settings": { "service_charge_rate": 5, "tax_kind": "pb1", "pb1_rate": 0 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "pb1_rate": 0
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 20000,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 1000, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 0, "tax_rate": null, "tax_base": 21000, "grand_total": 21000,
-                "bill_basis": { "after_discount": 20000, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 1000,
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "tax_total": 0,
+                "tax_included": 0,
+                "tax_rate": null,
+                "tax_base": 21000,
+                "grand_total": 21000,
+                "bill_basis": {
+                    "after_discount": 20000,
+                    "shipping": 0,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         },
         {
             "name": "PB1, discounts cover the whole subtotal",
-            "settings": { "service_charge_rate": 5, "tax_kind": "pb1", "pb1_rate": 10 },
-            "lines": [{ "product_id": 1, "line_total": 20000, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "pb1_rate": 10
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20000,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 0,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 0, "service_charge_rate": 5, "tax_kind": "pb1", "tax_total": 0, "tax_rate": 10, "tax_base": 0, "grand_total": 0,
-                "bill_basis": { "after_discount": 0, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 0,
+                "service_charge_rate": 5,
+                "tax_kind": "pb1",
+                "tax_total": 0,
+                "tax_included": 0,
+                "tax_rate": 10,
+                "tax_base": 0,
+                "grand_total": 0,
+                "bill_basis": {
+                    "after_discount": 0,
+                    "shipping": 0,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         },
         {
             "name": "fractional rates",
-            "settings": { "service_charge_rate": 2.5, "tax_kind": "pb1", "pb1_rate": 7.5 },
-            "lines": [{ "product_id": 1, "line_total": 20100, "tax_rate": 11, "tax_type": "exclusive" }],
+            "settings": {
+                "service_charge_rate": 2.5,
+                "tax_kind": "pb1",
+                "pb1_rate": 7.5
+            },
+            "lines": [
+                {
+                    "product_id": 1,
+                    "line_total": 20100,
+                    "tax_rate": 11,
+                    "tax_type": "exclusive"
+                }
+            ],
             "after_discount": 20100,
             "shipping": 0,
             "dine_in": true,
             "expected": {
-                "service_charge": 503, "service_charge_rate": 2.5, "tax_kind": "pb1", "tax_total": 1545, "tax_rate": 7.5, "tax_base": 20603, "grand_total": 22148,
-                "bill_basis": { "after_discount": 20100, "shipping": 0, "line_tax_total": 0, "shipping_tax": 0, "effective_rate": 0 }
+                "service_charge": 503,
+                "service_charge_rate": 2.5,
+                "tax_kind": "pb1",
+                "tax_total": 1545,
+                "tax_included": 0,
+                "tax_rate": 7.5,
+                "tax_base": 20603,
+                "grand_total": 22148,
+                "bill_basis": {
+                    "after_discount": 20100,
+                    "shipping": 0,
+                    "line_tax_total": 0,
+                    "line_tax_added": 0,
+                    "line_tax_included": 0,
+                    "shipping_tax": 0,
+                    "effective_rate": 0
+                }
             }
         }
     ]

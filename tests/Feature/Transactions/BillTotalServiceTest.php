@@ -32,8 +32,8 @@ class BillTotalServiceTest extends TestCase
     }
 
     /**
-     * The numbers were captured from the code before service charge and PB1 existed (#450, TC-1):
-     * an outlet that never saved bill settings keeps them, whatever the order type.
+     * The numbers were captured from the code before service charge and PB1 existed (#450, TC-1); #576 corrected the
+     * inclusive line, whose PPN is inside its price and is no longer charged again.
      */
     public function test_default_outlet_matches_pre_release_totals(): void
     {
@@ -66,14 +66,16 @@ class BillTotalServiceTest extends TestCase
                 'loyalty_discount_total' => 2000,
                 'manual_discount_total' => 3000,
                 'tax_total' => 9398,
+                'tax_included' => 3000,
                 'tax_rate' => 10.0,
-                'grand_total' => 101648,
+                'grand_total' => 98648,
                 'points_earned_preview' => 8,
             ], [
                 'voucher_discount_total' => $summary['voucher_discount_total'],
                 'loyalty_discount_total' => $summary['loyalty_discount_total'],
                 'manual_discount_total' => $summary['manual_discount_total'],
                 'tax_total' => $summary['tax_total'],
+                'tax_included' => $summary['tax_included'],
                 'tax_rate' => $summary['tax_rate'],
                 'grand_total' => $summary['grand_total'],
                 'points_earned_preview' => $summary['points_earned_preview'],

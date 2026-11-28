@@ -132,6 +132,7 @@ class CheckoutService
                 'note' => $ctx->note,
                 'tax_rate' => data_get($checkoutPreview, 'summary.tax_rate'),
                 'tax_total' => data_get($checkoutPreview, 'summary.tax_total', 0),
+                'tax_included' => data_get($checkoutPreview, 'summary.tax_included', 0),
                 'service_charge' => data_get($checkoutPreview, 'summary.service_charge'),
                 'service_charge_rate' => data_get($checkoutPreview, 'summary.service_charge_rate'),
                 'tax_kind' => data_get($checkoutPreview, 'summary.tax_kind'),
