@@ -49,7 +49,8 @@ satuan supplier dan HPP rata-rata per gudang adalah item terpisah (belum dibuat)
 ## Open questions
 
 - Resep yang dijual dari gudang tanpa stok bahan: saat ini tidak tampil (AC-04); belum ada
-  pesan khusus ke kasir.
+  pesan khusus ke kasir. — **Answered** (Business/PM, 2026-11-28): menu tampil **Habis** dan tidak
+  bisa ditambahkan, sama seperti opsi REQ-008 (#512).
 
 ## Delivered by
 
