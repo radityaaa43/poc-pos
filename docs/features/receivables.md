@@ -80,3 +80,12 @@ Belum ada approval flow terpisah untuk pencatatan pembayaran receivable.
 - `app/Http/Controllers/Apps/ReceivableController.php`
 - `app/Services/ReceivableService.php`, `app/Services/CustomerCreditService.php`
 - `resources/js/Pages/Dashboard/Receivables`
+
+## Tren piutang macet
+
+Laporan aging menampilkan tren 12 bulan terakhir: total piutang macet pada akhir tiap bulan (dan hari ini untuk bulan berjalan), untuk satu outlet atau semua outlet yang boleh dilihat pengguna.
+
+- Piutang dihitung pada sebuah bulan bila `due_date`-nya sudah lewat sebelum akhir bulan itu, catatannya sudah ada saat itu, dan sisa saat itu (`total - paid + pembayaran yang bertanggal setelah akhir bulan`) masih di atas nol. Pembayaran setelah akhir bulan tidak mengurangi angka bulan itu.
+- Jatuh tempo hari ini belum termasuk macet.
+- Bulan berjalan memakai hari ini sebagai acuan dan sama dengan bucket `0-30` + `31-60` + `61-90` + `90+` di laporan aging.
+- Angka bulan lalu bisa berubah bila penjualan lama dikoreksi (retur, diskon ditolak, pembayaran bertanggal mundur).
