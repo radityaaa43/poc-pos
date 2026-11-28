@@ -59,33 +59,34 @@ function groupSales(order) {
     ].filter((sale) => sale.items.some((item) => item.status !== "cancelled"));
 }
 
-// The one print button of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang
-// prints a CETAK ULANG copy of one that did. `order` is the whole order, whatever the station filter shows.
-function PrintAction({ order, notPrinted, reprintable, printDevice }) {
+// The one print footer of a card (REQ-004 K2): Coba lagi re-sends a ticket that never printed, Cetak ulang prints a
+// CETAK ULANG copy of the ones that did. `order` is the whole order, whatever the station filter shows. A grouped card
+// can hold both: an unprinted add-on keeps Coba lagi while the printed original keeps Cetak ulang (#540).
+function PrintAction({ order, notPrinted, printed, printDevice }) {
     const { t } = useTranslation();
-    if (!notPrinted && !reprintable) return null;
+    if (!notPrinted && printed.length === 0) return null;
 
-    // One card may hold several sales: match the running/failed job against any of them (#314).
-    const sales = groupSales(order);
-    const busy = sales.some((sale) => printDevice.reprinting?.includes(sale.id));
-    const failed = sales.some((sale) => printDevice.reprintFailed === sale.id);
+    // One card may hold several sales: match the running/failed job against the ones this button reprints (#314).
+    const busy = printed.some((sale) => printDevice.reprinting?.includes(sale.id));
+    const failed = printed.some((sale) => printDevice.reprintFailed === sale.id);
 
     return (
-        <div className="border-t border-slate-100 p-4 dark:border-slate-800">
-            {notPrinted ? (
+        <div className="space-y-2 border-t border-slate-100 p-4 dark:border-slate-800">
+            {notPrinted && (
                 <button type="button" onClick={printDevice.retry} className={PRINT_BUTTON}>
                     {t("kitchen.print.retry")}
                 </button>
-            ) : (
+            )}
+            {printed.length > 0 && (
                 <button
                     type="button"
                     disabled={printDevice.headFailed || busy}
                     onClick={() => {
-                        // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per sale (#314).
-                        if (sales.length === 1 && sales[0].id === order.id) {
+                        // A plain order is one ticket, unchanged; a grouped or add-on-only card reprints one ticket per printed sale (#314).
+                        if (printed.length === 1 && printed[0].id === order.id) {
                             printDevice.reprint(order);
                         } else {
-                            sales.forEach((sale) => printDevice.reprint(sale));
+                            printed.forEach((sale) => printDevice.reprint(sale));
                         }
                     }}
                     className={PRINT_BUTTON}
@@ -205,20 +206,33 @@ export default function Index({ orders, outlet, stations = [] }) {
             ? printDevice.unprinted?.find((entry) => groupSales(order).some((sale) => entry.key === `t${sale.id}`))
             : undefined;
     const notPrinted = (order) => isNotPrinted(queuedEntry(order), now);
-    // Cetak ulang is only for an order whose ticket this device printed (REQ-004 decision 12).
+    // Cetak ulang is only for the sales on the card whose ticket this device printed (REQ-004 decision 12). A grouped
+    // card keeps it for the printed sales even when an unprinted add-on joined them (#540); a sale still waiting to
+    // print keeps Coba lagi only.
     const printed = new Set(printDevice.printedIds);
-    const reprintable = (order) => {
-        const lines = order.items.filter((item) => item.status !== "cancelled");
+    // Only a ticket the auto-print queue still holds counts as not printed; with auto-print off nothing is queued.
+    const queuedSales = new Set(
+        (printDevice.autoPrint ? printDevice.unprinted ?? [] : []).map((entry) => Number(String(entry.key).replace(/^t/, "")))
+    );
+    const printedSales = (order) =>
+        hasTarget()
+            ? groupSales(order)
+                  .filter((sale) => !queuedSales.has(sale.id))
+                  // A cancelled line is not printed and does not hold the card back, as before (#540 keeps that rule).
+                  .filter((sale) => sale.items.filter((item) => item.status !== "cancelled").every((item) => printed.has(item.id)))
+            : [];
+    function hasTarget() {
         // A tab that is not the printing one can't reach the printer: the leader tab holds it.
-        const hasTarget = Boolean(printDevice.printerKey || printDevice.autoPrint) && !printDevice.otherTab;
-        return hasTarget && !queuedEntry(order) && lines.length > 0 && lines.every((item) => printed.has(item.id));
-    };
+        return Boolean(printDevice.printerKey || printDevice.autoPrint) && !printDevice.otherTab;
+    }
+    // The sales the card shows: Semua siap marks only these, an add-on that arrived after the poll stays open (#540).
+    const saleIdsFor = (order) => groupSales(order).map((sale) => sale.id);
     // `order` here is the whole order: a reprint is the same ticket, whatever the station filter shows.
     const printAction = (order) => (
-        <PrintAction order={order} notPrinted={notPrinted(order)} reprintable={reprintable(order)} printDevice={printDevice} />
+        <PrintAction order={order} notPrinted={notPrinted(order)} printed={printedSales(order)} printDevice={printDevice} />
     );
 
-    const cardProps = { orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction };
+    const cardProps = { orders, now, multi, showAll, chosen, activeIds, canPrepare, canHandOver, stepButton, notPrinted, hasPrinter, printAction, saleIdsFor };
     const card = (order) => <OrderCard key={order.id} order={order} {...cardProps} />;
 
     return (

@@ -264,7 +264,7 @@ describe("Kitchen/Index steps", () => {
         act(() => lastOptions().onFinish());
 
         await user.click(within(first).getByRole("button", { name: "Semua siap" }));
-        expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", {}, expect.objectContaining({ preserveScroll: true }));
+        expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", { sale_ids: [7] }, expect.objectContaining({ preserveScroll: true }));
     });
 
     it("disables the tapped button while its request runs and frees it afterwards", async () => {
@@ -548,13 +548,24 @@ describe("Kitchen/Index stations", () => {
         const allReadyBody = () => router.post.mock.calls.at(-1)[1];
         const allReadyButton = (card) => within(card).queryByRole("button", { name: "Semua siap" });
 
-        it("posts an empty body on Semua stasiun", async () => {
+        it("posts the visible sale ids on Semua stasiun (#540)", async () => {
             const user = setup();
             renderIndex();
 
             await user.click(allReadyButton(cards()[0]));
 
-            expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", {}, expect.anything());
+            expect(router.post).toHaveBeenLastCalledWith("/kitchen.orders.all-ready", { sale_ids: [21] }, expect.anything());
+        });
+
+        it("posts the visible sale ids of a grouped card, the original and its add-on (#540)", async () => {
+            const user = setup();
+            const add_on = { id: 11, since: minutesAgo(1), unpaid: false };
+            const items = [...orders[1].items, { id: 99, title: "Es Jeruk", qty: 1, status: "accepted", add_on }];
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            await user.click(allReadyButton(cards()[0]));
+
+            expect(allReadyBody()).toEqual({ sale_ids: [9, 11] });
         });
 
         it("posts the chosen station ids when the display is filtered", async () => {
@@ -565,7 +576,7 @@ describe("Kitchen/Index stations", () => {
             await user.click(chip("Bar"));
             await user.click(allReadyButton(cards()[0]));
 
-            expect(allReadyBody()).toEqual({ station_ids: [1, 2] });
+            expect(allReadyBody()).toEqual({ station_ids: [1, 2], sale_ids: [21] });
         });
 
         it("hides when every shown item is ready, even if the order has other unfinished items", async () => {
@@ -950,6 +961,21 @@ describe("Kitchen/Index: printer status and Belum tercetak (REQ-004 K2)", () => 
                 [orders[1].id, "order"],
                 [11, "addon"],
             ]);
+        });
+
+        it("keeps Cetak ulang for the printed original when an unprinted add-on joins, and reprints only it (#540)", async () => {
+            const add_on = { id: 11, since: secondsAgo(60), unpaid: false };
+            const items = [...orders[1].items, { id: 99, title: "Es Jeruk", qty: 1, status: "accepted", add_on }];
+            const hook = use({ printedIds: [1, 2, 3], unprinted: [entry(11)] });
+            render(<Index orders={[{ ...orders[1], items }]} outlet={outlet} />);
+
+            const card = cards()[0];
+            // The add-on's own ticket still waits: Coba lagi stays, and the printed original stays reprintable.
+            expect(within(card).getByRole("button", { name: "Coba lagi" })).toBeInTheDocument();
+            await user().click(within(card).getByRole("button", { name: "Cetak ulang" }));
+
+            expect(hook.reprint).toHaveBeenCalledTimes(1);
+            expect(hook.reprint).toHaveBeenCalledWith(expect.objectContaining({ id: orders[1].id }));
         });
 
         it("reprints only the add-on when the original has no line left (#314)", async () => {
