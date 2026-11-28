@@ -137,6 +137,18 @@ describe("Transactions History", () => {
         expect(screen.queryByRole("button", { name: "Bayar" })).not.toBeInTheDocument();
     });
 
+    it("hides Bayar on a fully returned sale, as Belum Lunas does (#538 review)", () => {
+        // Rp 1.000 left after a 10% PB1 is not payable: the sale was fully returned and the server refuses it.
+        render(
+            <History
+                transactions={{ data: [{ ...abandonedPosBill, owed_total: 1000, can_create_sales_return: false }], links: [] }}
+                filters={{}}
+            />
+        );
+
+        expect(screen.queryByRole("button", { name: "Bayar" })).not.toBeInTheDocument();
+    });
+
     it("needs dine-orders-process to pay a dine bill from History", () => {
         useAuthorization.mockImplementation(() => ({ can: (permission) => permission !== "dine-orders-process" }));
         const bill = dineBill("accepted", { payment_status: "pending", payment_method: "qris", abandoned_claim: 1 });

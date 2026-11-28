@@ -55,11 +55,13 @@ const formatDateTime = (value) =>
 // same scope the POS "Belum Lunas" list uses, so there is one rule.
 const abandoned = (transaction) =>
     Boolean(transaction.abandoned_claim) && transaction.payment_status === "pending";
-// A pay-later POS sale the guest or the cashier never settled (mirrors Transaction::payLaterBills).
+// A pay-later POS sale the guest or the cashier never settled (mirrors Transaction::payLaterBills). A fully returned
+// sale is no bill: Belum Lunas hides it and the server refuses a payment of what is left.
 const isPosBill = (transaction) =>
     transaction.is_pay_later &&
     !transaction.dine_order &&
     !transaction.receivable &&
+    transaction.can_create_sales_return !== false &&
     transaction.owed_total > 0;
 const DINE_IN_PROGRESS = ["accepted", "preparing", "ready", "served"];
 // An unsettled bill: a dine-in order still in progress (the same states as Belum Lunas), or a POS pay-later sale
