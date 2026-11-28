@@ -1239,6 +1239,28 @@
             "overdue": "Ada piutang lewat jatuh tempo",
             "loadError": "Gagal memuat batas piutang",
             "retry": "Coba lagi"
+        },
+        "offlineQueue": {
+            "button": "Transaksi offline tertunda ({{count}})",
+            "retryNow": "Coba sinkron sekarang",
+            "remove": "Hapus",
+            "confirm": "Hapus transaksi offline ini dari perangkat? Penghapusan dicatat di audit log.",
+            "confirmFailed": "Transaksi ini belum tercatat di server. Catat ulang secara online dulu, lalu hapus dari sini.",
+            "conflict": "Transaksi ini sudah tercatat di server.",
+            "onlineOnly": "Hapus hanya bisa saat online.",
+            "changed": "Status berubah, coba lagi.",
+            "empty": "Tidak ada transaksi offline yang tertunda.",
+            "product": "Produk #{{id}}",
+            "loadError": "Gagal membaca antrean di perangkat ini.",
+            "retryError": "Gagal menyinkronkan. Coba lagi.",
+            "removeError": "Gagal menghapus. Transaksi tetap tersimpan di perangkat.",
+            "status": {
+                "pending": "Menunggu dikirim",
+                "syncing": "Sedang dikirim",
+                "failed": "Gagal",
+                "conflict": "Konflik",
+                "discarding": "Sedang dihapus"
+            }
         }
     },
     "outlets": {

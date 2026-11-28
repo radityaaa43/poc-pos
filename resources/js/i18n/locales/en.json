@@ -1239,6 +1239,28 @@
             "overdue": "Overdue receivable exists",
             "loadError": "Could not load the credit limit",
             "retry": "Try again"
+        },
+        "offlineQueue": {
+            "button": "Pending offline sales ({{count}})",
+            "retryNow": "Retry now",
+            "remove": "Remove",
+            "confirm": "Remove this offline sale from the device? The removal is recorded in the audit log.",
+            "confirmFailed": "This sale is not recorded on the server yet. Ring it up again online first, then remove it here.",
+            "conflict": "This sale is already recorded on the server.",
+            "onlineOnly": "Removing works only while online.",
+            "changed": "The status changed, try again.",
+            "empty": "No pending offline sales.",
+            "product": "Product #{{id}}",
+            "loadError": "Could not read the queue on this device.",
+            "retryError": "Could not sync. Try again.",
+            "removeError": "Could not remove it. The sale is still on this device.",
+            "status": {
+                "pending": "Waiting to send",
+                "syncing": "Sending",
+                "failed": "Failed",
+                "conflict": "Conflict",
+                "discarding": "Being removed"
+            }
         }
     },
     "outlets": {

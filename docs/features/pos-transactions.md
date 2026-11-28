@@ -49,6 +49,7 @@ Menyediakan alur kasir cepat untuk pencarian produk, pengelolaan cart, checkout,
 - `transactions.store`
 - `transactions.print`
 - `transactions.public`
+- `transactions.sync`, `transactions.offline-discard` (antrean offline: `docs/features/offline-mode.md`)
 
 ## Permission
 
