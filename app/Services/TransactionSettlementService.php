@@ -115,7 +115,7 @@ class TransactionSettlementService
             ]);
         }
 
-        $before = $transaction->only([...self::RESTORED, 'payment_status', 'payment_failure_reason', 'payment_attempt', 'payment_reference']);
+        $before = $transaction->only([...self::RESTORED, 'payment_status', 'payment_failure_reason', 'payment_attempt', 'payment_reference', 'payment_url']);
 
         // A failed or expired gateway attempt leaves its tender behind; the new attempt replaces it (it never held money).
         $transaction->tenders()->delete();

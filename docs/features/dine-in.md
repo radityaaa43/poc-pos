@@ -188,10 +188,11 @@ Dikontrol via `Setting` table:
 - Catatan opsional per item
 - Opsi saat ini: Bayar di Kasir (`pay_at_counter`) dan, bila outlet mengaktifkan Bayar Belakangan, Bayar Belakangan (`pay_later`)
 - Tombol kirim `pay_at_counter`: di outlet meja yang gateway-nya siap (prop `onlinePayment`, aturan yang sama dengan pembayaran online tamu) berbunyi **Pesan** dengan petunjuk **Bisa bayar online setelah pesanan diterima**; di outlet lain tetap **Pesan — Bayar di Kasir**. Opsi yang dikirim sama
+- Petunjuk di bawah tombol **Pesan — Bayar Belakangan** (`dineMenu.payLater.helper` / `helperOnline`): di outlet yang gateway-nya siap "Pesanan langsung dibuat. Bayar di kasir atau online dari halaman pesanan sebelum Anda pergi."; di outlet lain "Pesanan langsung dibuat. Bayar di kasir sebelum Anda pergi."
 
 ### Polling Status
 - Halaman status auto-refresh setiap 5 detik selama pesanan belum completed/rejected/cancelled
-- Progres tamu: Diterima → Menunggu Pembayaran → Sedang dibuat → Siap → Disajikan → Selesai. Banner mengikuti `status` dan apakah tagihan sudah lunas: `accepted` belum lunas = "Menunggu Pembayaran", `accepted` lunas = "Diterima", lalu `preparing`, `ready`, `served` (sesaat, langsung `completed`)
+- Progres tamu: Diterima → Menunggu Pembayaran → Sedang dibuat → Siap → Disajikan → Selesai. Banner mengikuti `status` dan apakah tagihan sudah lunas: `accepted` belum lunas = "Menunggu Pembayaran", `accepted` lunas = "Diterima", lalu `preparing`, `ready`, `served` (sesaat, langsung `completed`). Pesanan Bayar Belakangan yang `accepted` dan belum lunas berbunyi **Diterima**: "Pesanan diterima. Belum lunas: bayar sekarang atau di kasir sebelum Anda pergi.", atau "... bayar di kasir sebelum Anda pergi." bila panel bayar berstatus `counter`
 
 ### Konversi Staff
 - Accept: stok dipotong langsung, pesanan siap diproses
@@ -272,6 +273,7 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
 | `counter` | **Silakan bayar di kasir**, no button |
 | `paid` | **Lunas**, no button |
 
+- **Pay later** (`payment.pay_later`, REQ-005 AC-05): a table-QR Bayar Belakangan bill is paid through the same panel, charge and webhook, in every status from accepted to served. The panel adds **Belum lunas** until the bill is paid. Paying it records no kitchen item again (its items were recorded at accept; the paid hook skips pay-later bills and the intake is once per sale), takes the bill off the POS Belum Lunas list, clears the kitchen display's Belum lunas mark and completes an order that is already served. A POS pay-later sale has no order token, so a guest cannot reach it.
 - It learns the result from the page's 5 s status poll, without a reload. While an order is accepted and unpaid, the page's
   "walk to the counter" text shows only when `payment` is null or `counter`.
 - A refused press reads **Belum bisa dibayar**, **Sudah lunas**, **Silakan bayar di kasir**, the gateway text above,
@@ -325,8 +327,8 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
   that wins the race follows the late-payment rule above and is audited as not expired (`reason: settled_during_call`).
   A temporary failure is tried 5 times over about 11 minutes; the last try is audited, an unexpected error included. If it
   fails, or no queue worker runs (README, "Queue worker"), the late-payment flag is the safety net. A cashier's own charge is
-  never expired. Not yet verified on a sandbox: a Midtrans payment page the guest never opened may be unknown to the Core API,
-  so it stays payable until its own 15 minute expiry.
+  never expired. A Midtrans page with no method picked is unknown to the Core API (404): the job then cancels the Snap session
+  by the token in the page's URL, and retries any answer it does not know. Not yet verified on a sandbox.
 - **Paid after the shift closed**: a gateway payment that settles a bill whose owning shift is closed (or force-closed) sets
   `paid_after_close_at` and audit `payment.paid_after_close`; the closed recap, a stored snapshot, is never changed. It applies when the
   closed recap did not hold the bill (`CashierShiftService::countedInClosedRecap`: an unpaid bill (Belum Lunas) or a gateway sale unpaid at close).
@@ -344,15 +346,14 @@ Xendit is ready (Settings → Payment). Paying never happens at submit (`pay_onl
 - A guest charge never writes `cashier_id` or `cashier_shift_id`: the payment stays in the shift that accepted the order.
 - It creates no tender rows. Therefore a **pending bill that has tender rows is the cashier's own** gateway charge or
   transfer, and a bill with money already taken in a split: the guest cannot start a second charge (state `counter`).
-  A pay-later bill (`is_pay_later`) is also `counter` for now.
-- Refusals are 422 `errors.payment[0]`: `not_payable` (not accepted, rejected, nothing left, cashier's charge, pay-later bill),
+- Refusals are 422 `errors.payment[0]`: `not_payable` (not accepted, rejected, nothing left, cashier's charge),
   `already_paid`, `no_gateway`, `gateway_error` (the call failed: the bill is set to `failed` with reason `gateway_error`, so
   the cashier can pay at the counter). 404 for an unknown token, 429 over the limit.
 - `transactions.payment_failure_reason` is `expired` when the gateway reported an expiry (Midtrans `expire`, Xendit `EXPIRED`), `gateway_error` when
   the charge could not be created, null otherwise; it lets the page tell Kedaluwarsa from Pembayaran gagal.
 - The guest's QRIS and hosted page expire after 15 minutes, and the gateway's finish redirect goes back to the status page
   (not the staff-only receipt).
-- `payment` on the status page props and on the `/check` response: `{state, amount, attempt, payment_url, qr}`, or `null` while there is nothing to show.
+- `payment` on the status page props and on the `/check` response: `{state, amount, attempt, payment_url, qr, pay_later}`, or `null` while there is nothing to show.
   `state` is `can_pay`, `pending`, `failed`, `expired`, `gateway_error`, `counter` (pay at the counter) or `paid`. `qr` (an SVG data URI) is
   only on the page, never on the poll. It holds no invoice, bill id, customer, outlet or gateway reference.
 

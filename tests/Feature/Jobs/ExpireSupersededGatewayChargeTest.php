@@ -160,6 +160,54 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         Http::assertSent(fn (Request $request) => $request->url() === 'https://api.midtrans.com/v2/INV-1-r1/expire');
     }
 
+    /** @return array<string, array{0: array<string, mixed>, 1: int, 2: string}> */
+    public static function snapAnswers(): array
+    {
+        return [
+            'canceled' => [['canceled_at' => '2026-01-01T00:00:00Z'], 200, 'expired'],
+            'already canceled' => [['error_messages' => ['token already canceled']], 400, 'not_pending'],
+            'unknown token' => [['error_messages' => ['token not found']], 404, 'not_found'],
+            'a method picked meanwhile' => [['error_messages' => ['Transaction is on progress']], 400, 'transient'],
+            'an unrecognised error' => [['error_messages' => ['something else']], 418, 'transient'],
+            'success without a cancel time' => [[], 200, 'transient'],
+        ];
+    }
+
+    /** @param array<string, mixed> $body */
+    #[DataProvider('snapAnswers')]
+    public function test_a_page_with_no_core_transaction_is_canceled_by_its_token(array $body, int $status, string $result): void
+    {
+        $this->useGateway('midtrans', fakeHttp: false);
+        Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '404'], 200),
+            'app.sandbox.midtrans.com/*' => Http::response($body, $status),
+        ]);
+        $page = 'https://app.sandbox.midtrans.com/snap/v3/redirection/tok-1';
+
+        $answer = app(PaymentGatewayManager::class)->expireCharge('midtrans', PaymentSetting::sole(), 'INV-1-r1', 'INV-1-r1', $page);
+
+        $this->assertSame($result, $answer);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://app.sandbox.midtrans.com/snap/v1/transactions/tok-1/cancel'
+            && $request->hasHeader('Authorization', 'Basic '.base64_encode('sk-test:')));
+    }
+
+    public function test_a_takeover_closes_the_guests_unused_payment_page(): void
+    {
+        $this->useGateway('midtrans', fakeHttp: false);
+        Http::fake([
+            'api.sandbox.midtrans.com/*' => Http::response(['status_code' => '404'], 200),
+            'app.sandbox.midtrans.com/snap/v1/transactions/tok-1/cancel' => Http::response(['canceled_at' => 'now'], 200),
+            'app.sandbox.midtrans.com/*' => Http::response(['redirect_url' => 'https://app.sandbox.midtrans.com/snap/v3/redirection/tok-1'], 201),
+        ]);
+        $order = $this->acceptedOrder();
+        $this->guestPays($order)->assertOk();
+
+        $this->cashierPays($order); // sync queue: the expiry runs at the commit
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/tok-1/cancel'));
+        $this->assertSame(1, AuditLog::where('event', self::EXPIRED)->count());
+    }
+
     // ---- when it is queued ------------------------------------------------------------------------------
 
     public function test_a_newer_guest_tap_queues_the_expiry_of_the_older_charge_without_calling_the_gateway(): void
@@ -436,6 +484,31 @@ class ExpireSupersededGatewayChargeTest extends TestCase
         $this->assertSame(0, AuditLog::where('event', self::EXPIRED)->count());
         $meta = AuditLog::where('event', self::NOT_EXPIRED)->sole()->meta;
         $this->assertSame(['settled_during_call', 'expired', true], [$meta['reason'], $meta['result'], $meta['settled_during_call']]);
+    }
+
+    /** @return array<string, array<int, string>> */
+    public static function otherPayments(): array
+    {
+        return ['the cashier is paid' => ['paid'], 'the current charge fails' => ['failed']];
+    }
+
+    #[DataProvider('otherPayments')]
+    public function test_another_payments_outcome_during_the_call_still_records_the_expiry(string $outcome): void
+    {
+        $bill = null;
+        $this->gatewayAnswering('midtrans', function () use (&$bill, $outcome) {
+            $outcome === 'paid'
+                ? $this->cashierPays($bill->dineOrder)
+                : $this->notify('midtrans', "{$bill->invoice}-r2", 'failed');
+
+            return Http::response(['status_code' => '407'], 200);
+        });
+        $bill = $this->supersededCharge();
+
+        $this->work($this->jobFor($bill));
+
+        $this->assertSame($outcome, $bill->fresh()->payment_status);
+        $this->assertFalse(AuditLog::where('event', self::EXPIRED)->sole()->meta['settled_during_call']);
     }
 
     public function test_a_transient_failure_is_retried(): void
