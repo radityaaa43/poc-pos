@@ -15,6 +15,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
+use App\Services\LoyaltyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
@@ -249,7 +250,7 @@ class DiscountDenialTest extends TestCase
         $sale = $this->sell(self::PPN_WITH_SERVICE, ['customer_id' => $customer->id]);
         $before = $customer->fresh();
 
-        app(\App\Services\LoyaltyService::class)->awardAfterDenial($sale, 95000, 100000);
+        app(LoyaltyService::class)->awardAfterDenial($sale, 95000, 100000);
 
         $after = $customer->fresh();
         $this->assertSame(1, (int) $after->loyalty_points - (int) $before->loyalty_points);
