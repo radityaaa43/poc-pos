@@ -316,7 +316,7 @@ class DineOrderService
             // One transaction, items locked and re-read as accepted: a double tap or a cook who took one item first
             // leaves the rest to start, not a half-started order plus an error.
             DB::transaction(function () use ($order) {
-                $this->kitchenItemService->lockDineOrder($order->transaction_id);
+                $this->kitchenItemService->lockKitchenRows([$order->transaction_id]);
                 $items = KitchenItem::where('transaction_id', $order->transaction_id)
                     ->where('status', KitchenItem::STATUS_ACCEPTED)
                     ->lockForUpdate()

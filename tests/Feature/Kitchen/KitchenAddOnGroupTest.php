@@ -141,9 +141,8 @@ class KitchenAddOnGroupTest extends TestCase
         $this->assertSame(KitchenItem::STATUS_ACCEPTED, $food->fresh()->status);
     }
 
-    // Two stations at once: taps on one order queue on its lock, taken newest sale first as a checkout does. SQLite
-    // ignores FOR UPDATE, so this pins the statement order; CI's MySQL job also sees the clause.
-    public function test_every_kitchen_tap_locks_the_dine_order_before_reading_its_items(): void
+    // A shift close's lock order, a group's sales newest first. SQLite ignores FOR UPDATE: only CI's MySQL job sees it.
+    public function test_every_kitchen_tap_locks_the_items_then_the_dine_orders_before_it_reads_them(): void
     {
         $root = $this->sale('INV-ROOT', table: 'Meja 4');
         $item = $this->item($root);
@@ -163,27 +162,26 @@ class KitchenAddOnGroupTest extends TestCase
         });
 
         foreach ([
-            'start preparing' => [fn () => app(DineOrderService::class)->startPreparing($root->dineOrder), $root],
-            'one item' => [fn () => $kitchen->ready($item->fresh(), $this->staff), $root],
-            'all ready' => [fn () => $kitchen->allReadyOrderGroup($root, $this->staff), $addOn],
-            'hand over all' => [fn () => $kitchen->handOverOrderGroup($root, $this->staff), $addOn],
-            'return' => [fn () => DB::transaction(fn () => $kitchen->cancelForReturn($return)), $root],
-        ] as $tap => [$run, $first]) {
+            'start preparing' => [fn () => app(DineOrderService::class)->startPreparing($root->dineOrder), [$root->id]],
+            'one item' => [fn () => $kitchen->ready($item->fresh(), $this->staff), [$root->id]],
+            'all ready' => [fn () => $kitchen->allReadyOrderGroup($root, $this->staff), [$addOn->id, $root->id]],
+            'hand over all' => [fn () => $kitchen->handOverOrderGroup($root, $this->staff), [$addOn->id, $root->id]],
+            'return' => [fn () => DB::transaction(fn () => $kitchen->cancelForReturn($return)), [$root->id]],
+        ] as $tap => [$run, $sales]) {
             $log = [];
             $run();
-            $locks = array_values(array_filter($log, fn ($query) => ! str_contains($query->sql, 'parent_transaction_id')));
-            $this->assertStringContainsString('dine_orders', $locks[0]->sql, $tap);
-            $this->assertSame([$first->id], array_slice($locks[0]->bindings, -1), $tap);
+            foreach (['kitchen_items', 'dine_orders'] as $step => $table) {
+                $this->assertStringContainsString($table, $log[$step]->sql, $tap);
+                $this->assertSame($sales, $log[$step]->bindings, $tap);
+            }
             if (DB::getDriverName() === 'mysql') {
-                // Every read of the items, and the bill's payment status, sees the latest committed rows.
-                foreach (preg_grep('/from .kitchen_items.|^select .payment_status./', array_column($log, 'sql')) as $sql) {
+                // Every read of the items and dine orders, and the bill's payment status, sees the latest committed rows.
+                foreach (preg_grep('/from .(kitchen_items|dine_orders).|^select .payment_status./', array_column($log, 'sql')) as $sql) {
                     $this->assertStringContainsString('for update', $sql, $tap);
                 }
             }
         }
         $this->assertSame(DineOrder::STATUS_COMPLETED, $root->dineOrder->fresh()->status);
-        // The return ran last: it holds its sale before any stock row, as an add-on holds that sale while it takes stock.
-        $this->assertMatchesRegularExpression('/from .transactions./', end($log)->sql);
     }
 
     // A payment and a hand-over can commit side by side: neither side may decide from what it loaded earlier.

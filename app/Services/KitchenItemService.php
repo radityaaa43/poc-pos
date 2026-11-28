@@ -10,6 +10,7 @@ use App\Models\SalesReturnItem;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
 use App\Models\User;
+use Closure;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -45,7 +46,7 @@ class KitchenItemService
     public function allReady(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
-            $this->lockDineOrder($transaction->id);
+            $this->lockKitchenRows([$transaction->id]);
             $now = now();
 
             $items = KitchenItem::where('transaction_id', $transaction->id)
@@ -83,7 +84,7 @@ class KitchenItemService
     public function handOverAll(Transaction $transaction, User $user, ?array $stationIds = null): void
     {
         DB::transaction(function () use ($transaction, $user, $stationIds) {
-            $this->lockDineOrder($transaction->id);
+            $this->lockKitchenRows([$transaction->id]);
             $now = now();
 
             KitchenItem::where('transaction_id', $transaction->id)
@@ -104,25 +105,31 @@ class KitchenItemService
     /** @param  array<int, int>|null  $stationIds  The card's Semua siap over the original order and its add-ons (#251). */
     public function allReadyOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
     {
-        DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds)));
+        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->allReady($sale, $user, $stationIds));
     }
 
     /** @param  array<int, int>|null  $stationIds  Serahkan semua over the group (#251): each sale syncs its own dine order. */
     public function handOverOrderGroup(Transaction $root, User $user, ?array $stationIds = null): void
     {
-        DB::transaction(fn () => $this->orderGroup($root)->each(fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds)));
+        $this->tapOrderGroup($root, fn (Transaction $sale) => $this->handOverAll($sale, $user, $stationIds));
     }
 
-    /** @return Collection<int, Transaction> the sale and its add-ons, newest first: an add-on is locked before its original */
-    private function orderGroup(Transaction $root): Collection
+    /** @param  Closure(Transaction): void  $tap  run over the sale and its add-ons, newest first: an add-on's bill is locked before its original's */
+    private function tapOrderGroup(Transaction $root, Closure $tap): void
     {
-        return Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
+        // Read before the transaction: a plain read inside it would fix MySQL's snapshot before the rows are locked.
+        $sales = Transaction::whereKey($root->id)->orWhere('parent_transaction_id', $root->id)->orderByDesc('id')->get();
+        DB::transaction(function () use ($sales, $tap) {
+            $this->lockKitchenRows($sales->modelKeys());
+            $sales->each($tap);
+        });
     }
 
-    /** Taken first by every kitchen write (order, items, bill), so taps on one order queue instead of deadlocking. */
-    public function lockDineOrder(int $transactionId): void
+    /** Taken first by every kitchen write, in a shift close's order: all the items, then the dine orders, then any bill. */
+    public function lockKitchenRows(array $transactionIds): void
     {
-        DineOrder::where('transaction_id', $transactionId)->lockForUpdate()->value('id');
+        KitchenItem::whereIn('transaction_id', $transactionIds)->lockForUpdate()->get(['id']);
+        DineOrder::whereIn('transaction_id', $transactionIds)->lockForUpdate()->get(['id']);
     }
 
     /**
@@ -171,7 +178,7 @@ class KitchenItemService
      */
     public function cancelForReturn(SalesReturn $return): void
     {
-        $this->lockDineOrder($return->transaction_id);
+        $this->lockKitchenRows([$return->transaction_id]);
         // items() and a query, not the property: Larastan cannot see the untyped SalesReturn relations.
         $lines = $return->items()->get();
         $items = KitchenItem::whereIn('transaction_detail_id', $lines->pluck('transaction_detail_id'))
@@ -193,15 +200,13 @@ class KitchenItemService
 
         // Also without a kitchen item of its own: returning the last plain line can complete the cancellation of the order.
         $this->syncDineOrder(Transaction::findOrFail($return->transaction_id), $return);
-        // The sale before any stock row, as an add-on holds it while taking stock (#251). Shared: its profit row takes that anyway.
-        Transaction::whereKey($return->transaction_id)->sharedLock()->value('id');
     }
 
     /** One step: valid only from `$from`. The row lock makes the first tap win; a later one is told who did it (AC-23). */
     private function step(KitchenItem $item, string $from, string $to, User $user): void
     {
         DB::transaction(function () use ($item, $from, $to, $user) {
-            $this->lockDineOrder($item->transaction_id);
+            $this->lockKitchenRows([$item->transaction_id]);
             $item = KitchenItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
 
             // BR-7: a return that won the race has already cancelled the item
