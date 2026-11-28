@@ -225,6 +225,7 @@ class SalesReturnController extends AppsSalesReturnController
             $returnedQtyMap = $this->getCompletedReturnedQtyMap(
                 $salesReturn->transaction_id,
                 excludeSalesReturnId: $salesReturn->id,
+                locking: true,
             );
 
             foreach ($salesReturn->items as $item) {

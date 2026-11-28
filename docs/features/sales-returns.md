@@ -70,7 +70,7 @@ Completing a return (`sales-returns-complete`, web and API, in the return's own 
 - retur completed bisa menambah stok kembali
 - retur pada transaksi piutang bisa mengurangi total receivable
 - overpayment dari piutang dapat berubah menjadi refund atau customer credit
-- completing a return locks the sale (and its receivable) before working out the refund, so it is serialised with a payment of that sale: a payment committed first is refunded, a return completed first lowers what the payment asks. Lock order: shift, return, kitchen items, dine order, receivable, sale, stock
+- completing a return locks the sale (and its receivable) before working out the refund, so it is serialised with a payment of that sale: a payment committed first is refunded, a return completed first lowers what the payment asks. Two returns of one sale are serialised the same way: the second one checks the remaining quantity with locking reads of the completed returns, so a line is never returned (or restocked) beyond what was sold. Lock order: shift, return, kitchen items, dine order, receivable, sale, the sale's completed returns, stock
 
 ## Batasan Saat Ini
 

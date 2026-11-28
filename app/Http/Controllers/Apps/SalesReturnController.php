@@ -230,6 +230,7 @@ class SalesReturnController extends Controller
             $returnedQtyMap = $this->getCompletedReturnedQtyMap(
                 $salesReturn->transaction_id,
                 excludeSalesReturnId: $salesReturn->id,
+                locking: true,
             );
 
             foreach ($salesReturn->items as $item) {
@@ -687,27 +688,33 @@ class SalesReturnController extends Controller
         return 'unpaid';
     }
 
-    protected function getCompletedReturnedQtyMap(int $transactionId, ?int $excludeSalesReturnId = null): Collection
+    /**
+     * Returned quantity per sale line over the sale's completed returns. A completion passes `$locking`, after the sale
+     * lock: a plain read can be older than the completion it waited for (REPEATABLE READ), and FOR UPDATE does not
+     * reach into a subquery, hence two queries (#486).
+     */
+    protected function getCompletedReturnedQtyMap(int $transactionId, ?int $excludeSalesReturnId = null, bool $locking = false): Collection
     {
+        $returnIds = SalesReturn::query()
+            ->where('transaction_id', $transactionId)
+            ->where('status', 'completed')
+            ->when($locking, fn (Builder $query) => $query->lockForUpdate())
+            ->pluck('id')
+            // Not in SQL: `id != ?` made MySQL scan by primary key and lock the draft of a waiting completion (deadlock).
+            ->diff([$excludeSalesReturnId]);
+
         return SalesReturnItem::query()
             ->selectRaw('transaction_detail_id, COALESCE(SUM(qty_return), 0) as total_qty')
-            ->whereHas('salesReturn', function (Builder $query) use ($transactionId, $excludeSalesReturnId) {
-                $query->where('transaction_id', $transactionId)
-                    ->where('status', 'completed');
-
-                if ($excludeSalesReturnId) {
-                    $query->where('id', '!=', $excludeSalesReturnId);
-                }
-            })
+            ->whereIn('sales_return_id', $returnIds)
+            ->when($locking, fn (Builder $query) => $query->lockForUpdate())
             ->groupBy('transaction_detail_id')
             ->pluck('total_qty', 'transaction_detail_id');
     }
 
     /**
-     * Locks the sale a return is completed against, so the return and a payment of that sale are serialised: the second
-     * one waits, and the settlement is worked out on the locked sale and receivable. The returned-quantity check is still a
-     * plain read (an older MySQL snapshot), so two returns of one sale completed together can both pass it: that older race
-     * is not closed here. Call it after cancelForReturn (kitchen and dine-order locks) and before any stock row. pay()
+     * Locks the sale a return is completed against, so the return and a payment (or another return) of that sale are
+     * serialised: the second one waits, and the settlement is worked out on the locked sale and receivable. Call it after
+     * cancelForReturn (kitchen and dine-order locks) and before the returned-quantity check and any stock row. pay()
      * takes the dine order, then the sale (a dine bill has no receivable); the payment webhook and the receivable payments
      * take a receivable before its sale; a shift close takes kitchen items, dine orders, then sales; transactions:expire
      * takes the sale before stock.
