@@ -29,6 +29,10 @@ class CheckoutPreviewService
         $shift?->loadMissing('warehouse.outlet');
         $outlet = $shift?->warehouse?->outlet;
 
+        // Read the cart in the order checkout stores it (id ascending): a bill with two tax rates takes the last
+        // line's rate, so a preview over a `latest()` cart showed a different total than the sale stored (#450).
+        $carts = $carts->sortBy('id')->values();
+
         return $this->loyaltyService->previewCheckout(
             $this->pricingService->previewCart($carts, $customer, null, $outlet),
             $customer,
