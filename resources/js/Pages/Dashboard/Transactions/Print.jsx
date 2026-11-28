@@ -217,6 +217,7 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
         };
     }, [
         store,
+        t,
         transaction,
         items,
         baseSubtotal,
@@ -225,7 +226,6 @@ export default function Print({ transaction, retryable, bankAccounts, paymentGat
         voucherDiscountTotal,
         paymentMethodLabel,
         isNonCash,
-        t,
     ]);
 
     const openThermalFallback = async (popup) => {
