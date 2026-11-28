@@ -430,6 +430,26 @@ class DineReservationTest extends TestCase
         }
     }
 
+    public function test_an_outlet_with_a_reservation_cannot_be_deleted(): void
+    {
+        $this->seed([PermissionSeeder::class, RoleSeeder::class]);
+        $this->staff->assignRole('super-admin');
+        $table = $this->tableAt(null, 'Teras');
+
+        foreach (['booked', 'arrived'] as $status) {
+            // No warehouse and no sale: only the reservation keeps this outlet.
+            $outlet = $this->outletNamed("OUT-{$status}");
+            $reservation = $this->reservation(['outlet_id' => $outlet->id, 'dine_table_id' => $table->id, 'status' => $status]);
+
+            $this->withSession($this->recentlyConfirmedSession())->actingAs($this->staff)
+                ->delete(route('settings.outlets.destroy', $outlet))
+                ->assertSessionHas('error');
+
+            $this->assertModelExists($outlet);
+            $this->assertModelExists($reservation);
+        }
+    }
+
     /** The table row lock must come before any reservation read: that order is what queues two writers. */
     private function assertTableLockedBeforeReservationsAreRead(callable $act): void
     {
