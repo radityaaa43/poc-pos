@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -15,7 +15,7 @@ const LABEL = "mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-3
 
 // The settings of this device's print device. `printDevice` is the useKitchenPrintDevice() result
 // from the page, so the panel and the background printing share one state.
-export default function PrintDevicePanel({ printDevice }) {
+export default function PrintDevicePanel({ printDevice, stations = [] }) {
     const { t } = useTranslation();
     const { device, printerKey, paper, autoPrint, otherTab, setDevice, setPrinterKey, setPaper, setAutoPrint, testPrint, status, reportError } =
         printDevice;
@@ -24,6 +24,29 @@ export default function PrintDevicePanel({ printDevice }) {
     const [name, setName] = useState(device?.name ?? "");
     const [nameError, setNameError] = useState(null);
     const [busy, setBusy] = useState(false);
+    // The stations this device serves (#345); none means every station, so a single-station shop is unchanged.
+    const [stationIds, setStationIds] = useState([]);
+    useEffect(() => {
+        if (!device?.id) return;
+        axios
+            .get(route("kitchen.print-devices.show", device.id))
+            .then(({ data }) => setStationIds(data.station_ids ?? []))
+            .catch(() => setStationIds([]));
+    }, [device?.id]);
+    const saveStations = async (ids) => {
+        setStationIds(ids);
+        try {
+            await axios.put(route("kitchen.print-devices.stations", device.id), { station_ids: ids });
+        } catch (e) {
+            toast.error(e.message);
+        }
+    };
+    const toggleStation = (id) => {
+        const next = new Set(stationIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        saveStations([...next]);
+    };
 
     const run = async (action) => {
         setBusy(true);
@@ -115,6 +138,24 @@ export default function PrintDevicePanel({ printDevice }) {
                     </p>
                 )}
             </form>
+
+            {device && stations.length > 1 && (
+                <fieldset className="space-y-2">
+                    <legend className={LABEL}>{t("kitchen.print.stations")}</legend>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">{t("kitchen.print.stationsHelper")}</p>
+                    {stations.map((station) => (
+                        <label key={station.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                            <input
+                                type="checkbox"
+                                className="h-4 w-4 rounded border-slate-300"
+                                checked={stationIds.includes(Number(station.id))}
+                                onChange={() => toggleStation(Number(station.id))}
+                            />
+                            {station.name}
+                        </label>
+                    ))}
+                </fieldset>
+            )}
 
             {unsupported && (
                 <div id="kitchen-usb-unsupported" className="space-y-1 text-sm text-slate-700 dark:text-slate-300">

@@ -1164,7 +1164,9 @@
             "reprint": "CETAK ULANG",
             "reprintButton": "Cetak ulang",
             "reprintFailed": "Gagal mencetak ulang",
-            "addon": "TAMBAHAN"
+            "addon": "TAMBAHAN",
+            "stations": "Stasiun yang dicetak perangkat ini",
+            "stationsHelper": "Biarkan semua kosong untuk mencetak semua stasiun."
         },
         "actions": {
             "start": "Mulai buat",

@@ -34,7 +34,18 @@ class KitchenPrintDeviceController extends Controller
             throw ValidationException::withMessages(['name' => $request->messages()['name.unique']]);
         }
 
-        return response()->json($device->only('id', 'name'), 201);
+        return response()->json([...$device->only('id', 'name'), 'station_ids' => []], 201);
+    }
+
+    public function show(Request $request, KitchenPrintDevice $device): JsonResponse
+    {
+        $this->authorizeDevice($request, $device);
+
+        return response()->json([
+            'id' => $device->id,
+            'name' => $device->name,
+            'station_ids' => $device->stations()->pluck('kitchen_stations.id')->map(fn ($id) => (int) $id)->all(),
+        ]);
     }
 
     public function tickets(Request $request, KitchenPrintDevice $device): JsonResponse

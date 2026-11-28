@@ -244,7 +244,7 @@ export default function Index({ orders, outlet, stations = [] }) {
                 )}
             </div>
 
-            {panelOpen && <PrintDevicePanel printDevice={printDevice} />}
+            {panelOpen && <PrintDevicePanel printDevice={printDevice} stations={stations} />}
 
             {connectionLost && (
                 <div

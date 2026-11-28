@@ -13,6 +13,7 @@ Route::post('/kitchen/orders/{transaction}/all-ready', [KitchenController::class
 Route::post('/kitchen/print-devices', [KitchenPrintDeviceController::class, 'store'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.store');
 Route::get('/kitchen/print-devices/{device}/tickets', [KitchenPrintDeviceController::class, 'tickets'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.tickets');
 Route::put('/kitchen/print-devices/{device}/stations', [KitchenPrintDeviceController::class, 'stations'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.stations');
+Route::get('/kitchen/print-devices/{device}', [KitchenPrintDeviceController::class, 'show'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.show');
 Route::post('/kitchen/print-devices/{device}/prints', [KitchenPrintDeviceController::class, 'prints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.prints');
 Route::post('/kitchen/print-devices/{device}/cancellation-prints', [KitchenPrintDeviceController::class, 'cancellationPrints'])->middleware('permission:dine-orders-prepare|dine-orders-handover')->name('kitchen.print-devices.cancellation-prints');
 Route::post('/kitchen/items/{kitchenItem}/hand-over', [KitchenController::class, 'handOver'])->middleware('permission:dine-orders-handover')->name('kitchen.items.hand-over');
