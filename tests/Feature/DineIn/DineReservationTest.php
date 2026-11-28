@@ -527,7 +527,7 @@ class DineReservationTest extends TestCase
     public function test_the_month_summary_is_empty_without_reservations(): void
     {
         $this->assertSame(
-            ['month' => '2026-12', 'open' => 0, 'arrived' => 0, 'cancelled' => 0, 'no_show' => 0, 'no_show_percent' => null],
+            ['month' => '2026-12', 'made' => 0, 'open' => 0, 'arrived' => 0, 'cancelled' => 0, 'no_show' => 0, 'no_show_percent' => null],
             $this->monthSummary()
         );
     }
@@ -539,7 +539,7 @@ class DineReservationTest extends TestCase
 
         $summary = $this->monthSummary();
 
-        $this->assertSame([0, 1, 1], [$summary['arrived'], $summary['cancelled'], $summary['open']]);
+        $this->assertSame([2, 0, 1, 1], [$summary['made'], $summary['arrived'], $summary['cancelled'], $summary['open']]);
         $this->assertNull($summary['no_show_percent']);
     }
 

@@ -22,6 +22,7 @@ test.describe('81-dine-reservations: monthly no-show rate', () => {
         const card = page.getByRole('region', { name: /Ringkasan/ });
         // The card is a description list: each label sits in a dt with its value in the next dd.
         const value = (label) => card.locator('dt').filter({ hasText: new RegExp(`^${label}:?$`) }).locator('xpath=following-sibling::dd');
+        await expect(value('Reservasi dibuat')).toHaveText('3');
         await expect(value('Belum ditandai')).toHaveText('3');
         await expect(value('Tingkat tidak datang')).toHaveText('—');
 

@@ -1433,6 +1433,7 @@
         "failed": "The reservation could not be saved",
         "summary": {
             "title": "{{month}} summary",
+            "made": "Reservations made",
             "open": "Not marked",
             "noShowRate": "No-show rate",
             "noShowRateNone": "No guest has arrived or not shown up this month"

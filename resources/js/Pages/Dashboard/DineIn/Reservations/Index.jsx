@@ -174,6 +174,10 @@ export default function Index({ reservations = [], tables = [], date, summary = 
                     <h2 id="reservation-summary" className="mb-3 font-semibold text-slate-700 dark:text-slate-200">
                         {t("dineReservations.summary.title", { month: monthLabel })}
                     </h2>
+                    {/* BR-4: every reservation made that month, above the per-status counts. */}
+                    <dl className="mb-3">
+                        <Stat label={t("dineReservations.summary.made")} value={summary.made} />
+                    </dl>
                     <dl className="grid grid-cols-2 gap-4 sm:grid-cols-5">
                         <Stat label={t("dineReservations.statuses.arrived")} value={summary.arrived} />
                         <Stat label={t("dineReservations.statuses.cancelled")} value={summary.cancelled} />

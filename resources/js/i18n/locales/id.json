@@ -1433,7 +1433,8 @@
         "failed": "Reservasi tidak bisa disimpan",
         "summary": {
             "title": "Ringkasan {{month}}",
-            "open": "Belum ditandai",
+            "made": "Reservasi dibuat",
+                "open": "Belum ditandai",
             "noShowRate": "Tingkat tidak datang",
             "noShowRateNone": "Belum ada tamu datang atau tidak datang bulan ini"
         }

@@ -39,7 +39,7 @@ const row = (over) => ({
     status: "booked", date: "2026-12-10", time: "19:00", table_name: "Meja 1", area_name: "Teras", ...over,
 });
 const tables = [{ id: 7, name: "Meja 1", area_name: "Teras" }, { id: 8, name: "Meja 2", area_name: null }];
-const summary = { month: "2026-12", open: 1, arrived: 2, cancelled: 3, no_show: 1, no_show_percent: 33.3 };
+const summary = { month: "2026-12", made: 7, open: 1, arrived: 2, cancelled: 3, no_show: 1, no_show_percent: 33.3 };
 
 const page = (reservations = [row()], summaryProp = null) =>
     render(<Reservations reservations={reservations} tables={tables} date="2026-12-10" summary={summaryProp} />);
@@ -205,6 +205,7 @@ describe("Reservations page", () => {
         page([], summary);
 
         const card = screen.getByRole("region", { name: "Ringkasan Desember 2026" });
+        expect(stat(card, "Reservasi dibuat")).toHaveTextContent("7");
         expect(stat(card, "Datang")).toHaveTextContent("2");
         expect(stat(card, "Batal")).toHaveTextContent("3");
         expect(stat(card, "Tidak datang")).toHaveTextContent("1");
@@ -217,6 +218,7 @@ describe("Reservations page", () => {
         page([], summary);
 
         const card = screen.getByRole("region", { name: "December 2026 summary" });
+        expect(stat(card, "Reservations made")).toHaveTextContent("7");
         expect(stat(card, "Not marked")).toHaveTextContent("1");
         expect(stat(card, "No-show rate")).toHaveTextContent("33.3%");
     });

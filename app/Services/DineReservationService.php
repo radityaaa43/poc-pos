@@ -44,6 +44,8 @@ class DineReservationService
 
         return [
             'month' => $start->format('Y-m'),
+            // BR-4: every reservation made that month, whatever its status.
+            'made' => (int) $counts->sum(),
             'open' => (int) ($counts['booked'] ?? 0),
             'arrived' => $arrived,
             'cancelled' => (int) ($counts['cancelled'] ?? 0),
