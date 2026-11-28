@@ -61,6 +61,7 @@ dan diorkestrasi oleh `DemoSeeder` (dijalankan lewat `php artisan seed:demo` ata
 | `registration.enabled` | EnsurePublicRegistrationEnabled | Matikan registrasi publik (default: off) |
 | `setup.notinstalled` | EnsureNotInstalled | Redirect ke `/setup` saat app_setup_completed=false |
 | `abilities` | CheckAbilities (Sanctum) | Cek token abilities untuk endpoint API master-data |
+| `keep_flash` | KeepFlashForPolls | Request latar belakang POS tidak menghapus flash (error/sukses) milik halaman hasil redirect |
 | `SetLocale` | (web group) | Prioritas locale: user column → session → cookie → Accept-Language (default `id`) |
 | `SecureHeaders` | (web group) | Set X-Content-Type-Options, Referrer-Policy, X-Frame-Options, Permissions-Policy |
 | `EnforceAbsoluteSessionLifetime` | (web group) | Paksa logout setelah session lifetime habis (`SECURITY_SESSION_ABSOLUTE_LIFETIME_SECONDS`, default 12 jam) |
