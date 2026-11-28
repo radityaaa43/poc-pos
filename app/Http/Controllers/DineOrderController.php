@@ -6,6 +6,7 @@ use App\Models\DineOrder;
 use App\Models\DiningTable;
 use App\Models\Product;
 use App\Models\Setting;
+use App\Services\AddOnOrderService;
 use App\Services\DineOrderOnlinePaymentService;
 use App\Services\PricingService;
 use Illuminate\Http\Request;
@@ -18,6 +19,7 @@ class DineOrderController extends Controller
     public function __construct(
         private PricingService $pricingService,
         private DineOrderOnlinePaymentService $onlinePayment,
+        private AddOnOrderService $addOnOrder,
     ) {}
 
     public function store(Request $request, string $token)
@@ -40,6 +42,8 @@ class DineOrderController extends Controller
             // Payment is never taken at submit: the guest can pay online only after staff accept (POST dine-order.pay).
             // So the only options here are the counter and pay later (the outlet's choice, checked below).
             'payment_option' => ['required', 'in:'.DineOrder::PAY_AT_COUNTER.','.DineOrder::PAY_LATER],
+            // The access token of the order whose status page the guest ordered from (#251), never an id.
+            'add_on_to' => ['nullable', 'string', 'max:64'],
         ]);
 
         // The menu only hides the button; a menu left open while the owner switched pay later off must still be refused here.
@@ -47,6 +51,8 @@ class DineOrderController extends Controller
             && ! ($outlet && Setting::getBoolForOutlet('pay_later_enabled', $outlet))) {
             throw ValidationException::withMessages(['order' => 'Bayar Belakangan tidak tersedia di outlet ini. Pilih Bayar di kasir.']);
         }
+
+        $original = isset($validated['add_on_to']) ? $this->addOnOrder->originalForGuest($validated['add_on_to'], $table) : null;
 
         $items = collect($validated['items']);
         $productIds = $items->pluck('product_id')->toArray();
@@ -107,6 +113,7 @@ class DineOrderController extends Controller
             'subtotal' => $subtotal,
             'item_count' => $items->sum('qty'),
             'cashier_id' => null,
+            'add_on_to_dine_order_id' => $original?->id,
         ]);
 
         foreach ($orderItems as $item) {
@@ -157,6 +164,7 @@ class DineOrderController extends Controller
 
         $storeName = Setting::getForOutlet('store_name', $order->table?->area?->outlet, 'Restoran');
         $order->setAttribute('is_paid', $order->isPaid());
+        $order->setAttribute('add_on_open', $this->addOnOrder->wouldLink($order));
         $order->makeHidden('transaction');
 
         return Inertia::render('Public/DineOrderStatus', [
@@ -187,6 +195,7 @@ class DineOrderController extends Controller
 
         // the kitchen waits for payment, so the guest needs to know whether the bill is paid yet
         $order->setAttribute('is_paid', $order->isPaid());
+        $order->setAttribute('add_on_open', $this->addOnOrder->wouldLink($order));
 
         // No QR here: the page already holds it, and the poll stays light.
         $payment = $this->onlinePayment->state($order, withQr: false);

@@ -32,6 +32,7 @@ class CheckoutContext
         public readonly ?array $onlyCartIds = null,
         // An approver's one-off exception: this sale skips the credit rules. Set by the server only, never from input.
         public readonly bool $creditApproved = false,
+        public readonly ?string $addOnTo = null, // invoice of the order this sale adds to (#251)
     ) {}
 
     public function isSplit(): bool
