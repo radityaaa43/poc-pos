@@ -24,6 +24,9 @@ class UnpaidSaleCancellationService
         $sale->loadMissing(['details.product.components', 'details.batchAllocations']);
         $this->lockStockRows($sale->details, $sale->warehouse_id);
 
+        // Completed, restock-ticked returns already put part of this sale back; expiry must not put it back twice.
+        $returned = $this->returnedBaseQtyByDetail($sale);
+
         foreach ($sale->details as $detail) {
             $product = $detail->product;
 
@@ -33,16 +36,21 @@ class UnpaidSaleCancellationService
 
             $warehouseId = $sale->warehouse_id;
 
-            // Stock effect is in base units: selling qty x conversion factor.
-            $baseQty = $detail->baseQuantity();
-
-            $this->restock($product, $warehouseId, $baseQty);
-
+            // A batch's stock is never put back by a return, so it always goes back in full.
             foreach ($detail->batchAllocations as $allocation) {
                 DB::table('product_batches')
                     ->where('id', $allocation->product_batch_id)
                     ->increment('stock', $allocation->qty);
             }
+
+            // Stock effect is in base units: selling qty x conversion factor, less what a completed return already restocked.
+            $baseQty = $detail->baseQuantity() - ($returned[$detail->id] ?? 0);
+
+            if ($baseQty <= 0) {
+                continue;
+            }
+
+            $this->restock($product, $warehouseId, $baseQty);
 
             $this->stockMutationService->recordMutation(
                 product: $product,
@@ -63,6 +71,31 @@ class UnpaidSaleCancellationService
             'payment_status' => 'failed',
             'note' => trim(($sale->note ? $sale->note.' | ' : '').$saleNote),
         ]);
+    }
+
+    /**
+     * Base units of this sale a completed, restock-ticked return already put back, per transaction_detail_id.
+     * A locking read after the sale lock so a return completing meanwhile is not missed (REPEATABLE READ, #504).
+     *
+     * @return array<int, int>
+     */
+    private function returnedBaseQtyByDetail(Transaction $sale): array
+    {
+        $rows = DB::table('sales_return_items as i')
+            ->join('sales_returns as r', 'r.id', '=', 'i.sales_return_id')
+            ->join('transaction_details as d', 'd.id', '=', 'i.transaction_detail_id')
+            ->where('r.transaction_id', $sale->id)
+            ->where('r.status', 'completed')
+            ->where('i.restock_to_inventory', true)
+            ->select('i.transaction_detail_id', 'i.qty_return', 'd.conversion_factor')
+            ->lockForUpdate()
+            ->get();
+
+        return $rows->groupBy('transaction_detail_id')
+            ->map(fn (Collection $items) => (int) round($items->sum(
+                fn ($row) => (int) $row->qty_return * (float) $row->conversion_factor,
+            )))
+            ->all();
     }
 
     /**

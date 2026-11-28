@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\PaymentSetting;
 use App\Models\Product;
 use App\Models\ProductBatch;
+use App\Models\SalesReturn;
 use App\Models\StockMutation;
 use App\Models\Transaction;
 use App\Models\TransactionDetail;
@@ -16,6 +17,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class ExpirePendingTransactionsTest extends TestCase
@@ -290,5 +292,119 @@ class ExpirePendingTransactionsTest extends TestCase
         $transaction->refresh();
         $this->assertEquals('failed', $transaction->payment_status);
         $this->assertNotNull($transaction->late_superseded_payment_at);
+    }
+
+    /** A completed return that put `$qtyReturn` of the sale's single line back, unless `$restock` is off (#504). */
+    private function completedReturnedLine(Transaction $transaction, int $qtyReturn, bool $restock = true): void
+    {
+        $detail = $transaction->details()->firstOrFail();
+        $return = SalesReturn::create([
+            'code' => 'RET-'.uniqid(),
+            'transaction_id' => $transaction->id,
+            'cashier_id' => $this->cashier->id,
+            'status' => 'completed',
+            'return_type' => 'refund_cash',
+            'total_return_amount' => 10000 * $qtyReturn,
+        ]);
+        $return->items()->create([
+            'transaction_detail_id' => $detail->id,
+            'product_id' => $detail->product_id,
+            'qty_sold' => $detail->qty,
+            'qty_return' => $qtyReturn,
+            'unit_price' => 10000,
+            'subtotal' => 10000 * $qtyReturn,
+            'return_reason' => 'Salah pesan',
+            'restock_to_inventory' => $restock,
+        ]);
+    }
+
+    private function putBack(Product $product, int $qty): void
+    {
+        $product->increment('stock', $qty);
+        DB::table('product_warehouse')
+            ->where(['product_id' => $product->id, 'warehouse_id' => $this->warehouse->id])
+            ->increment('stock', $qty);
+    }
+
+    /** #504 [BR-1]: a completed return already restocked part of the sale; expiry restocks only the rest. */
+    public function test_expiry_restocks_only_what_returns_did_not(): void
+    {
+        $transaction = $this->makePendingTransaction('INV-RET-1', now()->subHours(30));
+        $this->completedReturnedLine($transaction, qtyReturn: 1);
+        $this->putBack($this->product, 1); // the completed return already put 1 of the 2 units back
+
+        \Artisan::call('transactions:expire');
+
+        // 1 (return) + 1 (expiry) = the 2 sold, not 3.
+        $this->assertEquals(2, $this->product->fresh()->stock);
+        $this->assertDatabaseHas('product_warehouse', [
+            'product_id' => $this->product->id,
+            'warehouse_id' => $this->warehouse->id,
+            'stock' => 2,
+        ]);
+        $this->assertDatabaseHas(StockMutation::class, [
+            'reference_type' => 'transaction_expire',
+            'reference_id' => $transaction->id,
+            'qty' => 1,
+        ]);
+    }
+
+    public function test_unticked_return_does_not_reduce_expiry_restock(): void
+    {
+        $transaction = $this->makePendingTransaction('INV-RET-2', now()->subHours(30));
+        $this->completedReturnedLine($transaction, qtyReturn: 1, restock: false);
+
+        \Artisan::call('transactions:expire');
+
+        // The unticked return put nothing back, so expiry restocks the full 2.
+        $this->assertEquals(2, $this->product->fresh()->stock);
+        $this->assertDatabaseHas(StockMutation::class, [
+            'reference_type' => 'transaction_expire',
+            'reference_id' => $transaction->id,
+            'qty' => 2,
+        ]);
+    }
+
+    public function test_expiry_of_a_partly_returned_recipe_menu(): void
+    {
+        $categoryId = $this->product->category_id;
+        $component = Product::create([
+            'image' => 'c.png', 'barcode' => 'COMP-1', 'sku' => 'COMP-1', 'title' => 'Biji kopi',
+            'description' => 'x', 'category_id' => $categoryId, 'buy_price' => 1000, 'sell_price' => 0,
+            'stock' => 0, 'tax_rate' => 0, 'tax_type' => 'exclusive',
+        ]);
+        $this->warehouse->products()->attach($component->id, ['stock' => 0]);
+        $menu = Product::create([
+            'image' => 'm.png', 'barcode' => 'MENU-1', 'sku' => 'MENU-1', 'title' => 'Menu',
+            'description' => 'x', 'category_id' => $categoryId, 'buy_price' => 0, 'sell_price' => 20000,
+            'stock' => 0, 'tax_rate' => 0, 'tax_type' => 'exclusive', 'is_composite' => true,
+        ]);
+        $this->warehouse->products()->attach($menu->id, ['stock' => 0]);
+        $menu->components()->attach($component->id, ['qty' => 2]); // two components per menu
+
+        $transaction = new Transaction([
+            'cashier_id' => $this->cashier->id, 'warehouse_id' => $this->warehouse->id,
+            'invoice' => 'INV-RECIPE', 'cash' => 0, 'change' => 0, 'discount' => 0,
+            'grand_total' => 40000, 'payment_method' => 'midtrans', 'payment_status' => 'pending',
+        ]);
+        $transaction->created_at = now()->subHours(30);
+        $transaction->save();
+        TransactionDetail::create([
+            'transaction_id' => $transaction->id, 'product_id' => $menu->id, 'qty' => 2,
+            'conversion_factor' => 1, 'base_unit_price' => 20000, 'unit_price' => 20000, 'price' => 40000,
+        ]);
+        $this->completedReturnedLine($transaction, qtyReturn: 1); // 1 of the 2 menus returned
+        $this->putBack($component, 2); // the return put back 1 menu's worth (2 components)
+
+        \Artisan::call('transactions:expire');
+
+        // 1 menu still out restocks 2 components: 2 (return) + 2 (expiry) = 4, not 6.
+        $this->assertEquals(4, $component->fresh()->stock);
+        $this->assertDatabaseHas('product_warehouse', [
+            'product_id' => $component->id,
+            'warehouse_id' => $this->warehouse->id,
+            'stock' => 4,
+        ]);
+        $this->assertEquals(0, $menu->fresh()->stock, 'a recipe menu holds no stock of its own');
     }
 }
