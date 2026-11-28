@@ -360,6 +360,51 @@ class ProfitNetOfDiscountsTest extends TestCase
         $this->assertSame(71000, $this->profit($sale));
     }
 
+    // BR-6 / TC-13: a return's reversal row is not the sale's own row; denying a discount updates the sale's rows in
+    // place and leaves the reversal (and each row's created_at) alone.
+    public function test_denying_keeps_the_rows_a_return_reversed(): void
+    {
+        Setting::set('discount_approval_threshold', '1');
+        $product = $this->product(10000, 5000);
+        $this->cart($product, 2);
+
+        $this->checkout(['discount' => 5000, 'cash' => 50000])->assertSessionHasNoErrors();
+        $sale = Transaction::sole();
+        $own = $sale->profits()->orderBy('id')->sole();
+        $this->assertSame(5000, (int) $own->total);
+
+        // A completed return of one unit appends its reversal row to the same sale, as the return controller does.
+        Profit::create(['transaction_id' => $sale->id, 'total' => -5000]);
+        $ownCreatedAt = $own->getRawOriginal('created_at');
+
+        $this->post(route('discount-approvals.deny', $sale))->assertSessionHas('success');
+
+        // 20.000 − 10.000 HPP on the sale's own row, less the returned unit's 5.000: the reversal stays.
+        $this->assertSame(2, $sale->profits()->count());
+        $this->assertSame(5000, $this->profit($sale->fresh()));
+        $own->refresh();
+        $this->assertSame(10000, (int) $own->total);
+        $this->assertSame($ownCreatedAt, $own->getRawOriginal('created_at'));
+    }
+
+    // BR-6: a legacy line without a frozen cost rebuilds on the product's buy price, never on zero.
+    public function test_a_legacy_line_without_a_frozen_cost_rebuilds_from_the_buy_price(): void
+    {
+        Setting::set('discount_approval_threshold', '1');
+        $product = $this->product(10000, 5000);
+        $this->cart($product, 2);
+
+        $this->checkout(['discount' => 5000, 'cash' => 50000])->assertSessionHasNoErrors();
+        $sale = Transaction::sole();
+        // A line from before the cost was frozen.
+        $sale->details()->update(['cost_total' => null]);
+
+        $this->post(route('discount-approvals.deny', $sale))->assertSessionHas('success');
+
+        // 2 x 10.000 − 2 x 5.000 buy price
+        $this->assertSame(10000, $this->profit($sale->fresh()));
+    }
+
     // BR-6 / TC-13: denying a manual discount rebuilds the rows from the restored bill; approving keeps them.
     public function test_denying_a_manual_discount_rebuilds_the_profit(): void
     {
