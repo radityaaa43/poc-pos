@@ -497,6 +497,89 @@ class SplitRestCollectionTest extends TestCase
         $this->assertFalse(AuditLog::where('event', 'payment.late_after_failed')->sole()->meta['booked']);
     }
 
+    public function test_an_expired_rest_does_not_unbook_the_old_part_booked_late(): void
+    {
+        Http::fake(['https://app.sandbox.midtrans.com/*' => Http::response([
+            'token' => 'snap', 'redirect_url' => 'https://pay.midtrans.test/rest', 'qr_string' => 'REST-QR',
+        ], 200)]);
+        $sale = $this->failedSplit(); // cash 5000 paid, qris 15000 failed
+
+        // Collect the rest by QRIS: a second qris tender charged under invoice-qris-r1.
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'qris'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(1, $sale->fresh()->payment_attempt);
+
+        // The customer pays the OLD QR instead: its late success is booked as the failed part's own tender.
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-qris', 15000))->assertOk();
+        $sale->refresh();
+        $booked = $sale->tenders()->where('method', 'qris')->where('payment_status', 'paid')->sole();
+
+        // The two qris tenders must derive distinct order ids: the rest stays -r1, the booked old part its own id,
+        // so a callback of the rest can never be mistaken for the booked payment (#530 BR-2).
+        $this->assertSame($sale->invoice.'-qris', $booked->order_reference);
+        $this->assertSame($sale->invoice.'-qris-r1', $sale->tenders()->where('method', 'qris')->where('payment_status', 'pending')->sole()->order_reference);
+
+        // The rest charge times out: the booked money stays booked and the sale counts as paid.
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-qris-r1', 15000, 'expire'))->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame(0, $sale->unpaidAmount());
+        $this->assertNull($sale->late_superseded_payment_at);
+        $this->assertSame(20000, (int) $sale->tenders()->where('payment_status', 'paid')->sum('amount'));
+        $this->assertSame(15000, (int) $sale->tenders()->where('method', 'qris')->where('payment_status', 'paid')->sum('amount'));
+    }
+
+    public function test_a_fully_paid_sale_stays_paid_when_its_midtrans_rest_expires(): void
+    {
+        Http::fake(['https://app.sandbox.midtrans.com/*' => Http::response([
+            'token' => 'snap', 'redirect_url' => 'https://pay.midtrans.test/rest',
+        ], 200)]);
+        $sale = $this->failedSplit();
+
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'midtrans'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(1, $sale->fresh()->payment_attempt);
+
+        // The old qris part is paid late and booked: the paid tenders now cover the whole sale.
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-qris', 15000))->assertOk();
+        $this->assertSame(15000, (int) $sale->fresh()->tenders()->where('method', 'midtrans')->where('payment_status', 'pending')->sum('amount'));
+
+        // The midtrans rest expires: the sale owes nothing, so it must read paid, not failed (#530 BR-3).
+        $this->postJson(route('webhooks.midtrans'), $this->midtransPayload($sale->invoice.'-midtrans-r1', 15000, 'expire'))->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('paid', $sale->payment_status);
+        $this->assertSame(0, $sale->unpaidAmount());
+        $this->assertSame(20000, (int) $sale->tenders()->where('payment_status', 'paid')->sum('amount'));
+        $this->assertNull($sale->late_superseded_payment_at);
+    }
+
+    public function test_a_redelivered_late_payment_while_a_transfer_rest_waits_is_ignored(): void
+    {
+        $bank = $this->bankAccount();
+        $sale = $this->failedSplit();
+        $this->actingAs($this->cashier)
+            ->post(route('transactions.retry-payment', $sale), ['payment_method' => 'bank_transfer', 'bank_account_id' => $bank->id])
+            ->assertSessionHasNoErrors();
+
+        // The old qris part is paid late and booked while the transfer rest still waits.
+        $payload = $this->midtransPayload($sale->invoice.'-qris', 15000);
+        $this->postJson(route('webhooks.midtrans'), $payload)->assertOk();
+        $this->assertSame(15000, (int) $sale->fresh()->tenders()->where('method', 'qris')->where('payment_status', 'paid')->sum('amount'));
+
+        // The gateway sends the same payment again: a redelivery, not a second payment to refund (#530 BR-7).
+        $this->postJson(route('webhooks.midtrans'), $payload)->assertOk();
+
+        $sale->refresh();
+        $this->assertSame('pending', $sale->payment_status); // the transfer still waits
+        $this->assertNull($sale->late_superseded_payment_at);
+        $this->assertSame(0, AuditLog::where('event', 'payment.late_superseded')->count());
+        $this->assertSame(1, AuditLog::where('event', 'payment.late_after_failed')->count());
+    }
+
     public function test_other_outlets_splits_are_not_listed_or_printable(): void
     {
         $otherOutlet = Outlet::create(['code' => 'OUT-OTHER', 'name' => 'Outlet Lain', 'is_active' => true]);
@@ -621,7 +704,7 @@ class SplitRestCollectionTest extends TestCase
         ]);
     }
 
-    private function midtransPayload(string $orderId, int $amount): array
+    private function midtransPayload(string $orderId, int $amount, string $status = 'settlement'): array
     {
         $gross = $amount.'.00';
 
@@ -629,7 +712,7 @@ class SplitRestCollectionTest extends TestCase
             'order_id' => $orderId,
             'status_code' => '200',
             'gross_amount' => $gross,
-            'transaction_status' => 'settlement',
+            'transaction_status' => $status,
             'transaction_id' => 'mt-'.$orderId,
             'signature_key' => hash('sha512', $orderId.'200'.$gross.'server-key'),
         ];

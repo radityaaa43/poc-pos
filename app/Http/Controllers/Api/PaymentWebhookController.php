@@ -363,6 +363,12 @@ class PaymentWebhookController extends Controller
             return $this->knownReferences($bill) === [] ? 'unmatched' : 'ignore';
         }
 
+        // A payment already booked on this bill (the gateway sends the same charge again, e.g. Xendit PAID then
+        // SETTLED) is a redelivery, not a second one to refund (#530 BR-7).
+        if ($this->referenceBooked($bill, $reference)) {
+            return 'ignore';
+        }
+
         if ($attempt === $current) {
             if ($bill->payment_status !== 'failed') {
                 return 'record';
@@ -429,6 +435,18 @@ class PaymentWebhookController extends Controller
         return filled($reference) && $known !== []
             ? in_array($reference, $known, true)
             : $attempt === (int) $bill->payment_attempt;
+    }
+
+    /**
+     * Was this gateway reference already booked on the bill? A paid tender stores the reference of the payment that
+     * settled it, so the same charge delivered again is recognised before it can be counted twice.
+     */
+    private function referenceBooked(Transaction $bill, ?string $reference): bool
+    {
+        return filled($reference) && $bill->tenders()
+            ->where('payment_status', TransactionTender::STATUS_PAID)
+            ->where('payment_reference', $reference)
+            ->exists();
     }
 
     /**
@@ -623,14 +641,26 @@ class PaymentWebhookController extends Controller
 
         if ($tenders->isNotEmpty()) {
             foreach ($tenders as $tender) {
+                // A paid tender is never rewritten: a callback of another charge that derives the same order id must
+                // not unbook money already received (#530 BR-2).
+                if ($tender->payment_status === TransactionTender::STATUS_PAID) {
+                    continue;
+                }
+
                 $tender->update([
                     'payment_status' => $newStatus,
                     'payment_reference' => $reference ?: $tender->payment_reference,
                     'paid_at' => $newStatus === 'paid' ? now() : $tender->paid_at,
                 ]);
             }
+
+            $all = $bill->tenders()->get();
+            // A rest that failed after the paid tenders already covered the sale is stale: it must not fail a sale
+            // that owes nothing (#530 BR-3). A pending rest is left, so a transfer still waiting keeps the bill open.
+            $paidCovers = (int) $all->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount') >= $bill->remainingTotal();
+            $statuses = $all->when($paidCovers, fn ($tenders) => $tenders->where('payment_status', '!=', TransactionTender::STATUS_FAILED));
             $values = ['payment_status' => app(TransactionTenderService::class)->aggregateStatus(
-                $bill->tenders()->get()->map(fn (TransactionTender $t) => ['method' => $t->method, 'payment_status' => $t->payment_status])->all()
+                $statuses->map(fn (TransactionTender $t) => ['method' => $t->method, 'payment_status' => $t->payment_status])->all()
             )];
 
             // The bill keeps the reference of what was actually booked: a later callback carrying the cashier charge's own

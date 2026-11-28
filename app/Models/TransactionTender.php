@@ -82,6 +82,14 @@ class TransactionTender extends Model
 
         $attempt = (int) $this->transaction->getAttribute('payment_attempt');
 
+        // A booked late gateway part (paid) beside a rest of the same method was charged at the previous attempt.
+        // Keep its own order id so the rest's callback (invoice-method-r{attempt}) can never match it (#530 BR-2).
+        if ($attempt > 0 && $this->payment_status === self::STATUS_PAID
+            && in_array($this->method, TransactionTenderService::GATEWAY_METHODS, true)
+            && $this->transaction->tenders()->where('method', $this->method)->count() > 1) {
+            $attempt = 0;
+        }
+
         return $attempt > 0 ? "{$orderId}-r{$attempt}" : $orderId;
     }
 
