@@ -38,9 +38,9 @@ const ENDED = [401, 404, 419];
 // A record call that gives no answer must fail, or every later poll would wait behind it.
 const RECORD = { timeout: 10000 };
 
-// The sends that stopped queues are still finishing (auto-print switched off, or the page left). A new queue waits
-// for them, so each ticket is recorded before it is listed again and only one queue ever sends. Module level: it
-// has to outlive the page component.
+// The sends outside the polling queue: stopped queues still finishing (auto-print switched off, the session ended
+// or the page left) and reprints made while nothing polls. A polling queue waits for them, so each ticket is
+// recorded before it is listed again and only one queue ever sends. Module level: it has to outlive the page.
 let leaving = Promise.resolve();
 
 // The server takes at most 200 ids per record call (the two Store*PrintsRequest rules).
@@ -284,19 +284,21 @@ export function useKitchenPrintDevice(outlet) {
                 lastError: failed ? (queue.jobs[0]?.lastError ?? null) : null,
             });
         };
-        const run = async () => {
-            await queue.drain();
-            if (halted) return;
-            // A reprint is a one-shot tap: if the queue stopped on a failed ticket, the reprints queued behind it are
-            // dropped (the button re-enables with the failure shown), not printed minutes later when the head recovers.
-            if (queue.status === "failed") {
-                for (const job of queue.jobs.slice(1)) {
-                    if (job.manual && queue.remove(job.key)) {
-                        setReprinting((ids) => ids.filter((id) => id !== job.orderId));
-                        setReprintFailed(job.orderId);
-                    }
+        // A reprint is a one-shot tap: when the queue stops, the reprints still waiting in it are dropped (the button
+        // re-enables with the failure shown), not printed minutes later when the printer recovers.
+        const dropReprints = () => {
+            for (const job of queue.jobs) {
+                if (job.manual && queue.remove(job.key)) {
+                    setReprinting((ids) => ids.filter((id) => id !== job.orderId));
+                    setReprintFailed(job.orderId);
                 }
             }
+        };
+        const run = async () => {
+            await leaving; // a stopped queue's send, or a reprint made while this one did not poll, ends first
+            await queue.drain();
+            if (halted) return;
+            if (queue.status === "failed") dropReprints();
             publish();
         };
         // A driver lock and a device without WebUSB need the person, not another try (the button still can).
@@ -359,9 +361,13 @@ export function useKitchenPrintDevice(outlet) {
                 }
             } catch (error) {
                 // A failed poll is silent and retried; an expired session or a foreign device ends it.
-                if (ENDED.includes(error?.response?.status)) {
+                if (!halted && ENDED.includes(error?.response?.status)) {
                     halted = true;
                     queue.stop();
+                    dropReprints();
+                    // A reprint needs no server: from here it goes as with auto-print off, after the send in flight.
+                    queueRef.current = null;
+                    leaving = Promise.all([leaving, queue.drain()]);
                     setEnded(true);
                 }
             }
@@ -460,10 +466,12 @@ export function useKitchenPrintDevice(outlet) {
                 queueRef.current.queue.enqueue(job);
                 return queueRef.current.run();
             }
-            // Auto-print off: nothing is polling, so a queue of its own keeps one send at a time.
+            // Auto-print off: nothing is polling, so a queue of its own keeps one send at a time. It takes its turn in
+            // `leaving`: after a stopped queue's send, before the next polling queue's.
             if (!reprintQueueRef.current) reprintQueueRef.current = createPrintQueue({ send: sendManual });
             reprintQueueRef.current.enqueue(job);
-            return reprintQueueRef.current.drain();
+            leaving = leaving.then(() => reprintQueueRef.current.drain());
+            return leaving;
         },
         [sendManual]
     );

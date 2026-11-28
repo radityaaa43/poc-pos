@@ -779,3 +779,78 @@ describe("useKitchenPrintDevice: reconciling queued originals with the poll", ()
         expect(cancelPosts()).toHaveLength(1);
     });
 });
+
+describe("useKitchenPrintDevice: a reprint keeps the print safety rules (#410)", () => {
+    const order = { id: 7, number: "Meja 4", type: "dine_in", unpaid: false, since: "2026-11-26T09:50:00Z", items: [] };
+    let release;
+    const sent = () => buildKitchenTicketBytes.mock.calls.map((c) => c[0].key);
+    const holdFirstSend = () => printBytes.mockImplementationOnce(() => new Promise((resolve) => (release = resolve)));
+    const tap = (result) => act(async () => void result.current.reprint(order));
+    const finishSend = () =>
+        act(async () => {
+            release();
+            await vi.advanceTimersByTimeAsync(0);
+        });
+
+    it("sends nothing without a chosen kitchen printer, and names the order", async () => {
+        setStorage({ "kitchen.printerKey": null, "kitchen.autoPrint": "false" });
+        const { result } = mount();
+
+        await act(() => result.current.reprint(order));
+
+        expect(printBytes).not.toHaveBeenCalled();
+        expect(result.current.reprintFailed).toBe(7);
+    });
+
+    it.each([
+        ["off", [false]],
+        ["off and on again", [false, true]],
+    ])("waits for the send in flight after auto-print is switched %s", async (_case, switches) => {
+        setStorage();
+        holdFirstSend();
+        const { result } = mount();
+        await flush();
+        for (const on of switches) act(() => result.current.setAutoPrint(on));
+
+        await tap(result);
+        expect(sent()).toEqual(["t1"]);
+
+        tickets = [];
+        await finishSend();
+        expect(sent()).toEqual(["t1", "r7-1"]);
+    });
+
+    it("holds the queue back while a reprint started with auto-print off is still sending", async () => {
+        setStorage({ "kitchen.autoPrint": "false" });
+        holdFirstSend();
+        const { result } = mount();
+        await tap(result);
+
+        act(() => result.current.setAutoPrint(true));
+        await advance(10000);
+        expect(sent()).toEqual(["r7-1"]);
+
+        await finishSend();
+        expect(sent()).toEqual(["r7-1", "t1"]);
+    });
+
+    it("after the session ended: drops the queued reprint with its failure, and a new one prints after the send in flight", async () => {
+        setStorage();
+        holdFirstSend();
+        const { result } = mount();
+        await flush();
+        await tap(result); // queued behind the original
+        axios.get.mockRejectedValue({ response: { status: 401 } });
+        await advance(5000);
+
+        expect(result.current.reprinting).toEqual([]);
+        expect(result.current.reprintFailed).toBe(7);
+
+        await tap(result);
+        expect(sent()).toEqual(["t1"]);
+
+        await finishSend();
+        expect(sent()).toEqual(["t1", "r7-2"]);
+        expect(result.current.reprinting).toEqual([]);
+    });
+});
