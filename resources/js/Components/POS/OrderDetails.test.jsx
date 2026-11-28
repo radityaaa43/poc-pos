@@ -5,6 +5,10 @@ import userEvent from "@testing-library/user-event";
 import i18n from "@/i18n";
 import OrderDetails from "./OrderDetails";
 
+// OrderTypeLock (main's offline order-type lock) reads these; online and no service-charge rate keeps it unlocked.
+vi.mock("@inertiajs/react", () => ({ usePage: () => ({ props: {} }) }));
+vi.mock("@/Context/OnlineStatusContext", () => ({ useOnlineStatus: () => true }));
+
 beforeEach(() => i18n.changeLanguage("id"));
 
 function Harness({ onOrderTypeChange = () => {} }) {
