@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\BillSettingsService;
+use App\Services\StockWasteService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Laravel\Sanctum\Sanctum;
@@ -59,6 +60,21 @@ class OutletBillSettingsTest extends TestCase
     {
         return $this->withSession($this->recentlyConfirmedSession())->actingAs($user)
             ->put(route('settings.outlets.update', $outlet), $this->payload($outlet, $extra));
+    }
+
+    // REQ-011 AC-12: the owner sets the outlet's waste approval limit; audited only when it changes.
+    public function test_the_waste_approval_limit_is_saved_and_audited_once(): void
+    {
+        $outlet = $this->outlet();
+        $editor = $this->userWith(['outlets-update'], $outlet);
+
+        $this->saveOnWeb($editor, $outlet, ['waste_approval_limit' => 75000])->assertSessionHasNoErrors();
+        $this->assertSame(75000, app(StockWasteService::class)->approvalLimit($outlet->fresh()));
+        $this->assertSame(1, AuditLog::where('event', 'outlet.waste_limit_updated')->count());
+
+        // The same value again writes no second audit row.
+        $this->saveOnWeb($editor, $outlet, ['waste_approval_limit' => 75000])->assertSessionHasNoErrors();
+        $this->assertSame(1, AuditLog::where('event', 'outlet.waste_limit_updated')->count());
     }
 
     private function confirmedApiUser(User $user): void
