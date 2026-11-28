@@ -132,3 +132,119 @@ describe("SalesReturns/Form restock default", () => {
         expect(screen.getByText("Already being made in the kitchen: not restocked by default")).toBeInTheDocument();
     });
 });
+
+describe("SalesReturns/Form service and tax share", () => {
+    const shareTransaction = (details, billShare) => ({
+        ...transaction(details),
+        bill_share: billShare,
+    });
+
+    const renderShare = (billShare) =>
+        render(
+            <Form
+                title="Retur"
+                transaction={shareTransaction([detail(1, "Nasi Goreng", "served", true)], billShare)}
+                submitRoute="/x"
+            />
+        );
+
+    const row = (label) => screen.getByText(label, { exact: true }).closest("div");
+
+    // 5 % service and 10 % PB1 on Rp 20.000: returning 1 of 2 units refunds 10.000 + 500 + 1.050.
+    const billShare = { base: 20000, service_charge: 1000, refundable_tax: 2100, returned_value: 0, returned_total: 0, paid: 23100 };
+
+    it("shows the proportional service and tax rows and folds them into the refund", async () => {
+        await i18n.changeLanguage("id");
+        renderShare(billShare);
+
+        await userEvent.clear(screen.getByRole("spinbutton"));
+        await userEvent.type(screen.getByRole("spinbutton"), "1");
+
+        expect(row("Service charge dikembalikan")).toHaveTextContent(/500/);
+        expect(row("Pajak dikembalikan")).toHaveTextContent(/1\.050/);
+        expect(row("Refund")).toHaveTextContent(/11\.550/);
+        expect(row("Nominal retur")).toHaveTextContent(/11\.550/);
+        expect(screen.getByText("Pembulatan tunai tidak dikembalikan.")).toBeInTheDocument();
+    });
+
+    it("shows the stored amounts of a completed return instead of recomputing the share", async () => {
+        await i18n.changeLanguage("id");
+        render(
+            <Form
+                title="Retur"
+                transaction={transaction([detail(1, "Nasi Goreng", "served", true)])}
+                salesReturn={{
+                    status: "completed",
+                    return_type: "refund_cash",
+                    refund_amount: 23100,
+                    credited_amount: 0,
+                    service_refunded: 1000,
+                    tax_refunded: 2100,
+                    total_return_amount: 23100,
+                    notes: "",
+                }}
+                submitRoute="/x"
+                canEdit={false}
+            />
+        );
+
+        expect(row("Service charge dikembalikan")).toHaveTextContent(/1\.000/);
+        expect(row("Pajak dikembalikan")).toHaveTextContent(/2\.100/);
+        expect(row("Nominal retur")).toHaveTextContent(/23\.100/);
+        expect(screen.getByText("Nominal Retur").closest("div")).toHaveTextContent(/23\.100/);
+    });
+
+    it("caps the share so a discounted full return never refunds above paid", async () => {
+        await i18n.changeLanguage("id");
+        render(
+            <Form
+                title="Retur"
+                transaction={{
+                    ...transaction([
+                        { ...detail(1, "Nasi Goreng", "served", true), qty: 1, price: 100000 },
+                    ]),
+                    bill_share: {
+                        base: 100000,
+                        service_charge: 4500,
+                        refundable_tax: 9450,
+                        returned_value: 0,
+                        returned_total: 0,
+                        paid: 103950,
+                    },
+                }}
+                submitRoute="/x"
+            />
+        );
+
+        await userEvent.clear(screen.getByRole("spinbutton"));
+        await userEvent.type(screen.getByRole("spinbutton"), "1");
+
+        expect(row("Refund")).toHaveTextContent(/103\.950/);
+        expect(row("Nominal retur")).toHaveTextContent(/103\.950/);
+    });
+
+    it("shows no service or tax rows when the sale has no bill share", async () => {
+        await i18n.changeLanguage("id");
+        renderForm([detail(1, "Nasi Goreng", "served", true)]);
+
+        await userEvent.clear(screen.getByRole("spinbutton"));
+        await userEvent.type(screen.getByRole("spinbutton"), "1");
+
+        expect(screen.queryByText("Service charge dikembalikan")).not.toBeInTheDocument();
+        expect(screen.queryByText("Pajak dikembalikan")).not.toBeInTheDocument();
+        expect(screen.queryByText("Pembulatan tunai tidak dikembalikan.")).not.toBeInTheDocument();
+        expect(row("Refund")).toHaveTextContent(/10\.000/);
+    });
+
+    it("uses the English labels", async () => {
+        await i18n.changeLanguage("en");
+        renderShare(billShare);
+
+        await userEvent.clear(screen.getByRole("spinbutton"));
+        await userEvent.type(screen.getByRole("spinbutton"), "1");
+
+        expect(screen.getByText("Service charge refunded")).toBeInTheDocument();
+        expect(screen.getByText("Tax refunded")).toBeInTheDocument();
+        expect(screen.getByText("Cash rounding is not refunded.")).toBeInTheDocument();
+    });
+});

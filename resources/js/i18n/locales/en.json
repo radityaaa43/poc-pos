@@ -580,7 +580,10 @@
         "exchangeItem": "Exchange Item",
         "cashRefund": "Cash Refund",
         "storeCredit": "Store Credit",
-        "restockKitchenHint": "Already being made in the kitchen: not restocked by default"
+        "restockKitchenHint": "Already being made in the kitchen: not restocked by default",
+        "serviceRefund": "Service charge refunded",
+        "taxRefund": "Tax refunded",
+        "roundingNotRefunded": "Cash rounding is not refunded."
     },
     "cashierShifts": {
         "title": "Cashier Shifts",

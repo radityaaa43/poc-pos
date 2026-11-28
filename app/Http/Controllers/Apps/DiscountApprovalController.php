@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\Apps;
 
 use App\Http\Controllers\Controller;
+use App\Models\CashierShift;
+use App\Models\Customer;
 use App\Models\DiscountApprovalLog;
 use App\Models\Outlet;
 use App\Models\Receivable;
 use App\Models\Transaction;
 use App\Services\AuditLogService;
 use App\Services\BillTotalService;
+use App\Services\LoyaltyService;
 use App\Services\OutletAccessService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -84,7 +87,16 @@ class DiscountApprovalController extends Controller
 
     protected function logAndUpdate(Transaction $transaction, string $status, ?string $notes = null): void
     {
-        \DB::transaction(function () use (&$transaction, $status, $notes) {
+        $loyaltyDelta = 0;
+
+        \DB::transaction(function () use (&$transaction, $status, $notes, &$loyaltyDelta) {
+            // A denial also touches the customer: lock the shift then the customer first, the team order
+            // shift → customer → receivable → sale (#494), so a return on the same sale cannot deadlock against it.
+            if ($status === 'denied' && $transaction->customer_id) {
+                CashierShift::whereKey($transaction->cashier_shift_id)->lockForUpdate()->value('id');
+                Customer::whereKey($transaction->customer_id)->lockForUpdate()->value('id');
+            }
+
             // Receivable before its sale, the lock order of receivable payments, returns and the payment webhook.
             $receivableId = Receivable::where('transaction_id', $transaction->id)->value('id');
             $receivable = $receivableId ? Receivable::whereKey($receivableId)->lockForUpdate()->first() : null;
@@ -127,7 +139,17 @@ class DiscountApprovalController extends Controller
                 $receivable->save();
             }
 
+            $oldGrandTotal = (int) $transaction->grand_total;
             $transaction->update($updates);
+
+            // A denied discount raises the bill: loyalty follows the recomputed total (#508). Lock the shift then the
+            // customer, in #494's order, and add the difference's points and total spent inside the same transaction.
+            if ($status === 'denied' && isset($updates['grand_total']) && $transaction->customer_id) {
+                $loyaltyDelta = (int) $updates['grand_total'] - $oldGrandTotal;
+                if ($loyaltyDelta > 0) {
+                    app(LoyaltyService::class)->awardAfterDenial($transaction, $oldGrandTotal, (int) $updates['grand_total']);
+                }
+            }
 
             DiscountApprovalLog::where('transaction_id', $transaction->id)
                 ->where('status', 'pending')
@@ -146,5 +168,15 @@ class DiscountApprovalController extends Controller
             description: "Diskon transaksi {$transaction->invoice} di".($status === 'approved' ? 'setujui' : 'tolak'),
             after: ['discount_approval_status' => $status],
         );
+
+        if ($loyaltyDelta > 0) {
+            $this->auditLogService->log(
+                event: 'loyalty.discount_denied_adjustment',
+                module: 'customers',
+                auditable: $transaction,
+                description: "Poin dan total belanja pelanggan disesuaikan setelah diskon ditolak pada transaksi {$transaction->invoice}.",
+                meta: ['customer_id' => $transaction->customer_id, 'difference' => $loyaltyDelta],
+            );
+        }
     }
 }
