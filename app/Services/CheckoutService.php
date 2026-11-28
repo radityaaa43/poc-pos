@@ -33,8 +33,9 @@ class CheckoutService
 
     public function execute(CheckoutContext $ctx): CheckoutResult
     {
-        // attempts: two sales to one customer can deadlock on the customer row (the sale's foreign key shares it, then
-        // loyalty and the credit check lock it). The closure only writes to the database, so MySQL's victim runs again.
+        // attempts: MySQL can deadlock two sales to one customer (the sale's foreign key shares the customer row before
+        // loyalty and the credit check lock it) and two credit sales on one gap of the receivables index. The closure
+        // only writes to the database, so the victim simply runs again.
         return DB::transaction(function () use ($ctx) {
             $activeShift = $this->cashierShiftService->requireActiveShiftForUser(
                 $ctx->userId,
