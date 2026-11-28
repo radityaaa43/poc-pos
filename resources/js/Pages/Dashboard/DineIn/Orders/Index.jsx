@@ -60,7 +60,8 @@ export default function Index({ orders }) {
             {},
             {
                 onSuccess: () => toast.success("Pesanan diterima."),
-                onError: () => toast.error("Gagal menerima pesanan."),
+                // An add-on to a cancelled order is refused with its own message (#251).
+                onError: (errors) => toast.error(errors?.add_on_to ?? "Gagal menerima pesanan."),
             }
         );
     };

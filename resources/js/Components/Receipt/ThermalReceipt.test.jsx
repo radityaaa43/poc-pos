@@ -27,3 +27,17 @@ describe("thermal receipts of a split-tender sale", () => {
         expect(screen.getByText("TRANSFER BANK").nextElementSibling).toHaveTextContent(/20\.000/);
     });
 });
+
+// #497: the cash part of a split sale shows what was received and the change, as a cash sale does.
+describe("thermal receipts of a split sale paid partly in cash", () => {
+    it.each([
+        { paper: "58mm", receipt: (transaction) => <ThermalReceipt58mm transaction={transaction} /> },
+        { paper: "80mm", receipt: (transaction) => <ThermalReceipt transaction={transaction} /> },
+    ])("prints cash received and change at $paper", ({ receipt }) => {
+        const [cash, transfer] = sale.tenders;
+        render(receipt({ ...sale, tenders: [{ ...cash, cash_received: 15000, change: 5000 }, transfer] }));
+
+        expect(screen.getByText("Diterima").nextElementSibling).toHaveTextContent(/15\.000/);
+        expect(screen.getByText("Kembali").nextElementSibling).toHaveTextContent(/5\.000/);
+    });
+});

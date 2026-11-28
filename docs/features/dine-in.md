@@ -51,6 +51,10 @@ Aturan:
 Tagihan belum lunas (*Belum Lunas*) bukan piutang: tidak ada `Receivable`, tidak ada tenggat. Kasir bebas memilih
 metode pembayaran saat membayar; `payment_method` transaksi bernilai netral `open_bill` sampai saat itu.
 
+## Add-on orders
+
+While an accepted order is not completed, or the server would still link to it (an add-on of it is open), its status page offers **Tambah pesanan** (#251). The link opens the table menu with that order's access token (`?add_on_to=`), and the submit stores the order it was made from (`dine_orders.add_on_to_dine_order_id`). The server refuses (422) a token that is unknown, of another table or of an order staff have not accepted, and a cancelled one: "Pesanan asal sudah dibatalkan — buat pesanan baru" (order cancelled or rejected, or every line returned; a `failed` or `expired` payment is not a cancellation, the bill can still be paid). A new order without that link is never merged, even at the same table. At accept the original is checked again under a lock: cancelled means the accept is refused and nothing is written (staff reject the add-on); finished (the original and every non-cancelled add-on paid, nothing left in the kitchen) means a plain new order; otherwise the new sale gets `transactions.parent_transaction_id` = the root sale; the kitchen display still shows it as its own card. Payment, stock and shift are those of any accepted order.
+
 ## Database
 
 ### Tabel: `dine_areas`
@@ -93,6 +97,7 @@ Header pesanan pelanggan.
 | `payment_url` | string | URL pembayaran (nullable) |
 | `cashier_id` | foreignId | Kasir yang konfirmasi (nullable) |
 | `transaction_id` | foreignId | Transaksi terkait (nullable) |
+| `add_on_to_dine_order_id` | foreignId | Order this one was added to from its status page (nullable, `nullOnDelete`) |
 | `subtotal` | integer | Total pesanan |
 | `item_count` | integer | Jumlah item |
 | `accepted_at`/`accepted_by`, `preparing_at`/`preparing_by`, `ready_at`/`ready_by`, `served_at`/`served_by`, `completed_at` | timestamp / foreignId | Kapan dan siapa (user, nullable, `nullOnDelete`) untuk tiap langkah, diisi dalam transaksi DB yang sama dengan perubahan status dan tidak ditimpa oleh pengulangan. Bahan analisis kecepatan dapur per menu (laporannya issue terpisah). Yang menentukan tahap adalah `status` |
