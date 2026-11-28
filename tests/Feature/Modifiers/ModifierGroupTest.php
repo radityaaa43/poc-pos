@@ -44,7 +44,8 @@ class ModifierGroupTest extends TestCase
         return Product::create($attributes + [
             'title' => "Menu $n", 'sku' => "SKU-MOD-$n", 'barcode' => "BC-MOD-$n", 'description' => 'x',
             'image' => 'products/t.jpg', 'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 20,
-            'tax_rate' => 0, 'category_id' => Category::firstOrCreate(['name' => 'Kategori'], ['image' => 't.jpg', 'description' => 'x'])->id,
+            'tax_rate' => 0,
+            'category_id' => Category::firstOrCreate(['name' => 'Kategori'], ['image' => 't.jpg', 'description' => 'x'])->id,
         ]);
     }
 
@@ -68,7 +69,9 @@ class ModifierGroupTest extends TestCase
 
     private function createGroup(array $overrides = []): ModifierGroup
     {
-        $this->actingAs($this->manager)->post(route('settings.modifiers.store'), $this->payload($overrides))->assertSessionHasNoErrors();
+        $this->actingAs($this->manager)
+            ->post(route('settings.modifiers.store'), $this->payload($overrides))
+            ->assertSessionHasNoErrors();
 
         return ModifierGroup::latest('id')->firstOrFail();
     }
@@ -88,7 +91,8 @@ class ModifierGroupTest extends TestCase
         ];
 
         foreach ($cases as [$overrides, $field, $message]) {
-            $this->actingAs($this->manager)->post(route('settings.modifiers.store'), $this->payload($overrides))
+            $this->actingAs($this->manager)
+                ->post(route('settings.modifiers.store'), $this->payload($overrides))
                 ->assertSessionHasErrors([$field => __("messages.modifiers.$message")]);
         }
 

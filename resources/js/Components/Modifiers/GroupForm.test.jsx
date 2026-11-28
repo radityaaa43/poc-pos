@@ -20,9 +20,17 @@ vi.mock("@inertiajs/react", () => ({
 }));
 vi.mock("react-hot-toast", () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
-const option = (id, name, price_delta) => ({ id, name, price_delta, is_default: id === 1, components: [] });
-const options = [option(1, "Regular", 0), option(2, "Large", 5000)];
-const group = { id: 7, name: "Ukuran", is_required: true, min_select: 1, max_select: 1, options };
+const group = {
+    id: 7,
+    name: "Ukuran",
+    is_required: true,
+    min_select: 1,
+    max_select: 1,
+    options: [
+        { id: 1, name: "Regular", price_delta: 0, is_default: true, components: [] },
+        { id: 2, name: "Large", price_delta: 5000, is_default: false, components: [] },
+    ],
+};
 
 const mount = (props = {}) => render(<GroupForm ingredients={[]} onClose={vi.fn()} {...props} />);
 const defaults = () => screen.getAllByRole("checkbox", { name: "Opsi default" });
@@ -75,7 +83,11 @@ describe("GroupForm", () => {
     });
 
     it("updates an existing group and shows the server messages where they belong", async () => {
-        errors = { min_select: "Pesan minimum", options: "Pesan default", "options.1.price_delta": "Pesan harga" };
+        errors = {
+            min_select: "Pesan minimum",
+            options: "Pesan default",
+            "options.1.price_delta": "Pesan harga",
+        };
         mount({ group });
         await userEvent.click(screen.getByRole("button", { name: "Simpan" }));
 
