@@ -62,6 +62,18 @@ class OutletBillSettingsTest extends TestCase
             ->put(route('settings.outlets.update', $outlet), $this->payload($outlet, $extra));
     }
 
+    // The API twin saves it too (AC-12).
+    public function test_the_waste_approval_limit_is_saved_over_the_api(): void
+    {
+        $outlet = $this->outlet();
+        $editor = $this->userWith(['outlets-update'], $outlet);
+        $this->confirmedApiUser($editor);
+
+        $this->putJson('/api/v1/outlets/'.$outlet->id, $this->payload($outlet, ['waste_approval_limit' => 42000]))->assertOk();
+
+        $this->assertSame(42000, app(StockWasteService::class)->approvalLimit($outlet->fresh()));
+    }
+
     // REQ-011 AC-12: the owner sets the outlet's waste approval limit; audited only when it changes.
     public function test_the_waste_approval_limit_is_saved_and_audited_once(): void
     {

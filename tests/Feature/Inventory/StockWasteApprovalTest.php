@@ -14,6 +14,7 @@ use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
 
 /**
@@ -157,6 +158,76 @@ class StockWasteApprovalTest extends TestCase
 
         $this->assertSame(StockWaste::STATUS_PENDING, $waste->fresh()->status);
         $this->assertSame(5, $this->pivotStock());
+    }
+
+    public function test_approval_uses_the_cost_of_that_moment(): void
+    {
+        $waste = $this->record(limit: 0);
+        // The average cost rose since the record: approval must use the current one.
+        $this->beans->warehouses()->updateExistingPivot($this->warehouse->id, ['avg_cost' => 300]);
+
+        $this->actingAs($this->approver)->post(route('stock-waste.approve', $waste))->assertRedirect();
+
+        $waste->refresh();
+        $this->assertSame(3000, (int) $waste->total_value); // 10 x 300
+        $this->assertSame(300.0, (float) $waste->moves()->first()->unit_cost);
+    }
+
+    public function test_a_second_approval_is_refused_as_already_handled(): void
+    {
+        $waste = $this->record(limit: 0);
+
+        $this->actingAs($this->approver)->post(route('stock-waste.approve', $waste))->assertRedirect();
+        $this->actingAs($this->approver)->post(route('stock-waste.approve', $waste))->assertSessionHasErrors('waste');
+
+        $this->assertSame(StockWaste::STATUS_RECORDED, $waste->fresh()->status);
+    }
+
+    public function test_cancel_restores_the_cost_and_keeps_the_record(): void
+    {
+        $waste = $this->record(limit: 1_000_000);
+        $moves = $waste->moves()->count();
+        $value = (int) $waste->total_value;
+
+        $this->actingAs($this->approver)->post(route('stock-waste.cancel', $waste), ['reason' => 'Salah catat'])->assertRedirect();
+
+        $waste->refresh();
+        $this->assertSame(StockWaste::STATUS_CANCELLED, $waste->status);
+        $this->assertSame($moves, $waste->moves()->count());
+        $this->assertSame($value, (int) $waste->total_value);
+        $this->assertSame(250.0, (float) $this->beans->warehouses()->where('warehouses.id', $this->warehouse->id)->first()->pivot->avg_cost);
+    }
+
+    public function test_cancel_needs_a_reason_and_the_approve_permission(): void
+    {
+        $waste = $this->record(limit: 1_000_000);
+
+        $this->actingAs($this->approver)->post(route('stock-waste.cancel', $waste), [])->assertSessionHasErrors('reason');
+        $this->actingAs($this->staff)->post(route('stock-waste.cancel', $waste), ['reason' => 'x'])->assertForbidden();
+
+        $this->assertSame(StockWaste::STATUS_RECORDED, $waste->fresh()->status);
+    }
+
+    public function test_an_approver_from_another_outlet_cannot_act(): void
+    {
+        $waste = $this->record(limit: 0);
+        $other = Outlet::create(['code' => 'PUT', 'name' => 'Puter']);
+        $outsider = User::factory()->create();
+        $outsider->givePermissionTo('stock-waste-approve');
+        $outsider->outlets()->attach($other->id, ['is_default' => true]);
+
+        $this->actingAs($outsider)->post(route('stock-waste.approve', $waste))->assertForbidden();
+    }
+
+    public function test_list_flags_show_the_available_actions(): void
+    {
+        $this->record(limit: 0);
+
+        $this->actingAs($this->approver)->get(route('stock-waste.index'))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('wastes.data.0.can_approve', true)
+                ->where('wastes.data.0.can_reject', true)
+                ->where('wastes.data.0.awaiting_other', false));
     }
 
     public function test_the_actions_need_the_approve_permission(): void
