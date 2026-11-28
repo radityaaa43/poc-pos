@@ -32,7 +32,7 @@ test.describe('48-modifiers: sales per option', () => {
         // Only the browser's language: changing the shared user's saved language would affect other steps.
         await page.addInitScript(() => localStorage.setItem('i18nextLng', 'en'));
         await page.goto('/dashboard/reports/modifiers');
-        await expect(page.getByRole('heading', { name: 'Sales per Option' })).toBeVisible();
+        await expect(page.getByRole('main').getByRole('heading', { name: 'Sales per Option' })).toBeVisible();
         await expect(page.getByRole('columnheader', { name: 'Option revenue (before discounts)' })).toBeVisible();
     });
 });

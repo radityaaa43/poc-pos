@@ -19,8 +19,10 @@ class ModifierSalesReportController extends SalesReportController
             'end_date' => ['nullable', 'date'],
         ]) + ['start_date' => null, 'end_date' => null];
 
-        $paidSales = $this->applyFilters(
-            Transaction::query()->where('payment_status', 'paid'),
+        // BR-5: paid sales, and sales on credit from the moment they are made; a failed or expired one was cancelled.
+        $countedSales = $this->applyFilters(
+            Transaction::query()->where(fn ($sale) => $sale->where('payment_status', 'paid')
+                ->orWhere(fn ($credit) => $credit->whereHas('receivable')->whereNotIn('payment_status', ['failed', 'expired']))),
             $filters,
             $this->scopedWarehouseIds($request, $outletAccessService)
         )->select('id');
@@ -29,7 +31,7 @@ class ModifierSalesReportController extends SalesReportController
         $returned = SalesReturnItem::query()
             ->join('sales_returns', 'sales_returns.id', '=', 'sales_return_items.sales_return_id')
             ->where('sales_returns.status', 'completed')
-            ->whereIn('sales_returns.transaction_id', $paidSales)
+            ->whereIn('sales_returns.transaction_id', $countedSales)
             ->groupBy('transaction_detail_id')
             ->selectRaw('transaction_detail_id, SUM(qty_return) as qty');
 
@@ -37,7 +39,7 @@ class ModifierSalesReportController extends SalesReportController
         $rows = DB::table('transaction_detail_modifiers as sold')
             ->join('transaction_details as line', 'line.id', '=', 'sold.transaction_detail_id')
             ->leftJoinSub($returned, 'returned', 'returned.transaction_detail_id', '=', 'line.id')
-            ->whereIn('line.transaction_id', $paidSales)
+            ->whereIn('line.transaction_id', $countedSales)
             ->groupBy('modifier_option_id', 'group_name', 'option_name')
             ->selectRaw('modifier_option_id, group_name, option_name,
                 SUM(line.qty - COALESCE(returned.qty, 0)) as qty,

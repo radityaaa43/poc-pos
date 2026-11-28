@@ -54,8 +54,8 @@ grup kurang dari minimumnya (pemanggil memblokir menu). Stok tidak diperiksa. `c
 
 - Outlet dan tanggal sama dengan laporan penjualan: gudang outlet aktif (pemilih outlet di header) dan tanggal
   transaksi di zona waktu aplikasi (`APP_TIMEZONE`; WIB hanya bila diisi `Asia/Jakarta`).
-- Hanya penjualan berstatus `paid`. Berbeda dari laporan penjualan yang menghitung semua status: penjualan tempo
-  yang belum lunas belum masuk.
+- Dihitung: penjualan `paid` dan penjualan tempo (punya piutang) sejak dijual. Tidak dihitung: penjualan
+  `failed` atau `expired`, dan penjualan non-tempo yang belum lunas.
 - Omzet opsi = tambahan harga opsi × qty, sebelum diskon apa pun.
 - Retur `completed` mengurangi qty dan omzet pada periode penjualannya, bukan periode returnya.
 - Dikelompokkan per opsi dan nama grup serta opsi saat terjual: opsi terhapus tetap tampil, opsi yang diganti nama

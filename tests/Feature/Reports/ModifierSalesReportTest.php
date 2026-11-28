@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Reports;
 
+use App\Models\Customer;
 use App\Models\Outlet;
 use App\Models\SalesReturn;
 use App\Models\Transaction;
@@ -85,13 +86,27 @@ class ModifierSalesReportTest extends ModifierSaleTestCase
         $this->assertSame([['Size', 'Jumbo', 1, 9000], ['Size', 'Large', 1, 5000]], $this->rows());
     }
 
-    public function test_only_paid_sales_count(): void
+    // BR-5: paid sales and sales on credit count from the moment they are made; other unpaid and cancelled ones don't.
+    public function test_paid_and_credit_sales_count(): void
     {
         foreach (['pending', 'pending_approval', 'unpaid', 'failed', 'expired'] as $status) {
             $this->sell(['Large'])->update(['payment_status' => $status]);
         }
 
         $this->assertSame([], $this->rows());
+
+        $customer = Customer::create(['name' => 'Budi', 'no_telp' => '62811', 'address' => 'Jl. Satu']);
+
+        foreach (['unpaid', 'failed'] as $status) {
+            $sale = $this->sell(['Regular']);
+            $sale->update(['payment_status' => $status]);
+            $sale->receivable()->create([
+                'customer_id' => $customer->id, 'invoice' => $sale->invoice, 'total' => $sale->grand_total, 'paid' => 0,
+                'status' => 'unpaid',
+            ]);
+        }
+
+        $this->assertSame([['Size', 'Regular', 1, 0]], $this->rows());
     }
 
     public function test_report_needs_reports_access(): void

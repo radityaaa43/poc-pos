@@ -306,7 +306,8 @@ export default function SalesReturnForm({
                                 {itemStates.map((item) => (
                                     <tr key={item.id}>
                                         <Table.Td>
-                                            <div>
+                                            {/* The cell never wraps, so a long note would push the settlement panel off screen. */}
+                                            <div className="max-w-xs whitespace-normal break-words">
                                                 <p className="font-medium text-slate-800 dark:text-slate-100">
                                                     {item.product?.title || "-"}
                                                 </p>
