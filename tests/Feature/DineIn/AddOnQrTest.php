@@ -14,10 +14,13 @@ use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\CashierShiftService;
 use App\Services\KitchenItemService;
+use Closure;
 use Database\Seeders\PermissionSeeder;
 use Database\Seeders\RoleSeeder;
 use Database\Seeders\UserSeeder;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 // #251 (REQ-003 AC-21, BR-10, BR-11): a table-QR order joins only the order whose status page it was made from.
@@ -179,6 +182,38 @@ class AddOnQrTest extends TestCase
         $this->complete($original);
 
         $this->assertSame($original->transaction_id, $this->accept($late)->transaction->parent_transaction_id);
+    }
+
+    // The POS checkout and pay() take the shift first; accept the other way round would deadlock with them.
+    public function test_accept_and_checkout_lock_in_order_before_their_first_plain_read(): void
+    {
+        $addOn = $this->order(from: $this->accept($this->order()));
+
+        $this->assertLeadingReads(['cashier_shifts', 'dine_orders'], fn () => $this->accept($addOn));
+    }
+
+    /**
+     * The first reads of the app's own transaction (level 1 is the test's), by table; on MySQL each of them locks.
+     * SQLite ignores FOR UPDATE, so locally only their order is proven.
+     */
+    private function assertLeadingReads(array $tables, Closure $act): void
+    {
+        $sql = [];
+        DB::listen(function (QueryExecuted $query) use (&$sql) {
+            if (DB::transactionLevel() > 1) {
+                $sql[] = $query->sql;
+            }
+        });
+
+        $act();
+
+        $leading = array_slice($sql, 0, count($tables));
+        $this->assertSame($tables, preg_replace('/^.*? from .(\w+).*$/s', '$1', $leading));
+        if (DB::getDriverName() === 'mysql') {
+            foreach ($leading as $read) {
+                $this->assertStringContainsString('for update', $read);
+            }
+        }
     }
 
     private function tableNamed(string $name): DiningTable

@@ -44,6 +44,9 @@ class DineOrderService
         $warehouseId = $shift->warehouse_id;
 
         DB::transaction(function () use ($order, $shift, $warehouseId, $cashierId) {
+            // Shift, then orders, then sales, as pay() and the checkout lock them: the new sale references this shift.
+            $this->cashierShiftService->requireActiveShiftForUser($cashierId, lockForUpdate: true);
+
             // ponytail: lock the order row so accept cannot race with a second accept/reject
             $order = DineOrder::with(['items.product.components', 'table.area.outlet'])
                 ->whereKey($order->id)
