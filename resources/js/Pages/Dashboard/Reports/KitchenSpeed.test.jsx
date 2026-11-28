@@ -263,4 +263,59 @@ describe("Kitchen speed report page", () => {
         expect(screen.getByText("All orders from all stations")).toBeInTheDocument();
         expect(screen.getByRole("row", { name: /Kopi Susu/ })).toHaveTextContent("Bar (deleted)");
     });
+
+    it("shows the share of kitchen items with complete times", () => {
+        render(
+            <KitchenSpeed
+                {...props({
+                    completeness: { items: 20, complete: 19, percent: 95, below_target: false, target: 95 },
+                })}
+            />,
+        );
+
+        const card = screen.getByRole("region", { name: "Kelengkapan data" });
+        expect(within(card).getByText("95,0%")).toBeInTheDocument();
+        expect(within(card).getByText("19 dari 20 item dapur punya waktu lengkap sampai siap")).toBeInTheDocument();
+        expect(within(card).queryByText("Di bawah target 95%")).not.toBeInTheDocument();
+        expect(within(card).getByText("Item yang masih berjalan ikut dihitung; angkanya naik saat item selesai.")).toBeInTheDocument();
+    });
+
+    it("marks a share below the 95% target, in both languages", async () => {
+        const completeness = { items: 20, complete: 18, percent: 90, below_target: true, target: 95 };
+        const { unmount } = render(<KitchenSpeed {...props({ completeness })} />);
+        expect(screen.getByText("Di bawah target 95%")).toBeInTheDocument();
+        unmount();
+
+        await i18n.changeLanguage("en");
+        render(<KitchenSpeed {...props({ completeness })} />);
+        expect(screen.getByText("Below the 95% target")).toBeInTheDocument();
+        expect(screen.getByText("18 of 20 kitchen items have times up to ready")).toBeInTheDocument();
+    });
+
+    it("shows the card on a period whose items are all still open", () => {
+        render(
+            <KitchenSpeed
+                {...props({
+                    rows: [],
+                    orders: { orders: 0, avg_minutes: null },
+                    empty: true,
+                    completeness: { items: 4, complete: 0, percent: 0, below_target: true, target: 95 },
+                })}
+            />,
+        );
+
+        expect(screen.getByText("Belum ada data dapur untuk periode ini")).toBeInTheDocument();
+        expect(screen.getByRole("region", { name: "Kelengkapan data" })).toBeInTheDocument();
+        expect(screen.getByText("0 dari 4 item dapur punya waktu lengkap sampai siap")).toBeInTheDocument();
+    });
+
+    it("hides the card when there are no kitchen items", () => {
+        render(
+            <KitchenSpeed
+                {...props({ completeness: { items: 0, complete: 0, percent: null, below_target: false, target: 95 } })}
+            />,
+        );
+
+        expect(screen.queryByRole("region", { name: "Kelengkapan data" })).not.toBeInTheDocument();
+    });
 });

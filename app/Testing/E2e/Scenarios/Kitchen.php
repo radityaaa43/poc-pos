@@ -144,6 +144,55 @@ class Kitchen
                 ] + ($station ? ['station' => $station->name] : []);
             },
 
+            // Items for the kitchen speed report's data-completeness card on --arg=date=<Y-m-d> (default 2025-04-14),
+            // all accepted at 10:00: --arg=complete=<n> fully made (prep and ready), --arg=open=<n> started but not
+            // ready, --arg=cancelled=<n> / --arg=not_collected=<n> the statuses the card leaves out.
+            'kitchen.speed-completeness' => function (array $options): array {
+                $warehouse = Warehouse::where('code', E2eSeeder::WAREHOUSE_CODE)->firstOrFail();
+                $cashier = User::where('email', 'cashier@e2e.test')->firstOrFail();
+                $product = Product::create([
+                    'category_id' => Category::firstOrCreate(['name' => 'E2E Kategori'])->id,
+                    'barcode' => 'E2E-'.Str::upper(Str::random(10)),
+                    'title' => 'Soto '.Str::upper(Str::random(6)),
+                    'buy_price' => 5000, 'sell_price' => 10000, 'stock' => 20, 'tax_type' => 'exclusive', 'tax_rate' => 0,
+                    'needs_preparation' => true, 'prep_target_minutes' => 5,
+                ]);
+                $warehouse->products()->attach($product->id, ['stock' => 20]);
+
+                $day = $options['date'] ?? '2025-04-14';
+                $accepted = Carbon::parse($day.' 10:00:00');
+                // [status, minutes after 10:00 of: preparing, ready, served]
+                $lines = [
+                    ...array_fill(0, (int) ($options['complete'] ?? 0), [KitchenItem::STATUS_SERVED, 1, 2, 3]),
+                    ...array_fill(0, (int) ($options['open'] ?? 0), [KitchenItem::STATUS_PREPARING, 0, null, null]),
+                    ...array_fill(0, (int) ($options['cancelled'] ?? 0), [KitchenItem::STATUS_CANCELLED, null, null, null]),
+                    ...array_fill(0, (int) ($options['not_collected'] ?? 0), [KitchenItem::STATUS_NOT_COLLECTED, 1, 2, null]),
+                ];
+                foreach ($lines as [$status, $preparing, $ready, $served]) {
+                    $at = fn (?int $minutes) => $minutes === null ? null : $accepted->copy()->addMinutes($minutes);
+                    $transaction = Transaction::create([
+                        'cashier_id' => $cashier->id, 'warehouse_id' => $warehouse->id, 'invoice' => 'KC'.Str::upper(Str::random(8)),
+                        'cash' => 10000, 'change' => 0, 'discount' => 0, 'shipping_cost' => 0, 'grand_total' => 10000,
+                        'payment_method' => 'cash', 'payment_status' => 'paid', 'tax_rate' => 0, 'tax_total' => 0,
+                    ]);
+                    $detail = $transaction->details()->create([
+                        'product_id' => $product->id, 'conversion_factor' => 1, 'qty' => 1, 'base_unit_price' => 10000,
+                        'unit_price' => 10000, 'price' => 10000, 'discount_total' => 0, 'cost_total' => 5000,
+                    ]);
+                    KitchenItem::create([
+                        'transaction_id' => $transaction->id, 'transaction_detail_id' => $detail->id, 'product_id' => $product->id,
+                        'warehouse_id' => $warehouse->id, 'qty' => 1, 'status' => $status, 'accepted_at' => $accepted,
+                        'preparing_at' => $at($preparing), 'ready_at' => $at($ready), 'served_at' => $at($served),
+                    ]);
+                }
+
+                return [
+                    'date' => $day, 'title' => $product->title,
+                    'items' => (int) ($options['complete'] ?? 0) + (int) ($options['open'] ?? 0),
+                    'complete' => (int) ($options['complete'] ?? 0),
+                ];
+            },
+
             // Sets the sale --arg=invoice=<invoice> to --arg=status=failed|expired|pending (default failed), as the
             // gateway's webhook or the expiry job does; `paid` flips it to paid again (a retried webhook).
             'kitchen.set-status' => function (array $options): array {
