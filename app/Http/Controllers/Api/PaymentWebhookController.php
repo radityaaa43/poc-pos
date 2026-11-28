@@ -566,7 +566,7 @@ class PaymentWebhookController extends Controller
                 $tender->update([
                     'payment_status' => $newStatus,
                     'payment_reference' => $reference ?: $tender->payment_reference,
-                    'paid_at' => $newStatus === 'paid' ? now() : $tender->paid_at,
+                    'paid_at' => $newStatus === 'paid' ? $tender->paid_at ?? now() : $tender->paid_at,
                 ]);
             }
             $values = ['payment_status' => app(TransactionTenderService::class)->aggregateStatus(

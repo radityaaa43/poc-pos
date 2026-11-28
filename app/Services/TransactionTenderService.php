@@ -231,8 +231,10 @@ class TransactionTenderService
             $owed = max(0, $transaction->amountDue()
                 - (int) $transaction->tenders()->where('payment_status', TransactionTender::STATUS_PAID)->sum('amount'));
 
+            // Only the ones still waiting: a transfer already paid keeps the stamp it got when the money arrived.
             $transaction->tenders()
                 ->where('method', TransactionTender::METHOD_BANK_TRANSFER)
+                ->where('payment_status', TransactionTender::STATUS_PENDING)
                 ->update(['payment_status' => TransactionTender::STATUS_PAID, 'paid_at' => now()]);
 
             $tenders = $transaction->tenders()->get();
@@ -363,9 +365,13 @@ class TransactionTenderService
     {
         $closedAt = $shift->closed_at;
 
+        // A till payment writes its tender without `paid_at` (claim()), so a tender created at or after the close counts
+        // whatever its stamp; the close's own money has a stamp before it.
         $late = (int) $transaction->tenders()
             ->where('payment_status', TransactionTender::STATUS_PAID)
-            ->when($closedAt, fn ($query) => $query->where('paid_at', '>=', $closedAt))
+            ->when($closedAt, fn ($query) => $query->where(fn ($paid) => $paid
+                ->where('paid_at', '>=', $closedAt)
+                ->orWhere(fn ($unmarked) => $unmarked->whereNull('paid_at')->where('created_at', '>=', $closedAt))))
             ->sum('amount');
 
         if ($late > 0) {

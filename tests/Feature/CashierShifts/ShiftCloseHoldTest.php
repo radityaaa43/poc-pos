@@ -572,15 +572,42 @@ class ShiftCloseHoldTest extends TestCase
         $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
     }
 
-    public function test_two_late_parts_of_a_split_are_both_counted(): void
+    public function test_till_cash_taken_after_the_close_counts_in_the_late_amount(): void
     {
-        // Both transfers are marked paid by the confirmation, after the close: the stored amount is their sum. The cash
-        // taken at checkout has no paid_at, so it never counts, even though the sale is partly paid before the close.
-        $split = $this->splitSale($this->shift, tenders: [['cash', 'paid', 5000], ['bank_transfer', 'pending', 6000], ['bank_transfer', 'pending', 9000]]);
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+        $bill = $this->guestPayLater($this->shift);
+        $bill->update(['grand_total' => 20000, 'payment_status' => 'pending']);
         $this->forceClose($this->shift, $this->cashier);
-        app(TransactionTenderService::class)->confirmTransfer($split);
 
-        $this->assertSame(15000, $split->fresh()->paid_after_close_amount);
+        // The till takes the booked bill in two parts after the close: Rp 5.000 cash now, Rp 15.000 by transfer.
+        app(TransactionSettlementService::class)->settle($bill->fresh(), $this->cashier, [
+            ['method' => 'cash', 'amount' => 5000, 'cash_received' => 5000],
+            ['method' => 'bank_transfer', 'amount' => 15000, 'bank_account_id' => $account->id],
+        ]);
+        app(TransactionTenderService::class)->confirmTransfer($bill->fresh());
+
+        // The cash tender the till wrote carries no paid_at; it was created after the close, so it counts with the transfer.
+        $this->assertSame(20000, $bill->fresh()->paid_after_close_amount);
+    }
+
+    public function test_a_payment_before_the_close_keeps_its_stamp_when_redelivered_late(): void
+    {
+        $this->useGateway('midtrans', false);
+        $account = BankAccount::create(['bank_name' => 'BCA', 'account_number' => '1234567890', 'account_name' => 'Toko', 'is_active' => true]);
+        $sale = $this->splitSale($this->shift, 'pending', [
+            ['cash', 'paid', 5000], ['qris', 'paid', 15000], ['bank_transfer', 'pending', 10000],
+        ], ['grand_total' => 30000, 'bank_account_id' => $account->id]);
+        // The QRIS part was paid before the close, so it is in the recap that closed.
+        DB::table('transaction_tenders')->where('transaction_id', $sale->id)->where('method', 'qris')
+            ->update(['paid_at' => now()->subDay()]);
+        $this->forceClose($this->shift, $this->cashier);
+
+        // The gateway redelivers the old settlement after the close: it must not move that stamp.
+        $this->notify('midtrans', "{$sale->invoice}-qris", 'paid', amount: 15000)->assertOk();
+        app(TransactionTenderService::class)->confirmTransfer($sale->fresh());
+
+        // Only the transfer arrived late; the QRIS part was already counted by the closed recap.
+        $this->assertSame(10000, $sale->fresh()->paid_after_close_amount);
     }
 
     public function test_split_gateway_part_paid_after_force_close_is_flagged(): void
