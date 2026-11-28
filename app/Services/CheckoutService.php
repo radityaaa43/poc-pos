@@ -266,7 +266,8 @@ class CheckoutService
                         'warehouse_id' => $warehouseId,
                     ])->lockForUpdate()->first()
                     : null;
-                $available = $pw ? (int) $pw->stock : (int) $product->stock;
+                // Read fresh: this line's options may have taken from the menu since $product was loaded.
+                $available = (int) ($pw ? $pw->stock : Product::lockForUpdate()->findOrFail($product->id)->stock);
                 if ($available < $baseQty) {
                     throw ValidationException::withMessages([
                         'stock' => "Stok {$product->title} tidak mencukupi. Tersedia: {$available}.",

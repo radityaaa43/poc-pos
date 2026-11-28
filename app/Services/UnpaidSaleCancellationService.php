@@ -87,7 +87,11 @@ class UnpaidSaleCancellationService
     private function lockStockRows(Transaction $sale): void
     {
         $ids = $sale->details
-            ->flatMap(fn ($detail) => [$detail->product_id, ...($detail->product ? $detail->product->components->modelKeys() : [])])
+            ->flatMap(fn ($detail) => [
+                $detail->product_id,
+                ...($detail->product ? $detail->product->components->modelKeys() : []),
+                ...$detail->modifiers->flatMap->components->pluck('product_id'),
+            ])
             ->unique()->sort()->values();
 
         DB::table('product_warehouse')->where('warehouse_id', $sale->warehouse_id)->whereIn('product_id', $ids)

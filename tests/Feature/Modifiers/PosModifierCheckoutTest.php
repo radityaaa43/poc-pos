@@ -191,12 +191,60 @@ class PosModifierCheckoutTest extends ModifierSaleTestCase
 
         $this->checkout()->assertSessionHasNoErrors();
 
-        // The first stock rows read by (product, warehouse) are the locks, taken before any deduction.
-        $locked = collect(DB::getQueryLog())
+        // The deductions read their rows again, so the first three reads are the locks.
+        $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], array_slice($this->rowsReadBeforeTheFirstStockWrite(), 0, 3));
+    }
+
+    // SQLite shows the order only; that a second transaction waits on these rows is MySQL behaviour.
+    public function test_expiry_locks_every_stock_row_in_product_order_before_restocking(): void
+    {
+        // A composite menu of Boba, sold with Large (milk): the restock itself meets boba before milk.
+        $this->menu->update(['is_composite' => true]);
+        $this->menu->components()->attach($this->boba->id, ['qty' => 1]);
+        $this->add(['Large']);
+        $this->checkout()->assertSessionHasNoErrors();
+        Transaction::sole()->update(['payment_method' => 'bank_transfer', 'payment_status' => 'pending']);
+        $this->travel(25)->hours();
+        DB::enableQueryLog();
+
+        $this->artisan('transactions:expire')->assertSuccessful();
+
+        // One locking read, ordered by product_id, covers the menu, its recipe and the option's before any write.
+        $lock = collect(DB::getQueryLog())
+            ->map(fn (array $query) => ['query' => strtr($query['query'], '`', '"')] + $query)
+            ->takeUntil(fn (array $query) => str_starts_with($query['query'], 'update "product'))
+            ->sole(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse"'));
+        $this->assertStringEndsWith('order by "product_id" asc', $lock['query']);
+        $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], array_slice($lock['bindings'], 1));
+        $this->assertSame([[10, 10], [10, 10]], [$this->stockOf($this->boba), $this->stockOf($this->milk)]);
+    }
+
+    /** @return list<int> products whose warehouse row was read one by one (the locks) before any stock was written */
+    private function rowsReadBeforeTheFirstStockWrite(): array
+    {
+        return collect(DB::getQueryLog())
             // MySQL quotes names with backticks, SQLite with double quotes.
-            ->filter(fn (array $query) => str_starts_with(strtr($query['query'], '`', '"'), 'select * from "product_warehouse" where ("product_id" = ?'))
-            ->take(3)->map(fn (array $query) => $query['bindings'][0])->values()->all();
-        $this->assertSame([$this->menu->id, $this->milk->id, $this->boba->id], $locked);
+            ->map(fn (array $query) => ['query' => strtr($query['query'], '`', '"')] + $query)
+            ->takeUntil(fn (array $query) => str_starts_with($query['query'], 'update "product'))
+            ->filter(fn (array $query) => str_starts_with($query['query'], 'select * from "product_warehouse" where ("product_id" = ?'))
+            ->map(fn (array $query) => $query['bindings'][0])->values()->all();
+    }
+
+    public function test_menu_used_by_its_own_option_cannot_go_below_zero(): void
+    {
+        // Without a warehouse row the menu's check falls back to products.stock, which the option has just taken from.
+        CashierShift::query()->update(['warehouse_id' => null]);
+        $this->option('Jelly')->components()->sync([$this->menu->id => ['qty' => 1]]);
+        $this->add(['Regular', 'Jelly'])->assertSessionHasNoErrors();
+        $this->menu->update(['stock' => 1]);
+
+        $this->checkout()->assertSessionHasErrors('stock');
+        $this->assertSame(1, (int) $this->menu->fresh()->stock);
+
+        $this->menu->update(['stock' => 2]);
+        $this->checkout()->assertSessionHasNoErrors();
+        $this->assertSame([[2, 1], [1, 0]], StockMutation::orderBy('id')->get()
+            ->map(fn (StockMutation $row) => [(int) $row->stock_before, (int) $row->stock_after])->all());
     }
 
     public function test_expired_payment_gives_back_the_recipe_as_sold(): void
